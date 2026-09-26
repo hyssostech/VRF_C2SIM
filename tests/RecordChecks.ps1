@@ -64,9 +64,18 @@ $script:TripwireRules = @(
 # found 21 lines / 23 occurrences over the four live docs and MISSED "user 2026-09-13",
 # "the user's rulings", "the user RULED", "user decision" and "ruling 2026"; this one
 # finds 26 lines / 30 occurrences.
+# WIDENED 2026-09-25 (U3 lane J, gap G1 from the lane G cold-start review, item F7):
+# the forms "RULED ('3. Fast.')", "ruled OPEN ('5. Open.')", "RULED (" and "ruled ("
+# were not claims to this pattern, so DEMO_READINESS row 10 carried two un-id'd
+# rulings past a green 13c. The match is case-insensitive like the rest (the caller
+# passes IgnoreCase); \b keeps "UNRULED (" out.
 $script:RulingClaimPattern = 'USER RULING|user ruling|owner ruling|USER DECISION|user decision|ruled by the user|' +
                              '(user|owner).{0,3}s ruling|user-ruled|user ruled|RULED[^|]{0,60}\((user|owner)|' +
-                             '(user|owner) 2026-[0-9]{2}-[0-9]{2}|per the user|your ruling|you ruled|ruling 2026'
+                             '(user|owner) 2026-[0-9]{2}-[0-9]{2}|per the user|your ruling|you ruled|ruling 2026|' +
+                             '\bruled ?\(|\bruled OPEN|(?<!until )\bruled on\b'
+# J2 (2026-09-25, lane G3 review): "User? RULED on both counts" (TASK_VOCABULARY :824) was
+# not a claim either, hence "ruled on". "Until ruled on" (PREREG_RUNNER_CONFIRM :135) says
+# the opposite - nothing is ruled yet - so the lookbehind keeps it out.
 # The id form must also cover the UNVERIFIED entries: a site whose "ruling" has no
 # owner words behind it is relabelled in place and carries RL-UNVERIFIED-<NAME>, and
 # that label has to satisfy the check or the relabelling would read as a violation.
@@ -384,10 +393,34 @@ function Format-TripwireHit {
 
 # "Same paragraph / table row", defined exactly:
 #  - a claim on a line whose first non-space character is '|' is a TABLE ROW, and
-#    its unit is that one physical line (an id in the row above does NOT count);
+#    its unit is the SENTENCE of that row that holds the claim (an id in the row
+#    above does NOT count, and since 2026-09-25 neither does an id in another
+#    sentence of the same row - see Get-RulingRowSentences);
 #  - otherwise the unit is the PARAGRAPH: the run of consecutive lines around it,
 #    stopping at a blank line or at a table row (so a table cannot leak an id into
-#    the prose next to it).
+#    the prose next to it) - AND, since 2026-09-25 (J2), never more than
+#    $script:RulingParagraphWindow lines above or below the claim line. See the
+#    note at that variable for why a line window and not a sentence.
+# J2 (2026-09-25, lane G3 review, K2): DESIGN_ORBAT_TO_VRF_2026-09-06.md :3-433 has no
+# blank line, so it was ONE 430-line "paragraph" and one dated correction's ids at :412
+# satisfied five unrelated claims up to 320 lines away. A paragraph unit is now capped at
+# this many lines above and below the claim line (still stopping at a blank line or a
+# table row). A LINE WINDOW, not a sentence: in prose the house form puts the id in the
+# NEXT sentence ("USER RULING ...: X. Recorded as RL-... in the ledger." - the 13c clean
+# control), and wrapped prose breaks sentences across lines; a sentence cut would turn
+# that form red everywhere. N is MEASURED (laneJ2 report): the smallest N at which the
+# four live docs stay clean.
+$script:RulingParagraphWindow = 2
+
+# J2: a paragraph unit also stops at a LIST ITEM or HEADING boundary (a line whose first
+# non-space text is "- ", "* ", "+ ", "1. ", "(b) " or "#"): adjacent bullets are separate
+# statements. MEASURED: without this, the id put on REPORTING_ASSESSMENT :83 (C15) covered
+# the unrelated R-SURFACE-PROXY bullet two lines below it.
+function Test-RulingItemStart {
+    param([string]$Line)
+    return ($Line -match '^\s*(?:[-*+]\s|\d+\.\s|\([a-z0-9]\)\s|#)')
+}
+
 function Get-RulingClaimUnit {
     param([string[]]$Lines, [int]$Index)
     $cur = [string]$Lines[$Index]
@@ -395,20 +428,56 @@ function Get-RulingClaimUnit {
         return [pscustomobject]@{ Kind = 'table-row'; Start = $Index; End = $Index; Text = $cur }
     }
     $s = $Index
-    while ($s -gt 0) {
+    while ($s -gt 0 -and ($Index - $s) -lt $script:RulingParagraphWindow) {
+        if (Test-RulingItemStart -Line ([string]$Lines[$s])) { break }
         $prev = [string]$Lines[$s - 1]
         if ($prev.Trim().Length -eq 0) { break }
         if ($prev.TrimStart().StartsWith('|')) { break }
         $s--
     }
     $e = $Index
-    while ($e -lt ($Lines.Count - 1)) {
+    while ($e -lt ($Lines.Count - 1) -and ($e - $Index) -lt $script:RulingParagraphWindow) {
         $next = [string]$Lines[$e + 1]
         if ($next.Trim().Length -eq 0) { break }
+        if (Test-RulingItemStart -Line $next) { break }
         if ($next.TrimStart().StartsWith('|')) { break }
         $e++
     }
     return [pscustomobject]@{ Kind = 'paragraph'; Start = $s; End = $e; Text = (@($Lines[$s..$e]) -join "`n") }
+}
+
+# G2 (U3 lane J, 2026-09-25; lane G's F7): a table row used to be ONE unit, so a single
+# id anywhere in a row - some rows run to 10,000 characters - covered every claim in it.
+# In a table row the unit is now the SENTENCE around each claim: the row is cut after
+# every ". " (a period followed by white space) and nowhere else.
+# SENTENCE, not an N-character window, because a sentence is what a reader takes as one
+# claim and it needs no tuning constant; a window would let an id from the NEXT sentence
+# count whenever it happened to be close. NOT cut at "; " (the brief allowed it): MEASURED
+# 2026-09-25, the only extra site a "; " cut found was DEMO_READINESS row 10a, where it
+# split the correction "(CORRECTION 2026-09-21: this said 'user decision owed'; it was not
+# owed - he gave it on 2026-09-13, RL-20260913-03 ...)" away from its own id - a false red.
+# A cell bar is NOT a cut either, so an id in the neighbouring cell of the same sentence
+# still counts. A claim that straddles a cut takes both sentences. Several claims in one
+# sentence are ONE claim (one id covers them); claims in different sentences are separate
+# claims, each needing its own id. Paragraph units (prose) are unchanged.
+function Get-RulingRowSentences {
+    param([string]$Row, [string]$ClaimPattern)
+    $starts = New-Object System.Collections.Generic.List[int]
+    $starts.Add(0)
+    foreach ($b in [regex]::Matches($Row, '\.\s+')) { $starts.Add($b.Index + $b.Length) }
+    $seen = @{}
+    $out = New-Object System.Collections.Generic.List[psobject]
+    foreach ($m in [regex]::Matches($Row, $ClaimPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        $s = 0
+        foreach ($st in $starts) { if ($st -le $m.Index) { $s = $st } }
+        $e = $Row.Length
+        foreach ($st in $starts) { if ($st -ge ($m.Index + [math]::Max(1, $m.Length)) -and $st -lt $e) { $e = $st } }
+        $key = ('{0}:{1}' -f $s, $e)
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+        $out.Add([pscustomobject]@{ Start = $s; End = $e; Text = $Row.Substring($s, $e - $s) })
+    }
+    return @($out)
 }
 
 function Find-RulingClaims {
@@ -423,6 +492,22 @@ function Find-RulingClaims {
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if (-not [regex]::IsMatch([string]$lines[$i], $ClaimPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) { continue }
         $unit = Get-RulingClaimUnit -Lines $lines -Index $i
+        if ($unit.Kind -eq 'table-row') {
+            foreach ($sen in @(Get-RulingRowSentences -Row ([string]$lines[$i]) -ClaimPattern $ClaimPattern)) {
+                $ids = @([regex]::Matches($sen.Text, $script:RulingIdPattern) | ForEach-Object { $_.Value } | Sort-Object -Unique)
+                $out.Add([pscustomobject]@{
+                    RelPath    = $RelPath
+                    LineNumber = $i + 1
+                    UnitKind   = 'table-sentence'
+                    UnitStart  = $i + 1
+                    UnitEnd    = $i + 1
+                    Ids        = $ids
+                    Line       = [string]$lines[$i]
+                    Sentence   = $sen.Text
+                })
+            }
+            continue
+        }
         $ids = @([regex]::Matches($unit.Text, $script:RulingIdPattern) | ForEach-Object { $_.Value } | Sort-Object -Unique)
         $out.Add([pscustomobject]@{
             RelPath    = $RelPath
@@ -432,6 +517,7 @@ function Find-RulingClaims {
             UnitEnd    = $unit.End + 1
             Ids        = $ids
             Line       = [string]$lines[$i]
+            Sentence   = ''
         })
     }
     return @($out)

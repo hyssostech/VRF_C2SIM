@@ -86,7 +86,7 @@ C12 LIFEFORMS CRASH THE 5.2d HEADLESS SIM until the DI-Guy DATA is installed (20
     type map: the fidelity table is the first thing on any build to instantiate a DI-Guy human.
     FIX = install the package (user). No vrfSim switch disables DI-Guy (--nodiguy is
     translationFileCreate's). Interim vehicle-only proxies for lifeform rows = fidelity regression
-    = user ruling. PREREG_COASTP1_52_RUN1 sec 6-7; DEMO_READINESS row 17.
+    = user ruling (no owner words on file - RL-UNVERIFIED-DIGUY01). PREREG_COASTP1_52_RUN1 sec 6-7; DEMO_READINESS row 17.
 RESEARCH AUDIT (2026-09-06, supervisor) - the ORBAT thread's workflows, graded on what survived
 the NEXT live run. Sound core throughout = the vendor sample + installed UG52 + deterministic runs;
 every specific MECHANISM the workflows produced was later falsified or left open:
@@ -110,7 +110,7 @@ every specific MECHANISM the workflows produced was later falsified or left open
   notes): anchor order sample > installed docs > deterministic runs > headers > agents.
 DISSENT LOG: a session that disagrees writes ONE line here naming the NEW evidence; reopening is
 the user's call.
-C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user ruling 2026-09-06
+C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user ruling 2026-09-06 (RL-20260906-02)
     ~21:50Z ("There are just 11 taskees. These are the only ones that need to be simulated. You are
     confusing the ORBAT for the whole Corps with the specific elements that are part of the COA
     proper"). Verified: COA-STP1's 42 tasks reference exactly 11 units (5 BN, 4 COY, 2 no echelon),
@@ -128,7 +128,7 @@ C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user 
     move-into-formation from every sub-unit (C1b's gate); at the 11-unit start-point pile one
     sub-unit can stall in the vendor script's replan loop and the unit never leaves; TEMPLATE
     units have no such gate. Which unit it hits varies by run.
-C14 CO-LOCATED UNITS ARE SPREAD AT STARTUP - user ruling 2026-09-07 ~00:20Z ("bite my tongue and
+C14 CO-LOCATED UNITS ARE SPREAD AT STARTUP - user ruling 2026-09-07 ~00:20Z (RL-20260907-02) ("bite my tongue and
     accept trying to space out the entities at startup, given the evidence of the triangular
     position you now cite"). Supersedes R8's 2026-07-13 ruling FOR 5.2 (that one was on 5.0.2, no
     vehicle-vehicle avoidance). Anchors: the vendor sample offsets even a platoon's tanks by 10 m
@@ -136,7 +136,7 @@ C14 CO-LOCATED UNITS ARE SPREAD AT STARTUP - user ruling 2026-09-07 ~00:20Z ("bi
     entities, vehicles "could become trapped"); the shipped Armor-Co formations span up to 630 m.
     Lever: the existing DeStacker rings with Vrf:DeStackSpacingMeters=700 (> the longest company
     formation). Record: PREREG_ASSEMBLY_LAYOUT_2026-09-07.
-C15 A UNIT'S TASK COMPLETION IS REPORTED FROM THE UNIT'S OWN ARRIVAL EVIDENCE - user ruling
+C15 A UNIT'S TASK COMPLETION IS REPORTED FROM THE UNIT'S OWN ARRIVAL EVIDENCE - user ruling (RL-20260907-01)
     2026-09-07 ~11:00Z ("report a unit's completion from the unit's own arrival evidence is
     fine"). Why: on 5.2 the vendor holds a unit's Move Along Route completion until EVERY member
     reports arrival ("Subs still moving: N"); in the spaced run 003457Z seven of nine units stood

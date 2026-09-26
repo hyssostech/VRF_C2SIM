@@ -3,7 +3,7 @@
 # Attack/Defend/Seize task classes - every tactical task is a Lua scripted task, many shipped in EntityLevel; the init's
 # 35 tactical areas are already created in VR-Forces with the C2SIM uuid; the binding constraint is parameter supply
 # (9 of 42 COA-STP1 tasks carry no location; 42/42 self-target). Six rulings R1-R6 are the user's (sec 7).
-# RULINGS 2026-09-14: R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5 ruled (entity first + user mode option), R6 ruled (test filter enforcement, then fan-out to composed companies) - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
+# RULINGS 2026-09-14 (R1-R4: RL-20260914-02): R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5 ruled (RL-20260914-03; entity first + user mode option), R6 ruled (RL-20260914-04; test filter enforcement, then fan-out to composed companies) - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
 
 # TASK VOCABULARY ASSESSMENT - STP verbs -> VR-Forces 5.2 tasks (2026-09-14, lane L8)
 
@@ -767,7 +767,8 @@ proves it. "User?" marks an item that needs a ruling before it is built.
 
 ### V4. Resolve a task to its objective graphic - UUID LINKAGE ONLY (BUILT, 2026-09-14)
 REVISED UNDER R1. The name/geometry heuristic this item originally proposed is WITHDRAWN:
-the user ruled the missing MapGraphicID an STP export defect (STP-801), to be fixed by
+the user ruled the missing MapGraphicID an STP export defect (STP-801; RL-20260914-02 item 1, RL-20260914-03 for
+the embedded Location), to be fixed by
 re-exporting with IncludeMapGraphicIdInTasks=True, and the embedded Location is valid
 C2SIM that stays supported alongside it. So the item is the LINKAGE and nothing else.
 - Vendor anchor: none (interface logic).
@@ -783,7 +784,7 @@ C2SIM that stays supported alongside it. So the item is the LINKAGE and nothing 
   geometry census (COA-STP1: 0 with a MapGraphicID, 33 embedded, 9 with none).
 - Live gate: an order carrying a MapGraphicID (an STP re-export, or a hand-edited fixture)
   dispatches to the init area's centroid and logs the uuid -> name line.
-- User? RULED (R1).
+- User? RULED (R1; RL-20260914-02 item 1, RL-20260914-03).
 
 ### V4b. What the points MEAN, per verb (BUILT 2026-09-14, branch `feat/v4b-embedded-location`)
 The embedded Location was one list of points for every verb: a route to drive. For a
@@ -821,7 +822,7 @@ target area.
   a sequencer test for the synthesised hold completion.
 - Live gate: ONE fixture, ONE taskee, SECURE with a resolved area: the unit moves to the
   area, stays, and a TASKCMPLT is emitted at the dwell deadline.
-- User? RULED on both counts, and PART OF IT IS ALREADY BUILT.
+- User? RULED on both counts (R3, R4: RL-20260914-02 items 3-4), and PART OF IT IS ALREADY BUILT.
   R4 settles the hold semantics this item was blocked on: SECURE completes AT THE END TIME
   (dispatch + Duration), and that half shipped on 2026-09-14 - a hold-type task already
   reports exactly one TASKCMPLT and releases its STREND successors WITHOUT any vendor
@@ -843,7 +844,7 @@ target area.
   `--rulings-selftest`).
 - Live gate: ONE fixture with a hostile unit inside the objective area: the tasked unit
   advances and engages it.
-- User? RULED (R3): the target IS the objective; enemies may happen to be inside it. The
+- User? RULED (R3; RL-20260914-02 item 3): the target IS the objective; enemies may happen to be inside it. The
   DEFECT half shipped on 2026-09-14 - no verb is refused or degraded for self-targeting
   any more, and an ATTACK-family task routes to its own geometry. R4 also gives every one
   of these tasks an end time, so a fires task that can never be "achieved" still closes.
@@ -890,7 +891,7 @@ REVISED UNDER R2: a task without geometry uses the geometry of the PERFORMING (w
   counts the 9.
 - Live gate: the ADA chain T9-T12 dispatches instead of collapsing, and T10-T12 are no
   longer skipped as "predecessor abandoned upstream".
-- User? RULED (R2). Remaining zero-geometry tasks whose own NAME references a graphic
+- User? RULED (R2; RL-20260914-02 item 2). Remaining zero-geometry tasks whose own NAME references a graphic
   (T16 OBJ MONROE, T34 OBJ MADISON, T21 PL GOLD, T10 PL BRONZE) are STP-side issues to
   raise with the exporter - deliberately NOT name heuristics here.
 

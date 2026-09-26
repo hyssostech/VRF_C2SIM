@@ -74,10 +74,18 @@ if ($UpdateTripwireAllowlist -or $UpdateRulingClaimsBaseline) {
 }
 
 $script:Pass = 0
+# J2 (2026-09-25): a PASSING check whose name contains "SKIPPED" (the house form for an
+# environment-gated check, e.g. 8m, 10f, and the missing-RTI guard in 8g; NOT 8o's "SKIPPED-for-this-run",
+# which is a real assertion ABOUT a skip) is ALSO counted here,
+# so the summary says "N passed, M failed, K skipped" and a run without the RTI or the build
+# tree cannot read as a full pass. Skipped checks stay INSIDE "passed" (the counts are
+# comparable across machines); nothing in tests\ or scripts\ parses the summary line, and
+# the "N passed, M failed" prefix is unchanged for any reader that does.
+$script:Skip = 0
 $script:Fail = 0
 function Check {
     param([string]$Name, [bool]$Condition, [string]$Detail = '')
-    if ($Condition) { $script:Pass++; Write-Host ('  [PASS] ' + $Name) }
+    if ($Condition) { $script:Pass++; if ($Name -cmatch '\bSKIPPED\b(?!-)') { $script:Skip++ }; Write-Host ('  [PASS] ' + $Name) }
     else            { $script:Fail++; Write-Host ('  [FAIL] ' + $Name + $(if ($Detail) { ' -- ' + $Detail } else { '' })) }
 }
 
@@ -918,6 +926,37 @@ Check 'the marker parse survives spaces in both paths' (
 # static; only running the shipped launcher in -DryRun proves what would reach vrfSimHLA1516e.
 # NOTHING is launched: -DryRun starts no process and the argument line is printed by the Plan
 # section before any precondition can abort, so this holds on a machine without 5.2 installed.
+# The HARVEST plan is NOT: it is printed by the -DryRun Result block, which LaunchVrf52 only
+# reaches when every hard precondition passed (the hard-fail exit 2 comes first). See the
+# missing-RTI guard just below.
+#
+# MISSING-RTI GUARD (U3 lane J, gap G4, 2026-09-25). With C:\MAK\makRti5.0.1 absent, LaunchVrf52
+# prints "RTI bin dir MISSING: <path>" in its precondition loop, sets the hard-fail flag and
+# exits 2 BEFORE its -DryRun plan lines, so every assertion that reads a plan line failed there
+# (579/4 on every branch while the RTI was uninstalled, 2026-09-25) - or, for a NEGATIVE
+# assertion ("the plan does NOT say X"), passed for the wrong reason. CheckLv52Plan wraps
+# exactly those assertions: when the dry-run output it reads carries the MISSING line, it
+# records one SKIPPED check in the assertion's place, naming the cause and the assertion - and
+# that SKIPPED check is a PASS only if the path the launcher named really is absent. When the
+# RTI is present the line is never printed and the ORIGINAL assertion runs, unchanged. One
+# check in, one check out, so the suite's count is the same with and without the RTI.
+# (Lane J measured 596 with the RTI and 597 in its RTI-ABSENT SIMULATION. The +1 is not
+# this guard: the simulation was a temporary copy of this suite placed in tests\, and
+# 13e's tests\*.ps1 search picked the copy up as one more file to byte-check.)
+# Same style as the 8m guard for an unbuilt RtiProbe.exe below.
+function Get-Lv52RtiMissingPath {
+    param([string]$Out)
+    $m = [regex]::Match([string]$Out, '(?m)RTI bin dir MISSING: (.+?)\s*$')
+    if (-not $m.Success) { return $null }
+    return $m.Groups[1].Value
+}
+function CheckLv52Plan {
+    param([string]$Out, [string]$Name, [scriptblock]$Assert, [string]$Detail = '')
+    $missing = Get-Lv52RtiMissingPath -Out $Out
+    if ($null -eq $missing) { Check $Name ([bool](& $Assert)) $Detail; return }
+    Check ('SKIPPED (RTI bin dir MISSING: ' + $missing + ' - LaunchVrf52 -DryRun exits 2 before its plan lines): ' + $Name) (
+        -not (Test-Path -LiteralPath $missing)) ('the launcher says MISSING but ' + $missing + ' exists - a false skip')
+}
 Write-Host '=== 8g. the sim command line: no --logFileName by default, present when asked for ==='
 $lv52Script = Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'
 $dryDefault = (& pwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 2>&1 | Out-String)
@@ -934,8 +973,8 @@ Check 'the default dry run still says the option is NOT passed, and cites the bi
     $dryDefault -match 'NOT PASSED' -and $dryDefault -match 'PREREG_52_CRASH_BISECT_2026-09-04')
 Check 'the opt-in dry run WARNS that it is a ~1-in-3 startup crash' (
     $dryOptIn -match 'PASSED DELIBERATELY' -and $dryOptIn -match '1-IN-3 STARTUP CRASH')
-Check 'the dry run plans the harvest and repeats the secrets warning' (
-    $dryDefault -match 'would HARVEST' -and $dryDefault -match 'SECRETS' -and $dryDefault -match 'never be attached to a ticket or mail')
+CheckLv52Plan $dryDefault 'the dry run plans the harvest and repeats the secrets warning' {
+    $dryDefault -match 'would HARVEST' -and $dryDefault -match 'SECRETS' -and $dryDefault -match 'never be attached to a ticket or mail' }
 
 # 8d. THE DRY-RUN FALSE GREEN (found 2026-09-04 while wiring Stage 2r). The -DryRun Result
 # branch used to `exit 0` unconditionally, so a dry run that hit the runner's generic catch
@@ -1269,15 +1308,17 @@ if ($lv52HoldOnOut -match 'STP-825 federation holder tool MISSING') {
 } else {
     Check '8m both LaunchVrf52 dry runs exit 0 or 2, never anything else' (
         $lv52HoldOnCode -in @(0, 2) -and $lv52HoldOffCode -in @(0, 2)) "on=$lv52HoldOnCode off=$lv52HoldOffCode"
-    Check '8m the DEFAULT dry run plans the STP-825 holder: RtiProbe.exe appNumber 9190, DETACHED, and names the retry number 9191' (
+    # The two holder-plan lines and the OMITS negative read the -DryRun Result block: guarded
+    # (CheckLv52Plan, 8g). The banner lines are printed before the preconditions: not guarded.
+    CheckLv52Plan $lv52HoldOnOut '8m the DEFAULT dry run plans the STP-825 holder: RtiProbe.exe appNumber 9190, DETACHED, and names the retry number 9191' {
         $lv52HoldOnFlat -match 'would start the STP-825 federation HOLDER first: tools/RtiProbe\.exe 9190 \S+ 1 900 3, DETACHED' -and
-        $lv52HoldOnFlat -match 'retrying ONCE on appNumber 9191 if the create is refused')
-    Check '8m the default plan says it would refuse the launch (exit 3, naming STP-825) if neither attempt joins' (
-        $lv52HoldOnFlat -match 'FAIL \(exit 3, naming STP-825\) and launch NOTHING')
+        $lv52HoldOnFlat -match 'retrying ONCE on appNumber 9191 if the create is refused' }
+    CheckLv52Plan $lv52HoldOnOut '8m the default plan says it would refuse the launch (exit 3, naming STP-825) if neither attempt joins' {
+        $lv52HoldOnFlat -match 'FAIL \(exit 3, naming STP-825\) and launch NOTHING' }
     Check '8m the default startup banner reports the holder ON with its appNumber, retry number and hold' (
         $lv52HoldOnFlat -match 'Federation hold\s*: STP-825 holder ON - appNumber 9190 \(retry 9191\), hold 900s')
-    Check '8m -FederationHoldSecs 0 OMITS the holder plan entirely (no RtiProbe start line, no appNumber 9190)' (
-        $lv52HoldOffOut -notmatch 'would start the STP-825 federation HOLDER' -and $lv52HoldOffOut -notmatch '9190')
+    CheckLv52Plan $lv52HoldOffOut '8m -FederationHoldSecs 0 OMITS the holder plan entirely (no RtiProbe start line, no appNumber 9190)' {
+        $lv52HoldOffOut -notmatch 'would start the STP-825 federation HOLDER' -and $lv52HoldOffOut -notmatch '9190' }
     Check '8m -FederationHoldSecs 0 says out loud that this launch''s OWN back end becomes the federation CREATOR (the STP-825 failure mode)' (
         $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
 }
@@ -2079,10 +2120,11 @@ Check '8q the switch is ACCEPTED (exit 0 or 2, never a parameter-binding failure
     $hbcCode -in @(0, 2)) "exit=$hbcCode"
 Check '8q with the switch, the banner says the CALLER holds the federation' (
     $hbcFlat -match 'Federation hold : OFF for this launch \(-FederationHoldSecs 0 -FederationHeldByCaller\): the CALLER already holds the federation')
-Check '8q with the switch, the false STP-825 CREATOR alarm is GONE' (
-    $hbcFlat -notmatch "this launch's own back end will be the federation CREATOR")
-Check '8q with the switch, the plan still says no holder is started HERE (nothing is hidden, only relabelled)' (
-    $hbcFlat -match 'NO holder is started BY THIS SCRIPT because the CALLER already holds the federation')
+# The GONE negative and the plan line read the -DryRun Result block: guarded (CheckLv52Plan, 8g).
+CheckLv52Plan $hbcOut '8q with the switch, the false STP-825 CREATOR alarm is GONE' {
+    $hbcFlat -notmatch "this launch's own back end will be the federation CREATOR" }
+CheckLv52Plan $hbcOut '8q with the switch, the plan still says no holder is started HERE (nothing is hidden, only relabelled)' {
+    $hbcFlat -match 'NO holder is started BY THIS SCRIPT because the CALLER already holds the federation' }
 Check '8q WITHOUT the switch the alarm is still printed - the standalone default is untouched' (
     $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
 $hbcBoth  = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -FederationHoldSecs 900 -FederationHeldByCaller 2>&1 | Out-String)
@@ -3033,9 +3075,55 @@ Check '13c DIRTY control: an id in the NEXT paragraph does NOT satisfy it' (
     $rcSplit.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcSplit[0] -LedgerIds $rcLedger).Sound
 ) ("ids=" + (@($rcSplit | ForEach-Object { $_.Ids }) -join ','))
 Check '13c CLEAN control: an id in the SAME table row satisfies the claim' (
-    $rcRowOk.Count -eq 1 -and $rcRowOk[0].UnitKind -eq 'table-row' -and (Test-RulingClaimSound -Claim $rcRowOk[0] -LedgerIds $rcLedger).Sound)
+    $rcRowOk.Count -eq 1 -and $rcRowOk[0].UnitKind -eq 'table-sentence' -and (Test-RulingClaimSound -Claim $rcRowOk[0] -LedgerIds $rcLedger).Sound)
 Check '13c DIRTY control: an id in the ADJACENT table row does NOT satisfy it' (
-    $rcRowBad.Count -eq 1 -and $rcRowBad[0].UnitKind -eq 'table-row' -and -not (Test-RulingClaimSound -Claim $rcRowBad[0] -LedgerIds $rcLedger).Sound)
+    $rcRowBad.Count -eq 1 -and $rcRowBad[0].UnitKind -eq 'table-sentence' -and -not (Test-RulingClaimSound -Claim $rcRowBad[0] -LedgerIds $rcLedger).Sound)
+# G2 (U3 lane J, 2026-09-25): inside a table row the unit is the SENTENCE (cut at ". ").
+# DIRTY: one row, the id in sentence 1, a second claim in sentence 2 - that second claim
+# must NOT borrow the id. Before G2 the whole row was one unit and this read clean.
+$rcSenText = "| 1 | USER RULING: the demo clock is fast (RL-20260921-01). A later note says user ruling: the clock is slow. | x |`r`n"
+$rcSen = @(Find-RulingClaims -Text $rcSenText)
+Check '13c G2 DIRTY control: a claim in ANOTHER SENTENCE of the same row does NOT borrow the row''s id' (
+    $rcSen.Count -eq 2 -and (Test-RulingClaimSound -Claim $rcSen[0] -LedgerIds $rcLedger).Sound -and
+    -not (Test-RulingClaimSound -Claim $rcSen[1] -LedgerIds $rcLedger).Sound
+) ('claims=' + $rcSen.Count + ' ids=' + (@($rcSen | ForEach-Object { '[' + (@($_.Ids) -join ',') + ']' }) -join ''))
+# CLEAN: same sentence, id in the NEXT CELL (a cell bar is not a cut); two claims in one sentence are one claim.
+$rcSenOkText = "| 1 | USER RULING, user decision: the demo clock is fast | RL-20260921-01 |`r`n"
+$rcSenOk = @(Find-RulingClaims -Text $rcSenOkText)
+Check '13c G2 CLEAN control: an id in the next CELL of the same sentence counts; two claims in one sentence are one claim' (
+    $rcSenOk.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcSenOk[0] -LedgerIds $rcLedger).Sound) ('claims=' + $rcSenOk.Count)
+# G1 (U3 lane J, 2026-09-25): the forms lane G's review found the pattern missed.
+$rcG1Text = "2026-09-21 RULED ('3. Fast.') for the clock.`r`n`r`n" +
+            "MAK support case: ruled OPEN ('5. Open.').`r`n`r`n" +
+            "- User? RULED (R1).`r`n`r`n" +
+            "R5 ruled (entity first).`r`n"
+Check '13c G1 DIRTY control: RULED (''...''), ruled OPEN, RULED ( and ruled ( are all claims' (
+    @(Find-RulingClaims -Text $rcG1Text).Count -eq 4) ('claims=' + @(Find-RulingClaims -Text $rcG1Text).Count)
+Check '13c G1 CLEAN control: "UNRULED (audit Q-E)" is not a claim (word boundary)' (
+    @(Find-RulingClaims -Text "the watchdog's default is UNRULED (audit Q-E).`r`n").Count -eq 0)
+# J2 (2026-09-25, lane G3 review): "RULED on" (TASK_VOCABULARY :824 "User? RULED on both counts").
+Check '13c J2 DIRTY control: "User? RULED on both counts" is a claim' (
+    @(Find-RulingClaims -Text "- User? RULED on both counts, and part of it is built.`r`n").Count -eq 1)
+Check '13c J2 CLEAN control: "Until ruled on" (nothing is ruled yet) is not a claim' (
+    @(Find-RulingClaims -Text "Until ruled on, -StopWhenComplete stays off.`r`n").Count -eq 0)
+# J2 PARAGRAPH CAP (lane G3's K2): a paragraph with no blank line used to be one unit however
+# long it was, so a correction's ids at DESIGN_ORBAT :412 covered claims 320 lines up. The unit
+# is now capped at $script:RulingParagraphWindow lines either side and stops at a list item.
+$rcFill = (1..19 | ForEach-Object { "filler line $_ of one long paragraph with no blank line" }) -join "`r`n"
+$rcFarText  = "USER RULING 2026-09-21: the demo clock is fast.`r`n" + $rcFill + "`r`nRL-20260921-01 is cited here.`r`n"
+$rcFar = @(Find-RulingClaims -Text $rcFarText)
+Check '13c J2 DIRTY control: an id 20 lines away in the same (blank-line-free) paragraph does NOT count' (
+    $rcFar.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcFar[0] -LedgerIds $rcLedger).Sound
+) ('ids=' + (@($rcFar | ForEach-Object { $_.Ids }) -join ','))
+$rcNearText = "USER RULING 2026-09-21: the demo clock is fast,`r`nas recorded,`r`nin RL-20260921-01.`r`n"
+$rcNear = @(Find-RulingClaims -Text $rcNearText)
+Check ('13c J2 CLEAN control: an id ' + $script:RulingParagraphWindow + ' lines below the claim still counts') (
+    $rcNear.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcNear[0] -LedgerIds $rcLedger).Sound)
+$rcItemText = "- C15 arrival evidence (user ruling 2026-09-07, RL-20260921-01).`r`n- R-SURFACE-PROXY (user ruling 2026-07-17).`r`n"
+$rcItem = @(Find-RulingClaims -Text $rcItemText)
+Check '13c J2 DIRTY control: an id in the PREVIOUS list item does not cover the next item' (
+    $rcItem.Count -eq 2 -and (Test-RulingClaimSound -Claim $rcItem[0] -LedgerIds $rcLedger).Sound -and
+    -not (Test-RulingClaimSound -Claim $rcItem[1] -LedgerIds $rcLedger).Sound)
 Check '13c DIRTY control: an id that is not in the ledger does NOT satisfy it' (
     $rcUnk.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Sound -and
     (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Why -like '*not found in the ruling ledger*')
@@ -3164,9 +3252,23 @@ Check '13e DIRTY control: a stray CR is flagged' (
     (@(Test-AsciiCrlfBytes -Bytes ([byte[]](65, 13, 66))) -join ';') -like '*stray CR*')
 Check '13e CLEAN control: ASCII text with CRLF endings and a tab is clean' (
     @(Test-AsciiCrlfBytes -Bytes ([System.Text.Encoding]::ASCII.GetBytes("a`tb`r`nc`r`n"))).Count -eq 0)
-foreach ($rel in @('tests\RunnerTurnaround.Tests.ps1', 'tests\RecordChecks.ps1',
-                   'tests\tripwire_allowlist.txt', 'tests\ruling_claims_baseline.txt',
-                   'docs\experiments\PREREG_TEMPLATE.md')) {
+# WIDENED 2026-09-25 (U3 lane J, gap G3 from lane G's F7): the record files the other
+# checks read (the ledger, the live docs, the corrections log) and EVERY tests\*.ps1 -
+# enumerated, not listed, so a new test file is covered the day it lands. An absent
+# listed file fails ('ABSENT'), it is never skipped.
+$asciiRel = New-Object System.Collections.Generic.List[string]
+foreach ($rel in @('tests\tripwire_allowlist.txt', 'tests\ruling_claims_baseline.txt',
+                   'docs\experiments\PREREG_TEMPLATE.md',
+                   'docs\RULINGS.md', 'docs\RULINGS_ARCHIVE.md', 'docs\HANDOFF_2026-09-14_PARALLEL_LANES.md',
+                   'docs\DEMO_READINESS_2026-09-06.md', 'docs\RUNBOOK.md', 'docs\DEMO_RUNBOOK.md',
+                   'docs\CORRECTIONS_LOG.md')) { $asciiRel.Add($rel) }
+foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'tests') -File -Filter '*.ps1' | Sort-Object Name)) {
+    $asciiRel.Add('tests\' + $f.Name)
+}
+Check '13e the enumerated tests\*.ps1 set includes this suite and its helpers (the glob is live)' (
+    $asciiRel.Contains('tests\RunnerTurnaround.Tests.ps1') -and $asciiRel.Contains('tests\RecordChecks.ps1') -and
+    $asciiRel.Contains('tests\Hooks.Tests.ps1')) ($asciiRel -join ', ')
+foreach ($rel in $asciiRel) {
     $probs = @(Test-AsciiCrlfFile -Path (Join-Path $RepoRoot $rel))
     Check ('13e ' + $rel + ' is ASCII + CRLF') ($probs.Count -eq 0) ($probs -join '; ')
 }
@@ -3181,7 +3283,8 @@ if ($script:PendingCount -gt 0) {
 }
 
 Write-Host ''
-Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
+Write-Host ('{0} passed, {1} failed, {2} skipped' -f $script:Pass, $script:Fail, $script:Skip)
+if ($script:Skip -gt 0) { Write-Host ('  (the {0} skipped are PASSES counted in "passed"; grep the log for SKIPPED to see what was not evaluated on this machine)' -f $script:Skip) }
 if ($script:PendingCount -gt 0) { Write-Host ('{0} record check(s) PENDING, not enforced - flip a key in $RecordCheckStaging (section 13) as its dependency lands' -f $script:PendingCount) }
 if ($script:Fail -gt 0) { exit 1 }
 exit 0

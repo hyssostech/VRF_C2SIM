@@ -7,8 +7,8 @@
 #
 # REGENERATE (never automatic):
 #   pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1 -UpdateRulingClaimsBaseline
-# Generated 2026-09-21.
-docs\DESIGN_ORBAT_TO_VRF_2026-09-06.md | 8
+# Generated 2026-09-25.
+docs\DESIGN_ORBAT_TO_VRF_2026-09-06.md | 3
 docs\experiments\DAY_2026-09-14_SUMMARY.md | 1
 docs\experiments\DESIGN_BACKEND_LIVENESS_2026-09-15.md | 1
 docs\experiments\DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md | 1
@@ -33,12 +33,12 @@ docs\experiments\PREREG_RUNNER_CONFIRM2_2026-09-01.md | 1
 docs\experiments\PREREG_TYPEFIX_CONFIRMING_RUN.md | 3
 docs\experiments\PREREG_TYPEMAP_LIVE_GATE_2026-09-02.md | 2
 docs\experiments\PREREG_V5_Q5_PAUSE_KILL_2026-09-15.md | 5
-docs\experiments\REPORTING_ASSESSMENT_2026-09-14.md | 15
+docs\experiments\REPORTING_ASSESSMENT_2026-09-14.md | 14
 docs\experiments\REVIEW_RULINGS_5c67d41_2026-09-14.md | 5
 docs\experiments\REVIEW_RULINGS_8db033e_2026-09-14.md | 3
 docs\experiments\REVIEW2_RULINGS_0c96f50_2026-09-14.md | 1
 docs\experiments\RUN_2026-07-19_MOJAVE_CHAIN.md | 2
-docs\experiments\TASK_VOCABULARY_ASSESSMENT_2026-09-14.md | 23
+docs\experiments\TASK_VOCABULARY_ASSESSMENT_2026-09-14.md | 22
 docs\HANDOFF_2026-07-22_LAUNCH_HARDENING.md | 2
 docs\HANDOFF_2026-07-22_PLAN_ASSIGNMENT.md | 1
 docs\HANDOFF_2026-07-23_TYPEFIX_CONFIRMED.md | 2
@@ -48,7 +48,6 @@ docs\MAK_NOTES_DRAFT_2026-09-01.md | 1
 docs\OPUS_EXECUTION_PLAN.md | 2
 docs\ORBAT_LOADING_REQUIREMENTS_2026-09-06.md | 1
 docs\PHASE1_SESSION_SCRIPT.md | 1
-docs\PLAN_PARALLEL_LANES_2026-09-14.md | 2
 docs\RESUME_PROMPT.md | 1
 docs\RTI_LAUNCH_HARDENING_DESIGN.md | 1
 docs\SCENARIO_SETUP_GUIDE.md | 1

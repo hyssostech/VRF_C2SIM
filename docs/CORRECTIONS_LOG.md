@@ -165,11 +165,11 @@ SYMPTOM the ticket reports is real and he AGREES with it. What is withdrawn is o
 RULING" label, and what is not approved is the patch AS SCOPED. See "WHAT THE OWNER SAID WHEN HE CORRECTED THIS ENTRY" below before quoting anything
 from it. ***
 
-- CLAIMED (2026-09-21, records pass 24, commit 2f52622): that the user RULED on 2026-09-21,
+- CLAIMED (2026-09-21, records pass 24, commit 2f52622; RL-20260921-03): that the user RULED on 2026-09-21,
   as STP-857, that "a MOVE task that reaches its armed end with NO displacement reports
   TASKABRT, not TASKCMPLT", NARROWING a rule whose wider form - every dispatched task with a
   Duration is timer-completed, moves included - "WAS the ruled behaviour ... meeting R4".
-  THE "USER RULING" LABEL IS WITHDRAWN, and the 2026-09-14 record does not support the wider
+  THE "USER RULING" LABEL (RL-20260921-03) IS WITHDRAWN, and the 2026-09-14 record (RL-20260914-02) does not support the wider
   form as a ruling. Neither point makes the ticket's underlying complaint wrong.
 - WHAT THE PRIMARY SOURCE SAYS. Citations are physical line numbers in the session a7f6a276
   transcript (`~\.claude\projects\...c2simVRFinterfacev2-36\a7f6a276-...jsonl`), each read
@@ -224,7 +224,7 @@ from it. ***
   0.0 m and both C16 stall TASKABRTs were suppressed by an already-fired timed TASKCMPLT.
   WHAT THE OWNER AGREES WITH: a unit that does not reach its objective has not completed, and
   not every task requires a movement, so a unit must not be aborted merely for staying put.
-  WHAT IS WITHDRAWN: the "USER RULING" label on STP-857, and any reading of R4 as authority
+  WHAT IS WITHDRAWN: the "USER RULING" label on STP-857 (RL-20260921-03), and any reading of R4 as authority
   for what a MOVE task's expiring timer should report - R4 is row 4 of the 2026-09-14 question
   table ("when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its Duration, or only
   when a later order supersedes it?"), and a MOVE was not the question asked. WHAT IS NOT
@@ -246,7 +246,7 @@ from it. ***
   task that combines movement with a desired effect is judged complete at all.
 - WHERE IT WAS WRITTEN, and corrected the same day at every site (dated CORRECTION blocks; no
   body rewritten away):
-  * `docs/DEMO_READINESS_2026-09-06.md` row 19 - the "2026-09-21 STP-857 USER RULING"
+  * `docs/DEMO_READINESS_2026-09-06.md` row 19 (RL-20260921-03) - the "2026-09-21 STP-857 USER RULING"
     paragraph struck, CORRECTION block with the verbatim quotes appended.
   * `docs/RUNBOOK.md` sec 11h - both the "RULED 2026-09-21 (STP-857)" sentence and the
     "meeting R4" premise struck; CORRECTION block appended after the paragraph.
@@ -259,7 +259,7 @@ from it. ***
     "NEW FINDING, filed as STP-857" paragraph, covering the R2 text's "STP-857 recurrences"
     limb as well; the registered text itself left unstruck as history.
   * `src/VrfC2SimApp/appsettings.Demo.json` `_TimedCompletion` - the comment opened "R4 (user
-    ruling 2026-09-14)" over every dispatched task; a SCOPE CORRECTION now leads it. The
+    ruling 2026-09-14)" over every dispatched task (RL-20260914-02); a SCOPE CORRECTION now leads it. The
     setting VALUE is unchanged.
   Not this lane's, listed so the gap is visible: the memory file
   `project-demo-rulings-2026-09-21` item 6, the Jira STP-857 text, and `docs/RULINGS.md`.
@@ -348,7 +348,7 @@ content of this entry whatever happens to the feature. ***
   `docs/experiments/REVIEW_INTEGRATION_02b51de_2026-09-14.md`:91;
   `docs/experiments/REVIEW_RULINGS_8db033e_2026-09-14.md`:268 (head of sec 2.5, table row :281).
   Also `docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md`:405 "supervisor ruling 2026-09-13" now reads
-  "supervisor position 2026-09-13", with the same dated correction at :412.
+  "supervisor position 2026-09-13", with the same dated correction at :412 (RL-20260914-01, its scope note).
 - OWED to the next code unit (src comments still say "C16 ruling" - RL-20260914-01 does not cover
   it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
   :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
