@@ -87,4 +87,44 @@ STOP, report, no full run. Only NULL reproduces AND EDITED passes all four -> Pa
 
 ## Result Part 1 (written after both arms)
 
-(to be written after both arms)
+NULL arm: 2026-09-26 14:18:24Z -> 14:19:19Z (54.8 s wall; "Generation time: 24.924"), EXIT CODE 0 (held handle,
+u3\n9_arm.ps1). Started after the seat's suite run cleared (u3\n9_wait_suite.ps1, quiet 14:15:31Z) and origin/main
+4823141 was merged. Log C:\C2SIM\vrf-nav\work\log\gen-AO20-edge_null-2026-09-26.log (26,476 B, 882 lines, sha256
+7f2a37ae...6ecf); gate output beside it. The log loads the DSS-only shadow .earth; 5 "Sim model config: YuccaPalm not
+found." lines. Nothing new under C:\MAK. The arm's NavDataDebug intermediates (6 files, 124,719,888 B) were deleted
+after the run.
+
+The grid came out EXACTLY as predicted: extent (-817,-1419)..(817,1419); rows (0,0) -19/-33..19/-23 ... (0,5)
+-19/22..19/33; and the area offset maps into the AO20 frame at cell coordinates (215.000, 164.000) - on an AO20 cell
+edge, so N6's half-cell drift is gone.
+
+| AO20 sector | full area (mesquite run) ratio / input triangles | NULL ratio / input triangles |
+|---|---|---|
+| (39,33) | 0.9516 / 350,410 | 0.9388 / 349,958 (-0.13 %) |
+| (39,34) | 0.8594 / 356,793 | 0.8571 / 356,952 (+0.04 %) |
+| (39,35) | 0.8060 / 369,343 | 0.8462 / 371,169 (+0.49 %) |
+| (39,36) | 0.8358 / 361,053 | 0.8438 / 360,650 (-0.11 %) |
+| (39,37) | 0.9167 / 352,465 | 0.8966 / 351,997 (-0.13 %) |
+| (39,38) | 0.8947 / 350,088 | 0.8723 / 381,334 (+8.93 %) |
+
+| # | Verdict | Measured |
+|---|---|---|
+| E0 | HIT | exit 0; the predicted grid exactly |
+| E1 HIGH | MISS | (39,34) -0.002, (39,36) +0.008, (39,38) -0.022 are inside +/- 0.03, but (39,35) reads 0.846 against 0.806, +0.040 - outside the registered tolerance. The YuccaPalm line is present. All four stay below 0.9, and a fifth sector, (39,37), falls to 0.897 (0.917 in the full area) |
+| E3 MED | MISS | triangles within 0.5 % in five sectors; (39,38), the box's top row, +8.9 % |
+| E2, E4 | NOT RUN | - |
+
+STOP, as registered: E1 is the NULL-reproduces condition and it missed on one of the four sectors, so the falsifier
+"NULL does not reproduce -> box artefact; stop, report" applies. The EDITED arm was NOT started, Part 2 was NOT
+prepared, nothing was registered.
+
+What this measures. The edge box reproduces AO20 column 39's geometry exactly (same cells, 0.5 % triangles in five
+of six sectors) and reproduces the gate failure qualitatively - every one of the four failing sectors is below 0.9
+(0.84-0.87), plus (39,37) - but not their exact ratios: sector ratios in this column move by up to 0.04 when the
+column is generated in isolation, even with identical cell boxes. The top row's +8.9 % triangles suggests the box
+edge changes what geometry a sector gathers (tiles or overlap beyond the box) [A].
+
+Design implication, stated separately: the registered +/- 0.03 tolerance was tighter than this box can reproduce.
+The seat can amend the criterion before the EDITED arm (e.g. "NULL: all four below 0.9 and the YuccaPalm line
+present" - which this NULL meets) and run EDITED against this NULL, which is the like-for-like comparator anyway;
+that is a new registration, not a re-reading of this one.
