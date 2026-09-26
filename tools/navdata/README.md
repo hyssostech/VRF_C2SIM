@@ -72,3 +72,16 @@ Record: docs/experiments/FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md.
 Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]`
 (global-geodetic PNG TMS 154 CA-FVEG / 165 NLCD / 188 Copernicus; the server serves curl, not Python's default
 user agent). Record: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8.
+
+## A terrain-specific land-cover map (make_landcover_map.py)
+
+Release Notes VRF-7074 (p64): a <terrain>.landCoverDataSurfChar.map overrides the global
+appData\settings\vrfSim\landCoverDataSurfChar.map for that terrain. To use one without writing under C:\MAK, work on a
+terrain COPY:
+
+    python tools\navdata\make_landcover_map.py --out "tools\navdata\out\<name>.mtf" --set BM_LAND=sand
+
+It copies the vendor .mtf and <terrain>.surfChar.map beside each other as <name>.*, and writes
+<name>.landCoverDataSurfChar.map = the installed global map with only the --set lines changed (each must hit exactly
+one Match line). Pass the copy to vrfNavGenerator --terrain. The derived map is not committed; the script is.
+Record: docs/experiments/PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md.
