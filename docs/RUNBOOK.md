@@ -2696,15 +2696,21 @@ no Duration and no geometry is malformed and is refused, not held (below).
   distinct target: a unit ATTACK and every BREACH park nothing, and a stuck unit on them is the watchdog's, as for
   any MOVE (see the next bullet).
 
-- **ATTACK, BREACH AND FOLLOW SINCE 2026-09-26** (RL-20260926-01; branch feat/engage-doctrine; `TaskDispatchPolicy.ForEngage`,
-  checked offline by `--rulings-selftest`). ATTACK / ATTMN / ATTSPT / DESTRY / FIX / DISRPT / PENTRT on a UNIT: the unit
-  advances to the objective and its rules of engagement are set to fire at will at dispatch, overriding the order's ROE
-  (STP sends ROEHold on every task); it never gets a Fire At. Line to look for: "ATTACK: advancing to the objective;
+- **ATTACK, BREACH, FOLLOW AND PASSAGE SINCE 2026-09-26** (RL-20260926-01; branches feat/engage-doctrine and
+  fix/engage-followup; `TaskDispatchPolicy.ForEngage`, checked offline by `--rulings-selftest`). ATTACK / ATTMN / ATTSPT /
+  DESTRY / FIX / DISRPT / PENTRT on a UNIT: the unit advances to the objective and its rules of engagement are set to fire
+  at will at dispatch, overriding the order's ROE (STP sends ROEHold on every task); it never gets a Fire At. The owner
+  answered for ATTACK (RL-20260926-01); the other six codes follow it by the seat's reading (shared ATTACK path; not asked). Every other
+  dispatch, in place or not, sets the ORDER'S OWN ROE (`TaskDispatchPolicy.RoeFor`), so a unit's next task does not keep
+  an ATTACK's fire at will. Line to look for: "ATTACK: advancing to the objective;
   rules of engagement set to fire at will - members engage enemies they encounter (RL-20260926-01)". A PLATFORM with a
   distinct target still advances and then gets a Fire At (the engage fallback above). BREACH, any performer: it advances
   to the breach graphic / axis end, one ObservationReport says "BREACH by <unit>: the breach action is not simulated
-  ... (STP-865) ...", no DtBreachTask is issued, and it completes by time. FOLSPT / FOLASS: advance along the graphic to
-  its end and hold; no engagement; ROE as ordered. NOT YET SEEN LIVE: that the unit's fire-at-will reaches its members
+  ... (STP-865) ...", no DtBreachTask is issued, and it completes by time. FOLSPT / FOLASS: advance along the graphic
+  to its end and hold; no engagement; ROE as ordered - the coordinator's direction, not decided by the owner
+  (RL-20260926-01 scope line). CNFPSL (forward passage of lines): HELD IN PLACE for now, like ExecutePlanPhase (the
+  owner's answer, RL-20260926-01 A6); line to look for: "CNFPSL (forward passage of lines): held in place for now -
+  route by graphic role ... is not implemented; see STP-866". NOT YET SEEN LIVE: that the unit's fire-at-will reaches its members
   (the vendor header says a set on an aggregate applies to the whole aggregate, `vrfRemoteController.h:1436-1438`) -
   the next live run should show member fire events or a member console's ROE after an ATTACK dispatch.
 
