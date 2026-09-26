@@ -72,7 +72,10 @@ $script:TripwireRules = @(
 $script:RulingClaimPattern = 'USER RULING|user ruling|owner ruling|USER DECISION|user decision|ruled by the user|' +
                              '(user|owner).{0,3}s ruling|user-ruled|user ruled|RULED[^|]{0,60}\((user|owner)|' +
                              '(user|owner) 2026-[0-9]{2}-[0-9]{2}|per the user|your ruling|you ruled|ruling 2026|' +
-                             '\bruled ?\(|\bruled OPEN'
+                             '\bruled ?\(|\bruled OPEN|(?<!until )\bruled on\b'
+# J2 (2026-09-25, lane G3 review): "User? RULED on both counts" (TASK_VOCABULARY :824) was
+# not a claim either, hence "ruled on". "Until ruled on" (PREREG_RUNNER_CONFIRM :135) says
+# the opposite - nothing is ruled yet - so the lookbehind keeps it out.
 # The id form must also cover the UNVERIFIED entries: a site whose "ruling" has no
 # owner words behind it is relabelled in place and carries RL-UNVERIFIED-<NAME>, and
 # that label has to satisfy the check or the relabelling would read as a violation.
@@ -395,7 +398,29 @@ function Format-TripwireHit {
 #    sentence of the same row - see Get-RulingRowSentences);
 #  - otherwise the unit is the PARAGRAPH: the run of consecutive lines around it,
 #    stopping at a blank line or at a table row (so a table cannot leak an id into
-#    the prose next to it).
+#    the prose next to it) - AND, since 2026-09-25 (J2), never more than
+#    $script:RulingParagraphWindow lines above or below the claim line. See the
+#    note at that variable for why a line window and not a sentence.
+# J2 (2026-09-25, lane G3 review, K2): DESIGN_ORBAT_TO_VRF_2026-09-06.md :3-433 has no
+# blank line, so it was ONE 430-line "paragraph" and one dated correction's ids at :412
+# satisfied five unrelated claims up to 320 lines away. A paragraph unit is now capped at
+# this many lines above and below the claim line (still stopping at a blank line or a
+# table row). A LINE WINDOW, not a sentence: in prose the house form puts the id in the
+# NEXT sentence ("USER RULING ...: X. Recorded as RL-... in the ledger." - the 13c clean
+# control), and wrapped prose breaks sentences across lines; a sentence cut would turn
+# that form red everywhere. N is MEASURED (laneJ2 report): the smallest N at which the
+# four live docs stay clean.
+$script:RulingParagraphWindow = 2
+
+# J2: a paragraph unit also stops at a LIST ITEM or HEADING boundary (a line whose first
+# non-space text is "- ", "* ", "+ ", "1. ", "(b) " or "#"): adjacent bullets are separate
+# statements. MEASURED: without this, the id put on REPORTING_ASSESSMENT :83 (C15) covered
+# the unrelated R-SURFACE-PROXY bullet two lines below it.
+function Test-RulingItemStart {
+    param([string]$Line)
+    return ($Line -match '^\s*(?:[-*+]\s|\d+\.\s|\([a-z0-9]\)\s|#)')
+}
+
 function Get-RulingClaimUnit {
     param([string[]]$Lines, [int]$Index)
     $cur = [string]$Lines[$Index]
@@ -403,16 +428,18 @@ function Get-RulingClaimUnit {
         return [pscustomobject]@{ Kind = 'table-row'; Start = $Index; End = $Index; Text = $cur }
     }
     $s = $Index
-    while ($s -gt 0) {
+    while ($s -gt 0 -and ($Index - $s) -lt $script:RulingParagraphWindow) {
+        if (Test-RulingItemStart -Line ([string]$Lines[$s])) { break }
         $prev = [string]$Lines[$s - 1]
         if ($prev.Trim().Length -eq 0) { break }
         if ($prev.TrimStart().StartsWith('|')) { break }
         $s--
     }
     $e = $Index
-    while ($e -lt ($Lines.Count - 1)) {
+    while ($e -lt ($Lines.Count - 1) -and ($e - $Index) -lt $script:RulingParagraphWindow) {
         $next = [string]$Lines[$e + 1]
         if ($next.Trim().Length -eq 0) { break }
+        if (Test-RulingItemStart -Line $next) { break }
         if ($next.TrimStart().StartsWith('|')) { break }
         $e++
     }

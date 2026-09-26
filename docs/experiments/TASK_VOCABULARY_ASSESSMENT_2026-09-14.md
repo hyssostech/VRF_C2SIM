@@ -767,7 +767,8 @@ proves it. "User?" marks an item that needs a ruling before it is built.
 
 ### V4. Resolve a task to its objective graphic - UUID LINKAGE ONLY (BUILT, 2026-09-14)
 REVISED UNDER R1. The name/geometry heuristic this item originally proposed is WITHDRAWN:
-the user ruled the missing MapGraphicID an STP export defect (STP-801), to be fixed by
+the user ruled the missing MapGraphicID an STP export defect (STP-801; RL-20260914-02 item 1, RL-20260914-03 for
+the embedded Location), to be fixed by
 re-exporting with IncludeMapGraphicIdInTasks=True, and the embedded Location is valid
 C2SIM that stays supported alongside it. So the item is the LINKAGE and nothing else.
 - Vendor anchor: none (interface logic).
@@ -821,7 +822,7 @@ target area.
   a sequencer test for the synthesised hold completion.
 - Live gate: ONE fixture, ONE taskee, SECURE with a resolved area: the unit moves to the
   area, stays, and a TASKCMPLT is emitted at the dwell deadline.
-- User? RULED on both counts, and PART OF IT IS ALREADY BUILT.
+- User? RULED on both counts (R3, R4: RL-20260914-02 items 3-4), and PART OF IT IS ALREADY BUILT.
   R4 settles the hold semantics this item was blocked on: SECURE completes AT THE END TIME
   (dispatch + Duration), and that half shipped on 2026-09-14 - a hold-type task already
   reports exactly one TASKCMPLT and releases its STREND successors WITHOUT any vendor

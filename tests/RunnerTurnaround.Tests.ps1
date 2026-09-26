@@ -74,10 +74,18 @@ if ($UpdateTripwireAllowlist -or $UpdateRulingClaimsBaseline) {
 }
 
 $script:Pass = 0
+# J2 (2026-09-25): a PASSING check whose name contains "SKIPPED" (the house form for an
+# environment-gated check, e.g. 8m, 10f, and the missing-RTI guard in 8g; NOT 8o's "SKIPPED-for-this-run",
+# which is a real assertion ABOUT a skip) is ALSO counted here,
+# so the summary says "N passed, M failed, K skipped" and a run without the RTI or the build
+# tree cannot read as a full pass. Skipped checks stay INSIDE "passed" (the counts are
+# comparable across machines); nothing in tests\ or scripts\ parses the summary line, and
+# the "N passed, M failed" prefix is unchanged for any reader that does.
+$script:Skip = 0
 $script:Fail = 0
 function Check {
     param([string]$Name, [bool]$Condition, [string]$Detail = '')
-    if ($Condition) { $script:Pass++; Write-Host ('  [PASS] ' + $Name) }
+    if ($Condition) { $script:Pass++; if ($Name -cmatch '\bSKIPPED\b(?!-)') { $script:Skip++ }; Write-Host ('  [PASS] ' + $Name) }
     else            { $script:Fail++; Write-Host ('  [FAIL] ' + $Name + $(if ($Detail) { ' -- ' + $Detail } else { '' })) }
 }
 
@@ -932,6 +940,9 @@ Check 'the marker parse survives spaces in both paths' (
 # that SKIPPED check is a PASS only if the path the launcher named really is absent. When the
 # RTI is present the line is never printed and the ORIGINAL assertion runs, unchanged. One
 # check in, one check out, so the suite's count is the same with and without the RTI.
+# (Lane J measured 596 with the RTI and 597 in its RTI-ABSENT SIMULATION. The +1 is not
+# this guard: the simulation was a temporary copy of this suite placed in tests\, and
+# 13e's tests\*.ps1 search picked the copy up as one more file to byte-check.)
 # Same style as the 8m guard for an unbuilt RtiProbe.exe below.
 function Get-Lv52RtiMissingPath {
     param([string]$Out)
@@ -3090,6 +3101,29 @@ Check '13c G1 DIRTY control: RULED (''...''), ruled OPEN, RULED ( and ruled ( ar
     @(Find-RulingClaims -Text $rcG1Text).Count -eq 4) ('claims=' + @(Find-RulingClaims -Text $rcG1Text).Count)
 Check '13c G1 CLEAN control: "UNRULED (audit Q-E)" is not a claim (word boundary)' (
     @(Find-RulingClaims -Text "the watchdog's default is UNRULED (audit Q-E).`r`n").Count -eq 0)
+# J2 (2026-09-25, lane G3 review): "RULED on" (TASK_VOCABULARY :824 "User? RULED on both counts").
+Check '13c J2 DIRTY control: "User? RULED on both counts" is a claim' (
+    @(Find-RulingClaims -Text "- User? RULED on both counts, and part of it is built.`r`n").Count -eq 1)
+Check '13c J2 CLEAN control: "Until ruled on" (nothing is ruled yet) is not a claim' (
+    @(Find-RulingClaims -Text "Until ruled on, -StopWhenComplete stays off.`r`n").Count -eq 0)
+# J2 PARAGRAPH CAP (lane G3's K2): a paragraph with no blank line used to be one unit however
+# long it was, so a correction's ids at DESIGN_ORBAT :412 covered claims 320 lines up. The unit
+# is now capped at $script:RulingParagraphWindow lines either side and stops at a list item.
+$rcFill = (1..19 | ForEach-Object { "filler line $_ of one long paragraph with no blank line" }) -join "`r`n"
+$rcFarText  = "USER RULING 2026-09-21: the demo clock is fast.`r`n" + $rcFill + "`r`nRL-20260921-01 is cited here.`r`n"
+$rcFar = @(Find-RulingClaims -Text $rcFarText)
+Check '13c J2 DIRTY control: an id 20 lines away in the same (blank-line-free) paragraph does NOT count' (
+    $rcFar.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcFar[0] -LedgerIds $rcLedger).Sound
+) ('ids=' + (@($rcFar | ForEach-Object { $_.Ids }) -join ','))
+$rcNearText = "USER RULING 2026-09-21: the demo clock is fast,`r`nas recorded,`r`nin RL-20260921-01.`r`n"
+$rcNear = @(Find-RulingClaims -Text $rcNearText)
+Check ('13c J2 CLEAN control: an id ' + $script:RulingParagraphWindow + ' lines below the claim still counts') (
+    $rcNear.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcNear[0] -LedgerIds $rcLedger).Sound)
+$rcItemText = "- C15 arrival evidence (user ruling 2026-09-07, RL-20260921-01).`r`n- R-SURFACE-PROXY (user ruling 2026-07-17).`r`n"
+$rcItem = @(Find-RulingClaims -Text $rcItemText)
+Check '13c J2 DIRTY control: an id in the PREVIOUS list item does not cover the next item' (
+    $rcItem.Count -eq 2 -and (Test-RulingClaimSound -Claim $rcItem[0] -LedgerIds $rcLedger).Sound -and
+    -not (Test-RulingClaimSound -Claim $rcItem[1] -LedgerIds $rcLedger).Sound)
 Check '13c DIRTY control: an id that is not in the ledger does NOT satisfy it' (
     $rcUnk.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Sound -and
     (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Why -like '*not found in the ruling ledger*')
@@ -3249,7 +3283,8 @@ if ($script:PendingCount -gt 0) {
 }
 
 Write-Host ''
-Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
+Write-Host ('{0} passed, {1} failed, {2} skipped' -f $script:Pass, $script:Fail, $script:Skip)
+if ($script:Skip -gt 0) { Write-Host ('  (the {0} skipped are PASSES counted in "passed"; grep the log for SKIPPED to see what was not evaluated on this machine)' -f $script:Skip) }
 if ($script:PendingCount -gt 0) { Write-Host ('{0} record check(s) PENDING, not enforced - flip a key in $RecordCheckStaging (section 13) as its dependency lands' -f $script:PendingCount) }
 if ($script:Fail -gt 0) { exit 1 }
 exit 0

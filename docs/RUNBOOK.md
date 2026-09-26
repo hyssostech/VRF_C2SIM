@@ -3551,7 +3551,7 @@ stay at `T_init + 20 s`, and the READY TO TASK OBSERVATION, which holds nothing 
 to the configured 60 s), and it belongs in the STP-852 lane, not here. (b) **The suppressed stall.**
 In that run both C16 TASKABRTs were suppressed because TIMED COMPLETION had already pushed TASKCMPLT
 (`app:35521`, `app:38591`). ~~which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
-does suppress any later TASKABRT for that task"*, user 2026-09-14) meeting R4 (*"completion is given
+does suppress any later TASKABRT for that task"*, user 2026-09-14 [RL-20260914-01, archive: the CODE only - see its scope note]) meeting R4 (*"completion is given
 by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE tasks only**
 (DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
 TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What this section does
