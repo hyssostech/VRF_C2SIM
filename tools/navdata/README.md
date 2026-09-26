@@ -89,3 +89,15 @@ It copies the vendor .mtf and <terrain>.surfChar.map beside each other as <name>
 <name>.landCoverDataSurfChar.map = the installed global map with only the --set lines changed (each must hit exactly
 one Match line). Pass the copy to vrfNavGenerator --terrain. The derived map is not committed; the script is.
 Record: docs/experiments/PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md.
+
+## A sub-box on an edited biome (make_tree_control.py)
+
+The MAK Earth (online) .earth resolves its includes by RELATIVE path, so an edited copy of one catalog file needs a
+mirror, not absolute includes: `make_tree_control.py shadow` copies TerrainData\TerrainConfiguration to
+C:\C2SIM\vrf-nav\shadow and junctions every other SharedData\19\latest entry to the vendor folder, then applies
+one --swap BIOME:OLD=NEW asset edit; `terrain` writes a .mtf copy whose .earth <myFilename> names the shadow copy;
+`box` writes a .navGenConfig for sectors i0..i0+n-1 / j0..j0+n-1 of the AO20 grid (tile-count n keeps 11 cells
+per sector). Record: docs/experiments/PREREG_NAVTREES_YUCCA_2026-09-26.md.
+The generator does NOT keep a sub-box on the parent grid: it widened 55 x 55 cells to 57 x 57, centred on its own
+offset, half a cell off AO20's (2026-09-26). Compare sub-box sectors with the parent's as ~91 % shared ground, or
+generate the unedited control on the SAME sub-box config - that is the like-for-like comparison.
