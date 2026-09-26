@@ -117,6 +117,12 @@ try {
     Check 'G corridor_gate --selftest-gen1 -> exit 0, 18 passed, 0 failed' (($code -eq 0) -and (($out -join "`n") -match 'selftest: 18 passed, 0 failed')) (($out | Select-Object -Last 1) + " exit=$code")
     $out = & $Python $Corr $empty --preset ironstorm-cuta
     Check 'G corridor_gate on an empty log -> exit 2' ($LASTEXITCODE -eq 2) "exit=$LASTEXITCODE"
+
+    # H. make_tree_control.py selftest: --swap / --drop inside one biome only; grid origin from a log's extent.
+    $Mtc = Join-Path $RepoRoot 'tools\navdata\make_tree_control.py'
+    $out = & $Python $Mtc selftest
+    $code = $LASTEXITCODE
+    Check 'H make_tree_control selftest -> exit 0, PASS' (($code -eq 0) -and (($out -join "`n") -match 'selftest: PASS')) ((($out | Where-Object { $_ -match '^FAIL' }) -join '; ') + " exit=$code")
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

@@ -22,6 +22,13 @@ shadow: the MAK Earth (online) .earth pulls its includes by RELATIVE path ({% in
   (read-only use). Then ONE edit inside the copy: in osgEarthCatalogs\\biome.definitions.CA-fveg.xml, in the
   <biome id="DSS"> block only, asset name="YuccaPalm" -> "HoneyMesquiteShortSpring" (the asset DSW already
   uses, :508). The edit must hit exactly one line.
+  --defs picks the catalog file (default biome.definitions.CA-fveg.xml; the OneEarth biomes such as 04
+  "Temperate Broadleaf and Mixed Forests" live in biome.definitions.bioregions.xml); --drop BIOME:ASSET
+  removes that asset's line (exactly one hit), after any --swap.
+box --log <parent gen.log> (2026-09-26, IRONSTORM-CENTRE): the grid origin is taken from the parent log's
+  "CalculateTransitionPointLocations extent" line (cells floor(m / 43)) instead of the AO20 constants, and
+  checked against its "Sector (0,0)" row when present. --nx/--ny for a non-square box, --height for the
+  corner height (IRONSTORM-CENTRE uses 150 m). Without --log the output is byte-identical to before.
 terrain: a byte copy of the vendor MAK Earth (online).mtf whose ONE <myFilename> naming the .earth is
   pointed at the shadow copy, plus the vendor .surfChar.map beside it (as in N5).
 """
@@ -75,6 +82,22 @@ def geodetic(P):
     return math.degrees(lat), math.degrees(lon), h
 
 
+def grid_origin_from_log(text):
+    """(cx0, cy0): the first cell of the generator's grid, from the log's
+    "CalculateTransitionPointLocations extent = (xmin,ymin,z,xmax,ymax,z)" line (cells are floor(m / 43)).
+    When the log also carries the "Sector (0,0): xMin: a yMin: b ..." row, it must agree, or ValueError."""
+    m = re.search(r"CalculateTransitionPointLocations extent = \((-?[\d.]+),(-?[\d.]+),", text)
+    if not m:
+        raise ValueError("no 'CalculateTransitionPointLocations extent' line in the log")
+    cx0 = int(math.floor(float(m.group(1)) / CELL + 1e-9))
+    cy0 = int(math.floor(float(m.group(2)) / CELL + 1e-9))
+    r = re.search(r"(?m)^Sector \(0,0\): xMin: (-?\d+) yMin: (-?\d+)", text)
+    if r and (int(r.group(1)), int(r.group(2))) != (cx0, cy0):
+        raise ValueError("log row Sector (0,0) starts at cells (%s, %s), the extent says (%d, %d)"
+                         % (r.group(1), r.group(2), cx0, cy0))
+    return cx0, cy0
+
+
 def box(a):
     txt = open(a.runtime_config, encoding="utf-8").read()
     off = tuple(float(v) for v in re.search(r"\(offset\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\)", txt).groups())
@@ -90,10 +113,20 @@ def box(a):
         cx0, cx1, cy0, cy1 = a.cells   # inclusive AO20 cell indices; edges at c0*43 and (c1+1)*43
         x0, x1, y0, y1 = cx0 * CELL, (cx1 + 1) * CELL, cy0 * CELL, (cy1 + 1) * CELL
     else:
-        x0 = (-233 + 11 * a.i0) * CELL
-        x1 = (-233 + 11 * (a.i0 + a.n)) * CELL
-        y0 = (-232 + 11 * a.j0) * CELL
-        y1 = (-232 + 11 * (a.j0 + a.n)) * CELL
+        # grid origin: the AO20 constants unless --log names the PARENT area's generation log
+        if a.log:
+            cx0, cy0 = grid_origin_from_log(open(a.log, encoding="utf-8", errors="replace").read())
+        else:
+            cx0, cy0 = -233, -232
+        nx, ny = (a.nx or a.n), (a.ny or a.n)
+        x0 = (cx0 + 11 * a.i0) * CELL
+        x1 = (cx0 + 11 * (a.i0 + nx)) * CELL
+        y0 = (cy0 + 11 * a.j0) * CELL
+        y1 = (cy0 + 11 * (a.j0 + ny)) * CELL
+        print("grid origin cells (%d, %d) from %s; sectors i %d..%d j %d..%d"
+              % (cx0, cy0, a.log or "the AO20 constants", a.i0, a.i0 + nx - 1, a.j0, a.j0 + ny - 1))
+        if not a.tiles:
+            a.tiles = (nx, ny)
     tx, ty = a.tiles if a.tiles else (a.n, a.n)
     ins = a.inset
     pts = {"nw": (x0 + ins, y1 - ins), "ne": (x1 - ins, y1 - ins), "sw": (x0 + ins, y0 + ins), "se": (x1 - ins, y0 + ins)}
@@ -103,7 +136,7 @@ def box(a):
         x0, x1, y0, y1, round(x0 / CELL), round(x1 / CELL) - 1, round(y0 / CELL), round(y1 / CELL) - 1, tx, ty, ins))
     for k in ("nw", "ne", "sw", "se"):
         lat, lon, _ = geodetic(to_ecef(*pts[k]))
-        c = ecef(lat, lon, 700.0)
+        c = ecef(lat, lon, a.height)
         print("  %s  ENU (%.1f, %.1f)  lat %.9f lon %.9f  ECEF %.6f %.6f %.6f" % (k, pts[k][0], pts[k][1], lat, lon, *c))
         lines.append("   (extent-%s  %.6f %.6f %.6f)" % (k, c[0], c[1], c[2]))
     body = ("(nav-gen-config \n" + "\n".join(lines) + "\n"
@@ -144,6 +177,19 @@ def swap_asset(data, biome_id, old, new):
     return data[:m.start()] + nb + data[m.end():]
 
 
+def drop_asset(data, biome_id, name):
+    """Remove the one <asset name="name" .../> LINE inside <biome id="biome_id"> ... </biome>; exactly one hit."""
+    m = re.search(rb'<biome id="' + biome_id.encode() + rb'"[^>]*>.*?</biome>', data, re.S)
+    if not m:
+        raise ValueError("biome %s not found" % biome_id)
+    block = m.group(0)
+    pat = re.compile(rb'[ \t]*<asset name="' + re.escape(name.encode()) + rb'"[^>]*/>[ \t]*\r?\n')
+    hits = pat.findall(block)
+    if len(hits) != 1:
+        raise ValueError("biome %s: expected one asset line %s, found %d" % (biome_id, name, len(hits)))
+    return data[:m.start()] + pat.sub(b"", block) + data[m.end():]
+
+
 def shadow(a):
     root = os.path.abspath(a.shadow)
     refuse_mak(root)
@@ -164,15 +210,20 @@ def shadow(a):
         shutil.copytree(os.path.join(LATEST, TC_REL), dst_tc)
     n_files = sum(len(f) for _, _, f in os.walk(dst_tc))
     print("shadow %s: %s; TerrainConfiguration copied (%d files)" % (root, made, n_files))
-    src_def = os.path.join(LATEST, TC_REL, BIOME_DEF)
-    dst_def = os.path.join(dst_tc, BIOME_DEF)
+    defs = os.path.join("osgEarthCatalogs", a.defs)
+    src_def = os.path.join(LATEST, TC_REL, defs)
+    dst_def = os.path.join(dst_tc, defs)
     data = open(src_def, "rb").read()
     for spec in a.swap:   # applied in sequence to the VENDOR text, so several swaps combine
         biome_id, rest = spec.split(":", 1)
         old, new = rest.split("=", 1)
         data = swap_asset(data, biome_id, old, new)
         print("biome %s: %s -> %s" % (biome_id, old, new))
-    if a.swap:
+    for spec in a.drop:
+        biome_id, name = spec.split(":", 1)
+        data = drop_asset(data, biome_id, name)
+        print("biome %s: %s dropped" % (biome_id, name))
+    if a.swap or a.drop:
         open(dst_def, "wb").write(data)
         print("%s (vendor sha256 %s, copy sha256 %s)" % (dst_def, sha(src_def), sha(dst_def)))
     return 0
@@ -209,7 +260,52 @@ def selftest():
         ok = False
     except ValueError:
         pass
-    print("make_tree_control selftest: %s" % ("PASS" if ok else "FAIL"))
+    checks = [("swap DSS YuccaPalm -> HoneyMesquiteShortSpring, one hit, DSW untouched", ok)]
+
+    # --drop: remove one asset LINE inside one biome; biome "04" must not match "04-PA".
+    b04 = (b'<biome id="04" parent="00" name="x">\r\n   <assets>\r\n'
+           b'      <asset name="RedMapleSpring" />\r\n'
+           b'      <asset name="WhiteOakSpring" fill="0.6"/>\r\n   </assets>\r\n</biome>\r\n'
+           b'<biome id="04-PA" parent="04" name="y">\r\n   <assets>\r\n'
+           b'      <asset name="WhiteOakSpring"/>\r\n   </assets>\r\n</biome>\r\n')
+    try:
+        o = drop_asset(b04, "04", "WhiteOakSpring")
+        checks.append(("drop 04:WhiteOakSpring removes exactly that line",
+                       o.count(b"WhiteOakSpring") == 1 and b'fill="0.6"' not in o
+                       and len(b04) - len(o) == len(b'      <asset name="WhiteOakSpring" fill="0.6"/>\r\n')))
+        o2 = swap_asset(b04, "04", "WhiteOakSpring", "RedMapleSpring")
+        checks.append(("swap 04:WhiteOakSpring leaves the 04-PA block alone",
+                       o2.count(b"WhiteOakSpring") == 1 and o2.endswith(b04[b04.index(b'<biome id="04-PA"'):])))
+        try:
+            drop_asset(b04, "04", "Nope")
+            checks.append(("drop of a missing asset raises", False))
+        except ValueError:
+            checks.append(("drop of a missing asset raises", True))
+    except NameError as e:
+        checks.append(("drop_asset exists (%s)" % e, False))
+
+    # --log: the grid origin comes from the log's extent line, not the AO20 constants.
+    try:
+        ao20 = "CalculateTransitionPointLocations extent = (-10019,-9976,684.305,10062,9976,684.372)\n" \
+               "Sector (0,0): xMin: -233 yMin: -232 xMax: -223 yMax: -222\n"
+        checks.append(("grid origin from the AO20 extent = the legacy constants (-233, -232)",
+                       grid_origin_from_log(ao20) == (-233, -232)))
+        iron = "CalculateTransitionPointLocations extent = (-10062,-10019,134.237,10105,10019,134.373)\n"
+        checks.append(("grid origin from the IRONSTORM-CENTRE extent = (-234, -233)",
+                       grid_origin_from_log(iron) == (-234, -233)))
+        bad = ao20.replace("xMin: -233", "xMin: -232")
+        try:
+            grid_origin_from_log(bad)
+            checks.append(("a log whose (0,0) row disagrees with its extent is refused", False))
+        except ValueError:
+            checks.append(("a log whose (0,0) row disagrees with its extent is refused", True))
+    except NameError as e:
+        checks.append(("grid_origin_from_log exists (%s)" % e, False))
+
+    for name, c in checks:
+        print("%s  %s" % ("PASS" if c else "FAIL", name))
+    ok = all(c for _, c in checks)
+    print("make_tree_control selftest: %s (%d checks)" % ("PASS" if ok else "FAIL", len(checks)))
     return 0 if ok else 1
 
 
@@ -224,11 +320,21 @@ def main(argv=None):
                    help="inclusive AO20 cell indices instead of --i0/--j0/--n (e.g. the 38-cell remainder column)")
     b.add_argument("--tiles", type=int, nargs=2, metavar=("TX", "TY"))
     b.add_argument("--n", type=int, default=5)
+    b.add_argument("--nx", type=int, help="sectors along x (default --n)")
+    b.add_argument("--ny", type=int, help="sectors along y (default --n)")
+    b.add_argument("--log", help="the PARENT area's generation log: grid origin from its extent line "
+                                 "(default: the AO20 constants -233 / -232)")
+    b.add_argument("--height", type=float, default=700.0, help="corner height m (AO20 700; IRONSTORM 150)")
     b.add_argument("--inset", type=float, default=1.0)
     b.add_argument("--cfg", required=True)
     s = sub.add_parser("shadow")
     s.add_argument("--shadow", required=True)
     s.add_argument("--swap", action="append", default=[], metavar="BIOME:OLD=NEW")
+    s.add_argument("--drop", action="append", default=[], metavar="BIOME:ASSET",
+                   help="remove that asset's line from the biome (repeatable; applied after --swap)")
+    s.add_argument("--defs", default="biome.definitions.CA-fveg.xml",
+                   help="the osgEarthCatalogs file the edits apply to (default the CA-fveg file; "
+                        "biome.definitions.bioregions.xml for the OneEarth biomes, e.g. 04)")
     t = sub.add_parser("terrain")
     t.add_argument("--shadow", required=True)
     t.add_argument("--out", required=True)
