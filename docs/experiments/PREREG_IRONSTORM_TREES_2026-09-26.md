@@ -251,3 +251,48 @@ CAUSE READING, stated before the data: T1 + T2 HIT = trees hold the forest secto
 sectors - the corridor needs a water-side lever (route, or water handling), not a tree lever. T2 MISS = trees
 explain all seven, and a narrower asset than RedMapleSpring is the product lever to test next. Either way this run
 registers nothing (it removes every biome-04 tree).
+
+### Part 3 result (full-area L1a, no biome-04 trees) - CORRIDOR FAIL on 2 of 7; nothing registered; STOP
+
+Registered by commit 36f9d63 (2026-09-26T23:06:52Z). Run: pid 29464, 23:07:01Z -> 23:53:16Z, exit 0 from the held
+handle, wall 2,775.7 s; loaded c:\C2SIM\vrf-nav\shadow_is04_notrees\...\MAK Earth (online).earth. Log
+...\work\log\gen-IRONSTORM-CENTRE_notrees-2026-09-26.log (5,444,665 B, sha256 3a0c4afd...ae6c). Area
+...\NavArea-ground-platform IRONSTORM-CENTRE_notrees: 159,819,804 B, manifest sha256 ceeac469...65ad; runtime config
+sha256 495120f7...fd73f. Gate outputs beside the log.
+
+| Sector | Leg | Baseline | L1b maple | L1a no trees | Forest | Water | NavData kB base / L1b / L1a |
+|---|---|---|---|---|---|---|---|
+| (14,13) | T02 | 0.8947 | 1.0000 | 1.0000 | 1.00 | 0.00 | 191 / 167 / 61 |
+| (16,14) | T02 | 0.8868 | 1.0000 | 1.0000 | 1.00 | 0.00 | 194 / 169 / 58 |
+| (17,15) | T02 | 0.8800 | 0.9000 | **0.8958** | 0.34 | 0.02 | 107 / 105 / 65 |
+| (27,22) | T10 | 0.8475 | 0.9649 | 0.9400 | 0.70 | 0.06 | 145 / 137 / 64 |
+| (27,23) | T10 | 0.8868 | 1.0000 | 1.0000 | 0.85 | 0.06 | 158 / 150 / 62 |
+| (28,21) | T10 | 0.8182 | **0.8485** | **0.8621** | 0.13 | 0.34 | 73 / 76 / 49 |
+| (28,22) | T10 | 0.8571 | **0.8857** | 0.9091 | 0.10 | 0.22 | 69 / 69 / 56 |
+
+- T0 HIGH: HIT (exit 0, 1,600 sectors, same extent and 26,802 transition points, runtime config _notrees written).
+- T1 HIGH: MISS - (17,15) reads 0.8958 (nodes 49, neighbours 43): one neighbour short of 0.9 (44/48 = 0.9167). The other
+  four forest-led sectors read >= 0.94.
+- T2 MEDIUM: MISS - (28,21) stays below (0.8621) but (28,22) reads 0.9091.
+- T3 MEDIUM: MISS - area-wide below 0.9 is 69, not <= 63 (baseline 280, L1b 63).
+- T4 MEDIUM: HIT - forest >= 0.9 sectors: median NavData 58.1 kB (baseline 179.4, L1b 167.6); input triangles
+  147,368 -> 137,627.
+
+What the three full runs establish [V]:
+- Trees are the main lever for the FOREST-led corridor sectors: (14,13), (16,14), (27,23) read 1.0000 in BOTH
+  edited runs; (27,22) >= 0.94 in both. Area-wide sub-0.9 falls 280 -> 63 (maples) / 69 (no trees).
+- (28,21) (water 0.34, forest 0.13) is below 0.9 in all three runs (0.818 / 0.849 / 0.862). No tree lever clears it;
+  its failure is not the trees. Leading candidate [A]: the lake edge (water share 0.34).
+- (17,15) and (28,22) sit AT the bar: they cross it in opposite directions between the two edited runs (0.9000 /
+  0.8958 and 0.8857 / 0.9091). With about 30-50 nodes a sector's ratio moves in steps of about 0.02-0.03 (one neighbour),
+  so these two are not separable from 0.9 by any lever tested here.
+- Removing all trees is NOT better than red maples for the corridor (2 failing either way; different sectors). The
+  metric does not improve monotonically with fewer trees.
+
+Cause reading as registered: neither pre-stated reading holds cleanly. Trees are the cause for the forest sectors;
+water is the leading candidate for (28,21); (17,15) / (28,22) are at the metric's resolution. STOP per the seat: no
+registration, no fixture, no deploy.
+
+Side effects: 523 files under C:\MAK since the registration, all in appData\cache\vrfsim (new folder
+Biomes-55632266aade6b1f); 1,602 NavDataDebug intermediates (14,909,013,240 B) deleted. Kept: both full areas and logs,
+the shadows and terrain copies.
