@@ -2,6 +2,8 @@
 
 - `nav_gate.py` - the connectivity gate. Run it on every generation log before anything uses the area.
 - `make_nav_terrain.py` - registers a `.navRuntimeConfig` on a COPY of the terrain (`out/`, git-ignored).
+- `osm_sector_map.py` - maps OSM highway ways onto a generated area's sectors (diagnostic).
+- `landcover_sector_map.py` - land-cover class and soil per sector against the tag count (diagnostic).
 - Tests: `pwsh -NoProfile -File tests\NavGate.Tests.ps1`; `python make_nav_terrain.py --selftest`.
 
 ## Generating an area (vrfNavGenerator.exe, headless)
@@ -52,3 +54,21 @@ the nav-tag histogram alongside the result.
     python tools\navdata\make_nav_terrain.py --runtime-config "<navDataDir>\<AREA>.navRuntimeConfig" --out "<copy .mtf>"
 
 The copy names the runtime config by absolute path, so the data must stay where it was generated.
+
+## Diagnostics: OSM ways per sector (osm_sector_map.py)
+
+    python tools\navdata\osm_sector_map.py --log <gen.log> --tiles <dir> [--fetch] [--json out.json] [--map]
+
+Inputs: the generation log (the "Adjusted -" corners, the "CalculateTransitionPointLocations extent" line, the
+"Sector (i,j)" rows and the per-sector "Generated N distinct nav tags." lines) and the z14 OSM vector tiles of
+mbtiles/osm/ (land-cover roads) and mbtiles/osm-highways/ (MAK_ROAD volumes), stored as <set>/14_<x>_<tmsy>.pbf.
+The server uses TMS rows (y from the south: tms_y = 2^z - 1 - xyz_y); a 404 is an empty tile.
+The sector frame is ENU about the centroid of the adjusted corners, shifted east so the corners land on the
+log's extent. The shift exists because the true origin (the runtime "offset") is only in the .navRuntimeConfig,
+which the 2026-09-25 run did not write; for AO20 it is +21.5 m (half a 43 m cell) and the corners then match to
+<= 0.05 m. It is fitted to one log line, so treat sub-cell placement as assumed.
+Record: docs/experiments/FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md.
+
+Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]`
+(global-geodetic PNG TMS 154 CA-FVEG / 165 NLCD / 188 Copernicus; the server serves curl, not Python's default
+user agent). Record: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8.
