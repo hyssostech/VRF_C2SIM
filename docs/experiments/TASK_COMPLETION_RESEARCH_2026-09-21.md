@@ -12,7 +12,7 @@
 # follow-ons wait); a task with NO destination (in place, patrol, follow) ends at its Duration as before;
 # the stall abort is no longer hidden by a timed completion, does not cancel the end time, and abandons the
 # stuck unit's follow-ons; a late ATTACK/BREACH move still gets its engage. Cells whose statement changed
-# carry an "UPDATE 2026-09-25" line. docs/CORRECTIONS_LOG.md F-3.
+# carry an "UPDATE 2026-09-25" line. docs/CORRECTIONS_LOG.md F-4.
 
 # WHEN IS A TASK FINISHED? ONE PAGE PER VERB
 

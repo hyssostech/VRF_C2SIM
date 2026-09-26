@@ -16,7 +16,7 @@ RULINGS - read this before you write the word "ruling" anywhere:
   approved RL-20260925-01, branch feat/completion-temporary-position; LIVE CONFIRMATION OWED) builds it: an early finish is held to start time + Duration; a
   unit still travelling then completes when it arrives (one OVERDUE line; its follow-ons wait); no-destination tasks end at their Duration; the stall
   TASKABRT is no longer hidden and abandons the stuck unit's follow-ons. Stall detection: shipped OFF, ON in the DEMO profile. The 746c091 behaviour
-  (complete at the Duration though not arrived) is gone - CORRECTIONS_LOG F-3. "R4" is
+  (complete at the Duration though not arrived) is gone - CORRECTIONS_LOG F-4. "R4" is
   row 4 of the 2026-09-14 question table ("When is SECURE / OCCUPY / DEFEND complete - on arrival, after its Duration, or never?") and it was never put about
   a MOVE: RL-20260914-02, with RL-20260907-01, RL-20260921-05, -07 and -08.
 - The placement re-clamp (8aeb127): ANSWERED 2026-09-21, RL-20260921-06 (S555). The placement STAYS; do not revert 8aeb127. The same unit made the dispatch

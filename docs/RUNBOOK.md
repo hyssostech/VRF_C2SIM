@@ -2642,7 +2642,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   dispatch), and TASKCMPLT goes out the moment it arrives. A task with NO destination (hold in
   place, fire, breach, follow, patrol) ends at its end time. Until 2026-09-25 every task was reported
   TASKCMPLT at its end time whether or not its unit had arrived (746c091) - `docs/CORRECTIONS_LOG.md`
-  F-1 and F-3. `Vrf:StallDetection` is ON in the Demo overlay (the owner's decision of 2026-09-25,
+  F-1 and F-4. `Vrf:StallDetection` is ON in the Demo overlay (the owner's decision of 2026-09-25,
   RL-20260925-01) and OFF by default; its TASKABRT no longer cancels the end time and it abandons the
   stuck unit's follow-ons.
 
@@ -3372,7 +3372,7 @@ as a data problem.
 ### 11h. PLACEMENT ON A STREAMING TERRAIN - THE RE-CLAMP AND THE DISPATCH GROUND GATE (2026-09-21)
 
 > **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 60e45a6, 2338e16, 02e604d on feat/completion-temporary-position); live
-> confirmation owed; `docs/CORRECTIONS_LOG.md` F-3). A taskee measured off the terrain at dispatch
+> confirmation owed; `docs/CORRECTIONS_LOG.md` F-4). A taskee measured off the terrain at dispatch
 > is LOGGED - `PLACEMENT RE-CLAMP gate: <unit> measured OFF the terrain at dispatch - ... -
 > dispatching task '<T>'` - and dispatched. The state `BOUND-BUT-NOT-ON-THE-GROUND` no longer
 > exists, no task is refused on a ground verdict, and NO `setLocation` is sent at dispatch (the move
@@ -3601,7 +3601,7 @@ remove is the CAUSE of the instance recorded above: a unit measured 145 m off th
 longer tasked, so no armed end is ever set for it. (WITHDRAWN 2026-09-25: the gate no longer holds such
 a unit, so it IS tasked and its end time IS armed. What now stops the suppression is the completion
 unit: the Duration timer no longer reports TASKCMPLT for a unit that has not arrived, so the stall
-TASKABRT is sent - `docs/CORRECTIONS_LOG.md` F-3.) Ledger ids for the struck claims, added 2026-09-21
+TASKABRT is sent - `docs/CORRECTIONS_LOG.md` F-4.) Ledger ids for the struck claims, added 2026-09-21
 (U2 lane D): RL-20260914-01 and RL-20260914-02 (both archive) for the two 2026-09-14 answers the
 struck text leaned on, and RL-20260921-03 (archive) for the withdrawn STP-857 label. The correction
 block below is the live text; the struck sentences are kept only so the refutation has its subject.
@@ -3653,7 +3653,7 @@ the target area or something like that?)."* So do NOT write "a MOVE completes on
 AS A SEPARATE STATEMENT ABOUT THE CODE: arming the Duration timer on every task with a Duration
 (746c091) is a code defect; the fix is gated on the owner's review of completion semantics (U1) and
 a PLAN gate (DONE 2026-09-25 by the completion unit, to the owner's TEMPORARY position RL-20260921-09,
-scope approved as RL-20260925-01: `docs/CORRECTIONS_LOG.md` F-3). That is a design statement, separate from the measurement in the paragraph above, which
+scope approved as RL-20260925-01: `docs/CORRECTIONS_LOG.md` F-4). That is a design statement, separate from the measurement in the paragraph above, which
 stands unchanged. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)

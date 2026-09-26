@@ -312,7 +312,7 @@ content of this entry whatever happens to the feature. ***
   OPERATOR-FACING log string ("The documented correction (setAltitude 0 m above ground level)
   has been issued"); it is a code string, not a comment, so changing it is a behaviour change
   and belongs to the lane that re-cuts the re-clamp. (2026-09-25: GONE - the state and its sentence were
-  retired by the completion unit; see F-3.)
+  retired by the completion unit; see F-4.)
 - CLAIMED (same commit, `appsettings.Demo.json` `_PlacementReclamp`): the setting "IS THE
   DIFFERENCE BETWEEN A DEMO AND A STATIONARY VEHICLE", and without it a unit is "shown to an
   audience sitting still under the ground". This is the falsified burial-to-no-movement fusion
@@ -354,7 +354,7 @@ content of this entry whatever happens to the feature. ***
   it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
   :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
 
-## F-3: "a task completes at its Duration even if its unit has not arrived" and "a taskee measured off the terrain is HELD" - true of main until 2026-09-25, no longer (2026-09-25)
+## F-4: "a task completes at its Duration even if its unit has not arrived" and "a taskee measured off the terrain is HELD" - true of main until 2026-09-25, no longer (2026-09-25)
   (Ledger: RL-20260921-09 is the temporary position built here; RL-20260921-06 the re-clamp answer; RL-20260925-01 the
   owner's approval of this unit's scope and his four decisions, being added to the ledger by another lane.)
 
