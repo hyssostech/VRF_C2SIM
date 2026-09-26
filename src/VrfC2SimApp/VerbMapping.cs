@@ -62,10 +62,22 @@ public enum TaskIntent
     /// of engagement unchanged, completion by the time rules (RL-20260921-09). Doctrinally the task
     /// names the unit it supports or may assume from; STP does not carry that unit (AffectedEntity
     /// is the performer itself), so there is nothing to follow - only the graphic. Added to the
-    /// RL-20260926-01 unit at the coordinator's direction (owner discussion 2026-09-26); STP today
+    /// RL-20260926-01 unit at the coordinator's direction - NOT an owner ruling; STP today
     /// exports follow-and-support as ATTACK (an STP defect, ticket being drafted).
     /// </summary>
     FollowAndSupport,
+
+    /// <summary>
+    /// CNFPSL (conduct forward passage of lines; xsd:3899; STP's passage-of-lines code,
+    /// docs/STP_TASK_VOCABULARY_2026-09-03.md:36). HELD IN PLACE FOR NOW, by the owner's answer of
+    /// 2026-09-26 (RL-20260926-01 A6: "Hold for 1st run plus jira item for coa renderer"): Iron Storm
+    /// cut A's T01/T13 list their four graphics (start point, passage point, lane, release point) out
+    /// of doctrinal order, so driving them as listed is a 30-40 km zig-zag, and T01 is the division HQ
+    /// that CONTROLS the passage. Route by graphic role is not built (STP-866). The dispatch is the
+    /// ExecutePlanPhase one: no vendor task, no move, the order's ROE, completion by time. The repo
+    /// holds no doctrine record for passage of lines (FM 3-90 was not cited from the record).
+    /// </summary>
+    PassageOfLines,
 }
 
 /// <summary>
@@ -104,6 +116,7 @@ public static class VerbMapping
         TaskIntent.Escort => true,        // DtFollowEntityTask on the escorted entity (ESCRT)
         TaskIntent.HoldInPlace => true,   // R2's in-place dispatch, reached by the verb (no vendor task)
         TaskIntent.FollowAndSupport => true, // FOLSPT/FOLASS: the route move itself, then hold (no engagement)
+        TaskIntent.PassageOfLines => true,   // CNFPSL: held in place for now (no vendor task; STP-866)
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
         // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
@@ -111,6 +124,8 @@ public static class VerbMapping
 
     private const string AttackComposition =
         "advance to the objective + ROE fire at will (unit); Fire At only for a platform with a distinct target";
+    private const string PassageComposition =
+        "held in place for now (no vendor task, ends at its Duration); route by graphic role not implemented - STP-866";
     private const string FollowComposition =
         "advance along the task's graphic to its end and hold there; no engagement; ROE as ordered";
     private const string BreachComposition =
@@ -148,6 +163,8 @@ public static class VerbMapping
             // STP's order, so nothing is followed - the unit drives the graphic and holds at its end.
             ["FOLSPT"] = (TaskIntent.FollowAndSupport, FollowComposition),
             ["FOLASS"] = (TaskIntent.FollowAndSupport, FollowComposition),
+            // Conduct forward passage of lines (xsd:3899). Held in place for now (RL-20260926-01 A6).
+            ["CNFPSL"] = (TaskIntent.PassageOfLines, PassageComposition),
             ["CLRLND"] = (TaskIntent.Clear,           "composite move + engage sweep"),
 
             // ---- THE TWO VERBS THE IRON STORM EXPORT ADDED (2026-09-20) ------------------------

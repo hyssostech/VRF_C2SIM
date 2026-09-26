@@ -58,7 +58,17 @@ public enum EngageDecision
     /// there. No engagement task and the order's rules of engagement unchanged; STP does not carry
     /// the supported unit (AffectedEntity = the performer), so nothing is followed.</summary>
     AdvanceAndHold,
+    /// <summary>CNFPSL (forward passage of lines), any performer: HELD IN PLACE for now - the
+    /// ExecutePlanPhase dispatch exactly (no vendor task, completion by time). The owner's answer of
+    /// 2026-09-26 (RL-20260926-01 A6, "Hold for 1st run plus jira item for coa renderer"): the order
+    /// lists the start point, passage point, lane and release point out of doctrinal order, so driving
+    /// them as listed is a 30-40 km zig-zag, and route-by-graphic-role is not built (STP-866).</summary>
+    HoldInPlaceNotRouted,
 }
+
+/// <summary>The rules of engagement a dispatch sets (the bridge's Roe, kept bridge-free here so the
+/// decision is checkable offline). See <see cref="TaskDispatchPolicy.RoeFor"/>.</summary>
+public enum RoeChoice { FireAtWill, HoldFire, FireWhenFiredUpon }
 
 /// <summary>
 /// THE DISPATCH DECISIONS THE 2026-09-14 RULINGS CHANGED, as pure functions so they are decidable
@@ -108,25 +118,55 @@ public static class TaskDispatchPolicy
     ///   ATTACK by a PLATFORM otherwise (STP names the performer itself) -> advance only, unchanged.
     ///   BREACH, any performer, any target -> advance + the not-simulated observation.
     ///   FOLSPT / FOLASS, any performer, any target -> advance along the graphic and hold; nothing else.
+    ///   CNFPSL, any performer, any target -> HELD IN PLACE for now (owner, RL-20260926-01 A6; STP-866).
+    /// SCOPE OF THE OWNER'S WORDS: he was asked about "a unit ATTACK" (RL-20260926-01 A1, A4). Fire at
+    /// will on ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's extension (they share the ATTACK path;
+    /// not asked - see the ledger's scope line). FOLSPT/FOLASS are the coordinator's direction; CNFPSL's
+    /// hold is the owner's answer (A6).
     /// </summary>
     /// <param name="performerIsUnit">The taskee was created as a unit (CreatedUnit.IsAggregate).</param>
     public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
     {
         if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
         if (intent == TaskIntent.FollowAndSupport) return EngageDecision.AdvanceAndHold;
+        if (intent == TaskIntent.PassageOfLines) return EngageDecision.HoldInPlaceNotRouted;
         if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
         if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
                                                          : EngageDecision.AdvanceOnly;
     }
 
+    /// <summary>Does the decision take the hold-in-place dispatch (no vendor task, no move, ends at its
+    /// Duration - the ExecutePlanPhase path)? Only CNFPSL's, for now (RL-20260926-01 A6).</summary>
+    public static bool HoldsInPlace(EngageDecision d) => d == EngageDecision.HoldInPlaceNotRouted;
+
+    /// <summary>The one plain line a CNFPSL dispatch logs and reports (coordinator's wording).</summary>
+    public const string PassageOfLinesHeldLine =
+        "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> " +
+        "passage point -> lane -> release point) is not implemented; see STP-866";
+
     /// <summary>Does the decision name a target to VR-Forces (DtFireAtTargetTask)? Only a platform
     /// with a distinct target.</summary>
     public static bool IssuesFireAt(EngageDecision d) => d == EngageDecision.AdvanceThenFireAt;
 
     /// <summary>Does the decision override the order's rules of engagement with fire at will?
-    /// Only a unit ATTACK. Every other task keeps the ROE the order carries.</summary>
+    /// Only a unit ATTACK. Every other dispatch gets the order's own ROE through <see cref="RoeFor"/>.</summary>
     public static bool SetsFireAtWill(EngageDecision d) => d == EngageDecision.AdvanceFireAtWill;
+
+    /// <summary>
+    /// THE ROE A DISPATCH SETS, one call per dispatch (lane E2, review S2). A unit ATTACK is fire at will
+    /// whatever the order says (RL-20260926-01 A4); every other decision - NotEngageVerb included - gets
+    /// the order's own ROE: ROEFree -> fire at will, ROEHold -> hold fire, anything else (ROETight, none)
+    /// -> fire when fired upon (the C++ oracle's mapping, C2SIMinterface.cpp:2374-2379). The service calls
+    /// this on the committed dispatch, the no-geometry in-place dispatch AND the hold-in-place dispatch:
+    /// the last two set no ROE before, so a unit's in-place follow-on after an ATTACK kept fire at will
+    /// against its own hold-fire. (A platform's in-place Fire At and ESCRT keep their own paths.)
+    /// </summary>
+    public static RoeChoice RoeFor(EngageDecision d, string orderRoeCode)
+        => SetsFireAtWill(d) ? RoeChoice.FireAtWill
+         : orderRoeCode == "ROEFree" ? RoeChoice.FireAtWill
+         : orderRoeCode == "ROEHold" ? RoeChoice.HoldFire
+         : RoeChoice.FireWhenFiredUpon;
 
     /// <summary>The unit ATTACK dispatch line, in the ruled plain words.</summary>
     public const string AttackFireAtWillLine =
