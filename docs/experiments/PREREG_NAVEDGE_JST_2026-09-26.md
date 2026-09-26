@@ -128,3 +128,32 @@ Design implication, stated separately: the registered +/- 0.03 tolerance was tig
 The seat can amend the criterion before the EDITED arm (e.g. "NULL: all four below 0.9 and the YuccaPalm line
 present" - which this NULL meets) and run EDITED against this NULL, which is the like-for-like comparator anyway;
 that is a new registration, not a re-reading of this one.
+
+## REGISTRATION 2 (2026-09-26, after the NULL arm, BEFORE the EDITED arm)
+
+Lane N10. The Part 1 result above stands as scored: E1 is a MISS and stays a MISS.
+
+OWNER SELECTION (2026-09-26, AskUserQuestion, the seat's option label, quoted as selected): "Record the miss;
+register and run the edited arm".
+
+Reason, stated plainly: the seat's +/- 0.03 reproduction band was tighter than an isolated box can reproduce -
+column-39 ratios moved by up to 0.04 when generated on their own, on identical cells. The NULL arm above is the
+like-for-like comparator for the EDITED arm (same cells, same box, same config bytes), so the EDITED arm is scored
+against THIS NULL, not against the full-area values. This is a new registration, not a re-reading of E1.
+
+Conditions: unchanged from the registration above. EDITED config C:\C2SIM\vrf-nav\work\cfg\NavArea-ground-platform
+MojaveAO20_edge_jst.navGenConfig, sha256 2a84fffa...ac8b (byte-identical to the NULL arm's); terrain
+tools\navdata\out\MAK Earth (online) + MojaveAO20_edge_jst.mtf (sha256 78dbdcc5...0c9b) -> C:\C2SIM\vrf-nav\shadow_jst
+(DSS :541 and JST :521 YuccaPalm -> HoneyMesquiteShortSpring). Same generator, runner (u3\n9_arm.ps1, exit code via
+the held handle), busy-check traps; intermediates deleted after.
+
+NULL ratios (this box): (39,33) 0.9388, (39,34) 0.8571, (39,35) 0.8462, (39,36) 0.8438, (39,37) 0.8966, (39,38) 0.8723.
+
+| # | Prediction (EDITED arm only, vs THIS NULL on identical cells) | Confidence | What counts as a MISS |
+|---|---|---|---|
+| R1 | all four (39,34), (39,35), (39,36), (39,38) >= 0.9 AND (39,37) >= 0.9 | HIGH | any of the five below 0.9 |
+| R2 | 0 "YuccaPalm not found" lines in the EDITED log | HIGH | one or more |
+| R3 | each of the six sectors' ratio >= its NULL ratio above | MEDIUM | any sector below its NULL ratio |
+
+FALSIFIER: any of the four (39,34/35/36/38) below 0.9 -> the edge column / triangle load is the cause, not the tree;
+STOP, no Part 2.
