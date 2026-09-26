@@ -11,7 +11,7 @@ log. 1.00 iff every abstract node reaches every other. "fragmented" = ratio < 0.
 research's threshold); the GATE fails if ANY measured sector is below 0.9.
 
     python nav_gate.py <gen.log> [--area-dir <area folder>] [--area-hash] [--json]
-    python nav_gate.py --write-control {clean,dirty,west20} <out.log>
+    python nav_gate.py --write-control {clean,dirty,named-dirty,west20} <out.log>
 
 Exit codes: 0 = every measured sector >= 0.9; 1 = at least one sector < 0.9 (listed);
 2 = instrument failure (no report block parsed at all, or the log is unreadable). A log
@@ -32,6 +32,13 @@ Two regexes were corrected against that log: the caret of "^Generated:" is liter
 "Total Generation time:", "Generation Time:" and "Transition point generation time:").
 A report block is attributed to the most recent "Sector (i,j)" row. The synthetic controls
 written by --write-control mirror the real layout; passing them is self-consistency.
+NAME-ONLY LOGS (2026-09-26, lane I1): the IRONSTORM-CENTRE generation log of 2026-09-20 carries
+NO "Sector (i,j): xMin..." row at all - each sector is named only by
+    Sector ground-platform_<i>_<j>_<tag> has <n> triangles.
+(the trailing tag differs per generation: _iiSc there, _uLxq / _RX21 on Mojave logs). Keyed on
+the coordinate row alone, this tool read that log as "sectors total 0" and exit 2 - safe, but
+useless. The name row is now a second sector key; both rows of one sector give the same (i,j).
+Control: --write-control named-dirty (the dirty control with the coordinate rows removed).
 
 Companion tripwires (WEST20 :666-669): output byte size of the area folder (--area-dir;
 166 MB on 2026-09-07 vs 268.7 MB on 2026-09-15 for the same box) and the per-sector
@@ -51,6 +58,7 @@ GATE = 0.9
 FRAGMENTED = 0.5
 
 SECTOR_RE = re.compile(r"\bSector\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+SECTOR_NAME_RE = re.compile(r"^\s*Sector\s+\S*?_(\d+)_(\d+)_[A-Za-z0-9]+\s+has\s+\d+\s+triangles")
 REPORT_RE = re.compile(r"ABSTRACT\s+GRAPH\s+POST\s+PROCESS\s+REPORT", re.I)
 NODES_RE = re.compile(r"Average\s+Node\s+Count\s*[:=]\s*([-+]?\d+(?:\.\d+)?)", re.I)
 NBRS_RE = re.compile(r"Average\s+Neighbou?r\s+Node\s+Count\s*[:=]\s*([-+]?\d+(?:\.\d+)?)",
@@ -70,7 +78,7 @@ def parse_log(text):
     gen_time = None
     orphan_reports = 0
     for line in text.splitlines():
-        m = SECTOR_RE.search(line)
+        m = SECTOR_RE.search(line) or SECTOR_NAME_RE.match(line)
         if m:
             key = (int(m.group(1)), int(m.group(2)))
             if key != cur:
@@ -242,15 +250,18 @@ def print_text(res, max_list=50):
 
 # ---- synthetic controls (layout mirrors the first real log, see module docstring) ----
 
-def _sector_block(i, j, nodes, nbrs, tags=1, report=True):
+def _sector_block(i, j, nodes, nbrs, tags=1, report=True, coord=True):
     # Includes the real log's decoy lines ("Processing triangles for sector: i, j", the
     # three other "...time:" spellings, the doubled report header) so the parser is
-    # exercised against them.
-    lines = ["Processing triangles for sector: %d, %d" % (i, j),
-             "Triangles found: 98575",
-             "Sector (%d,%d): xMin: %d yMin: %d xMax: %d yMax: %d"
-             % (i, j, i * 11 - 233, j * 11 - 232, i * 11 - 223, j * 11 - 222),
-             "Sector ground-platform_%d_%d_uLxq has 98575 triangles." % (i, j),
+    # exercised against them. coord=False drops the "Sector (i,j): xMin..." row, as in
+    # the name-only IRONSTORM-CENTRE log (no "Processing triangles" row there either).
+    lines = []
+    if coord:
+        lines += ["Processing triangles for sector: %d, %d" % (i, j),
+                  "Triangles found: 98575",
+                  "Sector (%d,%d): xMin: %d yMin: %d xMax: %d yMax: %d"
+                  % (i, j, i * 11 - 233, j * 11 - 232, i * 11 - 223, j * 11 - 222)]
+    lines += ["Sector ground-platform_%d_%d_uLxq has 98575 triangles." % (i, j),
              "Generated %d distinct nav tags." % tags,
              "  ======== GENERATION REPORT",
              "  Total Generation time:         0.96 seconds",
@@ -281,12 +292,12 @@ def make_control(kind):
     nodes = 49.0
     lines = ["vrfNavGenerator SYNTHETIC CONTROL (%s) - not a real generation log" % kind]
     keys = [(i, j) for i in range(40) for j in range(40)]
-    if kind in ("clean", "dirty"):
+    if kind in ("clean", "dirty", "named-dirty"):
         for (i, j) in keys:
             nb = nodes - 1.0
-            if kind == "dirty" and (i, j) == (7, 3):
+            if kind != "clean" and (i, j) == (7, 3):
                 nb = 0.4 * (nodes - 1.0)
-            lines += _sector_block(i, j, nodes, nb)
+            lines += _sector_block(i, j, nodes, nb, coord=(kind != "named-dirty"))
     elif kind == "west20":
         # 1,600 sectors: 2 without a report, then 234 < 0.5, 175 in [0.5, 0.9),
         # 71 in [0.9, 1.0), 1,118 at 1.00  (234 + 175 + 71 + 1,118 = 1,598)
@@ -312,7 +323,7 @@ def main(argv=None):
                     help="also sha256 every file under --area-dir; prints a manifest hash")
     ap.add_argument("--json", action="store_true", help="print JSON instead of text")
     ap.add_argument("--write-control", nargs=2, metavar=("KIND", "OUT"),
-                    help="write a synthetic control log: clean | dirty | west20")
+                    help="write a synthetic control log: clean | dirty | named-dirty | west20")
     a = ap.parse_args(argv)
     if a.write_control:
         kind, out = a.write_control
