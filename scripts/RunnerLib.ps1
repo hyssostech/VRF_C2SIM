@@ -289,6 +289,9 @@ function Update-CompletionState {
         if ($State.codeCounts.Contains($code)) { $State.codeCounts[$code] = [int]$State.codeCounts[$code] + 1 } else { $State.codeCounts[$code] = 1 }
         $task = ''
         if ($null -ne $c.PSObject.Properties['Task']) { $task = [string]$c.Task }
+        # task=(none): since 2026-09-26 (lane A1, merged 93873fd) the app no longer SENDS a report
+        # for an unattributed vendor completion, so this fires only for an attributed task whose
+        # order gave an empty uuid. Kept as a detector - it should read 0.
         if ([string]::IsNullOrWhiteSpace($task) -or $task -eq '(none)') { $State.unattributed = [int]$State.unattributed + 1; continue }
         $k = Get-TaskKey -Taskee ([string]$c.Taskee) -Task $task
         if (-not $State.terminalByTask.Contains($k)) { $State.terminalByTask[$k] = $code }
