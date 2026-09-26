@@ -2644,10 +2644,12 @@ no Duration and no geometry is malformed and is refused, not held (below).
   TASKCMPLT at its end time whether or not its unit had arrived (746c091) - `docs/CORRECTIONS_LOG.md`
   F-1 and F-4. `Vrf:StallDetection` is ON in the Demo overlay (the owner's decision of 2026-09-25,
   RL-20260925-01) and OFF by default; its TASKABRT no longer cancels the end time and it abandons the
-  stuck unit's follow-ons. An ATTACK/BREACH whose approach move is replaced by the engage fallback
-  (`Vrf:EngageFallbackSeconds`) is no longer travelling, so it completes at its end time (at once if
-  already overdue), with a WARNING saying so - and a unit stuck on that approach then gets no stall
-  TASKABRT (F-4).
+  stuck unit's follow-ons. At the ATTACK/BREACH engage fallback (`Vrf:EngageFallbackSeconds`) the
+  watchdog is asked for its verdict: a unit already reported stuck, or judged stuck then, stays ABORTED
+  (no engage, no TASKCMPLT unless it really arrives); a unit judged moving - or one no verdict can be had
+  on - gets the engage and completes at its end time (at once if already overdue), with a WARNING naming
+  the verdict. RESIDUAL: a unit that stopped less than one watchdog window before the fallback reads as
+  moving; the live run measures displacement at each fallback to count these (F-4).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,

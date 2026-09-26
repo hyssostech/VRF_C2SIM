@@ -5230,40 +5230,91 @@ public sealed class VrfC2SimService : BackgroundService
         // Remove-if-still-this-engage: if the completion (or a supersede) already consumed
         // it, this exact KeyValuePair no longer exists and TryRemove fails - no double fire.
         if (_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
+            // The decision reads the watchdog's state and its sample ring, which live on the tick
+            // thread; it is made there, BEFORE IssueEngage (whose queued ClearStallState would wipe the
+            // stall record this decision has to read).
+            _tickActions.Enqueue(() => EngageFallbackOnTick(unitName, eng));
+    }
+
+    /// <summary>
+    /// TICK THREAD. THE ENGAGE FALLBACK'S DECISION (2026-09-25; lane M review S1, re-review NEW-1).
+    /// After Vrf:EngageFallbackSeconds the approach move of an ATTACK / BREACH has not completed.
+    /// Two very different units reach this point, and the owner's words treat them differently:
+    ///   - A unit still MOVING: the interface replaces its move with the engage and so STOPS it. Under
+    ///     the temporary position (RL-20260921-09) a task ends at start time + Duration unless its unit
+    ///     is still travelling, and this unit no longer is - we stopped it. The engage is issued (D4 of
+    ///     RL-20260925-01) and the task is told it has no destination: it completes AT its end time, or
+    ///     NOW if that has passed. Without this it sat OVERDUE until an engage completion VR-Forces may
+    ///     never send.
+    ///   - A STUCK unit: being stuck is NOT a completion - "The notion that geting stuck midway is a
+    ///     complete is completelly illogical" (RL-20260921-05); a unit that never arrives is a stuck
+    ///     unit, covered by the stall ruling (RL-20260921-09 S569, RL-20260914-01). The effect of a task
+    ///     is what the temporary position ignores; getting stuck is not the effect. So a stuck unit is
+    ///     ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its destination, and the engage is
+    ///     NOT issued from wherever it is stuck; the engage is parked again, so a unit that does arrive
+    ///     later still gets it (D4) and reports TASKCMPLT on that real arrival.
+    /// Which one it is: (1) the watchdog has ALREADY reported this move stuck -> stuck; otherwise
+    /// (2) the watchdog is asked for its verdict NOW, on the same ring and criterion
+    /// (JudgeStallAtFallback).
+    /// RESIDUAL, stated rather than hidden: a unit that stopped LESS THAN ONE WATCHDOG WINDOW before the
+    /// fallback (240 wall s / 360 sim s by default) still shows movement inside that window, is judged
+    /// MOVING, and completes at its end time; and with no verdict possible (Vrf:StallDetection off, the
+    /// window not yet full, the clock unusable) the unit is treated as moving too. The live run counts
+    /// these by measuring each unit's displacement at every fallback from the WatchVrf trace.
+    /// </summary>
+    private void EngageFallbackOnTick(string unitName, PendingEngage eng)
+    {
+        // Read BEFORE anything below can clear it (IssueEngage queues a ClearStallState).
+        bool stallReported = _stallReported.TryGetValue(unitName, out var reportedFor)
+                             && reportedFor == (eng.MoveTaskUuid ?? "");
+        var verdict = TimedCompletionPolicy.StallAtFallback.Unknown;
+        StallPolicy.Decision d = default;
+        double window = 0.0;
+        if (!stallReported) verdict = JudgeStallAtFallback(unitName, eng.MoveTaskUuid, out d, out window);
+        var plan = TimedCompletionPolicy.PlanEngageFallback(stallReported, verdict);
+
+        if (plan != TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage)
         {
-            _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s; " +
-                            "issuing the {Kind} via fallback (it will replace the still-running move).",
-                            unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
-            IssueEngage(unitName, eng);
-            // THE INTERFACE HAS JUST STOPPED THIS UNIT'S MOVE (2026-09-25, lane M review S1). The engage
-            // replaces the approach move, and IssueEngage records it with NO destination - so from here
-            // arrival evidence and the progress (stall) watchdog both stop watching this task. Under the
-            // owner's temporary position (RL-20260921-09) a task ends at start time + Duration unless its
-            // unit is STILL TRAVELLING, and this unit no longer is: we stopped it. So the task is told it
-            // has no destination any more: it completes AT its end time, or NOW if that has already
-            // passed (it was OVERDUE). Without this it sat OVERDUE until the engage's own VR-Forces
-            // completion, which may never come, and its follow-ons waited up to a day.
-            // WHAT THIS MEANS FOR A STUCK ATTACKER: if the unit was stuck on its approach and the
-            // fallback fired before the stall watchdog judged it, no stall TASKABRT is sent for it; the
-            // task is reported complete at its end time, with the engage issued from wherever the unit
-            // stands (D4 of RL-20260925-01 unchanged). That is the temporary position applied as
-            // written (effect ignored), and this WARNING line is the record of it.
-            var fallbackVerdict = _timed.DropDestination(eng.MoveTaskUuid);
-            if (fallbackVerdict != TimedCompletionPolicy.FinishVerdict.NotTimed)
-                _log.LogWarning("Unit {Name}: task '{Task}' - the interface replaced its move with the {Kind}, so the unit " +
-                                "is no longer travelling and arrival evidence and the progress watchdog no longer watch it: " +
-                                "it completes {When} (start time + Duration, RL-20260921-09), not on an arrival.",
-                                unitName, eng.TaskName, eng.Kind,
-                                fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
-                                    ? "NOW - its end time has already passed" : "at its end time");
-            if (fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
-            {
-                _sequencer.CompleteTask(eng.MoveTaskUuid);
-                PushTaskStatus(_c2SimUuidByName.TryGetValue(unitName, out var fbTaskee) ? fbTaskee : "",
-                               eng.MoveTaskUuid ?? "", S.TaskStatusCodeType.TASKCMPLT,
-                               $"unit {unitName}: its end time (start time + Duration) has passed and the interface " +
-                               $"replaced its move with the {eng.Kind} (engage fallback) - the unit is no longer travelling");
-            }
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow
+                && _inFlight.TryGetCurrent(unitName, out var rec))
+                ReportStall(unitName, rec, window, d);
+            // Parked again: a stuck unit that does reach the objective later still gets its engage
+            // (D4) from the ordinary move-completion path; no second fallback timer is started.
+            _pendingEngage.TryAdd(unitName, eng);
+            _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s and the unit is STUCK " +
+                            "({Why}) - the {Kind} is NOT issued, the task keeps its destination and stays ABORTED; it " +
+                            "completes only if the unit really arrives (RL-20260921-05, RL-20260914-01).",
+                            unitName, eng.TaskName, _vrf.EngageFallbackSeconds,
+                            stallReported ? "already reported by the progress watchdog"
+                                          : FormattableString.Invariant($"judged now: max {d.MaxMeters:F1} m in {window:F0} s"),
+                            eng.Kind);
+            return;
+        }
+
+        _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s; " +
+                        "issuing the {Kind} via fallback (it will replace the still-running move).",
+                        unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
+        IssueEngage(unitName, eng);
+        var fallbackVerdict = _timed.DropDestination(eng.MoveTaskUuid);
+        if (fallbackVerdict != TimedCompletionPolicy.FinishVerdict.NotTimed)
+            _log.LogWarning("Unit {Name}: task '{Task}' - the interface replaced its move with the {Kind}, so the unit " +
+                            "is no longer travelling and arrival evidence and the progress watchdog no longer watch it: " +
+                            "it completes {When} (start time + Duration, RL-20260921-09), not on an arrival. Watchdog " +
+                            "verdict at the fallback: {Verdict} (a unit that stopped less than one window ago reads " +
+                            "as moving - the stated residual).",
+                            unitName, eng.TaskName, eng.Kind,
+                            fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                                ? "NOW - its end time has already passed" : "at its end time",
+                            verdict == TimedCompletionPolicy.StallAtFallback.Moving
+                                ? FormattableString.Invariant($"MOVING (max {d.MaxMeters:F1} m in {window:F0} s)")
+                                : "NONE POSSIBLE (watchdog off, window not full, or clock unusable)");
+        if (fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+        {
+            _sequencer.CompleteTask(eng.MoveTaskUuid);
+            PushTaskStatus(_c2SimUuidByName.TryGetValue(unitName, out var fbTaskee) ? fbTaskee : "",
+                           eng.MoveTaskUuid ?? "", S.TaskStatusCodeType.TASKCMPLT,
+                           $"unit {unitName}: its end time (start time + Duration) has passed and the interface " +
+                           $"replaced its move with the {eng.Kind} (engage fallback) - the unit is no longer travelling");
         }
     }
 
@@ -7022,6 +7073,122 @@ public sealed class VrfC2SimService : BackgroundService
                 IsoNow(), NewReportId()), ReportKind.Observation);
     }
 
+    /// <summary>
+    /// TICK THREAD. ONE progress-watchdog judgement of one unit's current in-flight move: admit a
+    /// sample into its ring and, when the window is full, decide on the calibrated criterion
+    /// (StallPolicy: the window of this clock, Vrf:StallMoveMeters). Factored out of
+    /// MaybeCheckStalls on 2026-09-25 so the ENGAGE FALLBACK can ask the SAME judge for its verdict
+    /// at the moment it fires (JudgeStallAtFallback) - one criterion, not two.
+    /// Returns 0 = no sample admitted, 1 = sampled but not judgeable yet, 2 = judged (see d).
+    /// </summary>
+    private int SampleAndJudgeStall(string name, InFlightTracker.InFlight rec,
+                                    Dictionary<string, (double Lat, double Lon)> positions, int total,
+                                    double clockNow, double window, bool usingSim, DateTime now,
+                                    out int ringCount, out StallPolicy.Decision d)
+    {
+        d = default;
+        var samples = _stallSamples.GetOrAdd(name, _ => new StallSamples());
+        var ring = samples.Ring;
+        // The watch opens at the first sample after the dispatch that cleared this unit's
+        // state, so StartClock is the dispatch anchor on the selected clock (within one
+        // StallCheckSeconds, plus however long the members took to reflect). StallPolicy.Admit
+        // owns the ring: it appends, REPLACES a sample that did not advance the clock (a
+        // paused scenario, or a status period coarser than the cadence), drops everything
+        // from an abandoned timeline on a snapshot rollback and re-arms the watch there, and
+        // then front-prunes to one sample at or before the window edge.
+        samples.StartClock = StallPolicy.Admit(ring, clockNow, positions, window, samples.StartClock);
+        // DEFENCE IN DEPTH AT THE CRASH POINT (pass-3 review P1). Admit REFUSES a non-finite
+        // clock, so on a unit's first check it can return with the ring still EMPTY - and
+        // 08146a2 indexed ring[0] on the very next line. The predicate above (UsingSimClock,
+        // which now requires double.IsFinite) is what makes that unreachable; this is the
+        // brace to that belt, because MaybeCheckStalls is called bare from TickLoop and an
+        // unhandled exception on the vrf-tick thread terminates the interface process.
+        ringCount = ring.Count;
+        if (ring.Count == 0) return 0;
+        var oldest = ring[0];
+        // Grace + full window on the selected clock, AND the floors that clock cannot supply
+        // (review findings 3 and 4): MinRingDepth samples inside the window - on BOTH clocks -
+        // and, on the WALL clock only, StallMinSecondsSinceDispatch of WALL time since THIS
+        // record's own dispatch (the anchor 51d78a5 used and 1616614 dropped). Never judge on
+        // a partial window: a unit 60 s into its watch has only 60 s of history, and 50 m over
+        // 60 s is a different (much stricter) test than 50 m over 240.
+        // The wall floor is NOT ANDed on the sim clock (pass-2 review F8): 360 sim s is ~58
+        // wall s at G5's 6.21x, so above ratio ~6x the floor - not the calibrated window - set
+        // the detection time (measured at 60x: wall 60 s / sim 3,600 s), negating the "fires
+        // EARLIER in wall time" property the 360 s default was chosen for. MinRingDepth, which
+        // 51d78a5 did not have, covers the two-sample case the floor incidentally guarded.
+        if (!StallPolicy.JudgeReady(clockNow, oldest.Clock, samples.StartClock, window,
+                                    _vrf.StallMinSecondsSinceDispatch, ring.Count,
+                                    (now - rec.DispatchedUtc).TotalSeconds,
+                                    applyWallFloor: !usingSim)) return 1;
+        var displacements = new List<double>();
+        foreach (var cur in positions)
+            if (oldest.P.TryGetValue(cur.Key, out var was))
+                displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
+        d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
+        return 2;
+    }
+
+    /// <summary>TICK THREAD. The stall report for one unit-task: one TASKABRT (report-only) and its
+    /// follow-ons abandoned (D2). Shared by MaybeCheckStalls and the engage fallback.</summary>
+    private void ReportStall(string name, InFlightTracker.InFlight rec, double window, StallPolicy.Decision d)
+    {
+        _stallReported[name] = rec.TaskUuid ?? "";
+        _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
+                            "{Clock} s (max {Max:F1} m); TASKABRT reported.",
+                            name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
+                            _stallClockMode == 1 ? "SIM" : "wall", d.MaxMeters);
+        if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
+        {
+            _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
+            return;
+        }
+        // REPORT-ONLY for the task itself: it stays in flight, its armed end time is NOT cancelled
+        // (reportOnlyAbort), and a unit that later arrives still reports TASKCMPLT. Before the
+        // completion unit of 2026-09-25 this abort was usually SUPPRESSED - the Duration timer had
+        // already reported TASKCMPLT for the unarrived unit - and it released nothing.
+        PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
+                       "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
+                       "VR-Forces command is issued and nothing is re-tasked; its follow-on tasks are " +
+                       "abandoned", reportOnlyAbort: true);
+        // D2 (the owner, 2026-09-25, RL-20260925-01): the follow-ons of a unit reported STUCK are
+        // ABANDONED, each with its own TASKABRT, as every other abort does (supersede, back-end
+        // loss, vendor failure). Its chain is closed; its own task may still complete later.
+        _sequencer.NotifyAbandoned(rec.TaskUuid);
+    }
+
+    /// <summary>
+    /// TICK THREAD. The watchdog's verdict on a unit at the moment the engage fallback fires, from
+    /// the SAME judge and the SAME ring as MaybeCheckStalls (SampleAndJudgeStall). Unknown whenever
+    /// the periodic check itself could not judge: detection off, back end lost, clock not yet
+    /// selected, the sim clock unreadable or stale, no member positions, the record no longer this
+    /// move, or the window not yet full.
+    /// </summary>
+    private TimedCompletionPolicy.StallAtFallback JudgeStallAtFallback(string name, string moveTaskUuid,
+                                                                        out StallPolicy.Decision d, out double window)
+    {
+        d = default;
+        window = 0.0;
+        if (!_vrf.StallDetection || _backendLost || _stallClockMode == 0)
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!_inFlight.TryGetCurrent(name, out var rec) || rec.DestLat is null || rec.DestLon is null
+            || !string.Equals(rec.TaskUuid ?? "", moveTaskUuid ?? "", StringComparison.Ordinal))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (_arrivalReported.ContainsKey(name)) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        var now = DateTime.UtcNow;
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        bool usingSim = _stallClockMode == 1;
+        window = StallPolicy.ResolveWindowSeconds(_vrf.StallWindowSeconds, usingSim);
+        var simObs = _simClockLast;
+        if (usingSim && (!simObs.Readable || simObs.Stale)) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        double clockNow = StallPolicy.SelectClock(usingSim, simObs.SimSeconds, wallNow);
+        if (!TryReadMemberPositions(name, out var positions, out int total))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now, out _, out d) < 2)
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        return d.Stalled ? TimedCompletionPolicy.StallAtFallback.Stalled : TimedCompletionPolicy.StallAtFallback.Moving;
+    }
+
     private void MaybeCheckStalls()
     {
         var now = DateTime.UtcNow;
@@ -7256,73 +7423,15 @@ public sealed class VrfC2SimService : BackgroundService
             if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
             if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
 
-            var samples = _stallSamples.GetOrAdd(name, _ => new StallSamples());
-            var ring = samples.Ring;
-            // The watch opens at the first sample after the dispatch that cleared this unit's
-            // state, so StartClock is the dispatch anchor on the selected clock (within one
-            // StallCheckSeconds, plus however long the members took to reflect). StallPolicy.Admit
-            // owns the ring: it appends, REPLACES a sample that did not advance the clock (a
-            // paused scenario, or a status period coarser than the cadence), drops everything
-            // from an abandoned timeline on a snapshot rollback and re-arms the watch there, and
-            // then front-prunes to one sample at or before the window edge.
-            samples.StartClock = StallPolicy.Admit(ring, clockNow, positions, window, samples.StartClock);
-            // DEFENCE IN DEPTH AT THE CRASH POINT (pass-3 review P1). Admit REFUSES a non-finite
-            // clock, so on a unit's first check it can return with the ring still EMPTY - and
-            // 08146a2 indexed ring[0] on the very next line. The predicate above (UsingSimClock,
-            // which now requires double.IsFinite) is what makes that unreachable; this is the
-            // brace to that belt, because MaybeCheckStalls is called bare from TickLoop and an
-            // unhandled exception on the vrf-tick thread terminates the interface process.
-            if (ring.Count == 0) continue;
-            if (ring.Count > deepestRing) deepestRing = ring.Count;
+            int stage = SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now,
+                                            out int ringCount, out var d);
+            if (stage == 0) continue;                      // no sample could be admitted
+            if (ringCount > deepestRing) deepestRing = ringCount;
             anySampled = true;
-
-            var oldest = ring[0];
-            // Grace + full window on the selected clock, AND the floors that clock cannot supply
-            // (review findings 3 and 4): MinRingDepth samples inside the window - on BOTH clocks -
-            // and, on the WALL clock only, StallMinSecondsSinceDispatch of WALL time since THIS
-            // record's own dispatch (the anchor 51d78a5 used and 1616614 dropped). Never judge on
-            // a partial window: a unit 60 s into its watch has only 60 s of history, and 50 m over
-            // 60 s is a different (much stricter) test than 50 m over 240.
-            // The wall floor is NOT ANDed on the sim clock (pass-2 review F8): 360 sim s is ~58
-            // wall s at G5's 6.21x, so above ratio ~6x the floor - not the calibrated window - set
-            // the detection time (measured at 60x: wall 60 s / sim 3,600 s), negating the "fires
-            // EARLIER in wall time" property the 360 s default was chosen for. MinRingDepth, which
-            // 51d78a5 did not have, covers the two-sample case the floor incidentally guarded.
-            if (!StallPolicy.JudgeReady(clockNow, oldest.Clock, samples.StartClock, window,
-                                        _vrf.StallMinSecondsSinceDispatch, ring.Count,
-                                        (now - rec.DispatchedUtc).TotalSeconds,
-                                        applyWallFloor: !usingSim)) continue;
+            if (stage == 1) continue;                      // sampled, not judgeable yet
             anyJudgeable = true;   // at least one unit reached the gate - the watchdog is not dormant
-
-            var displacements = new List<double>();
-            foreach (var cur in positions)
-                if (oldest.P.TryGetValue(cur.Key, out var was))
-                    displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
-            var d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
             if (!d.Stalled) continue;
-
-            _stallReported[name] = rec.TaskUuid ?? "";
-            _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
-                                "{Clock} s (max {Max:F1} m); TASKABRT reported.",
-                                name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
-                                _stallClockMode == 1 ? "SIM" : "wall", d.MaxMeters);
-            if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
-            {
-                _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
-                continue;
-            }
-            // REPORT-ONLY for the task itself: it stays in flight, its armed end time is NOT cancelled
-            // (reportOnlyAbort), and a unit that later arrives still reports TASKCMPLT. Before the
-            // completion unit of 2026-09-25 this abort was usually SUPPRESSED - the Duration timer had
-            // already reported TASKCMPLT for the unarrived unit - and it released nothing.
-            PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
-                           "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
-                           "VR-Forces command is issued and nothing is re-tasked; its follow-on tasks are " +
-                           "abandoned", reportOnlyAbort: true);
-            // D2 (the owner, 2026-09-25, RL-20260925-01): the follow-ons of a unit reported STUCK are
-            // ABANDONED, each with its own TASKABRT, as every other abort does (supersede, back-end
-            // loss, vendor failure). Its chain is closed; its own task may still complete later.
-            _sequencer.NotifyAbandoned(rec.TaskUuid);
+            ReportStall(name, rec, window, d);
         }
         // SILENT DORMANCY, SAID OUT LOUD - ON THE CONDITION, NOT ON ONE CAUSE (pass-2 review F4b,
         // re-armed by pass-3 review P4). 08146a2 armed this line only when the cadence was already

@@ -837,6 +837,93 @@ public static class RulingsSelfTest
                   "(t14) superseded (TASKCMPLT setting) while OVERDUE: TASKCMPLT at once");
         }
 
+        // (t16) NEW-1 of the lane M2 re-review, case (a) WATCHDOG FIRST: a STUCK attacker is judged by
+        //       the watchdog (stall TASKABRT, follow-ons abandoned, D2), THEN the engage fallback
+        //       fires. It must NOT be completed at its end time: "The notion that geting stuck midway
+        //       is a complete is completelly illogical" (RL-20260921-05); a unit that never arrives
+        //       is a stuck unit (RL-20260921-09 S569). Before this fix the fallback dropped the
+        //       destination and a TASKCMPLT followed at the end time - abort-then-complete on a unit
+        //       that never moved.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("STUCKATK", LongD, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("STUCKATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(245.0);
+            f.Stall("STUCKATK");                                  // the watchdog judges first
+            f.Tick(300.0);
+            f.EngageFallback("STUCKATK", TimedCompletionPolicy.StallAtFallback.Unknown);
+            f.Tick(LongD);
+            f.Tick(LongD * 5);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("STUCKATK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCKATK", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned
+                             && !f.EngagesIssued.Contains("STUCKATK"),
+                  "(t16) watchdog first, then the engage fallback: the stuck attacker stays ABORTED - no TASKCMPLT at or " +
+                  "after its end time, its follow-on stays abandoned, and no engage is issued from where it is stuck");
+            f.Finish("STUCKATK");                                 // it does reach the objective after all
+            Check(ref failures, f.Count("STUCKATK", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t16) ... and only a REAL later arrival completes it (abort-then-complete on an arrival)");
+        }
+
+        // (t17) NEW-1 case (b) FALLBACK FIRST, judged STALLED at the fallback: the stall path is taken
+        //       there and then (TASKABRT, D2 abandon), no engage, no TASKCMPLT at the end time.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("STUCKB", LongD, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("STUCKB", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(300.0);
+            f.EngageFallback("STUCKB", TimedCompletionPolicy.StallAtFallback.Stalled);
+            f.Tick(LongD);
+            f.Tick(LongD * 5);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("STUCKB", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCKB", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned
+                             && !f.EngagesIssued.Contains("STUCKB"),
+                  "(t17) fallback first, judged STALLED at the fallback: TASKABRT, follow-on abandoned, no engage, and " +
+                  "no TASKCMPLT at its end time");
+        }
+
+        // (t18) A unit judged MOVING at the fallback (or not judgeable - the residual) is the one the
+        //       interface stopped while travelling: engage issued, completes at its end time (t12).
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("MOVINGATK", LongD, hasDestination: true);
+            f.Tick(300.0);
+            f.EngageFallback("MOVINGATK", TimedCompletionPolicy.StallAtFallback.Moving);
+            f.Tick(LongD);
+            var g = new CompletionFlow();
+            g.Dispatch("UNKNATK", LongD, hasDestination: true);
+            g.Tick(300.0);
+            g.EngageFallback("UNKNATK", TimedCompletionPolicy.StallAtFallback.Unknown);
+            g.Tick(LongD);
+            Check(ref failures, f.Count("MOVINGATK", S.TaskStatusCodeType.TASKCMPLT) == 1 && f.EngagesIssued.Contains("MOVINGATK")
+                             && f.Count("MOVINGATK", S.TaskStatusCodeType.TASKABRT) == 0
+                             && g.Count("UNKNATK", S.TaskStatusCodeType.TASKCMPLT) == 1 && g.EngagesIssued.Contains("UNKNATK"),
+                  "(t18) judged MOVING (or no verdict possible) at the fallback: engage issued, one TASKCMPLT at the end time");
+        }
+
+        // (t19) The plan itself, called directly (the static the service calls).
+        Check(ref failures,
+              TimedCompletionPolicy.PlanEngageFallback(true, TimedCompletionPolicy.StallAtFallback.Unknown)
+                  == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck
+              && TimedCompletionPolicy.PlanEngageFallback(true, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Unknown)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage,
+              "(t19) the fallback plan: already reported stuck -> keep it stuck; judged stalled now -> report stuck; " +
+              "judged moving or no verdict -> engage and drop the destination");
+
         // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
         {
             var p = new TimedCompletionPolicy();
@@ -950,14 +1037,24 @@ public static class RulingsSelfTest
         /// <summary>MaybeCheckStalls: the report-only abort, then (D2) the follow-ons abandoned.</summary>
         public void Stall(string task)
         {
+            StallReported.Add(task);
             Push(task, S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true);
             Seq.NotifyAbandoned(task);
         }
 
-        /// <summary>EngageFallbackAsync: the fallback issues the engage and tells the timer the
-        /// task no longer has a destination (the interface stopped the move).</summary>
-        public void EngageFallback(string task)
+        public readonly HashSet<string> StallReported = new(StringComparer.Ordinal);
+        public readonly HashSet<string> EngagesIssued = new(StringComparer.Ordinal);
+
+        /// <summary>The service's EngageFallbackOnTick: the plan (the same static the service
+        /// calls) decides between keeping a stuck unit aborted, reporting it stuck now, or - for a
+        /// unit judged moving or not judgeable - issuing the engage and dropping the destination.</summary>
+        public void EngageFallback(string task,
+            TimedCompletionPolicy.StallAtFallback verdict = TimedCompletionPolicy.StallAtFallback.Moving)
         {
+            var plan = TimedCompletionPolicy.PlanEngageFallback(StallReported.Contains(task), verdict);
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck) return;
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow) { Stall(task); return; }
+            EngagesIssued.Add(task);
             var v = Timed.DropDestination(task);
             if (v != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
             Seq.CompleteTask(task);

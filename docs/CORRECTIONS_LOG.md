@@ -355,13 +355,14 @@ content of this entry whatever happens to the feature. ***
   :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97. DONE 2026-09-25 by the completion unit: all four now
   read "supervisor position (RL-20260914-01 covers the code only)" (F-4).
 
-## F-4: "a task completes at its Duration even if its unit has not arrived" and "a taskee measured off the terrain is HELD" - true of main until 2026-09-25, no longer (2026-09-25)
+## F-4: "a task completes at its Duration though not arrived" and "an off-terrain taskee is HELD" - true until 2026-09-25
   (Ledger: RL-20260921-09 is the temporary position built here; RL-20260921-06 the re-clamp answer; RL-20260925-01 the
   owner's approval of this unit's scope and his four decisions, in docs/RULINGS.md.)
 
 This is not a refuted MEASUREMENT: both statements were accurate descriptions of main. They became false when
 the completion unit landed (branch `feat/completion-temporary-position`, commits 6a50653, 80b14e0, 8affbcb and
-f30c0c4 as rebased onto main f237418, docs in e60d889, and the "Completion U3 lane L2" follow-up). LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
+f30c0c4 as rebased onto main f237418, docs in e60d889, and the "Completion U3 lane L2" and "lane L3" follow-ups).
+LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
 - WHAT CHANGED, completion (the owner's TEMPORARY position, RL-20260921-09): an early finish is HELD to start time
   + Duration; a task WITH a destination whose unit is still travelling at that time is logged OVERDUE, reports
   nothing, releases nothing, and is reported TASKCMPLT the moment the unit arrives (its follow-ons wait, up to
@@ -376,8 +377,17 @@ f30c0c4 as rebased onto main f237418, docs in e60d889, and the "Completion U3 la
   t15); (b) the L2 follow-up (lane M review S1) - when the ATTACK/BREACH engage fallback replaces the approach
   move, the task is told it has NO destination any more (TimedCompletionPolicy.DropDestination), so it completes
   at its end time, or at once if already overdue, instead of waiting for an engage completion VR-Forces may
-  never send (t12, t13, t15). A unit stuck on its approach whose fallback fires first gets no stall TASKABRT: it
-  is reported complete at its end time (the temporary position ignores the effect); the WARNING line says so.
+  never send (t12, t13, t15). CORRECTED by the L3 follow-up (lane M2 re-review NEW-1/NEW-2): the L2 text here
+  said a STUCK attacker whose fallback fires first is reported complete at its end time because "the temporary
+  position ignores the effect". That was wrong: the owner separates the effect (ignored) from being stuck, which
+  is never a completion (RL-20260921-05; RL-20260921-09 S569). Now the destination is dropped ONLY for a unit
+  still moving: if the watchdog has already reported the move stuck, or judges it stuck at the fallback on the
+  same ring and criterion, the task stays ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its
+  destination, the engage is NOT issued (it is parked again, so a real late arrival still gets it) and no
+  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). RESIDUAL: a unit that stopped less than one
+  watchdog window before the fallback, or one no verdict can be had on (watchdog off, window not full), is
+  treated as moving and completes at its end time; the live run measures displacement at every fallback from the
+  WatchVrf trace to count these.
 - WHAT CHANGED, re-clamp (RL-20260921-06; D1, including dropping the dispatch-time setLocation): the dispatch gate
   measures and LOGS only - no hold, no refusal, no setLocation at dispatch; `TaskeeReadiness.NotOnTheGround`
   (BOUND-BUT-NOT-ON-THE-GROUND) is retired, and with it F-2's open item, the "setAltitude 0 m above ground

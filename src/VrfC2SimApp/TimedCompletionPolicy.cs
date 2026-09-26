@@ -295,6 +295,39 @@ public sealed class TimedCompletionPolicy
          : verdict == FinishVerdict.EmitNow ? S.TaskStatusCodeType.TASKCMPLT
          : TaskStatusPolicy.CodeForCompletion(success, taskContinues);
 
+    /// <summary>The progress watchdog's verdict on a unit at the moment the engage fallback fires,
+    /// judged by the SAME criterion as its periodic check (StallPolicy: the calibrated window and
+    /// Vrf:StallMoveMeters). Unknown = no verdict is possible (detection off, clock not usable, or
+    /// the window not yet full).</summary>
+    public enum StallAtFallback { Unknown, Moving, Stalled }
+
+    /// <summary>What the engage fallback does.</summary>
+    public enum EngageFallbackPlan
+    {
+        /// <summary>The watchdog has ALREADY reported this move stuck: it stays aborted (its
+        /// follow-ons are already abandoned), the destination is kept, the engage is not issued.</summary>
+        KeepStuck,
+        /// <summary>Judged stalled at the fallback: report it stuck now (the stall path), keep the
+        /// destination, do not issue the engage.</summary>
+        ReportStuckNow,
+        /// <summary>Judged moving, or no verdict possible: the interface stops a travelling unit -
+        /// issue the engage (D4) and drop the destination (<see cref="DropDestination"/>).</summary>
+        DropAndEngage,
+    }
+
+    /// <summary>
+    /// NEW-1 of the 2026-09-25 re-review. A STUCK unit is never completed through the engage
+    /// fallback: under RL-20260921-09 the effect of a task is ignored, but being stuck is not a
+    /// completion ("The notion that geting stuck midway is a complete is completelly illogical",
+    /// RL-20260921-05; a never-arriving unit is a stuck unit, RL-20260921-09 S569). Only a unit
+    /// that was still MOVING when the interface replaced its move - or one no verdict can be had
+    /// on (the residual, stated where the service calls this) - has its destination dropped.
+    /// </summary>
+    public static EngageFallbackPlan PlanEngageFallback(bool stallReportedForThisMove, StallAtFallback verdict)
+        => stallReportedForThisMove ? EngageFallbackPlan.KeepStuck
+         : verdict == StallAtFallback.Stalled ? EngageFallbackPlan.ReportStuckNow
+         : EngageFallbackPlan.DropAndEngage;
+
     /// <summary>Does this completion release the task's follow-ons NOW? Only a success that is
     /// not being held (a held one is released by the timer at the end time).</summary>
     public static bool ReleasesSuccessorsNow(bool success, FinishVerdict verdict)
