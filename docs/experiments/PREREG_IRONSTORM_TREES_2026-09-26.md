@@ -155,3 +155,32 @@ Side effects:
   tools\navdata\out\MAK Earth (online) + IS04_{notrees,maple}.mtf are prepared and unused. They are kept for the
   decision.
 - The 60 NavDataDebug intermediates (518,104,260 B) were deleted.
+
+## Part 2 registration - FULL-AREA L1b (maple shadow), lane I1c
+
+Seat decision 2026-09-26 (relayed): "Do FULL-AREA runs against your I1 baseline ... L1b FIRST because it is both the
+product lever and a partial cause test". The boxes are dropped: they are not reliable at the 0.82-0.89 margin
+(Part 1 result). This block is committed BEFORE the run; the commit time is the registration time.
+
+PREREG ID: ironstorm-trees-2026-09-26-2 (lane I1c). Branch feat/ironstorm-nav after merging origin/main 9e26d93.
+Config: C:\C2SIM\vrf-nav\work\cfg\NavArea-ground-platform IRONSTORM-CENTRE_maple.navGenConfig = a byte copy of the
+baseline config (572 B, sha256 d0ef8f36...9943); the new name only names the area and its runtime config.
+Terrain: <main checkout>\tools\navdata\out\MAK Earth (online) + IS04_maple.mtf (sha256 5cfd8324...6de5; its .earth is
+C:\C2SIM\vrf-nav\shadow_is04_maple\...\MAK Earth (online).earth, whose bioregions.xml sha256 ce10d60a...9e87 differs
+from the vendor's only in :148-149 AmericanSycamoreFullSpring / WhiteOakSpring -> RedMapleSpring).
+Control: the I1 baseline (gen-IRONSTORM-CENTRE-2026-09-26.log; per sector identical to gen 1).
+ONE VARIABLE: biome 04's two wide-trunk trees are red maples. Same traps as Part 1 (--userDataDir, pre-created
+--navDataDir, no --appDataDir, bare --verbose, held handle, quiet machine).
+
+| # | Prediction | Confidence | What counts as a MISS | Measured |
+|---|---|---|---|---|
+| F0 | exit 0; 1,600 sectors; extent (-10062,-10019 .. 10105,10019) and 26,802 transition points as the baseline; runtime config IRONSTORM-CENTRE_maple written, original-terrain = the IS04_maple .mtf | HIGH | anything else -> STOP |
+| F1 | corridor_gate.py --preset ironstorm-cuta (frame = the new runtime config): PASS - all 29 corridor sectors, incl. the 7, >= 0.9 with a graph | HIGH | any corridor sector < 0.9 (the FALSIFIER) |
+| F2 | area-wide sub-0.9 count (nav_gate convention) falls below the baseline's 280 | MEDIUM | >= 280 |
+| F3 | per-sector changes are confined to forest-bearing ground. Measured form: forest share = CLCplus forest + open forest from lane I2's per-sector table (scratch laneI2\corridor_table.json; 1,368 sectors >= 0.05, 232 below). (a) Of the sectors whose NavData size differs from the baseline by > 1 %, >= 90 % have forest share >= 0.05. (b) Of the 232 sectors below 0.05, >= 90 % keep NavData within 1 % of the baseline | MEDIUM | (a) or (b) under 90 % |
+| M2 | manipulation check: the log is NOT per-sector identical to the baseline, and the median NavData size of the sectors with forest share >= 0.9 FALLS | HIGH | identical log -> the edit is inert, STOP (not evidence about trees) |
+
+FALSIFIER: any corridor sector < 0.9 -> F1 MISS -> no registration; per the seat, prereg + one full-area L1a (no trees)
+run, report the sectors still < 0.9 with their forest / water shares, STOP.
+If F1 PASSES: P3 register (make_nav_terrain.py on a NEW terrain copy made from the IS04_maple .mtf, so the copy names
+the maple shadow .earth), P4 fixture build + validate + the sanctioned deploy, README, then STOP.
