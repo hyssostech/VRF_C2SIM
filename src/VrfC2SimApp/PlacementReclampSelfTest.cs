@@ -242,28 +242,31 @@ public static class PlacementReclampSelfTest
     /// and a correction into a running move is exactly the case the sweep's own in-flight guard
     /// (SkippedTaskInFlightLine) exists to prevent. The placement correction itself stays in the
     /// init-time sweep (<see cref="ReclampFixture"/>).
+    ///
+    /// WHAT THIS FIXTURE CAN AND CANNOT FAIL ON (lane M review S6, 2026-09-25): it produces only the
+    /// LINE the service logs, from the real policy sentences, so the checks on it are checks of the
+    /// sentence choice and wording. It does NOT model the dispatch decision: the model used to set
+    /// "dispatched = true" unconditionally, so the two checks that asserted "IS DISPATCHED, no
+    /// TASKABRT" could not fail and were DELETED. That the service always dispatches is proven by
+    /// reading VrfC2SimService (LogGroundContactAtDispatch returns void and ExecuteTaskOnTick follows
+    /// it unconditionally), and by the retired-state check below, which CAN fail.
     /// </summary>
     private sealed class GateFixture
     {
         private readonly bool _enabled;
         private readonly World _w;
         public readonly List<string> Lines = new();
-        public readonly List<(S.TaskStatusCodeType Code, string Why)> Statuses = new();
-        public bool Dispatched;
-        public int Visits;
 
         public GateFixture(bool enabled, World w) { _enabled = enabled; _w = w; }
 
-        /// <summary>One trip through the terrain continuation. It always ends in the dispatch.</summary>
+        /// <summary>The line one trip through the terrain continuation logs.</summary>
         public void Dispatch(string task, string unit)
         {
-            Visits++;
             var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, Tolerance);
             if (_enabled)
                 Lines.Add(m.Contact == PlacementReclampPolicy.Contact.OffGround
                     ? PlacementReclampPolicy.DispatchGateOffTerrainLine(task, unit, m, Tolerance)
                     : PlacementReclampPolicy.GatePassedLine(unit, m, Tolerance));
-            Dispatched = true;
         }
     }
 
@@ -358,10 +361,8 @@ public static class PlacementReclampSelfTest
         var gate = new GateFixture(featureEnabled, gateWorld);
         gate.Dispatch("T14_48Ibct...", "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE");
 
-        Check("DISPATCH GATE: a taskee measured 145 m off the terrain IS DISPATCHED on the pass that "
-              + "measures it - no hold, no refusal, no TASKABRT",
-              gate.Dispatched && gate.Visits == 1 && gate.Statuses.Count == 0);
-
+        // (A check "IS DISPATCHED on the pass that measures it, no TASKABRT" stood here; it could not
+        // fail on this model and was deleted 2026-09-25 - see GateFixture's summary.)
         Check("DISPATCH GATE: the measurement is LOGGED - one line naming the gap and saying the task "
               + "is dispatching, and no NOT DISPATCHED / HELD wording",
               featureEnabled
@@ -374,13 +375,8 @@ public static class PlacementReclampSelfTest
 
 
         // ============ 3. THE GATE WHEN THE CORRECTION DID NOT TAKE ==================
-        var stuckWorld = new World { LiveAltMeters = -0.0, TerrainMeters = 155.8, CorrectionWorks = false };
-        var stuck = new GateFixture(featureEnabled, stuckWorld);
-        stuck.Dispatch("T02_28IdHq...", "28ID__FRIENDLY_INFANTRY_DIVISION");
-
-        Check("STUCK: a unit still measured off the terrain after a correction is STILL DISPATCHED, "
-              + "once, with no TASKABRT - an unconfirmed read-back no longer ends a legitimate task",
-              stuck.Dispatched && stuck.Visits == 1 && stuck.Statuses.Count == 0);
+        // (A check "STUCK: STILL DISPATCHED, once, with no TASKABRT" stood here; it could not fail on
+        // this model and was deleted 2026-09-25 - see GateFixture's summary.)
 
         Check("NO BOUND-BUT-NOT-ON-THE-GROUND STATE IS PRODUCED: the readiness classifier has no "
               + "ground-contact state any more, so no task can be held for one",
@@ -475,14 +471,14 @@ public static class PlacementReclampSelfTest
                     && late.Lines.Count(l => l.Contains("STILL OFF THE TERRAIN", StringComparison.Ordinal)) == 1
                   : false);
 
-        Check("BL-2 END TO END: give up, the terrain pages in, a SECOND task dispatches",
+        Check("BL-2 END TO END: give up, the terrain pages in, and a SECOND task's dispatch line says the unit "
+              + "is ON the terrain (the line only - the dispatch itself is proven by reading)",
               featureEnabled
                   ? new Func<bool>(() =>
                     {
                         var g = new GateFixture(featureEnabled, lateWorld);
                         g.Dispatch("T02_second_task", "28ID__FRIENDLY_INFANTRY_DIVISION");
-                        return g.Dispatched && g.Statuses.Count == 0
-                               && g.Lines.Count == 1 && g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal);
+                        return g.Lines.Count == 1 && g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal);
                     })()
                   : false);
 
@@ -609,17 +605,16 @@ public static class PlacementReclampSelfTest
               + "altitude and prints no line - 0 added lines and 0 added seconds on an R9/D10 run",
               healthyFx.Lines.Count == 0 && healthyFx.TerrainQueries == 0 && healthyFx.Corrections == 0);
 
-        Check("HEALTHY INIT: a taskee measured ON the terrain passes the gate on its FIRST visit "
-              + "with no correction and no hold - the dispatch deferral D10 measured at 2.1-2.4 s "
-              + "gains nothing. SF-2, ACCEPTED AND STATED: it does gain ONE short INFO line naming "
+        Check("HEALTHY INIT: a taskee measured ON the terrain logs the ON-the-terrain line and nothing "
+              + "else (the dispatch itself is proven by reading). SF-2, ACCEPTED AND STATED: it does gain "
+              + "ONE short INFO line naming "
               + "the measured gap, which is the only evidence any run will ever carry for the "
               + "50-100 m band between the refusal bar and the vertex-0 NOTE threshold",
               new Func<bool>(() =>
               {
                   var g = new GateFixture(featureEnabled, new World { LiveAltMeters = 131.1, TerrainMeters = 130.1 });
                   g.Dispatch("T10_1-112In...", "1-112_IN");
-                  return g.Dispatched && g.Visits == 1
-                         && g.Lines.Count == (featureEnabled ? 1 : 0)
+                  return g.Lines.Count == (featureEnabled ? 1 : 0)
                          && (!featureEnabled || g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal));
               })());
 

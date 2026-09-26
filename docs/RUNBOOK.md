@@ -2627,14 +2627,14 @@ $env:Vrf__DurationScale                   = "1.0"       # DEFAULT. 0.05 compress
 $env:Vrf__TaskPredecessorTimeoutSeconds   = "600"       # DEFAULT (7200 in the Demo overlay)
 $env:Vrf__TaskPredecessorEndMarginSeconds = "60"        # DEFAULT
 $env:Vrf__TaskChainBackstopSeconds        = "86400"     # DEFAULT. A1: the DISPATCH wait's backstop
-$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
+$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = old task still completes at its end time (at once if overdue)
 ```
 
 `Vrf:DefaultHoldSeconds` existed between `06f8cf0` and the Q4 ruling and is GONE: a task with
 no Duration and no geometry is malformed and is refused, not held (below).
 
 - **WHAT `Vrf:TimedCompletion` = true MEANS SINCE 2026-09-25** (the owner's TEMPORARY position,
-  RL-20260921-09; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 60e45a6, 2338e16, 02e604d on feat/completion-temporary-position); live confirmation owed; `TimedCompletionPolicy` has the rule). A task with a Duration ends
+  RL-20260921-09; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 6a50653, 80b14e0, 8affbcb, f30c0c4 and the L2 follow-up on feat/completion-temporary-position); live confirmation owed; `TimedCompletionPolicy` has the rule). A task with a Duration ends
   at dispatch + Duration x `Vrf:DurationScale`. An EARLIER finish (arrival evidence or a VR-Forces
   success) is HELD and reported TASKCMPLT at that end time. A task WITH a destination whose unit is
   still travelling then is NOT reported complete: one `TIMED COMPLETION: ... OVERDUE` line, nothing
@@ -2644,7 +2644,10 @@ no Duration and no geometry is malformed and is refused, not held (below).
   TASKCMPLT at its end time whether or not its unit had arrived (746c091) - `docs/CORRECTIONS_LOG.md`
   F-1 and F-4. `Vrf:StallDetection` is ON in the Demo overlay (the owner's decision of 2026-09-25,
   RL-20260925-01) and OFF by default; its TASKABRT no longer cancels the end time and it abandons the
-  stuck unit's follow-ons.
+  stuck unit's follow-ons. An ATTACK/BREACH whose approach move is replaced by the engage fallback
+  (`Vrf:EngageFallbackSeconds`) is no longer travelling, so it completes at its end time (at once if
+  already overdue), with a WARNING saying so - and a unit stuck on that approach then gets no stall
+  TASKABRT (F-4).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
@@ -3371,7 +3374,7 @@ as a data problem.
 
 ### 11h. PLACEMENT ON A STREAMING TERRAIN - THE RE-CLAMP AND THE DISPATCH GROUND GATE (2026-09-21)
 
-> **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 60e45a6, 2338e16, 02e604d on feat/completion-temporary-position); live
+> **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 6a50653, 80b14e0, 8affbcb, f30c0c4 and the L2 follow-up on feat/completion-temporary-position); live
 > confirmation owed; `docs/CORRECTIONS_LOG.md` F-4). A taskee measured off the terrain at dispatch
 > is LOGGED - `PLACEMENT RE-CLAMP gate: <unit> measured OFF the terrain at dispatch - ... -
 > dispatching task '<T>'` - and dispatched. The state `BOUND-BUT-NOT-ON-THE-GROUND` no longer

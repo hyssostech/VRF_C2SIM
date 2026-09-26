@@ -772,6 +772,99 @@ public static class RulingsSelfTest
                   "(t10) a task with NO armed timer keeps today's evidence-only codes (no Duration, or TimedCompletion off)");
         }
 
+        // (t12) S1 of the lane M review: THE ENGAGE FALLBACK STOPS THE MOVE. After
+        //       Vrf:EngageFallbackSeconds the interface itself replaces an ATTACK/BREACH approach move
+        //       with the engage, so the unit is no longer travelling anywhere. Under RL-20260921-09 the
+        //       only exception to "ends at start time + Duration" is a unit STILL TRAVELLING, so the
+        //       task must end at its end time - not sit OVERDUE waiting for an arrival nothing watches.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("ATTACK1", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("ATTACK1", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(30.0);
+            f.EngageFallback("ATTACK1");                          // before the end time
+            Check(ref failures, f.Count("ATTACK1", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t12) an engage fallback BEFORE the end time reports nothing early");
+            f.Tick(D);
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("ATTACK1", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && !f.OverdueLines.Contains("ATTACK1") && f.Timed.Count == 0
+                             && rel && next.Result == GateResult.Proceed,
+                  "(t12) ... and the task completes AT its end time (no OVERDUE), releasing its follow-on - the move " +
+                  "was stopped by the interface, so the unit is not 'still travelling' (RL-20260921-09)");
+        }
+
+        // (t13) S1, the late half: the fallback fires AFTER the task already went OVERDUE (end time
+        //       shorter than the fallback): it completes at once.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("ATTACK2", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("ATTACK2", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);                                            // overdue, move still running
+            f.Tick(D + 200.0);
+            f.EngageFallback("ATTACK2");                          // the interface stops the move now
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("ATTACK2", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Timed.Count == 0 && rel && next.Result == GateResult.Proceed,
+                  "(t13) an engage fallback on an OVERDUE task completes it AT ONCE and releases its follow-on");
+            f.Tick(D * 10);
+            f.Finish("ATTACK2");                                  // the engage's own vendor completion, later
+            Check(ref failures, f.Count("ATTACK2", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t13) ... and the engage's own later completion adds no second TASKCMPLT");
+        }
+
+        // (t14) S5: SUPERSEDE under the non-default Vrf:SupersededTaskCode=TASKCMPLT marks the old task
+        //       FINISHED (the service's supersede branch): before its end time it completes AT the end
+        //       time; once overdue it completes at once. Without it, a superseded task with a destination
+        //       would wait for an arrival that can never come.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("SUP1", D, hasDestination: true);
+            f.Tick(20.0);
+            f.SupersedeKeepCompletion("SUP1");
+            Check(ref failures, f.Count("SUP1", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t14) superseded (TASKCMPLT setting) before its end time: nothing is sent at the supersede");
+            f.Tick(D);
+            Check(ref failures, f.Count("SUP1", S.TaskStatusCodeType.TASKCMPLT) == 1 && !f.OverdueLines.Contains("SUP1"),
+                  "(t14) ... it completes AT its end time and never goes OVERDUE");
+            var g = new CompletionFlow();
+            g.Dispatch("SUP2", D, hasDestination: true);
+            g.Tick(D);                                            // overdue
+            g.SupersedeKeepCompletion("SUP2");
+            Check(ref failures, g.Count("SUP2", S.TaskStatusCodeType.TASKCMPLT) == 1 && g.Timed.Count == 0,
+                  "(t14) superseded (TASKCMPLT setting) while OVERDUE: TASKCMPLT at once");
+        }
+
+        // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
+        {
+            var p = new TimedCompletionPolicy();
+            p.Register("DD", "tk", "DD", "u", D, hasDestination: true);
+            p.Advance(0.0, usingSim: true);
+            var v1 = p.DropDestination("DD");
+            var due = p.Advance(D, usingSim: true);
+            Check(ref failures, v1 == TimedCompletionPolicy.FinishVerdict.Hold && due.Count == 1
+                             && due[0].Kind == TimedCompletionPolicy.DueKind.CompleteNow && p.Count == 0
+                             && p.HeldAfterFinish().Count == 0,
+                  "(t15) DropDestination before the end time: Hold, then CompleteNow at the end time (and it is NOT " +
+                  "listed as finished-early, because its engage is still in flight)");
+            var q = new TimedCompletionPolicy();
+            q.Register("MF", "tk", "MF", "u", D, hasDestination: true);
+            q.Advance(0.0, usingSim: true);
+            var od = q.Advance(D, usingSim: true);
+            Check(ref failures, od.Count == 1 && od[0].Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival
+                             && q.DropDestination("MF") == TimedCompletionPolicy.FinishVerdict.EmitNow && q.Count == 0
+                             && q.DropDestination("MF") == TimedCompletionPolicy.FinishVerdict.NotTimed,
+                  "(t15) DropDestination on an OVERDUE task: EmitNow once, the entry removed, then NotTimed");
+            var r = new TimedCompletionPolicy();
+            r.Register("SP", "tk", "SP", "u", D, hasDestination: true);
+            r.Advance(0.0, usingSim: true);
+            Check(ref failures, r.MarkFinished("SP") == TimedCompletionPolicy.FinishVerdict.Hold
+                             && r.Advance(D, usingSim: true).Count == 1 && r.Count == 0,
+                  "(t15) MarkFinished (the TASKCMPLT supersede) on a running task: Hold, then CompleteNow at the end time");
+        }
+
         // (t11) FAIL-FIRST CONTROL for (t3)'s gate: a caller that passes NO overdue backstop gets the
         //       pre-2026-09-25 behaviour - the follow-on of a late unit times out at end + margin.
         {
@@ -859,6 +952,25 @@ public static class RulingsSelfTest
         {
             Push(task, S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true);
             Seq.NotifyAbandoned(task);
+        }
+
+        /// <summary>EngageFallbackAsync: the fallback issues the engage and tells the timer the
+        /// task no longer has a destination (the interface stopped the move).</summary>
+        public void EngageFallback(string task)
+        {
+            var v = Timed.DropDestination(task);
+            if (v != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
+            Seq.CompleteTask(task);
+            Push(task, S.TaskStatusCodeType.TASKCMPLT);
+        }
+
+        /// <summary>MarkDispatched's supersede branch under Vrf:SupersededTaskCode=TASKCMPLT.</summary>
+        public void SupersedeKeepCompletion(string task)
+        {
+            _inFlight.Remove(task);
+            if (Timed.MarkFinished(task) != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
+            Seq.CompleteTask(task);
+            Push(task, S.TaskStatusCodeType.TASKCMPLT);
         }
 
         /// <summary>The back-end-loss branch: in-flight tasks AND tasks held after an early finish.</summary>

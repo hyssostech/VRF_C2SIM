@@ -352,15 +352,16 @@ content of this entry whatever happens to the feature. ***
   "supervisor position 2026-09-13", with the same dated correction at :412 (RL-20260914-01, its scope note).
 - OWED to the next code unit (src comments still say "C16 ruling" - RL-20260914-01 does not cover
   it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
-  :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
+  :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97. DONE 2026-09-25 by the completion unit: all four now
+  read "supervisor position (RL-20260914-01 covers the code only)" (F-4).
 
 ## F-4: "a task completes at its Duration even if its unit has not arrived" and "a taskee measured off the terrain is HELD" - true of main until 2026-09-25, no longer (2026-09-25)
   (Ledger: RL-20260921-09 is the temporary position built here; RL-20260921-06 the re-clamp answer; RL-20260925-01 the
-  owner's approval of this unit's scope and his four decisions, being added to the ledger by another lane.)
+  owner's approval of this unit's scope and his four decisions, in docs/RULINGS.md.)
 
 This is not a refuted MEASUREMENT: both statements were accurate descriptions of main. They became false when
-the completion unit landed (branch `feat/completion-temporary-position`, commits 60e45a6, 2338e16, 02e604d;
-docs in the commit that adds this entry). LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
+the completion unit landed (branch `feat/completion-temporary-position`, commits 6a50653, 80b14e0, 8affbcb and
+f30c0c4 as rebased onto main f237418, docs in e60d889, and the "Completion U3 lane L2" follow-up). LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
 - WHAT CHANGED, completion (the owner's TEMPORARY position, RL-20260921-09): an early finish is HELD to start time
   + Duration; a task WITH a destination whose unit is still travelling at that time is logged OVERDUE, reports
   nothing, releases nothing, and is reported TASKCMPLT the moment the unit arrives (its follow-ons wait, up to
@@ -369,6 +370,14 @@ docs in the commit that adds this entry). LIVE CONFIRMATION IS OWED (a pre-regis
   the stuck unit's follow-ons (the owner's decision D2); a late ATTACK/BREACH move still gets its parked engage
   and reports TASKCMPLT on arrival (D4); stall detection is ON in `appsettings.Demo.json` and OFF by default (D3).
   Back-end loss also aborts tasks held after an early finish.
+- ADDED, outside the 12 approved items and recorded as such: (a) f30c0c4 - a supersede under the non-default
+  `Vrf:SupersededTaskCode=TASKCMPLT` marks the old task FINISHED, so it still completes at its end time (at once
+  if overdue) instead of waiting OVERDUE for an arrival a superseded task never gets (--rulings-selftest t14,
+  t15); (b) the L2 follow-up (lane M review S1) - when the ATTACK/BREACH engage fallback replaces the approach
+  move, the task is told it has NO destination any more (TimedCompletionPolicy.DropDestination), so it completes
+  at its end time, or at once if already overdue, instead of waiting for an engage completion VR-Forces may
+  never send (t12, t13, t15). A unit stuck on its approach whose fallback fires first gets no stall TASKABRT: it
+  is reported complete at its end time (the temporary position ignores the effect); the WARNING line says so.
 - WHAT CHANGED, re-clamp (RL-20260921-06; D1, including dropping the dispatch-time setLocation): the dispatch gate
   measures and LOGS only - no hold, no refusal, no setLocation at dispatch; `TaskeeReadiness.NotOnTheGround`
   (BOUND-BUT-NOT-ON-THE-GROUND) is retired, and with it F-2's open item, the "setAltitude 0 m above ground
@@ -380,8 +389,9 @@ docs in the commit that adds this entry). LIVE CONFIRMATION IS OWED (a pre-regis
   RUNBOOK sec 11 (a TimedCompletion bullet) and sec 11h (UPDATE block + the gate, tolerance, lines-to-look-for,
   sequences and offline-proof sites); TASK_COMPLETION_RESEARCH_2026-09-21 (banner, summary-table note, and an
   UPDATE line in each "code today" cell whose statement changed); in src: the TimedCompletionPolicy header, the
-  VrfSettings TimedCompletion / StallDetection / re-clamp comments, the appsettings.json and appsettings.Demo.json
-  `_TimedCompletion` / `_PlacementReclamp` / `_PlacementReclampToleranceMeters` texts, PlacementReclampPolicy,
+  VrfSettings TimedCompletion / StallDetection / re-clamp comments, the appsettings.Demo.json `_TimedCompletion`
+  and `_PlacementReclamp` texts and the appsettings.json `_PlacementReclamp` / `_PlacementReclampToleranceMeters`
+  texts (appsettings.json has no `_TimedCompletion` text), PlacementReclampPolicy,
   DispatchReadiness, Program.cs, and the four "C16 ruling" comment sites, relabelled "supervisor position
   (RL-20260914-01 covers the code only)".
 - NOT CHANGED, and stated so nobody assumes it: the runner scores a task by its FIRST terminal code

@@ -172,6 +172,32 @@ public sealed class TimedCompletionPolicy
     }
 
     /// <summary>
+    /// THE INTERFACE ITSELF STOPPED THIS TASK'S MOVE (the ATTACK / BREACH engage fallback replaces
+    /// the approach move with the engage after Vrf:EngageFallbackSeconds). The unit is then no
+    /// longer travelling anywhere, and under RL-20260921-09 the only exception to "ends at start
+    /// time + Duration" is a unit still travelling - so the task is treated as having NO
+    /// destination from here on: before its end time it completes AT the end time (Hold); if it is
+    /// already OVERDUE the entry is removed and the caller reports TASKCMPLT now (EmitNow). It is
+    /// NOT marked Finished: its engage is still in flight, so a back-end loss aborts it through the
+    /// in-flight set, not through <see cref="HeldAfterFinish"/>. No armed timer -> NotTimed.
+    /// </summary>
+    public FinishVerdict DropDestination(string taskUuid)
+    {
+        if (string.IsNullOrEmpty(taskUuid) || !_pending.TryGetValue(taskUuid, out var p))
+            return FinishVerdict.NotTimed;
+        lock (p)
+        {
+            if (!p.Overdue)
+            {
+                p.HasDestination = false;
+                return FinishVerdict.Hold;
+            }
+        }
+        return _pending.TryRemove(new KeyValuePair<string, Pending>(taskUuid, p))
+            ? FinishVerdict.EmitNow : FinishVerdict.NotTimed;
+    }
+
+    /// <summary>
     /// The tasks whose unit has finished early and which are waiting only for their end time. They
     /// are no longer in flight, so a back-end loss that aborts the in-flight set would otherwise
     /// miss them and a dead back end would still get a TASKCMPLT at their end time.

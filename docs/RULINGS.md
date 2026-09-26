@@ -91,11 +91,11 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     reports complete is a supervisor position, see that entry's scope note); tasks with no destination end when their Duration elapses
     (RL-20260914-02); whether an effect was achieved is IGNORED under the temporary position - that is the research question, not a gap;
     each follow-on task gets its full Duration from its actual start. The research is the seat's job.
-  IMPLEMENTATION FACT: stall detection ships OFF by default on main (DEMO_READINESS row 19), so the stuck-unit ruling only takes
-    effect once it is switched on.
-  pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation); the
-    code defect noted in the HANDOFF CLOSED list - main ends a task on the Duration timer even when the unit has not arrived, and then
-    suppresses the real arrival (since 746c091). Fixing that is the next code unit and is PLAN-gated with the owner.
+  IMPLEMENTATION FACT (supervisor note, updated 2026-09-25): until the completion unit (branch feat/completion-temporary-position,
+    docs\CORRECTIONS_LOG.md F-4; live confirmation owed) main ended a task on its Duration timer even when the unit had not arrived
+    (since 746c091) and stall detection shipped OFF. That unit builds this position; stall detection is ON in the demo profile and OFF
+    elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
+  pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
 
 RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's labels in one P981 record (23:18:21Z), no typed note
   Q1 (as put, P968 AskUserQuestion; echoed in the P981 tool_result, type=user): "PLAN gate for the next code unit [...] In short: every task with a Duration
@@ -117,4 +117,4 @@ RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's la
     action at the objective) still be issued at that point?" Options (the seat's labels): Issue it (Recommended) / Drop it.
   A (owner SELECTION of the seat's label, 2026-09-25): "Issue it (Recommended)"
   supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
-  pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch), and the code unit's branch when it exists.
+  pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).

@@ -5235,6 +5235,35 @@ public sealed class VrfC2SimService : BackgroundService
                             "issuing the {Kind} via fallback (it will replace the still-running move).",
                             unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
             IssueEngage(unitName, eng);
+            // THE INTERFACE HAS JUST STOPPED THIS UNIT'S MOVE (2026-09-25, lane M review S1). The engage
+            // replaces the approach move, and IssueEngage records it with NO destination - so from here
+            // arrival evidence and the progress (stall) watchdog both stop watching this task. Under the
+            // owner's temporary position (RL-20260921-09) a task ends at start time + Duration unless its
+            // unit is STILL TRAVELLING, and this unit no longer is: we stopped it. So the task is told it
+            // has no destination any more: it completes AT its end time, or NOW if that has already
+            // passed (it was OVERDUE). Without this it sat OVERDUE until the engage's own VR-Forces
+            // completion, which may never come, and its follow-ons waited up to a day.
+            // WHAT THIS MEANS FOR A STUCK ATTACKER: if the unit was stuck on its approach and the
+            // fallback fired before the stall watchdog judged it, no stall TASKABRT is sent for it; the
+            // task is reported complete at its end time, with the engage issued from wherever the unit
+            // stands (D4 of RL-20260925-01 unchanged). That is the temporary position applied as
+            // written (effect ignored), and this WARNING line is the record of it.
+            var fallbackVerdict = _timed.DropDestination(eng.MoveTaskUuid);
+            if (fallbackVerdict != TimedCompletionPolicy.FinishVerdict.NotTimed)
+                _log.LogWarning("Unit {Name}: task '{Task}' - the interface replaced its move with the {Kind}, so the unit " +
+                                "is no longer travelling and arrival evidence and the progress watchdog no longer watch it: " +
+                                "it completes {When} (start time + Duration, RL-20260921-09), not on an arrival.",
+                                unitName, eng.TaskName, eng.Kind,
+                                fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                                    ? "NOW - its end time has already passed" : "at its end time");
+            if (fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+            {
+                _sequencer.CompleteTask(eng.MoveTaskUuid);
+                PushTaskStatus(_c2SimUuidByName.TryGetValue(unitName, out var fbTaskee) ? fbTaskee : "",
+                               eng.MoveTaskUuid ?? "", S.TaskStatusCodeType.TASKCMPLT,
+                               $"unit {unitName}: its end time (start time + Duration) has passed and the interface " +
+                               $"replaced its move with the {eng.Kind} (engage fallback) - the unit is no longer travelling");
+            }
         }
     }
 
@@ -6712,7 +6741,7 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _timedClockLineLogged = true;
             _timedUsingSim = usingSim;
-            _log.LogInformation("TIMED COMPLETION (R4): {N} task(s) are timing out against the {Clock} clock" +
+            _log.LogInformation("TIMED COMPLETION: {N} task(s) are timing out against the {Clock} clock" +
                                 "{Why}; Vrf:DurationScale={Scale}.", _timed.Count,
                                 usingSim ? "SIMULATION" : "WALL",
                                 usingSim ? "" : (preferSim
