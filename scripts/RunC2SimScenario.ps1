@@ -5527,11 +5527,12 @@ finally {
                 -Arguments $stopVrfArgs `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
                 -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `
-                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped). rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
+                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped); 7 FORCED the own back end but another VR-Forces process is still up. rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
                         else { 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.' })
         if (-not $DryRun) {
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
+                7 { $teardownOk = $false; Add-Flag 'FAIL' ('StopVrf exited 7: FORCED - the graceful close was REFUSED, this run''s own back end (pid {0}, started {1:o}) was force-stopped, and ANOTHER VR-Forces process is STILL UP (see stopvrf.stdout.log). A leftover instance HARD-BLOCKS the next launch; a force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0).' -f $BackendPid, $BackendStartUtc) }
                 6 { Add-Flag 'WARN' ('StopVrf exited 6: FORCED - the graceful close was REFUSED and this run''s own back end (pid {0}, started {1:o}) was force-stopped; VR-Forces is down, RTI infrastructure preserved. A force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0): the next launch''s join is the check. Score it as a refused close.' -f $BackendPid, $BackendStartUtc) }
                 default {
                     $teardownOk = $false
