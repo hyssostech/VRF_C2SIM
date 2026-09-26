@@ -3270,7 +3270,9 @@ public sealed class VrfC2SimService : BackgroundService
         int objects = PlacementReclampPolicy.ObjectsToArm(enrolledThisBatch, _reclamp.Count);
         if (objects == 0) return;
         // A second init re-arms the window for whatever IT put in the map (the map is keyed by
-        // name, so a re-planned object replaces its own entry).
+        // name, so a re-planned object replaces its own entry). A batch that put NOTHING on the
+        // FALLBACK arms nothing (A4): the map outlives a concluded sweep on purpose (BL-2, the
+        // census summary), so its size is not this batch's business.
         _reclampArmedUtc = DateTime.UtcNow;
         _reclampLastQueryUtc = DateTime.MinValue;   // the first sweep may query at once
         _reclampQueryInFlight = false;
