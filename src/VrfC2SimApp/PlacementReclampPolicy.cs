@@ -361,6 +361,16 @@ public static class PlacementReclampPolicy
 
     // ===================== THE SENTENCES =====================
 
+    /// <summary>
+    /// THE ARM DECISION of a placement batch (FinalizePlacement -> ArmPlacementReclamp): how many
+    /// objects the ARMED line reports, 0 = do not arm (no line, no sweep, no summary).
+    /// <paramref name="enrolledThisBatch"/> = land platforms THIS batch created on the FALLBACK;
+    /// <paramref name="enrolledInMap"/> = every entry the re-clamp map holds, concluded ones included
+    /// (the map is kept after a sweep concludes: BL-2 re-measures from it and the summary is a census).
+    /// </summary>
+    public static int ObjectsToArm(int enrolledThisBatch, int enrolledInMap)
+        => enrolledInMap;
+
     /// <summary>ONE line when the re-clamp arms. It says what is wrong and what will be done, so a
     /// run that ends here is still readable.</summary>
     public static string ArmedLine(int objects, int planned, double boundSeconds, double retrySeconds,
