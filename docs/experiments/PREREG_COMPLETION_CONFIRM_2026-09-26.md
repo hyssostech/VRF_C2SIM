@@ -418,4 +418,79 @@ C. ORDER VALIDATION [V].
 
 ## Result (written after the harvest, never from a live read)
 
-(pending - to be written after the harvest)
+Written 2026-09-26 ~12:55Z by lane R from the harvested files of run 20260926T115957Z_run (runs\ in the main checkout).
+All quotes are from vrfc2simapp.log (L<n> = its line number), reports-captured.log, the manifest, our runner/wrapper
+logs, or a COUNT-grep of the rtiexec log (never quoted beyond a federate token). The vendor sim log was not opened.
+
+### VERDICT: VOID + STOP - P10 (HIGH) MISSED on its teardown limb. Nothing was adjusted, patched or re-run.
+
+The runner exited 4 ("TEARDOWN INCOMPLETE"): `StopVrf exited 3` and `VR-Forces processes still present after
+teardown: vrfSimHLA1516e(pid 47152). Not killed.` A second graceful `scripts\StopVrf52.ps1 -TimeoutSec 180` by lane R
+(the DEMO_RUNBOOK sec 8 item 3 remedy) also exited 3 ("still running after 180s"; no titled window owned by the
+process). By the STOP RULES above, a P10 failure makes the run VOID and a missed HIGH row is a STOP. The completion
+rows below were scored as registered and are reported as MEASUREMENTS; under this registration they are not a
+verdict on the code unit. Whether to accept them anyway, or to re-register a -2 run, is the owner's / seat's call.
+
+| # | Verdict | Measured (quoted) |
+|---|---|---|
+| P0 | HIT | (i) persistent holder "HOLDER JOINED: pid 34096 appNo 5103"; rtiexec count-grep: ONE create (two duplicated sink lines, log lines 3613/3614) before the holder's join, and the back end's join ("VR-Forces Sim Engine 5.2d" 5, line 24095) has no create response after it -> it JOINED; L45 "READY - joined the federation, 1 VR-Forces back-end(s)". (ii) L125 "READY TO TASK - 6 of 6 init unit(s) bound"; "PROGRESS WATCHDOG ON" x1 (L16); L2375 "TIMED COMPLETION: 2 task(s) are timing out against the SIMULATION clock; Vrf:DurationScale=1." (iii) L303/L507/L521 DISPATCHED + L305/L509/L523 TASKSTRT for the 3 roots. (iv) last L-PLACE L231 "1 of 1 ... TERRAIN QUERY, 0 from the FALLBACK". (v) WatchVrf trace, t <= 119 s (= before about 12:04:13Z, i.e. well inside 360 SIM s of dispatch at SIM 44.6): TK1 group 1/1 member > 50 m (1,155 m), PL1 group 20/21 > 50 m (max 1,226 m), CO1 group 61/64 > 50 m (max 1,244 m). |
+| P1 | HIT | L307 "end time armed at 480 s ... it has a destination"; L110833 "ARRIVAL EVIDENCE: 1.BdeHQ~PXY task 'T_CC_TK1' ... 33.9 WALL s after dispatch = 104.1 SIMULATION s"; L110835 "FINISHED BEFORE ITS END TIME - the TASKCMPLT and the release of its follow-on tasks are HELD" (the only such line); L165643 "reached its END TIME - 484 s of a 480 s Duration ... - the unit had already arrived; its completion was held until now."; L165645 the ONE SENT TASKCMPLT for c3...01 "(480 s after dispatch)"; T_CC_TK1H L165651 DISPATCHED / L165653 TASKSTRT after it; 0 OVERDUE naming T_CC_TK1. |
+| P1t | HIT | arrival 104.1 SIM s after dispatch (band 60-250). |
+| P2 | HIT | L511 armed at 420; L164251 the ONE "OVERDUE" line ("423 s of a 420 s Duration ... but the unit has NOT ARRIVED: OVERDUE"); SENT lines for c3...03 are only L509 TASKSTRT and L169661 TASKCMPLT; L169657 ARRIVAL EVIDENCE "169.5 WALL s after dispatch = 661.7 SIMULATION s"; L169659 "was OVERDUE and the unit has now ARRIVED"; L169661 "arrived after its task's end time (start time + Duration) - complete on arrival."; T_CC_CO1H gate L169 "... Vrf:TaskPredecessorTimeoutSeconds=60 s (+60 s margin) ..." and "then 480 s to COMPLETE"; 0 "SKIPPED: predecessor", 0 "NOT dispatched"; L169671 DISPATCHED / L169673 TASKSTRT after the TASKCMPLT; L169675 "end time armed at 360 s". 0 STALL lines. |
+| P2t | HIT | arrival 661.7 SIM s after dispatch (band 580-760), i.e. 241.7 s past its end: the follow-on waited past end + margin without being skipped. |
+| P3 | HIT | T_CC_TK1H: L165655 "armed at 300 s ... it has no destination", L165657 "carries NO geometry: executing IN PLACE", L171115 "reached its END TIME - 300 s of a 300 s Duration ... (temporary position, RL-20260921-09)." (no suffix), L171119 the one TASKCMPLT "(300 s after dispatch)". T_CC_CO1H: L169675/L169677, L172295 "365 s of a 360 s Duration" (no suffix), L172299 the one TASKCMPLT "(360 s after dispatch)". 0 OVERDUE for either; no destination-armed line for either. |
+| P3b | HIT | L171117 and L172297 "is idle again"; the only HELD line (L110835) names T_CC_TK1. |
+| P4 | HIT (zero-limb) | 0 "STALL: unit" lines; conditional limbs (a)-(d) NOT TRIGGERED, so NOT EXERCISED. |
+| P5 | HIT | 0 lines for each of "via fallback", "is DROPPED", "is STUCK", "issuing the deferred", "the deferred engage", "TASKINPRG". Item 5 (i)-(v) NOT EXERCISED; the displacement rule had no fallback to apply to. |
+| P6 | HIT | per task uuid exactly 1 SENT TASKSTRT and 1 SENT TASKCMPLT (5 + 5); 0 "SUPPRESSED by the emission rules"; reports-captured.log holds the same 5 TASKSTRT + 5 TASKCMPLT bodies (e.g. "[12:04:57.686] REPORT #84" TASKCMPLT c3...01, "[12:06:37.308] REPORT #152" TASKCMPLT c3...04), 0 TASKABRT; app: "Reports this run: 1112 delivered, 0 FAILED". |
+| P7 | HIT | L525 "the order gives NO Duration" (once); 0 armed lines and 0 TIMED COMPLETION lines naming T_CC_PL1; L165793 ARRIVAL EVIDENCE "129.3 WALL s after dispatch = 488.1 SIMULATION s"; L165795 "unit 1222.MechPlt completed its task." |
+| P7t | HIT | 488.1 SIM s (band 427-544). |
+| P8 | HIT (WARM) | every L-PLACE line "N of N ... TERRAIN QUERY, 0 from the FALLBACK"; 0 "PLACEMENT RE-CLAMP:" and 0 "RE-CLAMP summary" lines (the sweep never armed); 3 dispatch-time "gate: ... is ON the terrain" lines (gaps 0.0 / 19.4 / 0.2 m); 0 retired lines. Item 8 cold-world limbs VACUOUS - NOT EXERCISED. |
+| P9 | HIT (via the registered fallback) | the manifest's oracle.earlyExit is written but EMPTY with the early exit off ("enabled": false, "completionLinesSeen": 0) - my [A] that it would carry the count was wrong; RunnerLib Get-TerminalTaskReports replayed offline over the app log returns 5 records, all TASKCMPLT, one per (taskee, task) = the grep of first terminal codes (5 TASKCMPLT + 0 TASKABRT). The SENT line format parsed unchanged. |
+| P10 | MISS | teardown limb: vrfSimHLA1516e 47152 still running after the runner's teardown and after a second graceful StopVrf52 (above); not killed. Other limbs held: exe/dll/bridge sha256 identical after the run (acbb5095... / 7b3554a5... / 90272bc9...); 0 "BACK END LOST"; exit 4 not 6, no WS-runaway alerts file; no new .dmp / callstack under C:\MAK\vrforces5.2d (depth 3, newer than the holder log); VrfC2SimApp exited 0 (clean resign), WatchVrf and ListenReports exited 0; rtiexec 47980 / rtiForwarder 50740 / holder 34096 untouched. |
+| P11 | MISS (MEDIUM, recorded) | ratio limb: 30 SIM/WALL RATIO lines, 3 inside 2.6-4.7x (3.412, 3.996, 4.388 while tasks ran), then 6.497 and 26 lines at 9.016-10.130x in the idle tail. T_CC_CO1H's end: CO1H dispatched at SIM 706.3 and served 365 s, so about 1,027 SIM s after CO1's dispatch at SIM 44.6 (band 1,000-1,200: holds). Settle: last terminal report 12:06:37.3Z, window end 12:33:17.4Z = about 1,600 wall s (>= 600: holds). |
+
+MEASUREMENTS (separate from any design implication):
+- The order reached the bus at 12:02:46.511Z; all five tasks were terminal by 12:06:37.3Z; every one of the M4 items
+  that this laydown could exercise (1, 2, 3, 6, 7, 9; 8 in its WARM world) printed exactly the registered line shapes
+  in the registered order.
+- The back end did not exit on a graceful close request twice after the app had resigned; the app's shutdown had
+  logged "Cleanup: deleting 9 created VR-Forces objects before resign ... 9 deletes dispatched (1573 ms)". The three
+  2026-09-21 runs checked (052350Z, 094051Z, 143243Z) show the same StopVrf52 request followed by "VR-Forces 5.2d is
+  down". No cause is claimed here.
+- On this rebuilt machine the idle-tail SIM/WALL ratio of R9_Mojave_Empty_52 read 9.0-10.1x, against the ~4.7x idle
+  figure recorded on 2026-09-21 (RUNBOOK 11f).
+
+DESIGN IMPLICATION (a separate statement): none is drawn from a VOID run. If the owner accepts the measurements, the
+completion rule's live structure is as specified for early, late, no-destination and no-Duration tasks; the stall path
+(M4 item 4 conditional limbs) and the attack/breach fallback (item 5) remain UNCONFIRMED LIVE and DEMO_READINESS row
+26 stays OWED.
+
+RUN CONDITIONS (sec 7):
+- SIM CLOCK SOURCE: task clock SIMULATION (L2375; DtVrfRemoteController::simTime per the SIM/WALL RATIO lines);
+  watchdog clock WALL (L51 "the 240 s no-progress window is measured on the WALL clock"); fixture frame mode per the
+  committed .scnx (not re-read here). One `SIM CLOCK: stepped BACKWARDS, 44.7 s -> 44.6 s` warning (L289) before
+  dispatch. DISPATCHED stamps: SIM 44.6 (all 3 roots), 532.7 (TK1H), 706.3 (CO1H).
+- LOAD: CPU 2% avg / 11.2 GB free at 11:57Z after lane N5's vrfNavGenerator exited (11:56-11:57Z); no build process at
+  launch (only the VS Code C# dev-kit dotnet 42168); no agent started by lane R during the window. BUT another session
+  ran `scripts\RunScenario.sh --dry-run` (defaults) twice at 12:06:00Z and 12:06:35Z (runs\launch52\RunScenario-
+  20260926T120600Z.log / ...120635Z.log): its Stage 1a reported this run's runner live and refused; it deleted
+  runs\launch52\last-run-dir.txt, so the wrapper fell back to its mtime scan ("NEWEST runs/*_run by mtime") - which
+  picked the right directory. Not started by lane R.
+- OTHER SESSIONS: operator's c2sim-server 8080/61613 up, untouched; docker c2sim-server-vrf (ours) up; rtiexec 47980 +
+  rtiForwarder 50740 started by lane R at 11:58:14Z (were down; a start, not a restart); rtiAssistant 30240 left alone;
+  holder RtiProbe 34096 (5103) still joined; Stage 2h holder 29904 (5114) resigned on its 900 s timer during the run;
+  9 claude.exe and VS Code processes on the box.
+- BUILD: main a9d738f, ProductVersion 1.0.0+git.a9d738f.Release-5.2, dirty=false in the manifest; hashes as the BUILD
+  RECORD, identical after; MAK-ONE-2025-Config.xml sha256 F445629EEEB2F0D2... unchanged.
+- ENVIRONMENT: DOTNET_ENVIRONMENT unset; Vrf__StallDetection=true and Vrf__TaskPredecessorTimeoutSeconds=60 via --env
+  (their effect is visible in L16 and L153/L169); licence line "(expires 31-oct-2026)".
+- TERRAIN AND TILES: WARM (P8); tile census at shutdown "7 cache HIT(s), 0 HTTP FETCH(es)".
+- RUNNER: exit 4 + legend "4 = TEARDOWN INCOMPLETE"; runner.launched pid 50780; watchdog "runner.teardown-ran is
+  present ... Standing down without touching anything".
+
+APPNUMBERS: 5103-5117 claimed; CONSUMED 5103, 5107, 5109, 5110, 5111, 5112, 5114 (7); BURNED 5104-5106, 5108, 5113,
+5115-5117 (8) - as registered. Marker 5118 (Appendix B annotated).
+
+LEFT RUNNING FOR THE OWNER: vrfSimHLA1516e pid 47152 (appNo 5107, still a joined federate) - it HARD-BLOCKS the next
+LaunchVrf52 (DEMO_RUNBOOK sec 8 item 1); lane R did not kill it. The holder 34096 is left joined by design.
