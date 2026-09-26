@@ -2445,6 +2445,15 @@ $rnText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunC2SimScenari
 Check '10f the runner records the back end''s start time at launch and passes pid + start time to StopVrf52' (
     $rnText -match '\$BackendStartUtc\s*=' -and $rnText -match "'-ForceOwnBackendPid'" -and $rnText -match "'-ForceOwnBackendStartUtc'")
 Check '10f the runner branches on StopVrf exit 6 (FORCED) apart from 3 and 5' ($rnText -match '(?m)^\s*6\s*\{[^\r\n]*FORCED')
+# S1 of the laneR3 review: a force that still leaves another VR-Forces process up used to fall
+# through to exit 3, whose contract (StopVrf52 header, the runner's note and FAIL text) says
+# "NOTHING was killed". It has its own code now: 7 = FORCED the own back end, something else still up.
+Check '10f StopVrf52: exit 7 exists, is documented, and is the fall-through when a force happened' (
+    $sv52Code -match '(?m)^\s*if \(\$forced\.Count -gt 0\)[^\r\n]*exit 7' -and $sv52Text -match '7 = FORCED')
+Check '10f StopVrf52: exit 3 now means NOTHING was forced - it is only reached with $forced empty' (
+    $sv52Code -match '(?ms)if \(\$forced\.Count -gt 0\)[^\r\n]*exit 7[^\r\n]*\r?\n\s*exit 3\b')
+Check '10f the runner branches on StopVrf exit 7 (FORCED, something else still up) as a teardown FAILURE, and its note lists 7' (
+    $rnText -match '(?m)^\s*7\s*\{[^\r\n]*teardownOk\s*=\s*\$false[^\r\n]*FORCED' -and $rnText -match '7 FORCED')
 
 Write-Host '=== 10e. STP-844 LaunchVrf52 precheck: GUI-on only, advisory only, no StrictMode leak ==='
 Check '10e the precheck is gated on a front end actually being launched (-NoGui raises no dialog)' (

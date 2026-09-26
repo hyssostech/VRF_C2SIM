@@ -364,15 +364,16 @@ public static class PlacementReclampPolicy
     /// <summary>
     /// THE ARM DECISION of a placement batch (FinalizePlacement -> ArmPlacementReclamp): how many
     /// objects the ARMED line reports, 0 = do not arm (no line, no sweep, no summary).
-    /// <paramref name="enrolledThisBatch"/> = land platforms THIS batch created on the FALLBACK;
-    /// <paramref name="enrolledInMap"/> = every entry the re-clamp map holds, concluded ones included
-    /// (the map is kept after a sweep concludes: BL-2 re-measures from it and the summary is a census).
+    /// <paramref name="enrolledThisBatch"/> = land platforms THIS batch created on the FALLBACK.
+    /// The re-clamp map's own size is deliberately NOT an input: the map is kept after a sweep
+    /// concludes (BL-2 re-measures from it and the summary is a census), so it says nothing about
+    /// this batch (laneR3 N3 removed the unused second parameter).
     /// Only THIS batch's fallback creates arm: a batch that put nothing on the FALLBACK must not
     /// re-open a concluded sweep or say "created at the FALLBACK altitude" about objects it did not
     /// create (A4, run NAV_STALL_FALLBACK-2026-09-26-1 L1609-L1627 / L204785). A batch that does
     /// enroll re-arms the window; the sweep then measures every still-pending entry, as before.
     /// </summary>
-    public static int ObjectsToArm(int enrolledThisBatch, int enrolledInMap)
+    public static int ObjectsToArm(int enrolledThisBatch)
         => enrolledThisBatch > 0 ? enrolledThisBatch : 0;
 
     /// <summary>ONE line when the re-clamp arms. It says what is wrong and what will be done, so a

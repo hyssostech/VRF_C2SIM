@@ -71,7 +71,7 @@
 # and its rtiexec/rtiForwarder are the federation's RENDEZVOUS, deliberately left up for the
 # next run (StartRtiExec52.ps1 finds them and starts nothing).
 #
-# Exit codes (StopVrf.ps1's contract, plus 6):
+# Exit codes (StopVrf.ps1's contract, plus 6 and 7):
 #   0 = down, or already down, or a dry run completed
 #   2 = bad arguments
 #   3 = still running after the budget - NOTHING was killed; inspect before the next launch
@@ -81,6 +81,9 @@
 #   5 = unexpected terminating error - VR-Forces MAY STILL BE RUNNING
 #   6 = FORCED: the graceful close was refused and the run's OWN back end (pid + start time
 #       matched) was force-stopped; nothing else of VR-Forces is left. A refused close, scoreable.
+#   7 = FORCED the run's OWN back end, but ANOTHER VR-Forces process is still up (a front end, a
+#       launcher, or a back end that is not this run's). Something WAS killed, so this is not 3;
+#       something is still up, so it is not 6 (laneR3 review S1, 2026-09-26).
 # ASCII only.
 [CmdletBinding()]
 param(
@@ -424,7 +427,7 @@ if ($DryRun) {
     Say-Ok 'would record TEARDOWN DIAGNOSTICS before any close request: each back end''s MainWindowTitle and MainWindowHandle, its Win32_Process parent (ParentProcessId) and any conhost.exe / OpenConsole.exe / WindowsTerminal.exe parent or child - the A3 discriminator (window="" on both 2026-09-26 refusals).'
     Say-Ok 'console exit (UG52 4.6 p146 "press Q and then Enter") is NOT DELIVERABLE headless: LaunchVrf52.ps1 starts the back end with a plain Start-Process (no -RedirectStandardInput), so its console input is not this script''s to write. The close request stays taskkill WITHOUT /F.'
     if ($ForceOwnBackendPid -gt 0) {
-        Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6. rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc)
+        Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6 (exit 7 if another VR-Forces process is still up after it). rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc)
     } else {
         Say-Ok 'NO FORCE: -ForceOwnBackendPid / -ForceOwnBackendStartUtc not given, so a refused close ends at exit 3 with nothing killed (the watchdog and manual path).'
     }
@@ -589,6 +592,9 @@ try {
     Say-Fail ('the window diagnostic failed ({0}) - IGNORED; the verdict below is unaffected.' -f $_.Exception.Message)
 }
 Say-Fail 'If one of the windows above is a modal, THAT is what is blocking the shutdown. This script answers nothing by design. The supported remedy is configuration: seed a run-owned appData with scripts\NewVrfAppData52.ps1 and launch with LaunchVrf52.ps1 -AppDataDir <that tree> so the GUI raises no prompt at all (UG52 4.6.1, 4.3.1).'
+# S1: exit 3's contract is "NOTHING was killed" - a teardown that forced the own back end and still
+# left something else up says so with its own code.
+if ($forced.Count -gt 0) { Say-Fail ('Exit 7: pid {0} was FORCED and other VR-Forces processes are still up.' -f ($forced -join ', ')); exit 7 }
 exit 3
 
 }

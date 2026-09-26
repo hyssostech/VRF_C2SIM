@@ -3267,7 +3267,7 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void ArmPlacementReclamp(int planned, int enrolledThisBatch)
     {
-        int objects = PlacementReclampPolicy.ObjectsToArm(enrolledThisBatch, _reclamp.Count);
+        int objects = PlacementReclampPolicy.ObjectsToArm(enrolledThisBatch);
         if (objects == 0) return;
         // A second init re-arms the window for whatever IT put in the map (the map is keyed by
         // name, so a re-planned object replaces its own entry). A batch that put NOTHING on the

@@ -22,9 +22,19 @@ ONE EXCEPTION (2026-09-26, lane A2; the owner's standing "initiative" direction,
 the seat force-stopped the run's own back end twice that day): `scripts/StopVrf52.ps1` may
 `Stop-Process -Id -Force` the RUN'S OWN VR-Forces back end - matched by pid AND start time as
 the runner recorded them at launch - only after its graceful close was refused within the
-budget; it logs "FORCED - graceful close refused (see diagnostics)" and exits 6. Never the
-interface, never rtiexec / rtiForwarder / rtiAssistant / RtiProbe (the holder), never vrfGui.
-The stale-federate risk above still applies to that back end: the next launch's join is the check.
+budget; it logs "FORCED - graceful close refused (see diagnostics)" and exits 6 (7 if another
+VR-Forces process is still up after it). Never the interface, never rtiexec / rtiForwarder /
+rtiAssistant / RtiProbe (the holder), never vrfGui.
+The stale-federate risk above still applies to that back end - for a back end the risk is a GHOST
+federate as much as a hang. THE CHECK, on the NEXT launch after any force-stop: (1) the app log's
+"READY - joined the federation, 1 VR-Forces back-end(s)" names exactly ONE back end (a ghost shows
+as 2); (2) a COUNT-grep of the long-lived rtiexec log shows no new "Create Response" for that
+launch (the back end JOINED, it did not create); (3) the interface does not freeze at the config
+banner (1 thread, ~0 CPU - the stale-federate hang above). Any of the three failing: RECOVER with
+`tools/ResetVrf` (sec 8) before anything else. The one data point on file is benign, n = 1: run
+20260926T181639Z followed the seat's force-stop of 20260926T115957Z's back end and logged L43
+"READY - joined the federation, 1 VR-Forces back-end(s)", with its P0(i) rtiexec count-grep a HIT
+(PREREG_NAV_STALL_FALLBACK_2026-09-26.md Result, P0).
 
 ## 0.5 BRINGING VR-FORCES UP FOR LIVE WORK - THE WORKING PROCEDURE
 
@@ -628,9 +638,11 @@ Enter", UG52 4.6 p146) is NOT deliverable here - LaunchVrf52 starts the back end
 Start-Process, so its console input is not ours; (c) given `-ForceOwnBackendPid` +
 `-ForceOwnBackendStartUtc` (the runner passes both; the watchdog passes neither), force-stops a
 refused back end that matches both, exit 6 - see sec 0's exception. Exit codes: 0 down, 2 bad
-args, 3 still running (nothing forced), 5 unexpected error, 6 FORCED. Offline stand-in
-exercise (a renamed PING.EXE with no window): pair matched -> FORCED, exit 6; start time off by
-1 h (a reused pid) -> "NOT forced", exit 3.
+args, 3 still running (nothing forced), 5 unexpected error, 6 FORCED, 7 FORCED the own back end
+but another VR-Forces process still up (laneR3 S1: 3 used to cover that case, against its "NOTHING
+was killed" contract). Offline stand-in exercise (a renamed PING.EXE with no window): pair matched
+-> FORCED, exit 6; start time off by 1 h (a reused pid) -> "NOT forced", exit 3; own back end plus
+a second back-end image that is not ours -> ours FORCED, the other survives, exit 7.
 
 Also: the 8/8 clean teardown record is HEADLESS (79/79 StopVrf52 runs with no vrfGui) and
 says nothing about GUI-on teardown; D1 was 1 of 80.
@@ -1109,7 +1121,11 @@ on 2026-09-14; each is now closed by something this section names
    and counts them **per (taskee, task) PAIR**, not by line total, so a duplicate line or
    one taskee reporting twice can no longer close a task that never ended. `TASKSTRT` is
    not terminal. A report the app cannot attribute (`task=(none)`) is counted and printed
-   but closes no task. The close line now names the arithmetic:
+   but closes no task. *** 2026-09-26 (lane A1, merged 93873fd): the app no longer SENDS a
+   TaskStatus for an unattributed vendor completion (run 20260926T181639Z L1786313 was the
+   case), so `task=(none)` now appears only for an ATTRIBUTED task whose order gave it an
+   empty uuid; the counter stays as a detector and should read 0. ***
+   The close line now names the arithmetic:
 
        closed: 40 TASKCMPLT + 2 TASKABRT = 42 terminal of 42 tasks
 
