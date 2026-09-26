@@ -5088,11 +5088,28 @@ public sealed class VrfC2SimService : BackgroundService
             // cancels the armed end time for any terminal code, so one call does both.
             string supersededCode = (_vrf.SupersededTaskCode ?? "TASKABRT").Trim();
             if (!TaskDispatchPolicy.SupersedeAbandonsSuccessors(supersededCode))
+            {
+                // 2026-09-25 (completion unit): under RL-20260921-09 a task WITH a destination whose
+                // unit has not arrived is not completed by its end time - it waits for the arrival,
+                // and a superseded task's unit will never arrive for it. So this non-default setting
+                // marks the old task FINISHED here: it still reports TASKCMPLT at its end time, as
+                // configured, or at once if that end time has already passed.
+                var supersededVerdict = _timed.MarkFinished(old.TaskUuid);
                 _log.LogInformation("Unit {Name}: task '{Old}' keeps its armed end time " +
                                     "(Vrf:SupersededTaskCode=TASKCMPLT) - it will report TASKCMPLT when the " +
                                     "order says it ends, even though VR-Forces is no longer running it, and its " +
-                                    "STREND successors keep waiting for that completion.",
-                                    unit.Name, old.TaskName);
+                                    "STREND successors keep waiting for that completion{Now}.",
+                                    unit.Name, old.TaskName,
+                                    supersededVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                                        ? " (its end time has already passed: reported now)" : "");
+                if (supersededVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+                {
+                    _sequencer.CompleteTask(old.TaskUuid);
+                    PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
+                                   $"SUPERSEDED by task '{task.TaskName}' on {unit.Name} after its end time " +
+                                   "(Vrf:SupersededTaskCode=TASKCMPLT)");
+                }
+            }
             else
             {
                 PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKABRT,
