@@ -135,6 +135,88 @@ FALSIFIER (both Q1 and Q2): no class combination reproduces B3 and B2 at > 90 % 
 function of land-cover class presence at sector scale; report which inputs remain (elevation layers, the
 texture surfChar map, the tag volumes, the generator's own processing).
 
-## 8. RESULT of the next check
+## 8. RESULT of the next check (written 2026-09-26 after the land-cover data were read)
 
-(to be written after the data are read)
+Instrument: tools/navdata/landcover_sector_map.py (this commit; the sec-7 prereg was committed first, 405a25d).
+Tiles fetched 2026-09-26 ~01:20Z with curl (the server answers 403 to Python's default user agent and 200 to
+curl): CA-FVEG (154) at levels 11 and 12 (level 13: 404), NLCD (165) at 11 and 12, Copernicus (188) at 10 (11:
+404). Every pixel is R = G = B with alpha 255. Primary run at CA-FVEG 12 / NLCD 12 / Copernicus 10; the
+level-11 rerun moves no row of the tables below by more than 3 sectors.
+
+What covers the box. CA-FVEG has a mapped value at every sampled point, so it is the effective layer
+everywhere; NLCD (98 % "52 Shrub/Scrub") and Copernicus never show through. Effective classes by sectors
+touched: 60 Desert Scrub (BM_SAND -> sand) 1,493; 64 Desert Succulent Shrub (BM_LAND -> dryground) 394;
+61 Desert Wash (BM_LAND -> dryground) 179; 30 Sagebrush (BM_SAND -> sand) 105; 9 Barren (BM_LAND ->
+dryground) 49; 41 Alkali Desert Scrub (BM_LAND) 21; 12 Urban (BM_LAND -> dryground) 18; 55 Pinyon-Juniper
+(BM_VEGETATION -> forest) 15; 11 Annual Grassland (BM_LAND-GRASS -> grass) 14; 62 Joshua Tree (BM_LAND) 11.
+Chains: layer.CA-FVEG.15m.online.xml mapping lines; landCoverDataSurfChar.map:246 (BM_LAND dryground), :251
+(BM_LAND-GRASS grass), :343 (BM_VEGETATION forest). No class in the box reaches road or pavedroad.
+
+Soil set present in a sector -> its tag-count histogram:
+
+| soils present | tags 1 | tags 2 | tags 3 | tags 4 |
+|---|---|---|---|---|
+| sand only | 1,046 | 6 | 4 | 0 |
+| dryground + sand | 0 | 47 | 377 | 0 |
+| dryground only | 4 | 83 | 4 | 0 |
+| dryground + grass + sand | 0 | 0 | 8 | 0 |
+| dryground + forest + sand | 0 | 0 | 0 | 8 |
+| forest + sand | 0 | 0 | 7 | 0 |
+| grass + sand | 0 | 6 | 0 | 0 |
+
+- "A dryground-soil class is present" matches tags >= 2 on 98.3 % of sectors and tags >= 3 on 90.9 % (base
+  rates 65.6 % and 74.5 %). This candidate was formed AFTER seeing the class table (it groups the BM_LAND
+  classes by their soil); the best candidate inside the registered search (87 candidates: single classes and
+  pairs) is the pair 61 Desert Wash | 64 Desert Succulent Shrub, 95.1 % on tags >= 2 and 92.6 % on tags >= 3.
+- Two classes with the SAME soil do not add a tag: sectors holding only sand classes but two of them (30 + 60)
+  read 1 tag in 48 of 50; dryground-only sectors with two or more dryground classes read 2 tags in 37 of 39.
+- The descriptive rule tags = [sand present] + 2 x [dryground present] fits 94.7 % of sectors exactly (94.5 % at
+  level 11). It is post hoc and is not offered as the mechanism. (This bullet and the previous one come from
+  the session-scratch analysis n4_count.py over the same tiles, whose sampling box differs from the tool by a
+  few metres; the tool reproduces its tables to within 2 sectors per cell.)
+
+Scoring.
+
+| # | Verdict | Measured |
+|---|---|---|
+| Q1 (seat MEDIUM, mine LOW) | MISS as registered | the presence limb holds (the 61/64 pair reaches > 90 % on both binaries), but its chain ends at dryground (BM_LAND, landCoverDataSurfChar.map:246), which is neither road nor pavedroad |
+| Q2 (mine, LOW-MEDIUM) | MISS | the reproducing classes have a MATCHED soiltype (BM_LAND -> dryground) |
+| Q3 (LOW, exploratory) | HIT for the bulk | 3-tag sectors are dryground + sand (377 of 400); 2-tag sectors are mostly dryground only (83 of 142): the difference is the presence of the sand soil (classes 60 / 30). Exceptions: 47 dryground + sand sectors read 2, 6 grass + sand sectors read 2 |
+| FALSIFIER | did NOT fire | land-cover presence at sector scale does reproduce the tag map above 90 % on both binaries |
+
+CORRECTION to the sec 7 prereg text (found by the instrument, not by a re-read; the prereg text is left as
+written): BM_VEGETATION and BM_VEGETATION-BRUSH are NOT unmatched - landCoverDataSurfChar.map:343-344 send
+both to forest. My earlier listing hid them with a filter on the word "forest". BM_VEGETATION-MARSH and
+BM_VEGETATION-MOOR do have no Match line, and neither occurs in this box.
+
+What this measures. On this area the extra nav tags follow the CA-FVEG classes whose soil is dryground (Desert
+Succulent Shrub, Desert Wash, Barren, Alkali Desert Scrub, Urban, Joshua Tree), and the third tag follows
+their co-occurrence with the sand classes (Desert Scrub, Sagebrush). The 3-tag patch of sec 3 is where
+Desert Succulent Shrub and Desert Wash meet Desert Scrub.
+
+UNEXPLAINED, carried (both contradict the documented chain, so the tag is not yet explained - only located):
+1. dryground, sand, grass and forest are NOT in soil-types-to-tag-with-surface-char (navigationProfiles.mtl
+   :261-264), and UG52 p505 / p1282 say "Other soil types receive the default navigation tag". Yet the tag count
+   rises with exactly those soils.
+2. pavedroad IS in that list, and the OSM 191 strokes map to it (Paved-Road -> BM_PAINT-ASPHALT ->
+   pavedroad), yet 98 sectors crossed by a 191 stroke read 1 tag (sec 3 data). The stroke is 11-12 m wide
+   against 43 m cells and a 0.2 raster precision; whether the generator samples land cover finely enough to see
+   it is not documented in the files read.
+What remains as inputs for the tag itself: the generator's own land-cover sampling (resolution, which layers it
+composites), the texture-name map MAK Earth (online).surfChar.map, and the preset attributes (dense / lush /
+rugged / traits) - the 61 and 64 classes carry identical attributes (0.6 / 0.2 / 0.18) and the two sand
+classes differ (0.3 / 0.2 / 0.18 vs 0.7 / 0.1 / 0.25) without adding a tag, which argues against the
+attributes but does not exclude them.
+
+Design implication, stated separately: a profile that drops pavedroad and road from the tag list is not
+expected to remove these tags, because the soils that carry them are not on that list. The two levers the
+measurement points at - a custom Coverage block without the CA-FVEG layer (the vendor's own note in
+biomes.landcover.coverage.online.xml:1-15 recommends custom blocks), or a terrain-specific land-cover map
+that sends the BM_LAND classes to sand (Release Notes VRF-7074) - are candidates for a new prereg, not
+recommendations; each changes the simulated soil as well as the nav tags.
+
+Open for the 2026-09-07 -> 2026-09-13 change (not tested here): the CA-FVEG layer is the only one of the three
+that is cached (cacheid="CA_FVEG_WHR_15m"; NLCD and Copernicus are cache_policy no_cache). If CA-FVEG was not
+served or not composited on 2026-09-07, the effective layer would have been NLCD 52 (-> forest) and the
+dryground / sand mixture would not have existed. The 09-07 per-sector data are lost, so only the histogram
+(1:1,136 2:447 3:17 4:0, WEST20:585-590) can be tested against that scenario.

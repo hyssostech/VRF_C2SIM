@@ -3,6 +3,7 @@
 - `nav_gate.py` - the connectivity gate. Run it on every generation log before anything uses the area.
 - `make_nav_terrain.py` - registers a `.navRuntimeConfig` on a COPY of the terrain (`out/`, git-ignored).
 - `osm_sector_map.py` - maps OSM highway ways onto a generated area's sectors (diagnostic).
+- `landcover_sector_map.py` - land-cover class and soil per sector against the tag count (diagnostic).
 - Tests: `pwsh -NoProfile -File tests\NavGate.Tests.ps1`; `python make_nav_terrain.py --selftest`.
 
 ## Generating an area (vrfNavGenerator.exe, headless)
@@ -67,3 +68,7 @@ log's extent. The shift exists because the true origin (the runtime "offset") is
 which the 2026-09-25 run did not write; for AO20 it is +21.5 m (half a 43 m cell) and the corners then match to
 <= 0.05 m. It is fitted to one log line, so treat sub-cell placement as assumed.
 Record: docs/experiments/FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md.
+
+Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]`
+(global-geodetic PNG TMS 154 CA-FVEG / 165 NLCD / 188 Copernicus; the server serves curl, not Python's default
+user agent). Record: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8.
