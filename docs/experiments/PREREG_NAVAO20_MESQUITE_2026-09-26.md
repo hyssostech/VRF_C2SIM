@@ -85,4 +85,52 @@ sha256 + bytes of the copy, the runtime config and the area folder. No fixture i
 
 ## Result (written after the harvest, never from a live read)
 
-(to be written after the run)
+RUN: 2026-09-26 13:31:50Z -> 14:09:11Z, 2,240.7 s wall (the generator's own "Generation time: 2227.64"), EXIT CODE 0
+(held process handle in u3\n8_run.ps1). No vrfSim / vrfGui / VrfC2SimApp / WatchVrf / test suite at the start; other
+sessions' Claude processes used about three of 32 cores. Log C:\C2SIM\vrf-nav\work\log\gen-AO20-meso-2026-09-26.log
+(5,384,655 B, sha256 b0b99bd9...ed56); gate output beside it (nav_gate-AO20-meso-2026-09-26.txt / .json). The log
+loads the SHADOW .earth; feature/elevation layer lines identical to 2026-09-25; tag volumes 2 / 0 / 416 as on
+2026-09-25. Runtime config C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform
+MojaveAO20_meso.navRuntimeConfig (759 B, sha256 3cb5c847...d624): extents and offset identical to the 2026-09-26
+bmland2sand config, nav-data-path the _meso folder, original-terrain the _meso copy.
+
+| # | Verdict | Measured |
+|---|---|---|
+| P0 HIGH | HIT | exit 0; 1,600 sectors; shadow .earth; runtime config written; extent (-10019,-9976)..(10062,9976) |
+| P1 HIGH (brief) / MEDIUM (mine) | MISS | 4 "Sim model config: YuccaPalm not found." lines - the JST biome (class 62 Joshua Tree) still places YuccaPalm, as flagged before the run |
+| P2 HIGH | "0 below 0.5": HIT; "every sector >= 0.9": MISS | 0 of 1,600 below 0.5 (2026-09-25: 189); 4 below 0.9: (39,35) 0.806, (39,36) 0.836, (39,34) 0.859, (39,38) 0.895 - GATE FAIL |
+| P3 MED | HIT | 4,803 files, 176,903,872 B (176.9 MB; 2026-09-25: 268.7 MB) |
+| P4 MED | HIT | destack start (13,32) 0.102 -> 1.000; N2d start (12,32) 0.444 -> 1.000; V0 (16,37) 0.620 -> 1.000 (P11 (9,32) 1.000 as before) |
+| P5 MED | MISS | tags 1:1,052 2:145 3:395 4:8 (2026-09-25 1:1,050 2:142 3:400 4:8); 11 sectors changed (3->2 x7, 2->1 x2, 2->3 x2) |
+
+FALSIFIER, second limb, FIRED: four sectors below 0.9 that do NOT contain class 64. STOP; nothing registered; no
+terrain copy with nav records was made; no fixture touched. Their classes (N4 land-cover tiles): (39,34) 60 Desert
+Scrub, 61 Desert Wash, 62 Joshua Tree; (39,35) and (39,36) 9 Barren, 55 Pinyon-Juniper, 60, 61, 62; (39,38) 9, 60, 62.
+Every one contains class 62 (Joshua Tree, JST biome: YuccaPalm, biome.definitions.CA-fveg.xml:521, NOT edited) and
+every one lies in the 39-cell remainder column (about 350,000-370,000 input triangles, 3.5 x a regular sector). All
+four are BYTE-FOR-BYTE unchanged from 2026-09-25 in ratio, NavData size (543.2 / 729.4 / 726.3 / 349.4 kB) and input
+triangles: the DSS edit did not reach them. The first limb of the falsifier (a class-64 sector below 0.5) did NOT fire.
+
+Per-sector comparison against 2026-09-25 (N4 classes):
+- class-64 sectors (396): 395 changed; 0 below 0.5 and 0 below 0.9 (2026-09-25: 189 below 0.5, 310 below 0.9);
+  the 48 sectors holding only class 64 (N4 L12 sampling): NavData median 462.4 -> 95.6 kB.
+- non-64 sectors (1,204): 1,180 identical in ratio, NavData size and input triangles; 24 changed, most of them
+  holding class 61 Desert Wash (a mesquite biome) - not explained by the class table at 10 m sampling [A: sub-pixel
+  class-64 presence or the biome layer's own resolution]; none of the 24 is below 0.9.
+
+What this measures. With Desert Succulent Shrub's single asset changed from YuccaPalm to HoneyMesquiteShortSpring,
+the full MojaveAO20 generates with no fragmented sector (189 -> 0 below 0.5), the named route points all at 1.000, and
+268.7 -> 176.9 MB of navigation data; the gate still fails on four remainder-column sectors that contain class 62 Joshua
+Tree and are identical to 2026-09-25 (ratios 0.81-0.89).
+
+Design implications, stated separately: (1) the DSS edit is a working lever at full scale. (2) The remaining four
+sectors point at the same asset through the JST biome - the reading is untested; editing JST's YuccaPalm line (521)
+the same way, or checking whether any route crosses column 39 (the east edge), are the seat's options. The gate
+rule (row 21) is ANY sector, so nothing was registered.
+
+Side effects: 366 new files (721,992 B) in the vendor tile cache C:\MAK\vrforces5.2d\appData\cache\vrfsim
+(pre-registered); 1,600 ClientInput intermediates (10,657,765,816 B) in C:\C2SIM\vrf-nav\userdata\NavDataDebug. The
+area folder stays at C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform MojaveAO20_meso (manifest
+sha256 2a808d73...f8a9).
+Side effect for the terrain, as a measurement: on the shadow terrain copy the Desert Succulent Shrub biome places
+mesquite, not Joshua trees, for rendering and simulation alike.

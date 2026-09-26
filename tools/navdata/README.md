@@ -101,3 +101,7 @@ per sector). Record: docs/experiments/PREREG_NAVTREES_YUCCA_2026-09-26.md.
 The generator does NOT keep a sub-box on the parent grid: it widened 55 x 55 cells to 57 x 57, centred on its own
 offset, half a cell off AO20's (2026-09-26). Compare sub-box sectors with the parent's as ~91 % shared ground, or
 generate the unedited control on the SAME sub-box config - that is the like-for-like comparison.
+
+Full-area result on the shadow (DSS -> mesquite) terrain, 2026-09-26: 0 of 1,600 sectors below 0.5 (was 189) but the
+gate still FAILS on four remainder-column sectors (39,34/35/36/38) that hold class 62 Joshua Tree (JST biome, also
+YuccaPalm, not edited); nothing registered. Record: docs/experiments/PREREG_NAVAO20_MESQUITE_2026-09-26.md.
