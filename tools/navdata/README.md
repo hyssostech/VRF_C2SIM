@@ -73,9 +73,15 @@ which the 2026-09-25 run did not write; for AO20 it is +21.5 m (half a 43 m cell
 <= 0.05 m. It is fitted to one log line, so treat sub-cell placement as assumed.
 Record: docs/experiments/FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md.
 
-Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]`
-(global-geodetic PNG TMS 154 CA-FVEG / 165 NLCD / 188 Copernicus; the server serves curl, not Python's default
-user agent). Record: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8.
+Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]
+[--bbox S N W E] [--water-tiles <dir>\osm-water] [--json out.json]` (global-geodetic PNG TMS 59 CLCplus / 154 CA-FVEG /
+165 NLCD / 188 Copernicus, OSM inland water on top, in the vendor composite's order; the server serves curl, not
+Python's default user agent - osm_sector_map.py --fetch now uses curl too). `--selftest` is offline.
+Records: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8; FINDING_IRONSTORM_CORRIDOR_2026-09-26.md.
+
+Logs with only name-form sector rows ("Sector ground-platform_<i>_<j>_<tag> has N triangles.", e.g. the IRONSTORM-CENTRE
+gen-1 console log of 2026-09-20): nav_gate.py keys on them; osm_sector_map.SectorFrame synthesises the cells from the
+extent line (checked 1,600/1,600 against both AO20 logs). Pass --bbox for any AO other than AO20.
 
 ## A terrain-specific land-cover map (make_landcover_map.py)
 

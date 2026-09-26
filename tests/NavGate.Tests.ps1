@@ -14,6 +14,8 @@
 #   B. dirty (one sector 0.40 at (7,3)) -> exit 1, names (7,3), 1 sector < 0.9, 1 < 0.5
 #   C. WEST20-shaped (published 234 / 1,598 < 0.5, 409 < 0.9; WEST20 :300) -> exit 1, numbers reproduced
 #   D. clean (1,600 sectors at 1.00) -> exit 0
+#   F. dirtyname (dirty with ONLY "Sector ground-platform_<i>_<j>_<tag> has N triangles." rows,
+#      the IRONSTORM-CENTRE gen-1 console layout) -> exit 1, names (7,3), 1,600 measured
 
 param(
     [string]$Python = ''
@@ -56,7 +58,7 @@ try {
     Check 'A empty log -> exit 2' ($r.Code -eq 2) "exit=$($r.Code)"
     Check 'A empty log -> verdict INSTRUMENT FAILURE' ($r.Json.verdict -eq 'INSTRUMENT FAILURE') "$($r.Json.verdict)"
 
-    foreach ($k in 'dirty', 'west20', 'clean') {
+    foreach ($k in 'dirty', 'dirtyname', 'west20', 'clean') {
         & $Python $Gate --write-control $k (Join-Path $tmp "$k.log") | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "could not write the $k control" }
     }
@@ -70,6 +72,13 @@ try {
     Check 'B dirty -> names sector (7,3) at 0.4' (($f.Count -eq 1) -and ($f[0].i -eq 7) -and ($f[0].j -eq 3) -and ([math]::Abs($f[0].ratio - 0.4) -lt 1e-6)) ($f | ConvertTo-Json -Compress)
     $txt = & $Python $Gate (Join-Path $tmp 'dirty.log')
     Check 'B dirty -> text output lists FAILING sector (7,3)' ([bool](($txt -join "`n") -match 'FAILING sector \(7,3\) ratio 0\.4000')) ''
+
+    # F. name-form-only dirty control (no "Sector (i,j):" rows)
+    $r = Run-Gate (Join-Path $tmp 'dirtyname.log')
+    Check 'F dirtyname -> exit 1' ($r.Code -eq 1) "exit=$($r.Code)"
+    Check 'F dirtyname -> 1,600 sectors measured' (($r.Json.sectors_total -eq 1600) -and ($r.Json.sectors_measured -eq 1600)) "$($r.Json.sectors_total)/$($r.Json.sectors_measured)"
+    $f = @($r.Json.failing_sectors)
+    Check 'F dirtyname -> names sector (7,3) at 0.4' (($f.Count -eq 1) -and ($f[0].i -eq 7) -and ($f[0].j -eq 3) -and ([math]::Abs($f[0].ratio - 0.4) -lt 1e-6)) ($f | ConvertTo-Json -Compress)
 
     # C. WEST20-shaped control (self-consistency with the published numbers)
     $r = Run-Gate (Join-Path $tmp 'west20.log')
