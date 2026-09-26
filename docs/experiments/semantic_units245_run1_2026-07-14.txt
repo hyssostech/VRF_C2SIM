@@ -45,7 +45,9 @@ COMPLETIONS (app log):
   SEM_BREACH: move-complete event did NOT fire within 300s of dispatch though 14.MechBn reached the
     route end (~11:18); EngageFallbackSeconds=300 fallback issued the breach ("will replace the
     still-running move"); "VRF task complete: 14.MechBn / breach-task" -> TASKCMPLT taskee 670cfe3a
-    task 5eed0001. NOTE: aggregate move-completion event fired unreliably (F2-adjacent) - fallback
+    task 5eed0001. [CORRECTED 2026-09-26, docs/CORRECTIONS_LOG.md F-5: this TASKCMPLT is not evidence the
+    breach ran - the vendor success flag was not read before 02b51de (2026-09-14); the order is retired
+    as not doctrinal, RL-20260926-01.] NOTE: aggregate move-completion event fired unreliably (F2-adjacent) - fallback
     caught it. Not a defect this run.
   SEM_SCREEN: no completion (perpetual patrol by design - correct).
 
@@ -74,6 +76,7 @@ FORMATION "from the get-go?" (user-raised): NO cleanly - VrfFacade.cpp:416 creat
   or the truly clean fix is VR-Forces-side (correct the entity-TYPE default formation), outside the
   interface. Recommendation: leave fix-later (proven correct); low priority vs semantic-mapping work.
 
+[CORRECTED 2026-09-26 (F-5): the Unit 2 (Breach) half of this verdict is withdrawn - see SEM_BREACH above.]
 VERDICT: SUCCESS. Unit 2 (Breach) and Unit 5 (Reconnoiter + Escort) are BEHAVIOR-VERIFIED live at
   Sweden - distinct vrftask dispatch + telemetry-backed movement + correct completions. The
   distinct-AffectedEntity path (blocked on COA-STP1 by self-targeting) works end to end.

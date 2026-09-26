@@ -5,9 +5,10 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01, RL-20260921-06, RL-20260921-07.
+#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
-#   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25).
+#   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
+#   RL-20260921-08 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -291,3 +292,33 @@ RL-UNVERIFIED-NAV09 | (claimed 2026-09-20/21) | status UNVERIFIED - no owner wor
     SUPERVISOR's statement; he neither affirmed nor declined it. The bar may stand on its own merits, but not on his authority.
   pointer: coldstart_fresh_start_handoff.md sec 1 NAV DATA; memory project-demo-rulings-2026-09-20 third round; HANDOFF
     CLOSED list, the nav-area product rule.
+
+RL-20260921-08 | 2026-09-21 | status VERBATIM - COMPLETION SEMANTICS ARE UNDER HIS REVIEW, NOTHING HERE IS A RULE
+  Q (as put, S291 AskUserQuestion; echoed in the S304 tool_result, type=user): "Completion tripwires for the entry doc, rewritten in
+    plain words (no 'R4'): (a) a task ends at start time + Duration only if it involves no movement; (b) a move ends on arrival - the
+    sim's completion or the unit's own arrival evidence; (c) stuck is not complete: stalled = abort, a later arrival still reports
+    complete; (d) late is not an abort: follow-on tasks wait; (e) the code on main ends moves on the Duration timer - that is a defect
+    to fix, never a ruling; plus an explicit NOT SETTLED list (move-then-hold, patrol, follow, how long followers wait, watchdog
+    on/off). RULING ON FILE: "report a unit's completion from the unit's own arrival evidence is fine" (2026-09-07) and your
+    2026-09-21 message quoted earlier. OK to write these?" Options (the seat's labels): Yes, write them / Edit first / Not yet.
+  A (owner, S304): "The notion of a hold-off or movement tasks seems to be rather fuzzy as described. Some verbs imply that
+    the unit stays in place (e.g. to DEFEND). There are plenty of tasks where there is movement preceding the desired
+    effect, like in "ATTACK TO SECURE". How are these distinguished? Seems to me that the time applies to the full task,
+    including the movement and the achievement of the desired effect, at which point the unit might be tasked to perform a
+    "follow on" task (not a "follower"). SPeaking of which what do you mean by "late delays followers" - I meant to say
+    "follow ons" - the tasks for the same unti that may be set to start after it has completed a preceding task. And I hear
+    you about the "eralier" - this assumed that all a unit had to do was complete the movement, but your point is valid,
+    that theres action required after that - requires a doctrinal research, and as well as of vendor documentation - is the
+    sim able to determine when some of the desired effect has been achieved, for example DESTROY (no enemy unit operational
+    in the target area or something like that?)."
+  Q (as put, S257 AskUserQuestion; echoed in the S260 tool_result, type=user; the list it points to is in S256): "Completion
+    tripwires (a)-(e) as listed in my message above, for the HANDOFF CLOSED list. RULING ON FILE: "The rulling based on time is for
+    tasks that do not include movement, such as defend in place and similar ones - units that are not expected to reach any other
+    location." (your message, transcript line 45457). Do (a)-(e) state your semantics correctly?" Options (the seat's labels): Yes,
+    as written / Needs edits / Hold - not yet.
+  A (owner, S260, the same hour, on an earlier version of the same list): "SOunds ok, except for the cryptic "R$"
+    reference. DOn't know what your little codes mean. But more importantly, what does the record say? I mentioned what I
+    could recall. There may be way more related to this are than what I said. Are you even reading the materials?"
+  supervisor reading: "Seems to me" is tentative; nothing in this entry is a rule. Two standing instructions do follow from
+    the S260 answer: use PLAIN WORDS in anything put to him (codes only in parentheses), and read the record before asking.
+  pointer: RL-20260921-09; docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb table carrying the research he asked for.

@@ -30,6 +30,14 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "SCOUT",  TaskIntent.Reconnoiter);
         CheckIntent(ref failures, "ESCRT",  TaskIntent.Escort);
         CheckIntent(ref failures, "CLRLND", TaskIntent.Clear);
+        // STP's main / supporting attack (C2SimTask.cs :618-632; xsd:3863, :3865) - RL-20260926-01.
+        CheckIntent(ref failures, "ATTMN",  TaskIntent.Attack);
+        CheckIntent(ref failures, "ATTSPT", TaskIntent.Attack);
+        // Follow and support / follow and assume (xsd:3963-3964): advance along the graphic and hold.
+        CheckIntent(ref failures, "FOLSPT", TaskIntent.FollowAndSupport);
+        CheckIntent(ref failures, "FOLASS", TaskIntent.FollowAndSupport);
+        Check(ref failures, VerbMapping.Classify("ATTMN").Recognized && VerbMapping.Classify("ATTSPT").Recognized,
+              "ATTMN and ATTSPT are RECOGNISED attack verbs, not the bare-move fallback");
 
         // ---- The two verbs the real STP export added (2026-09-20) -----------------------------
         // Both are valid TaskActionCodeType members and both used to classify as UNRECOGNISED, so
@@ -76,9 +84,9 @@ public static class VerbMappingSelfTest
         // Layer-2 wiring status. Move/Attack/Breach/Reconnoiter/Escort are wired to real vrftasks;
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks.
         Check(ref failures, VerbMapping.Classify("MOVE").Implemented, "MOVE is implemented (bare move)");
-        Check(ref failures, VerbMapping.Classify("ATTACK").Implemented, "ATTACK is implemented (fires, unit 3)");
-        Check(ref failures, VerbMapping.Classify("DESTRY").Implemented, "DESTRY is implemented (fires)");
-        Check(ref failures, VerbMapping.Classify("BREACH").Implemented, "BREACH is implemented (unit 2, DtBreachTask)");
+        Check(ref failures, VerbMapping.Classify("ATTACK").Implemented, "ATTACK is implemented (RL-20260926-01: advance + fire at will / platform Fire At)");
+        Check(ref failures, VerbMapping.Classify("DESTRY").Implemented, "DESTRY is implemented (ATTACK family)");
+        Check(ref failures, VerbMapping.Classify("BREACH").Implemented, "BREACH is implemented (RL-20260926-01: advance + breach-not-simulated observation)");
         Check(ref failures, VerbMapping.Classify("SCREEN").Implemented, "SCREEN is implemented (Reconnoiter, patrol)");
         Check(ref failures, VerbMapping.Classify("ESCRT").Implemented, "ESCRT is implemented (Escort, follow)");
         Check(ref failures, !VerbMapping.Classify("SECURE").Implemented, "SECURE not yet wired (HoldObjective bare-move fallback)");

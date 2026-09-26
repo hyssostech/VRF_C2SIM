@@ -93,8 +93,9 @@ degrade). This table is the single source of truth for the mapping.
 | C2SIM verb(s)                                   | Intent          | Layer-2 composition (VRF)                                   | Impl |
 |-------------------------------------------------|-----------------|-------------------------------------------------------------|------|
 | MOVE                                            | Move            | CreateRoute + MoveAlongRoute (today's bare path)            | yes  |
-| BREACH                                          | Breach          | (approach move) + DtBreachTask(setBreachTarget=affected)    | unit2|
-| ATTACK, DESTRY, FIX, DISRPT, PENTRT             | Attack          | advance (move) + DtFireAtTargetTask(target=affected)        | UNIT3 code done, LIVE-pending |
+| BREACH                                          | Breach          | advance to the breach graphic / axis end + ONE ObservationReport "the breach action is not simulated ... (STP-865)"; NO DtBreachTask; completes by time (RL-20260926-01) | yes (2026-09-26), LIVE-pending |
+| ATTACK, ATTMN, ATTSPT, DESTRY, FIX, DISRPT, PENTRT | Attack       | UNIT: advance to the objective + rules of engagement fire at will, never a Fire At. PLATFORM: advance, then DtFireAtTargetTask only at a DISTINCT target, else advance only (RL-20260926-01) | yes (2026-09-26), LIVE-pending |
+| FOLSPT, FOLASS                                  | FollowAndSupport | advance along the task's graphic (MapGraphicID) to its end and hold; no engagement; ROE as ordered; completes by time | yes (2026-09-26), LIVE-pending |
 | SECURE, OCCUPY, SEIZE, RETAIN, BLOCK, DEFEND, GUARD | HoldObjective | move-to + DtHoldUntilTask (+ scan sector)                   | no   |
 | SCREEN, SCOUT                                   | Reconnoiter     | DtPatrolRouteTask + spot reporting                          | unit5|
 | ESCRT                                           | Escort          | DtFollowEntityTask / convoy (needs the escorted entity)     | unit5|
@@ -102,6 +103,18 @@ degrade). This table is the single source of truth for the mapping.
 | (aggregate move, any verb, opt-in)              | MoveInFormation | DtMoveIntoFormationTask(setFormationName)                   | unit4|
 
 Notes:
+- ATTACK / BREACH / FOLLOW, 2026-09-26 (RL-20260926-01; one pure decision, `TaskDispatchPolicy.ForEngage`,
+  checked by `--rulings-selftest`'s RL-20260926-01 section). A unit takes no Fire At (an entity-level unit
+  has no weapon controller); its ATTACK sets the unit's rules of engagement to fire at will at dispatch,
+  overriding the order's ROE (STP sends ROEHold on every task). Vendor: a rules-of-engagement set on an
+  aggregate "will apply to the entire aggregate" (`vrfcontrol/vrfRemoteController.h:1436-1438`); the
+  pseudo-aggregate set controller handles it (`vrfmodel/pseudoAggregatedSetController.h:61-62`). That the
+  members pick it up is NOT yet seen live. DtBreachTask is aggregate-level only (UG52 35.3.1 p719), so no
+  breach task is issued; a real breach needs an obstacle (aggregate model set) or a lane line and plow units
+  (entity model set) - STP-865 asks STP to export them. FOLSPT / FOLASS: doctrine names the unit being
+  supported or assumed from, but STP does not carry it (AffectedEntity = the performer itself), so nothing
+  is followed - the unit drives the graphic and holds at its end. STP today exports follow and support as
+  ATTACK (an STP defect; ticket being drafted). Test orders that aim an ATTACK/BREACH at a unit are retired.
 - `DtClearTask` is a DtSetDataRequest meaning "CANCEL current task", NOT tactical clear
   (verified header read, TASK_EXPANSION_PLAN sec 3). Do NOT map CLRLND to it.
 - MoveInFormation is orthogonal to the verb: it is the proper replacement for the current
@@ -139,6 +152,8 @@ Notes:
    have AffectedEntity == PerformingEntity. So BREACH can NEVER dispatch its DtBreachTask from
    this order at ANY run length - a synthetic order with a distinct obstacle-like affected entity
    is REQUIRED, same shape as the Unit-3 synthetic-target test (guidance sec 5).
+   SUPERSEDED 2026-09-26 (RL-20260926-01): no DtBreachTask is issued at all any more - BREACH advances and
+   reports that the breach is not simulated (sec 3 note).
 3. [Unit 3 - CODE DONE + BUILD-VERIFIED + PARTIAL LIVE 2026-07-11] Fires: facade
    `FireAtTarget` (DtFireAtTargetTask, autoSelectWeapon) -> bridge -> dispatch
    ATTACK/DESTRY/FIX/DISRPT/PENTRT. Resolves the affected entity via TryResolveVrfUuid; issues
@@ -244,7 +259,7 @@ Notes:
 - Affected-entity scope (sec 2b): targets may be OPFOR units not created by our clientId.
   Degrade-to-move + warn is the safe fallback; confirm real coa-gpt target scoping live.
 - Task interaction: RESOLVED IN CODE 2026-07-12 (P0.3). VRF replaces the current task on a
-  new dispatch (last-task-wins), so the ATTACK/BREACH engage is now issued when the unit's
+  new dispatch (last-task-wins), so the engage (since RL-20260926-01 only a PLATFORM's Fire At) is now issued when the unit's
   move COMPLETES (attributed via the P0.1 in-flight record), with a Vrf:EngageFallbackSeconds
   fallback for moves that never complete. Live confirmation of the composed behavior
   (advance -> engage) still pends a synthetic-order run.
@@ -300,6 +315,7 @@ Every facade method is present + bridged + dispatched DISTINCTLY (not log-and-co
   - Unit 2 BREACH: 14.MechBn resolved distinct obstacle 114.MechCoy, marched 5318 m to route end,
     breach issued (via EngageFallbackSeconds=300 fallback - aggregate move-complete event fired
     unreliably, F2-adjacent), breach-task TASKCMPLT.
+    CORRECTED 2026-09-26 (docs/CORRECTIONS_LOG.md F-5): that breach-task TASKCMPLT is NOT evidence that VR-Forces performed the breach - the interface did not read the vendor's success flag until 02b51de (2026-09-14), so a failed task also reported TASKCMPLT; and the order aimed the BREACH at a unit, which is retired as not doctrinal (RL-20260926-01).
   - Unit 5 Reconnoiter (SCREEN): PatrolRoute issued, 1222.MechPlt 5634 m patrol motion (no
     TASKCMPLT - perpetual patrol, correct).
   - Unit 5 Escort (ESCRT): FollowEntity, 1.BdeHQ followed 14.MechBn 9016 m, TASKCMPLT (zero-offset
@@ -325,7 +341,8 @@ Every facade method is present + bridged + dispatched DISTINCTLY (not log-and-co
     refinement). Clean stop (53 deleted); ResetVrf swept 1 leftover. Evidence
     docs/experiments/semantic_unit4_moveinformation_run2_2026-07-14.txt.
 - **TASK (c) COMPLETE**: Units 2 (Breach), 4 (MoveIntoFormation), 5 (Reconnoiter, Escort) all
-  behavior-verified LIVE at Sweden. Next appNo free: 3378.
+  behavior-verified LIVE at Sweden. Next appNo free: 3378. (Unit 2: see the 2026-09-26 correction under
+  Run 1 above - the breach completion is not evidence; F-5.)
 - CROSS-CUTTING FOLLOW-UP surfaced by both runs: aggregate move-completion events are UNRELIABLE -
   moveAlongRoute's never fired (Run 1 breach needed the 300s engage fallback), MoveIntoFormation's
   fired ~40s early (Run 2). Both MOVE correctly; only the TASKCMPLT arrival-timing is off. If C2SIM
