@@ -710,11 +710,9 @@ public static class PlacementReclampSelfTest
         // ArmPlacementReclamp's decision over the REAL PlacementReclampPolicy.ObjectsToArm.
         {
             var armed = new List<string>();
-            int mapCount = 0;
             void Batch(int planned, int enrolledNow)
             {
-                mapCount += enrolledNow;
-                int n = PlacementReclampPolicy.ObjectsToArm(enrolledNow, mapCount);
+                int n = PlacementReclampPolicy.ObjectsToArm(enrolledNow);
                 if (n > 0) armed.Add(PlacementReclampPolicy.ArmedLine(n, planned, Bound, Retry, Tolerance));
             }
             Batch(128, 1);                     // the init: one land platform on the FALLBACK
