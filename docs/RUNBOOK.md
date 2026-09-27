@@ -2874,12 +2874,20 @@ no Duration and no geometry is malformed and is refused, not held (below).
   clamped to zero there, so a window can never come out SHORTER than the end time it waits for;
   that clamp is a floor against nonsense, not a blessing of zero. Raising the margin is free.
   CORRECTION 2026-09-27 (run E2, docs/experiments/PREREG_IRONSTORM_CUTA_E2_2026-09-27.md Result): the shipped 60 s did
-  NOT cover the lag. The end timer counts from its FIRST SWEEP after arming (TimedCompletionPolicy.Register stores no
-  clock; Advance anchors on first sighting) while the gate counts from the dispatch stamp; with the order landing at
+  NOT cover the lag. The end timer counted from its FIRST SWEEP after arming (TimedCompletionPolicy.Register stored no
+  clock; Advance anchored on first sighting) while the gate counted from the dispatch stamp; with the order landing at
   scenario sim 5.6 s (a 0 s pre-order gate on a warm machine) the two origins were >= 45 SIM s apart, and both STREND
-  successors of the CNFPSL holds were SKIPPED 0.8 WALL s before the holds completed. "About 3 x (sim ratio)" is not a
-  bound on that first-sweep gap. Until the seat rules on the timer's origin, an order pushed into a scenario's first
-  seconds can skip every successor of a timed predecessor.
+  successors of the CNFPSL holds were SKIPPED 0.8 WALL s before the holds completed. "About 3 x (sim ratio)" was not a
+  bound on that first-sweep gap. FIXED the same day (branch fix/timer-anchor-at-dispatch; end time = start + Duration
+  per RL-20260921-09, follow-ons wait for a late predecessor per RL-20260925-01, archive): MarkDispatched reads the task
+  clock ONCE and hands that one reading to the gate's stamp AND to Register, so the end time and the successor's window
+  count from the same instant and the 60 s margin covers only the observation lag again. `--rulings-selftest` section
+  "ONE anchor" replays E2: the old anchoring skips at stamp + 360 with 315 s served, the fix completes the hold at
+  stamp + 300 and the gate proceeds. RESIDUAL (not changed, put to the seat): the margin is still all that separates an
+  end time from a skip. One task-clock step LARGER than 60 s between two timed walks - a gap of about 60 / (sim ratio)
+  WALL s between two samples of the task clock, ~4 s at E2's 14x - lets the gate see end + 60 before the walk sees the
+  end time: a hold's successor is then skipped although the hold completed on time, and a LATE MOVER's successor is
+  skipped although the mover then arrives (the ONE anchor section's FINDING t4).
 - **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
   per order names how many task-clock seconds after receipt the deepest chain reaches its last
   dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.

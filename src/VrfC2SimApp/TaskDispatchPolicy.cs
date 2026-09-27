@@ -443,11 +443,17 @@ public static class TaskDispatchPolicy
     ///
     /// The defect this replaces was an ordering proof, not a race. The gate expired at
     /// dispatch + Vrf:TaskPredecessorTimeoutSeconds while the timed completion fires at
-    /// dispatch + Duration x Vrf:DurationScale (strictly later: MarkDispatched calls
-    /// NotifyDispatched BEFORE TimedCompletionPolicy.Register, and the first walk after
-    /// registration anchors only). With the shipped 600 s default against COA-STP1's 4,800 s and
-    /// 7,200 s Durations, all 31 gated tasks were SKIPPED with TASKABRT - 11 dispatches out of 42.
-    /// Even appsettings.Demo.json's 7,200 s lost the ten PT2H chains by a second or two.
+    /// dispatch + Duration x Vrf:DurationScale. With the shipped 600 s default against COA-STP1's
+    /// 4,800 s and 7,200 s Durations, all 31 gated tasks were SKIPPED with TASKABRT - 11 dispatches
+    /// out of 42. Even appsettings.Demo.json's 7,200 s lost the ten PT2H chains by a second or two.
+    /// CORRECTION 2026-09-27 (run E2; RL-20260921-09, RL-20260925-01): this comment used to add that
+    /// the timed completion was "strictly later" because "the first walk after registration anchors
+    /// only" - that first-walk anchor was itself a DEFECT, not a margin: the timer lost every second
+    /// the task-clock axis moved between dispatch and that walk (>= 45 SIM s in E2, more than the 60 s
+    /// margin below could cover once observation lag was added). MarkDispatched now reads the axis
+    /// ONCE and hands the same reading to NotifyDispatched and to TimedCompletionPolicy.Register, so
+    /// the gate's window and the end time count from one instant and the margin covers only the
+    /// timed walk's observation lag (it runs at most once a WALL second).
     ///
     /// THE RULE: the window is the longer of what the operator configured and the predecessor's
     /// own end time plus a margin. The configured value keeps its meaning - it is the floor, and

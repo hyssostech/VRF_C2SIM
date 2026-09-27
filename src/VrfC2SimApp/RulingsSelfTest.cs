@@ -51,6 +51,8 @@ public static class RulingsSelfTest
         failures += VertexChainSelfTest.Run();
         Console.WriteLine("=== RL-20260927-01 D1: a MEMBERLESS aggregate on the aggregate model set is ONE position for the task judges ===");
         failures += AggregateLeafSelfTest.Run();
+        Console.WriteLine("=== RL-20260921-09 / RL-20260925-01: ONE anchor - the end-time timer and the STREND gate count from dispatch ===");
+        failures += TimerAnchorSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -1139,14 +1141,18 @@ public static class RulingsSelfTest
         public readonly List<string> OverdueLines = new();
         private readonly HashSet<string> _inFlight = new(StringComparer.Ordinal);
 
-        /// <summary>MarkDispatched: record in flight, TASKSTRT, arm the end time (anchored now).</summary>
+        /// <summary>MarkDispatched: record in flight, TASKSTRT, arm the end time anchored at the SAME
+        /// reading the gate is stamped with (2026-09-27, TimerAnchorSelfTest). This mirror used to add an
+        /// "anchoring walk" here that the service never performed - its first walk came later - which is
+        /// how the E2 defect passed this suite.</summary>
         public void Dispatch(string task, double durationSeconds, bool hasDestination)
         {
             _inFlight.Add(task);
-            Seq.NotifyDispatched(task, Clock.Now);
+            double dispatchClock = Clock.Now;
+            Seq.NotifyDispatched(task, dispatchClock);
             Push(task, S.TaskStatusCodeType.TASKSTRT);
-            Timed.Register(task, "taskee-" + task, task, "unit-" + task, durationSeconds, hasDestination);
-            Timed.Advance(Clock.Now, usingSim: true);
+            Timed.Register(task, "taskee-" + task, task, "unit-" + task, durationSeconds, hasDestination,
+                           dispatchClock: dispatchClock);
         }
 
         /// <summary>PushTaskStatus: the timer cancel, then the emission rules.</summary>
@@ -1315,9 +1321,10 @@ public static class RulingsSelfTest
         var seq = new TaskSequencer();
         var timed = new TimedCompletionPolicy();
         const string pred = "PRED-M1";
-        seq.NotifyDispatched(pred, clock.Now);
-        timed.Register(pred, "taskee-m1", "T_Secure", "1-35 AR", predDurationSeconds);
-        timed.Advance(clock.Now, usingSim: true);     // the anchoring walk MarkDispatched leaves behind
+        double dispatchClock = clock.Now;             // MarkDispatched's one read (2026-09-27)
+        seq.NotifyDispatched(pred, dispatchClock);
+        timed.Register(pred, "taskee-m1", "T_Secure", "1-35 AR", predDurationSeconds,
+                       dispatchClock: dispatchClock); // the timer's anchor IS the gate's stamp
         var gate = seq.WaitForStartAsync(pred, 0, 0, windowSeconds, clock.AsTaskClock(),
                                          CancellationToken.None);
         for (double served = 0.0; served <= predDurationSeconds + 600.0 && !gate.IsCompleted; served += 60.0)
@@ -2173,7 +2180,7 @@ public static class RulingsSelfTest
     //
     // Everything below runs the REAL TaskSequencer, TimedCompletionPolicy and TaskDispatchPolicy
     // over the WHOLE graph on one monotone clock, reproducing MarkDispatched's order
-    // (NotifyDispatched, then Register, then the anchoring walk). The PRE-FIX rule - phase 1
+    // (NotifyDispatched, then Register anchored at the same reading - 2026-09-27). The PRE-FIX rule - phase 1
     // measured from order receipt on the completion window - is kept beside each case as the
     // FAIL-FIRST control, because it is exactly what the sequencer does when the caller hands it
     // the same number twice.
@@ -2807,7 +2814,8 @@ public static class RulingsSelfTest
 
     /// <summary>Dispatch every gate that has opened and abandon every gate that has not. Returns
     /// true when anything changed. The dispatch reproduces MarkDispatched: NotifyDispatched with
-    /// the task-clock reading, THEN the end-time Register, THEN the anchoring walk.</summary>
+    /// the task-clock reading, THEN the end-time Register anchored at that SAME reading (2026-09-27,
+    /// TimerAnchorSelfTest), then a walk at this reading for the other timers.</summary>
     private static bool Drain(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
                               ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
                               StepClock clock, double scale, bool timedCompletion)
@@ -2828,7 +2836,8 @@ public static class RulingsSelfTest
                 if (timedCompletion)
                 {
                     timed.Register(t.Uuid, "taskee-" + t.Uuid, t.Uuid, "unit-" + t.Uuid,
-                                   TaskDispatchPolicy.ScaleOrderMs(t.DurationMs, scale) / 1000.0);
+                                   TaskDispatchPolicy.ScaleOrderMs(t.DurationMs, scale) / 1000.0,
+                                   dispatchClock: now);
                     foreach (var d in timed.Advance(now, usingSim: true)) seq.CompleteTask(d.TaskUuid);
                 }
             }

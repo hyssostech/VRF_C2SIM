@@ -134,6 +134,10 @@ Planned timeline (SIM s from each task's own DISPATCHED line; the three roots di
 - T_CC_PL1: no end time -> completes on evidence at about 485 (D8 485.5).
 - Route shift: a fresh build's tile cache may force HTTP tile fetches of up to 30 wall s before a first ground
   dispatch [A]. That shifts dispatch, not the timer (the timer arms at dispatch).
+  NOTE 2026-09-27 (added after registration; the text above is not rewritten): the timer was ARMED at dispatch but,
+  until branch fix/timer-anchor-at-dispatch, it COUNTED from its first sweep after arming - one 1 Hz sweep later in
+  steady running, >= 45 SIM s later in run E2 (docs/experiments/PREREG_IRONSTORM_CUTA_E2_2026-09-27.md Result). Since
+  that fix it counts from the same dispatch reading the STREND gate is stamped with (docs/RUNBOOK.md sec 11).
 
 ## Conditions
 

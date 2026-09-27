@@ -24,6 +24,14 @@ namespace VrfC2SimApp;
 ///     DISPATCH; Register is first-dispatch-wins, so a re-entered dispatch (the TerrainProfile
 ///     second pass) does not restart it. Each task is armed at its OWN dispatch, so a follow-on that
 ///     starts late still gets its full Duration.
+///   - AND IT COUNTS FROM DISPATCH (2026-09-27, run E2; RL-20260921-09, RL-20260925-01). The service
+///     hands Register the SAME task-clock reading it stamps into the STREND gate
+///     (TaskSequencer.NotifyDispatched), so the timer and a successor's gate count from ONE instant.
+///     Before this the timer anchored on its first Advance after arming and served nothing for the
+///     time in between - in run IRONSTORM_CUTA_E2-2026-09-27-1 that was >= 45 SIM s against the gate's
+///     60 s margin, and both STREND successors of two CNFPSL holds were SKIPPED 0.8 WALL s before the
+///     holds reached their end time. A Register with no dispatch reading keeps the old first-sighting
+///     anchor (the offline replays of the pre-fix service use it).
 ///   - AN EARLY FINISH IS HELD. A unit that arrives, or a VR-Forces task that ends successfully,
 ///     before the end time is recorded (<see cref="MarkFinished"/> returns Hold) and reported
 ///     complete AT the end time, not before.
@@ -74,8 +82,10 @@ public sealed class TimedCompletionPolicy
         public double DurationSeconds;
         /// <summary>Clock time served so far. Only FORWARD movement is ever added.</summary>
         public double Elapsed;
-        /// <summary>The clock reading at the previous Advance, or NaN before the first one
-        /// (and after a mode change) - the anchor this entry measures from.</summary>
+        /// <summary>The clock reading at the previous Advance - the anchor this entry measures from.
+        /// Set by Register to the DISPATCH reading when the caller gives one (the service always does:
+        /// the same value the STREND gate is stamped with); NaN otherwise, and then the first Advance
+        /// anchors without serving (the pre-2026-09-27 behaviour). A mode change re-anchors.</summary>
         public double LastClock = double.NaN;
         /// <summary>The clock mode the anchor belongs to (true = the simulation clock).</summary>
         public bool UsingSim;
@@ -127,8 +137,17 @@ public sealed class TimedCompletionPolicy
     /// </summary>
     /// <param name="hasDestination">The dispatch gave the unit somewhere to go. Only such a task
     /// can be OVERDUE; one without a destination always ends at its end time.</param>
+    /// <param name="dispatchClock">THE ONE ANCHOR (2026-09-27, run E2): the task-clock reading at
+    /// DISPATCH - the value the service stamps into the STREND gate with TaskSequencer.
+    /// NotifyDispatched - so the end time and a successor's gate count from the same instant. The
+    /// time between dispatch and the first Advance is SERVED, not dropped. NaN (the default) = no
+    /// reading given: the first Advance anchors and serves nothing, the pre-fix behaviour.</param>
+    /// <param name="dispatchClockUsingSim">The clock mode that reading belongs to; it must be the mode
+    /// the caller's Advance calls pass (the service always passes true - its task-clock axis),
+    /// or the first Advance re-anchors as on any mode change.</param>
     public bool Register(string taskUuid, string taskeeUuid, string taskName, string unitName,
-                         double durationSeconds, bool hasDestination = false)
+                         double durationSeconds, bool hasDestination = false,
+                         double dispatchClock = double.NaN, bool dispatchClockUsingSim = true)
     {
         if (string.IsNullOrEmpty(taskUuid)) return false;
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0.0) return false;
@@ -140,6 +159,8 @@ public sealed class TimedCompletionPolicy
             UnitName = unitName ?? "",
             DurationSeconds = durationSeconds,
             HasDestination = hasDestination,
+            LastClock = double.IsFinite(dispatchClock) ? dispatchClock : double.NaN,
+            UsingSim = dispatchClockUsingSim,
         });
     }
 
@@ -230,7 +251,9 @@ public sealed class TimedCompletionPolicy
             {
                 if (double.IsNaN(p.LastClock) || p.UsingSim != usingSim)
                 {
-                    // First sighting, or a different time base: anchor only, serve nothing.
+                    // First sighting of an entry Registered with NO dispatch reading, or a different
+                    // time base: anchor only, serve nothing. (The service always Registers with the
+                    // dispatch reading, so its entries serve from dispatch - see Register.)
                     p.LastClock = clockNow;
                     p.UsingSim = usingSim;
                     continue;
