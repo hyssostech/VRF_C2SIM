@@ -20,7 +20,12 @@ Joins (all from files the runner already writes):
   vrfc2simapp.log  "VRF console level N requested for <unit> (VRF_UUID:<agg>)."     unit <-> aggregate
                    "... for M members of <unit>: <name> [VRF_UUID:<u>], ..."        unit -> members
                    "Route '<task> ROUTE' (...) created; MoveAlongRoute issued for VRF_UUID:<agg>"
+                   "Task '<task>': MOVE TO PER VERTEX for <unit> (VRF_UUID:<u>) - vertex 1 of <n>"
+                                        a LONE PLATFORM on Move To per vertex (RL-20260927-01, M1b):
+                                        it logs no route line; its own uuid is the object sampled
                    "ARRIVAL EVIDENCE: <unit> task '<task>'" / "VRF task complete: <unit> / ..."
+                                        a vertex chain's intermediate completions do NOT count as the
+                                        unit's (applog_chain.CONSUMED); only its LAST vertex does
   <order>.xml      task name -> its last route vertex (the destination)
   watchvrf-trace.csv
                    POS,<wall s>,VRF_UUID:<u>,<lat>,<lon>,<alt>    member positions
@@ -78,6 +83,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import applog_chain  # noqa: E402  (M1b: MOVE TO PER VERTEX lines, RL-20260927-01)
+
 RE_AGG = re.compile(r"VRF console level \d+ requested for (?!\d+ members of )(.+?) \(VRF_UUID:([0-9a-f-]+)\)\.")
 RE_MEMBERS = re.compile(r"VRF console level \d+ requested for \d+ members of (.+?): (.+)$")
 RE_MEMBER = re.compile(r"([^,]+?) \[VRF_UUID:([0-9a-f-]+)\]")
@@ -89,7 +97,7 @@ RE_VRFDONE = re.compile(r"VRF task complete: (.+?) / ")
 RE_XMLSTR = re.compile(r'<string[^>]*>(.*?)</string>', re.S)
 RE_NESTED = re.compile(r'^<string[^>]*>')
 RE_SIMPREFIX = re.compile(r'^\s*(\d{1,7}\.\d{1,3})\s+\S')
-RE_MOVETASK = re.compile(r'beginning to process|Move-Along Route|move-along', re.I)
+RE_MOVETASK = re.compile(r'beginning to process|Move-Along Route|move-along|move-to', re.I)   # move-to: M1b
 
 
 def hav(lat1, lon1, lat2, lon2):
@@ -114,7 +122,8 @@ def read_app_log(run_dir):
     if not logs:
         raise SystemExit('no app log (*app*.log) in ' + run_dir)
     text = io.open(logs[0], encoding='utf-8', errors='replace').read()
-    agg_of_unit, unit_of_agg, members, tasked, completed = {}, {}, {}, [], set()
+    agg_of_unit, unit_of_agg, members, tasked = {}, {}, {}, []
+    done = {}   # unit -> completions that are the TASK's (M1b: a vertex chain's intermediate ones are not)
     for line in text.splitlines():
         line = line.strip()
         m = RE_AGG.search(line)
@@ -132,12 +141,23 @@ def read_app_log(run_dir):
         m = RE_MIF.search(line)
         if m:
             tasked.append((m.group(1), m.group(3)))
+        # M1b (RL-20260927-01): a LONE PLATFORM on Move To per vertex logs no route line - its dispatch
+        # line names the task, the unit and the platform's own uuid (the object the watchdog samples).
+        s = applog_chain.chain_start(line)
+        if s:
+            tasked.append((s['task'], s['hex']))
+            unit_of_agg.setdefault(s['hex'], s['unit'])
+            agg_of_unit.setdefault(s['unit'], s['hex'])
         m = RE_ARRIVAL.search(line)
         if m:
-            completed.add(m.group(1))
+            done[m.group(1)] = done.get(m.group(1), 0) + 1
         m = RE_VRFDONE.search(line)
         if m:
-            completed.add(m.group(1))
+            done[m.group(1)] = done.get(m.group(1), 0) + 1
+        ev = applog_chain.chain_event(line)
+        if ev and ev['kind'] in applog_chain.CONSUMED and done.get(ev['unit'], 0) > 0:
+            done[ev['unit']] -= 1                   # a vertex step / withheld / swallowed - not the task's
+    completed = {u for u, n in done.items() if n > 0}
     return agg_of_unit, unit_of_agg, members, tasked, completed
 
 

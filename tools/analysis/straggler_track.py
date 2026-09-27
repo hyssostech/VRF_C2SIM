@@ -16,14 +16,51 @@ reads each member's POS rows from the WatchVrf trace and reports, at the END of 
       OTHER    anything else (print the numbers).
   - the route's last vertex (from the app log's CreateRoute lines, when present) and the
     straggler's final distance to it.
+M1b (RL-20260927-01): a task dispatched as MOVE TO PER VERTEX (a lone platform) counts as a dispatched
+move, and a unit's completion is its TASK's - a vertex chain's intermediate "VRF task complete" lines
+are not (read_moves_and_completions, applog_chain.py). Lone platforms have no members, so they get no
+straggler row; the change keeps the completion column honest if one ever does.
 All files read with encoding='utf-8' (errors replaced). No claims - a table.
 """
 import argparse
 import glob
 import io
 import math
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import applog_chain  # noqa: E402
+
+RE_ROUTE_ISSUED = re.compile(r"Route '([^']+) ROUTE' \([^)]+\) created; (?:MoveAlongRoute|R10 fan-out MoveAlongRoute) issued")
+
+
+def read_moves_and_completions(log_text):
+    """-> (moved tasks, completed units): the task names dispatched as a move - route-created lines and,
+    since M1b, MOVE TO PER VERTEX chains - and the units whose TASK completed (a vendor completion or
+    arrival evidence; a vertex chain's intermediate completions un-count, applog_chain.CONSUMED)."""
+    tasks, done = [], {}
+    for line in log_text.splitlines():
+        m = RE_ROUTE_ISSUED.search(line)
+        if m:
+            tasks.append(m.group(1))
+        s = applog_chain.chain_start(line)
+        if s:
+            tasks.append(s['task'])
+        m = re.search(r'VRF task complete: (.+?) / ', line)
+        if m:
+            u = m.group(1).strip()
+            done[u] = done.get(u, 0) + 1
+        m = re.search(r"ARRIVAL EVIDENCE: (.+?) task '", line)
+        if m:
+            # the interface's own completion (C15): counts as a completion for the unit
+            u = m.group(1).strip()
+            done[u] = done.get(u, 0) + 1
+        ev = applog_chain.chain_event(line)
+        if ev and ev['kind'] in applog_chain.CONSUMED and done.get(ev['unit'], 0) > 0:
+            done[ev['unit']] -= 1
+    return tasks, {u for u, n in done.items() if n > 0}
 
 
 def hav(a, b):
@@ -64,8 +101,8 @@ def main():
                 task_pts[n.group(1).strip()] = (name_of.get(p.group(1).strip(), ''), pts[-1])
         applog = [f for f in glob.glob(a.run + '/*.log') if 'app' in f.lower()]
         if applog:
-            for m in re.finditer(r"Route '([^']+) ROUTE' \([^)]+\) created; (?:MoveAlongRoute|R10 fan-out MoveAlongRoute) issued", io.open(applog[0], encoding='utf-8', errors='replace').read()):
-                tn = m.group(1)
+            moved, _ = read_moves_and_completions(io.open(applog[0], encoding='utf-8', errors='replace').read())
+            for tn in moved:
                 if tn in task_pts:
                     uname, last = task_pts[tn]
                     # the app's unit name may carry the ~PXY marking tag; match on the prefix
@@ -84,26 +121,17 @@ def main():
         return 1
     members = {}      # unit -> {member name: uuid}
     routes = {}       # unit name (taskee) -> [(lat, lon)] route vertices, when logged
-    cmplt = set()
-    with io.open(logs[0], encoding='utf-8', errors='replace') as f:
-        for line in f:
-            if 'console level' in line and 'requested for' in line and 'members of' in line:
-                m = re.search(r'members of ([^:]+): (.+?)\.\s*$', line)
-                if m:
-                    d = members.setdefault(m.group(1).strip(), {})
-                    for part in m.group(2).split(', '):
-                        mm = re.match(r'(.+?) \[(VRF_UUID:[0-9a-f-]+)\]', part.strip())
-                        if mm:
-                            d[mm.group(1)] = mm.group(2)
-            elif 'VRF task complete:' in line:
-                m = re.search(r'VRF task complete: (.+?) / ', line)
-                if m:
-                    cmplt.add(m.group(1).strip())
-            elif 'ARRIVAL EVIDENCE:' in line:
-                # the interface's own completion (C15): counts as a completion for the unit
-                m = re.search(r"ARRIVAL EVIDENCE: (.+?) task '", line)
-                if m:
-                    cmplt.add(m.group(1).strip())
+    log_text = io.open(logs[0], encoding='utf-8', errors='replace').read()
+    _, cmplt = read_moves_and_completions(log_text)   # M1b: the TASK's completions, chain-aware
+    for line in log_text.splitlines():
+        if 'console level' in line and 'requested for' in line and 'members of' in line:
+            m = re.search(r'members of ([^:]+): (.+?)\.\s*$', line)
+            if m:
+                d = members.setdefault(m.group(1).strip(), {})
+                for part in m.group(2).split(', '):
+                    mm = re.match(r'(.+?) \[(VRF_UUID:[0-9a-f-]+)\]', part.strip())
+                    if mm:
+                        d[mm.group(1)] = mm.group(2)
     if not members:
         print('no member map in the app log (member console level must be >= 0)')
         return 1

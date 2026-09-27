@@ -424,6 +424,13 @@ function Test-EarlyExit {
 # logs no route line, a missing TSK, a unit without a Name) is NOT satisfied, so
 # the window runs to its RunSecs cap - the safe direction, and the reason is
 # recorded per taskee.
+# M1b (RL-20260927-01, 2026-09-27): a LONE PLATFORM driven as MOVE TO PER VERTEX logs NO
+# route line. Its dispatch line "Task '<t>': MOVE TO PER VERTEX for <name> (VRF_UUID:<u>) -
+# vertex 1 of <n>: ..." maps it directly (Get-VrfUuidByName), and because it logs one
+# task-complete PER VERTEX (a TSK row each), its completion anchor is its LAST TSK, not its
+# first (Get-TraceEvidence tskLast, Test-ReportEvidence -ChainedNames from
+# Get-VertexChainNames): anchored on vertex 1, "an RPT later than the completion" could be
+# satisfied while the platform was still driving to its last vertex.
 
 function Get-InitUnitNames {
     param([string]$InitText)
@@ -443,6 +450,24 @@ function Get-InitUnitNames {
     return $map
 }
 
+# M1b (RL-20260927-01): the app's MOVE TO PER VERTEX dispatch line, verbatim
+# (VrfC2SimService.StartVertexChain): "Task '<t>': MOVE TO PER VERTEX for <name>
+# (VRF_UUID:<u>) - vertex 1 of <n>: MoveToLocation (...)". ONE regex for both readers.
+$script:RxVertexChainStart = [regex]"Task '(?<task>[^']*)': MOVE TO PER VERTEX for (?<name>.+?) \((?<vrf>VRF_UUID:[0-9a-fA-F-]{36})\) - vertex 1 of (?<n>\d+):"
+
+# The unit names the app drove as a MOVE TO PER VERTEX chain (M1b). Their trace carries one
+# task-complete (TSK) per vertex, so Test-ReportEvidence anchors them on their LAST TSK.
+function Get-VertexChainNames {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $names = New-Object System.Collections.Generic.List[string]
+    if ([string]::IsNullOrWhiteSpace($AppLogText)) { return @() }
+    foreach ($m in $script:RxVertexChainStart.Matches($AppLogText)) {
+        $n = $m.Groups['name'].Value
+        if (-not $names.Contains($n)) { $names.Add($n) }
+    }
+    return @($names)
+}
+
 function Get-VrfUuidByName {
     param([string]$AppLogText)
     $map = [ordered]@{}
@@ -453,6 +478,13 @@ function Get-VrfUuidByName {
     # run in the record before 2026-09-02 does not. Both must parse.
     $rxB = [regex]"Route '(?<route>[^']*)'(?: \(VRF_UUID:[0-9a-fA-F-]{36}\))? created; (?:MoveAlongRoute|PatrolRoute) issued for (?<vrf>VRF_UUID:[0-9a-fA-F-]{36})"
     foreach ($line in ($AppLogText -split "`r?`n")) {
+        # M1b: a MOVE TO PER VERTEX dispatch names the unit AND its VRF uuid on one line.
+        $c = $script:RxVertexChainStart.Match($line)
+        if ($c.Success) {
+            $n = $c.Groups['name'].Value
+            if (-not $map.Contains($n)) { $map[$n] = $c.Groups['vrf'].Value }
+            continue
+        }
         $a = $rxA.Match($line)
         if ($a.Success) { $routeToName[$a.Groups['route'].Value] = $a.Groups['name'].Value; continue }
         $b = $rxB.Match($line)
@@ -469,9 +501,11 @@ function Get-VrfUuidByName {
 
 # One pass over the trace: first TSK per marking, LAST RPT POSITION per marking,
 # LAST real POS per VRF_UUID. Lines that do not parse are skipped, never fatal.
+# M1b: ALSO the LAST TSK per marking (tskLast) and how many there were (tskN) - a
+# MOVE TO PER VERTEX platform has one TSK per vertex and is anchored on its last.
 function Get-TraceEvidence {
     param([AllowNull()][AllowEmptyString()][string]$TraceText)
-    $ev = @{ tsk = @{}; rpt = @{}; pos = @{} }
+    $ev = @{ tsk = @{}; tskLast = @{}; tskN = @{}; rpt = @{}; pos = @{} }
     if ([string]::IsNullOrWhiteSpace($TraceText)) { return $ev }
     $rxTsk = [regex]'^TSK,(?<t>[0-9.]+),"(?<name>(?:[^"]|"")*)",'
     $rxRpt = [regex]'^RPT,(?<t>[0-9.]+),"POSITION ""(?<name>(?:[^"]|"")*?)"" (?<lat>-?[0-9.]+) (?<lon>-?[0-9.]+)"'
@@ -484,7 +518,10 @@ function Get-TraceEvidence {
                 $m = $rxTsk.Match($line)
                 if ($m.Success) {
                     $n = $m.Groups['name'].Value -replace '""', '"'
-                    if (-not $ev.tsk.ContainsKey($n)) { $ev.tsk[$n] = [double]::Parse($m.Groups['t'].Value, $inv) }
+                    $tt = [double]::Parse($m.Groups['t'].Value, $inv)
+                    if (-not $ev.tsk.ContainsKey($n)) { $ev.tsk[$n] = $tt }
+                    $ev.tskLast[$n] = $tt
+                    if ($ev.tskN.ContainsKey($n)) { $ev.tskN[$n] = $ev.tskN[$n] + 1 } else { $ev.tskN[$n] = 1 }
                 }
             }
             'RPT,' {
@@ -769,7 +806,7 @@ function Test-ReportEvidence {
         [AllowNull()]$CompletionUtcByTaskee = $null,  # taskee uuid -> UTC of the poll that
                                                       # first saw its TERMINAL report; the
                                                       # anchor of last resort for 'C2SIM-capture'
-        [AllowNull()]$CodeByTaskee = $null            # taskee uuid -> the Code
+        [AllowNull()]$CodeByTaskee = $null,           # taskee uuid -> the Code
                                                       # (TASKCMPLT/TASKABRT) of that SAME
                                                       # first terminal report
                                                       # (Update-CompletionState.firstSeenCode).
@@ -779,6 +816,12 @@ function Test-ReportEvidence {
                                                       # cosmetic defect - this label used to
                                                       # hardcode 'TASKCMPLT' regardless of the
                                                       # actual terminal code).
+        [AllowNull()][AllowEmptyCollection()][string[]]$ChainedNames = $null
+                                                      # M1b: the unit names the app drove as
+                                                      # MOVE TO PER VERTEX (Get-VertexChainNames).
+                                                      # Their completion anchor is their LAST TSK
+                                                      # (one per vertex), not their first. Optional:
+                                                      # omitted, every taskee keeps the FIRST TSK.
     )
     $ev = Get-TraceEvidence -TraceText $TraceText
     $per = [ordered]@{}
@@ -787,7 +830,7 @@ function Test-ReportEvidence {
         $rec = [ordered]@{ name = $null; vrfUuid = $null; completionT = $null; lastRptT = $null
                            posT = $null; distanceM = $null; capCompletionUtc = $null
                            capPosUtc = $null; capPosCount = 0; via = $null
-                           satisfied = $false; reason = $null }
+                           satisfied = $false; reason = $null; anchor = $null }
         $name = if ($TaskeeNames.Contains($u)) { [string]$TaskeeNames[$u] } else { $null }
         # The trace and the app log are keyed by VR-Forces MARKING: the init <Name> PLUS an
         # optional '~<tag>' the app appends to a proxy-substituted unit (VrfSettings
@@ -800,13 +843,23 @@ function Test-ReportEvidence {
         else {
             $vrf = if ($NameToVrfUuid.Contains($name)) { [string]$NameToVrfUuid[$name] } else { $null }
             $rec.vrfUuid = $vrf
-            if ($ev.tsk.ContainsKey($name)) { $rec.completionT = $ev.tsk[$name] }
+            if ($ev.tsk.ContainsKey($name)) {
+                # M1b: a MOVE TO PER VERTEX platform has one TSK per vertex; the TASK completed on
+                # the LAST of them, so that is the anchor "an RPT later than the completion" needs.
+                if ($null -ne $ChainedNames -and $ChainedNames -contains $name) {
+                    $rec.completionT = $ev.tskLast[$name]
+                    $rec.anchor = ('LAST of {0} TSK (MOVE TO PER VERTEX)' -f $ev.tskN[$name])
+                } else {
+                    $rec.completionT = $ev.tsk[$name]
+                    $rec.anchor = 'first TSK'
+                }
+            }
             if ($ev.rpt.ContainsKey($name)) { $rec.lastRptT = $ev.rpt[$name].T }
             if ($vrf -and $ev.pos.ContainsKey($vrf)) { $rec.posT = $ev.pos[$vrf].T }
             if ($null -eq $rec.completionT)  { $rec.reason = 'no TSK (task-complete) record in the trace yet' }
             elseif ($null -eq $rec.lastRptT) { $rec.reason = 'no RPT POSITION line for this marking yet' }
             elseif ($rec.lastRptT -le $rec.completionT) { $rec.reason = ('last RPT t={0} is not later than completion t={1}' -f $rec.lastRptT, $rec.completionT) }
-            elseif (-not $vrf) { $rec.reason = 'marking -> VRF_UUID unknown (no route line in the app log)' }
+            elseif (-not $vrf) { $rec.reason = 'marking -> VRF_UUID unknown (no route line or MOVE TO PER VERTEX line in the app log)' }
             elseif ($null -eq $rec.posT) { $rec.reason = 'no real POS sample for the VRF_UUID yet' }
             else {
                 $r = $ev.rpt[$name]; $p = $ev.pos[$vrf]
