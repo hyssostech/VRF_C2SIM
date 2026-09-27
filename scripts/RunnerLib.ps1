@@ -1719,3 +1719,31 @@ function Resolve-StopVrfPostForce {
     }
     return [pscustomobject]@{ Code = 6; StillExiting = @(); Others = @(); Why = 'FORCED; nothing of VR-Forces is left' }
 }
+
+# ---- POST-FORCE WAIT: ONE PROBE FOR "STILL EXITING" (2026-09-27, IRONSTORM_CUTA_LIVE-2026-09-27-2) ----
+# StopVrf52 forced pid 6980 and printed "forced pid 6980 still exiting after 0 s": its wait loop
+# asked `Get-Process -Id` while the verdict and the runner's inventory ask `Get-Process -Name`.
+# On pwsh 7 (.NET 7+) -Id goes through Process.GetProcessById -> ProcessManager.IsProcessRunning,
+# which opens the pid and returns false once it HAS EXITED (GetExitCodeProcess != STILL_ACTIVE, or
+# the handle is signaled). -Name enumerates the kernel's process list (NtQuerySystemInformation),
+# which keeps a terminated process until its object is freed - TerminateProcess "is asynchronous"
+# and "its kernel object is not destroyed until all processes that have open handles to the process
+# have released those handles" (learn.microsoft.com, TerminateProcess). So right after Stop-Process
+# the -Id probe said "gone" at once and the -Name listing still showed the pid; the runner's -Name
+# inventory then still listed it and exited 4 "TEARDOWN INCOMPLETE" (~3 s before it really left).
+# The rule: the wait keeps going while a forced process is STILL LISTED BY THE SAME NAME LISTING the
+# verdict reads, identified by the same rule (Resolve-StopVrfPostForce StillExiting), and stops at
+# the deadline. Pure: the caller passes the clock, the deadline and what it listed.
+#   -Forced     records { Pid; StartUtc } of the force-stopped processes
+#   -Survivors  records { Name; Pid; StartUtc } from the NAME listing (Get-Process -Name)
+function Test-ForcedExitWaitContinue {
+    param(
+        [datetime]$Now,
+        [datetime]$Deadline,
+        [object[]]$Forced = @(),
+        [object[]]$Survivors = @()
+    )
+    if ($Now -ge $Deadline) { return $false }
+    $pv = Resolve-StopVrfPostForce -Forced $Forced -Survivors $Survivors
+    return (@($pv.StillExiting).Count -gt 0)
+}
