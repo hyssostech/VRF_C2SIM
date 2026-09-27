@@ -54,12 +54,12 @@ Row **C8** of that diff already said it, cited to Release Notes p64, two days ea
 the exact source file. Nobody opened it. Do not be the next one.
 
 Read the row AND its ruling in `docs/VRF_5.2_DECISION_EVIDENCE.md` (the ruling wins):
-- **D1 / Y-10 - RULED, no probe owed.** MAK flags that remote-control apps issuing ground
-  movement "may need to be updated", but the ruling settles it: KEEP MoveAlongRoute.
-  `moveAlongRoute` is byte-identical and undeprecated; `DtMoveToLocationTask` is DELETED.
-  Vendor: Move To plans a route then follows it; Move Along Route "does not use road movement,
-  nor does the entity plan paths before moving" - so an AUTHORED C2SIM route MUST use
-  MoveAlongRoute, or the planner overrides the route we were asked to drive.
+- **D1 / Y-10 - REVISED 2026-09-27 by RL-20260927-01 (owner "Go").** Y-10 was a seat
+  recommendation, not a ruling. The rule now: a UNIT drives the unit Move Along Route (its members
+  plan a path to each vertex, UG52 30.22); a LONE PLATFORM drives Move To per STP vertex
+  (Vrf:PlatformMoveToPerVertex, default ON) because the entity Move Along Route plans nothing and
+  never recovers (UG52 23.3, 23.2.2). STP's vertices are kept in order either way. Do not revert
+  to MoveAlongRoute for platforms: docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md.
 - **D2 / Y-11**: unit move-along is repackaged as maneuver-along; per-subordinate offset routes
   are computed at task time; units wait for a valid formation before moving (RN VRF-8968 is a
   competing hypothesis for the 5.0.2 company non-determinism).

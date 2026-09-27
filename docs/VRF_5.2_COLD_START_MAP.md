@@ -30,7 +30,7 @@ to each other reached the same direction: treat sec 0 as settled.
 | Own copy of the exercise-connection XML, per-run execName | shared C:\MAK config, appNo ledger (NEXT FREE) for federate identity | DIVERGES - see 5.c |
 | Custom offline .earth from N34W117 | Y-7 candidates all online (MAK Earth (online) ruled) | NEW - see 5.a |
 | EntityLevel.sms include-and-extend | data/unit-type-map.json names shipped 5.2d templates; no custom SMS yet | DONE for shipped types; the extend half is the PRC-authoring item (5.g) |
-| Task the unit; company Move To -> Maneuver To; move-along -> maneuver-along | Y-10: keep moveAlongRoute (adapter repackages it as maneuver-along, disaggregatedMoveAlongAdapterController.h :9) | DONE / same conclusion |
+| Task the unit; company Move To -> Maneuver To; move-along -> maneuver-along | Y-10: keep moveAlongRoute (adapter repackages it as maneuver-along, disaggregatedMoveAlongAdapterController.h :9). REVISED 2026-09-27 (RL-20260927-01): units keep it; a lone platform drives Move To per STP vertex | DONE / revised for platforms |
 | requestTasksAndSetsFor startup assertion | not implemented | NEW - see 5.d |
 | Plan callbacks for task completion (addPlanCompleteCallback, vrfRemoteController.h :1808) | report-category callback -> DtTaskCompleteReport (VrfFacade.cpp :404-409); 3/3 TASKCMPLT on R9 | WRONG as stated ("Tasks section has no completion callback") - the report path works today. Plan callbacks are a valid CROSS-CHECK, not a replacement (Phase 4 note) |
 | FFRTC + fixed frame time + seed + multiplier 1 | fixed-frame-run-to-complete adopted in FixtureGen; TimeMultiplier 1x is law; seed pinning NOT done | PARTIAL - seed pinning is a one-line fixture item, add to Phase 2 |

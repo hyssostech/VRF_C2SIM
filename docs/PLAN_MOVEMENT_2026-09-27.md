@@ -24,7 +24,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 
 | id | what | branch | lane | status 2026-09-27 |
 |---|---|---|---|---|
-| M1 | Move To per STP vertex for lone platforms; setting Vrf:PlatformMoveToPerVertex (default ON); chain on task completion; vacuous completions logged | feat/movement-moveto-per-vertex | executor (Opus) | RUNNING |
+| M1 | Move To per STP vertex for lone platforms; setting Vrf:PlatformMoveToPerVertex (default ON); chain on task completion; vacuous completions logged | feat/movement-moveto-per-vertex | executor (Opus) | MERGED 2026-09-27 (47da73e). Follow-ups M1b: runner report-evidence and the offline analysis tools still key on "MoveAlongRoute issued" lines; a native "continue" flag for intermediate vertices |
 | M2 | C# pre-flight port of the OSM water + building readers; vertex nudge + report; per-profile leg rules keyed on Vrf:ModelSet; river report | feat/preflight-osm-features | executor (Opus) | RUNNING |
 | A1 | Aggregate profile prep: .magx survey, data/unit-type-map-52-aggregate.json, fixture IronStorm_Centre_52_Aggregate (not deployed), Vrf:ModelSet switch, G1 draft checklist | feat/aggregate-profile | executor (Opus) | RUNNING |
 | E1 | Registered entity-level run: cut A, T14's ORIGINAL line (derive without (i); (k) stays unmerged), lone platforms on Move To per vertex | run/ironstorm-cuta-e1 | after M1 merge + build/deploy | QUEUED |
