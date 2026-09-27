@@ -109,3 +109,13 @@ RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
     corps -> division -> brigade (15 Superior relations, 4 battalions); brigade -> battalion/company composition is NOT in it and must come from the
     catalogue's configured sub-units or an authored composition table (DESIGN_ORBAT_TO_VRF sec 5 (b)) - the source of that table is not decided here.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1, G1; AGGREGATE_CATALOGUE_2026-09-27; DESIGN_ORBAT_TO_VRF_2026-09-06 secs 1, 2, 5.
+
+RL-20260927-03 | 2026-09-27 | status VERBATIM - P6030, TYPED, unprompted (restates C13 for the container work)
+  Q (as put): none - the seat's preceding message (the RL-20260927-02 exchange) had said C1 populates containers.
+  A (owner, P6030): "Another thing that is settled already is that the only units that need to be hydrated are the ones that are actually task. No
+    reason to carry the whole tree if just a few units are actually meaningful for the simulation. I still want all units to show on the map on
+    initialization though."
+  supervisor reading: C13 restated for C1 - RL-20260906-02 ("There are just 11 taskees. These are the only ones that need to be simulated") and the
+    2026-09-06 order-time design (PREREG_ORDER_TIME_MATERIALIZATION: display at init, configure at order time). For containers: every unit is created
+    at init as an empty container at its authored position (visible); only a unit an order tasks is populated, when the order arrives.
+  pointer: PLAN_MOVEMENT_2026-09-27 row C1; CreationPolicy=AtOrder (C13) in VrfC2SimService; PREREG_ORDER_TIME_MATERIALIZATION_2026-09-06 sec 2.
