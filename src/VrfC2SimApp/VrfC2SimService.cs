@@ -5845,7 +5845,15 @@ public sealed class VrfC2SimService : BackgroundService
                                      TryReadMemberPositions(unit.Name, out var atDispatch, out _)
                                          ? atDispatch : null);
         }
-        _sequencer.NotifyDispatched(task.TaskUuid, TaskClockSeconds);
+        // ONE ANCHOR FOR THE TWO CLOCKS THAT JUDGE THIS TASK (2026-09-27, run IRONSTORM_CUTA_E2-2026-09-27-1;
+        // RL-20260921-09 end time = start + Duration, RL-20260925-01 follow-ons wait for their predecessor).
+        // The task-clock axis is read ONCE here and the SAME value is the STREND gate's dispatch stamp AND
+        // the end-time timer's anchor (Register below). Before this the timer anchored on its first walk
+        // after arming (MaybeCompleteTimedTasks, at most once a WALL second, later when the tick thread is
+        // busy), and the axis could step >= 45 SIM s in between: E2's two CNFPSL holds were served 315 s
+        // of 300 when the gate - counting from this stamp - had already skipped both successors at 360.
+        double dispatchClock = TaskClockSeconds;
+        _sequencer.NotifyDispatched(task.TaskUuid, dispatchClock);
         // B1: the task has STARTED. This is the one point every dispatch path reaches (it is what
         // records the in-flight task), so it is where the C2SIM consumer is told - one TASKSTRT per
         // dispatch; a re-entered dispatch (the TerrainProfile second pass) is suppressed by the
@@ -5877,7 +5885,10 @@ public sealed class VrfC2SimService : BackgroundService
                                 "zero - NO end time is armed.",
                                 task.TaskName, _durationScale, task.DurationMs / 1000.0);
             else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds,
-                                     hasDestination: dest is not null))
+                                     hasDestination: dest is not null,
+                                     // the gate's own stamp, above; the timed walk advances on the same
+                                     // axis with usingSim: true (MaybeCompleteTimedTasks)
+                                     dispatchClock: dispatchClock, dispatchClockUsingSim: true))
                 _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
                                     "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - {Rule} " +
                                     "(temporary position on completion, RL-20260921-09).",

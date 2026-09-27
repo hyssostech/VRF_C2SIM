@@ -16,7 +16,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
   0.65; forest/town/mountain 0.25; water/river/alpine 0 = stop). No obstacle avoidance, no nav mesh.
   CORRECTED 2026-09-27 (A1, AGGREGATE_CATALOGUE_2026-09-27): the catalogue has NO simulated (movable) unit above battalion
   for any nation; its BDE/DIV/CORPS entries are CONTAINERS, which the vendor fills with battalion and company units (Road
-  to Kaunas: 81 simulated units inside 17 containers). So a brigade is either (a) a company/battalion-sized simulated
+  to Kaunas: 51 of its 81 simulated units inside 17 containers - corrected 2026-09-27 by the C1 design lane). So a brigade is either (a) a company/battalion-sized simulated
   aggregate standing in for it (PROXY, moves, reports; the first arm) or (b) a container the interface populates with
   sub-units (the vendor's shape; package C1, later). Iron Storm on the map A1 built: 0 EXACT, 40 PROXY.
 - One pre-flight, both profiles: STP's vertices and legs are checked against the OSM water and buildings the sim reads;
@@ -43,6 +43,9 @@ status changes here the same turn they happen; a phase that closes collapses to 
 
 | C1 decisions | RULED 2026-09-27 (RL-20260927-04, "As recommended" + D-2 revised): D-1 28ID = HQ only; D-3 company-level HQ; D-4 Mech CO for a US rifle company until authored; D-5 performer only; D-6 withhold a short/vacuous container completion; D-7 TO twins display-only (ask STP why each formation is exported twice); D-8 flat containers. D-2: compose to doctrine (FM 3-96) and AUTHOR the missing US unit types (engineer, support, others) - package C2 | design/aggregate-containers (43b4232) | - | DESIGN DONE; BUILT OFFLINE on feat/aggregate-containers (row C1) |
 | C2 | Author the US unit types the aggregate catalogue lacks, as new unit types in the derived model set (recipe pattern of tools/sms/Deploy-C2SimSms.ps1: vendor files never committed, our edits recorded): Infantry BN (IBCT), FA BN, Brigade Engineer BN, Brigade Support BN, division HQ; from the catalogue's own engineer/support/infantry units of other nations (Engineering BN (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)) with US nation code and equipment; UG52 72.2 parameters (Attack, Vulnerability, Supplies, Engineering systems), 27.2.3. The aggregate breach/obstacle tasks (Breach_Obstacles, Improve_Breach, Destroy/Improve_Obstacle) become available to the full order's BREACH task. Fixture on the derived SMS | feat/aggregate-authored-units | executor (Opus), parallel to the C1 code lane | NEXT |
+
+| Q1a | RL-20260927-05: when the STREND gate's window expires, an unfinished predecessor WITH a destination counts as OVERDUE and the gate extends to the backstop (closes the >60 s clock-step race); holds unchanged; no-Duration mover unchanged | fix/gate-late-predecessor | timer executor, resumed | RUNNING; merges after E2-2 has run on the registered build |
+| D2 | RL-20260927-06: automatic model-set choice by the highest echelon among the TASKED units (order performers), not the init: above BN -> AggregateTacticalLevel only (refuse EntityLevel with a clear message); BN-and-below -> EntityLevel by default, overridable to aggregate by Vrf:ModelSet / runner -ModelSet. Builds on A1's -ModelSet and Test-ModelSetPairing; the fixture and type map follow the choice | - | after C1/C2 | NEXT |
 
 ## 2. Order and gates
 

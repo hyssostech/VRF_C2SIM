@@ -328,6 +328,10 @@ Y-7 RULED as recommended (2026-09-03 pm): online default; offline-authored (3) f
 
 ## Y-15 Unit representation level (ruling text, moved from the DIFF ledger)
 
+REFINED 2026-09-27 (RL-20260927-06): the echelon threshold applies to the units actually TASKED by the order, not to the
+whole set placed at initialization; a setting overrides the automatic default so battalion-and-below may also run at
+aggregate level; above battalion is aggregate-only. The text below is the original ruling, kept as written.
+
 Y-15 UNIT REPRESENTATION LEVEL (user goal: best sim ability within what STP hands us;
   STP vocabulary in docs/STP_TASK_VOCABULARY_2026-09-03.md - 51 codes, AffectedEntity
   is always the performer, targets = objective TG). Options, UG52 13.7/27/28/35 read:

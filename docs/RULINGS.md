@@ -2,7 +2,7 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-01 to -04). Archived (cap): -08, 0914-02 on 09-26; 0925-01, 0921-05
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-01 to -06). Archived (cap): -08, 0914-02 on 09-26; 0925-01, 0921-05
 #   and 0926-01 on 09-27.
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -92,3 +92,23 @@ RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-tu
     (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)). Sequencing (seat's, not his): G1 proves the container mechanism with catalogue units
     first; the authored battalions join the composition as package C2 lands.
   pointer: DESIGN_AGGREGATE_CONTAINERS_2026-09-27 secs 6-9; PLAN_MOVEMENT_2026-09-27 rows C1, C2, G1; tools/sms/Deploy-C2SimSms.ps1 (the recipe pattern).
+
+RL-20260927-05 | 2026-09-27 | status VERBATIM - P6612, TYPED (mid-turn)
+  Q (as put, P6535, restated P6584 - the RL-20260925-01 Q1 race the timer-anchor lane found: a task-clock step > 60 s between timed walks can skip a
+    late predecessor's follow-ons): "Two ways to close it: (a) When the window expires, ask the timer directly: a predecessor with a destination that
+    has not finished is treated as overdue, and the gate extends to the backstop. Small, and my recommendation. (b) Gate on the predecessor's own
+    end-time signal instead of a separate margin. Cleaner, a larger change."
+  A (owner, P6612): "Q1 a"
+  supervisor reading: option (a) as put. The no-Duration mover (never OVERDUE, skipped at the floor) was named as outside Q1 and is not decided here.
+  pointer: fix/gate-late-predecessor; RUNBOOK sec 11; TimerAnchorSelfTest t4; RL-20260925-01 (archive) Q1.
+
+RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompted)
+  Q (as put): none - the seat's rationale at P5335 stood as Y-15: "Entity level for company-and-below orders; aggregate level for battalion-and-above,
+    or whenever the vehicle count makes the fixed-frame clock crawl. The profile is a fixture plus a type map plus a runner setting, chosen per order".
+  A (owner, P6635): "On aggregate vs entity : consider the echelon threshold just for the units actually tasked, not the overall set placed at
+    initialization but never acted upon. And I trust that the automated default can be overruled by a setting so that battalion and bow can be
+    simulated at an aggregate level rather than entity. Higher echelons can only be run at aggregate level because of vrf limitations"
+  supervisor reading: refines Y-15: (1) the model set is chosen by the highest echelon among the TASKED units (the order's performers), not the init;
+    (2) a setting (Vrf:ModelSet / runner -ModelSet) overrides the automatic choice, so battalion-and-below may run at aggregate level too; (3) above
+    battalion is aggregate-only (the entity catalogue stops at BN). "bow" read as "below". Package D2 builds the automatic selector.
+  pointer: PLAN_MOVEMENT_2026-09-27 row D2; VRF_5.2_DECISION_EVIDENCE Y-15 (dated note); scripts/RunC2SimScenario.ps1 -ModelSet (A1).
