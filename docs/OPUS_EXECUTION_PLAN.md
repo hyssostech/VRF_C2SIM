@@ -3455,7 +3455,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 - RESULT 2026-09-27 (lane IS2run, IRONSTORM_CUTA_LIVE-2026-09-27-2; scored run 20260927T021020Z_run manifest + holder log + rtiexec count-grep): 5159 (back end, pid 6980), 5161 (WatchVrf pre-check), 5162 (WatchVrf trace), 5163 (VrfC2SimApp, exit 0), 5164 (Stage 2c RtiProbe), 5166 (Stage 2h holder attempt 1, pid 500, joined 02:10:26Z, resigned when its 900 s hold expired) CONSUMED; 5160 (--no-gui), 5165 (oracle gate passed), 5167-5169 BURNED. The persistent holder 5133 (pid 42672) was reused, not re-claimed. No hand claim. Marker 5159 -> 5170 (written by the runner).
 
-*** NEXT FREE: 5170 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-27 IRONSTORM_CUTA_E1-2026-09-27-1 PERSISTENT HOLDER (docs/experiments/PREREG_IRONSTORM_CUTA_E1_2026-09-27.md sec 3 step D / sec 5; RUNBOOK 9c; the -1/-2 holder 42672 is gone): scripts/StartFederationHolder52.ps1 -AppNumbers 5170,5171,5172,5173 -SettleSecs 28800; one attempt per number until one joins; numbers not reached are BURNED, never reused. The run's own runner block (5174-5184) is written by the runner at Stage 2. E1-CLAIMED (lane E1, before the holder joins).
+
+*** NEXT FREE: 5174 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
