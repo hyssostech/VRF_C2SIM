@@ -40,6 +40,10 @@ namespace VrfC2SimApp;
 ///     table; the service logs one OVERDUE line, reports nothing and releases nothing. When the
 ///     unit arrives (the interface's arrival evidence, or a successful vendor completion),
 ///     MarkFinished returns EmitNow and the TASKCMPLT is sent at once.
+///   - ITS FOLLOW-ONS WAIT FOR IT WITHOUT A RACE (RL-20260927-05, 2026-09-27, the owner's "Q1 a"). The
+///     STREND gate that has not yet been told OVERDUE asks <see cref="IsUnfinishedMover"/> when its window
+///     (end time + margin) expires: a task with a destination still in this table - no TASKCMPLT, no
+///     TASKABRT - is treated as OVERDUE and waited for up to the chain backstop.
 ///   - A TASK WITH NO DESTINATION (hold in place, defend, fire, follow, patrol and the like) ends
 ///     at its end time, as before. "Has a destination" is purely whether the dispatch had one - no
 ///     verb list. Whether a task's desired effect was achieved is IGNORED (the temporary position;
@@ -231,6 +235,31 @@ public sealed class TimedCompletionPolicy
             lock (kv.Value)
                 if (kv.Value.Finished) held.Add(kv.Value);
         return held;
+    }
+
+    /// <summary>
+    /// RL-20260927-05 (2026-09-27, the owner's "Q1 a"): IS THIS TASK A MOVER THAT HAS NOT FINISHED? True
+    /// when its end time is still armed here - no TASKCMPLT and no terminal TASKABRT has removed it (the
+    /// stall watchdog's report-only abort does not, <see cref="CancelsTimer(S.TaskStatusCodeType, bool)"/>)
+    /// - AND its dispatch gave the unit a destination (<see cref="DropDestination"/> takes that away).
+    /// The STREND gate asks this when a successor's window expires before the timed walk has flagged
+    /// the task OVERDUE (TaskSequencer.WaitForStartAsync), and true extends the wait exactly as the
+    /// OVERDUE signal does. False for a task with no destination (a hold ends by its timer), for one
+    /// with no timer at all (no Duration: never OVERDUE), and for one already completed or aborted.
+    /// </summary>
+    /// <param name="heldForEndTime">True when the unit has already ARRIVED and its TASKCMPLT is held
+    /// for the end time (<see cref="MarkFinished"/> returned Hold): it has not finished either - the
+    /// timed walk reports it at the end time - but it is not late (for the caller's log line).</param>
+    public bool IsUnfinishedMover(string taskUuid, out bool heldForEndTime)
+    {
+        heldForEndTime = false;
+        if (string.IsNullOrEmpty(taskUuid) || !_pending.TryGetValue(taskUuid, out var p)) return false;
+        lock (p)
+        {
+            if (!p.HasDestination) return false;
+            heldForEndTime = p.Finished;
+            return true;
+        }
     }
 
     /// <summary>

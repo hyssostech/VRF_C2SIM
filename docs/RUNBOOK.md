@@ -2899,16 +2899,27 @@ no Duration and no geometry is malformed and is refused, not held (below).
   clock ONCE and hands that one reading to the gate's stamp AND to Register, so the end time and the successor's window
   count from the same instant and the 60 s margin covers only the observation lag again. `--rulings-selftest` section
   "ONE anchor" replays E2: the old anchoring skips at stamp + 360 with 315 s served, the fix completes the hold at
-  stamp + 300 and the gate proceeds. RESIDUAL (not changed, put to the seat): the margin is still all that separates an
-  end time from a skip. One task-clock step LARGER than 60 s between two timed walks - a gap of about 60 / (sim ratio)
-  WALL s between two samples of the task clock, ~4 s at E2's 14x - lets the gate see end + 60 before the walk sees the
-  end time: a hold's successor is then skipped although the hold completed on time, and a LATE MOVER's successor is
-  skipped although the mover then arrives (the ONE anchor section's FINDING t4).
+  stamp + 300 and the gate proceeds. RESIDUAL (as found, put to the seat - since answered for MOVERS, below): the margin
+  was still all that separated an end time from a skip. One task-clock step LARGER than 60 s between two timed walks - a
+  gap of about 60 / (sim ratio) WALL s between two samples of the task clock, ~4 s at E2's 14x - lets the gate see
+  end + 60 before the walk sees the end time: a hold's successor is then skipped although the hold completed on time,
+  and a LATE MOVER's successor is skipped although the mover then arrives (the ONE anchor section's t4).
   SEEN LIVE 2026-09-27 in E2-2 (floor 600 s; PREREG_IRONSTORM_CUTA_E2-2_2026-09-27.md Result P31-P32): the order again met
   a scenario clock at 4.6 s; both CNFPSL holds reported "322 s of a 300 s Duration served" and their successors dispatched
   0.75 / 0.94 WALL s later on the SAME clock sample - successor stamp minus hold stamp = 321.7 SIM s, the served figure
   within its rounding - so the timer counted from the dispatch sample; no SKIP. The residual's precondition was met
   halfway: the task clock stepped more than 30 SIM s between two timed walks at the movers' end time (331 of 300 served).
+  FIXED for movers the same day (branch fix/gate-late-predecessor, after E2-2's build; RL-20260927-05, the owner's
+  answer "Q1 a" to that RL-20260925-01 Q1 finding): when the window expires with no OVERDUE flag, the gate asks the
+  timer, and a predecessor with a destination and no TASKCMPLT/TASKABRT yet (still travelling, or arrived and held for
+  its end time) is treated as OVERDUE - waited for until its TASKCMPLT, until it is abandoned (a STUCK unit's
+  follow-ons, RL-20260925-01), or until Vrf:TaskChainBackstopSeconds from its dispatch, the only skip left for it. NOT
+  CHANGED, and said here so nobody reads it as fixed: a HOLD (no destination) ends by its timer, so its successor is
+  still skipped when the window expires first - with the anchor fix that takes the same > 60 s step, and such a skip
+  means the hold's timer had not completed it by end + margin; a task with NO Duration is never OVERDUE, so its
+  successor is skipped at the configured floor (Vrf:TaskPredecessorTimeoutSeconds) even if the unit arrives later, as
+  its dispatch warning now says (RL-20260927-05 names that case as outside Q1, not decided). `--rulings-selftest`
+  section "ONE anchor" pins both: t4 (fail-first) and t6.
 - **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
   per order names how many task-clock seconds after receipt the deepest chain reaches its last
   dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.
