@@ -122,7 +122,7 @@ u3\laneE2; one "<relative path, lower case>:<sha256>" line per file, sorted ORDI
 Rebuild does not own the folder), after the 26 suites and after the harness re-run, in pwsh 7 and Windows PowerShell 5.1.
 THE PREDICTION INSTRUMENT, RE-RUN ON THIS BUILD: the scratch harness (u3\laneE2\harness) rebuilt against the deployed
 d7dd5d0 dll (its copy 0cbf7a11..., PV git.d7dd5d0) and run `predispatch <deployed cache> offline`: 45 lines, identical
-to E2-1's but one timing figure (16 ms against 15 ms) - T14 / T02 / T10 VERTEX CHECK 2 / 1 / 3, 0 moved, 0 kept, 0
+to E2-1's but one timing figure (15 ms now, 16 ms in E2-1) - T14 / T02 / T10 VERTEX CHECK 2 / 1 / 3, 0 moved, 0 kept, 0
 unverified; ROUTE SHIFT - no leg flagged for all three; 0 ObservationReports; 46 cache hits, 0 fetched [V]. Sec 4 P26 is
 carried unchanged.
 (l) THE REPORT-EVIDENCE GATE (M1b) - AS E2-1 sec 1(l) [A]. E2-1 ran it live for the first time but without a chain line
