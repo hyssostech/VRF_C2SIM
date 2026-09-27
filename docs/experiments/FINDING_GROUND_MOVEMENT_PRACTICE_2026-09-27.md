@@ -157,6 +157,40 @@ and lakes, and they do nothing for the next feature class nobody has mapped yet.
   soil rule treats a lake edge as the docs say (27.1.4 is one sentence; the Adding Content manual section
   "Configuring Aggregate-Level Movement Restrictions" was not read - it is a PDF only).
 
+## 8. Addendum (owner's question, same day): can the route-shift machinery serve aggregates, and does it solve the lake?
+
+What the AGGREGATE model does with terrain [V]: AggregateLevelBase\vrfSim\systems\movement\tank-aggregated-movement.sysdef
+:112-131 (mech/motor/infantry alike) - terrain-mobility by feature query at the unit's centre point (UG 27.1.4):
+MAK_TANK_UNRESTRICTED (MAK_ROAD) speed-factor 1; RESTRICTED_L1 (HILLS, CULTIVATED, DESERT) 0.65; RESTRICTED_L2 (FOREST,
+URBAN, MOUNTAIN) 0.25; IMPASSABLE (MAK_WATERWAY OR ALPINE) 0. featureconfig.txt :254-272, :413-414: MAK_WATERWAY = Waterway
+features OR OCEAN OR COAST OR RIVER OR LAKE. The aggregate terrain (MAK Earth Aggregate (online).earth) loads OSM oceans, OSM
+water and OSM land-use features; VRFSIM.Aggregate.feature.model.xml maps them to the Lake / River / Forest (landuse forest,
+orchard) / Municipal (residential, commercial, industrial) / Cultivated layers. So on the aggregate profile: a lake or river on
+the line STOPS a brigade (factor 0); a hamlet or forest slows it to a quarter speed; buildings never trap it; the nav mesh plays
+no part; Halt_Movement_Before_Obstacles is a reactive task that is OFF by default and asks the GUI user (headless: leave off).
+The vendor's aggregate planning task is Move to Location (Plan Along Roads) (UG 35.5.11): AggregateLevelBase\scripts\
+Move_To_Location_Plan_Path.lua starts navigate-to-location with pathQuery MAK_ROAD and obstacleQuery MAK_OBSTACLE (which
+includes MAK_WATERWAY) - [A] so it plans on roads and round water; it is a destination task, not a route task.
+
+What the route-shift machinery is [V]: RouteShift.cs inserts FOUR points per flagged leg (two on the authored line, two
+offset), keeps STP's vertices in order, re-scores the shifted line, reports the detour to C2; offsets 25..600 m either side
+(Vrf:PreflightRouteShiftMaxMeters 600), formation band +/-50 m; on "no cleared line" it dispatches the authored line and says
+so. It runs for aggregates too (VrfC2SimService.cs :4678-4686; skipped only when an opt-in aggregate branch collapses the
+route). Its FLAG rule is the entity-level slope ratio (LegScorer.cs :220: ratio >= 0.92 over a 40 m window); water flags a leg
+only when it falls inside that worst window (:60-74). Its ground truth is elevation + the CLCplus 10 m raster (TileSource.cs
+:49-58); it does not read the OSM water or building features the sim uses at either level.
+
+Answer 1 - reusable for aggregates: yes in shape (insert vertices, keep STP's, report the detour), and the aggregate profile
+is where such a pre-flight matters most, because the aggregate model neither avoids nor plans round anything on a route
+task. But its flag rule must become the aggregate mobility table (water / river / alpine = stop; forest / urban / mountain =
+0.25) read from the same OSM feature classes the sim reads, instead of the Mojave slope calibration. leg_check.py already
+reads OSM water and buildings (opt-in, tested); the C# port is the missing piece the T14 lane proposed.
+Answer 2 - the lake as things stand: NO. T14's line was dry on CLCplus and wet on OSM (FINDING_IRONSTORM_T14_STOP), so the
+pre-flight would not flag it, insert nothing, and a brigade would stop at the same edge. Even flagged, the fix is a lateral
+band: the detour that worked stood about 1.25 km off the line (waypoint (i)); a smaller westward shift may clear the lake for
+an aggregate (buildings and nav sectors no longer matter there) - not measured. A RIVER across a leg cannot be shifted round at
+all; it needs a bridge, i.e. a road crossing, which is what the vendor's road planner provides and a lateral shift never will.
+
 ## 7. Decisions owed to the owner
 
 (a) Confirm sec 5.1 as the Iron Storm path now (it is the ruled "B", pulled forward). (b) Sec 5.2: allow Move To
