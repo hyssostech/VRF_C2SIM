@@ -626,6 +626,20 @@ public:
     // static_cast that is only valid for a real aggregate.
     std::vector<AggregateMember> GetAggregateMembers(const std::string& aggregateUuid) const;
 
+    // C1 (RL-20260927-03; docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md sec 8 item 4): how many subordinates the
+    // aggregate PUBLISHES - the valid designators of its published sub-aggregate list PLUS its published entity list
+    // ("Return the list of published subaggregates in the aggregate." / "... published entities",
+    // vl/aggregateStateRepository.h:86-92 on VR-Link 5.10). An Aggregate Container's members are warfare-model
+    // UNITS, so they are SUB-AGGREGATES and GetAggregateMembers (entities only, recursing into sub-aggregates for
+    // THEIR entities) sees none of them; this is the count the population gate waits for before the container's
+    // scripted task is issued, because the vendor script snapshots its subordinates once, in init()
+    // (AggregateLevelBase/scripts/PA_Move_Along_Route.lua:37), and an attach lands in the NEXT-FRAME subordinate
+    // manager (vrfobjcore/vrfObjectStateRepository.inl:148-156). Read-only, nothing sent. -1 = no reading: not
+    // started, the uuid is not reflected, or no aggregate state is readable. Same CAVEAT as GetAggregateMembers:
+    // pass an AGGREGATE uuid only (the typed cast can miss across the MAK DLL boundary and the fallback is a
+    // static_cast that is only valid for a real aggregate).
+    int PublishedSubordinateCount(const std::string& aggregateUuid) const;
+
     // Set an aggregate's formation by name ("Wedge","Column","Line","Vee","Echelon").
     // Safe no-op on non-aggregate entities. A disaggregated aggregate needs a VALID
     // formation for its set-maneuver; without one VRF keeps an unresolvable default

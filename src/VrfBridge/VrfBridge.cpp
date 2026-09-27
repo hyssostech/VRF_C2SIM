@@ -474,6 +474,12 @@ public:
         }
         return list;
     }
+    // C1 (RL-20260927-03): how many subordinates the aggregate PUBLISHES (sub-aggregates + entities; -1 = no
+    // reading). The population gate of a populated Aggregate Container waits for this before its scripted task
+    // (vrf::VrfFacade::PublishedSubordinateCount). Pass an AGGREGATE uuid only.
+    int PublishedSubordinateCount(String^ aggregateUuid) {
+        return _facade->PublishedSubordinateCount(ToStd(aggregateUuid));
+    }
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));
     }

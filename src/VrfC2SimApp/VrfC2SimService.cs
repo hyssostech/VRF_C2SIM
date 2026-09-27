@@ -67,8 +67,12 @@ public sealed class VrfC2SimService : BackgroundService
     // names - FIFO is the best possible attribution (a second same-named entry no longer
     // silently overwrites the first). Patrol=true issues PatrolRoute (Reconnoiter)
     // instead of MoveAlongRoute.
+    // ScriptId (C1, RL-20260927-03): a POPULATED AGGREGATE CONTAINER's route move - the route-created callback
+    // issues RunScriptedTask(ScriptId) on the container (PA_Move_Along_Route / PA_Patrol_Route) instead of
+    // MoveAlongRoute / PatrolRoute, which a container has no controller for. null on every other path.
     private readonly record struct PendingRouteTask(string TaskeeVrfUuid, bool Patrol,
-        bool PlanMove = false, IReadOnlyList<AggregateMember>? FanOutMembers = null);
+        bool PlanMove = false, IReadOnlyList<AggregateMember>? FanOutMembers = null,
+        string ScriptId = null, string ContainerName = null);
 
     // R10: member-completion -> unit-task aggregation for fanned-out aggregate moves.
     private readonly FanOutTracker _fanOut = new();
@@ -99,6 +103,21 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly string _modelSetRaw;
     private readonly bool _modelSetRecognised;
     private readonly bool _aggregateModelSet;
+
+    // ============ POPULATED AGGREGATE CONTAINERS (C1) ============
+    // RL-20260927-02 (hostile RUS; populate the containers, not proxies), RL-20260927-03 (every unit an EMPTY container
+    // at init at its authored position; ONLY a tasked unit populated, in place, when its order arrives), RL-20260927-04
+    // (D-1..D-8). docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md. TRUE only on Vrf:ModelSet=AggregateTacticalLevel,
+    // read through VrfSettings.ModelSet (the property the M2 pre-flight reads) - on EntityLevel every branch below is
+    // skipped and the entity-level path runs bit for bit as before (--populate-selftest sec p10 pins that).
+    private readonly bool _containerMode;
+    private ICatalogue _catalogue;                       // the aggregate chain (GetResolver, rooted at the model set)
+    private CompositionTable _composition;               // Vrf:CompositionFile, validated at start-up
+    private readonly ContainerPopulator _containers = new();
+    private ContainerBridgeAdapter _containerBridge;     // tick thread only
+    // unit name -> the container the init rule chose for it (every in-scope unit on the aggregate model set).
+    private readonly ConcurrentDictionary<string, ContainerChoice> _containerByName = new(StringComparer.Ordinal);
+    private DateTime _nextPopulateSweep = DateTime.MinValue;
 
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
@@ -354,8 +373,10 @@ public sealed class VrfC2SimService : BackgroundService
     // the oracle's SIDC[2]=='G' symbology test (C2SIMinterface.cpp:2158) as the "is this a ground
     // thing" discriminator. IsAggregate is the platform-vs-unit distinction: platforms have
     // ground contact, units organize platforms (docs/VRF_ALTITUDE_FRAMES.md).
+    // IsContainer (C1, RL-20260927-03): the unit is an Aggregate Container on the aggregate model set - populated in
+    // place when an order first tasks it, and moved only by its own PA_* scripted tasks. Always false on EntityLevel.
     private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate,
-                                               int Domain, string AutoFormation);
+                                               int Domain, string AutoFormation, bool IsContainer = false);
 
     // ============ COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy) ============
     // Build a PARENT aggregate (e.g. a company) from its DECLARED C2SIM child units instead of a
@@ -476,6 +497,8 @@ public sealed class VrfC2SimService : BackgroundService
         // honours it the moment either lands. Absent/unknown = EntityLevel = the pre-D1 behaviour.
         _modelSetRaw = config.GetSection("Vrf")["ModelSet"];
         _modelSetRecognised = UnitPositionPolicy.TryParseModelSet(_modelSetRaw, out _aggregateModelSet);
+        // C1: the container profile, keyed on the same Vrf:ModelSet through VrfSettings (the M2 pre-flight's read).
+        UnitPositionPolicy.TryParseModelSet(_vrf.ModelSet, out _containerMode);
 
         // FidelityTable only: load data/unit-type-map.json now so a bad path/parse is reported
         // BEFORE VR-Forces is started (ExecuteAsync turns _typeMapLoadError into a refuse-to-start).
@@ -588,6 +611,11 @@ public sealed class VrfC2SimService : BackgroundService
             _life.StopApplication();
             return;
         }
+
+        // 0b-ii. POPULATED AGGREGATE CONTAINERS (C1; RL-20260927-02, RL-20260927-03, RL-20260927-04). Said in both
+        // states; on the aggregate model set every prerequisite is checked HERE and a missing one REFUSES TO START,
+        // like the FidelityTable pre-flight above - a run that cannot populate or gate a container must not start.
+        if (!ContainerStartupPreflight()) return;
 
         // 0c. PROGRESS-WATCHDOG PRE-FLIGHT (C16). The window belongs to the CLOCK - 240 WALL
         // seconds or 360 SIM seconds, both calibrated on the 2026-09-13 replay set - so the one
@@ -1152,6 +1180,9 @@ public sealed class VrfC2SimService : BackgroundService
                       SweepPlacementReclamp);
             TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
             TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
+            // C1 (RL-20260927-03): the populations' attach deadlines, publication reads and gate bounds. Guarded like
+            // the phases above - on EntityLevel, and with no population in flight, it costs one flag test.
+            TickPhase("SweepContainerPopulation", _containerMode && _containers.HasActive, SweepContainerPopulation);
             // DEFER, DO NOT ABORT (D5b): "bound" is an event (ObjectCreated), but "its location
             // reads now" is only ever a poll, and the init barrier has to expire even when nothing
             // else happens - so the sweep runs here as well as on every ObjectCreated. It costs
@@ -1488,6 +1519,29 @@ public sealed class VrfC2SimService : BackgroundService
                               plan.MapNote, plan.Substitution);
                 continue;
             }
+            // C1 (RL-20260927-03: "I still want all units to show on the map on initialization"): ON THE AGGREGATE
+            // MODEL SET EVERY IN-SCOPE UNIT IS AN EMPTY AGGREGATE CONTAINER. The init rule (ContainerTypeRule; design
+            // sec 3) picks the container of the unit's nation (the mapped row's - RUS for the hostile side,
+            // RL-20260927-02), echelon and branch, the NEAREST branch where the catalogue has none (logged on the TYPE
+            // MAP line below). The map row stays on the plan: it is the composition key. In scope = a GROUND unit the
+            // fidelity table mapped (air, sea and neutral keep their parity branches). EntityLevel: never entered.
+            bool isContainer = false;
+            ContainerChoice containerChoice = null;
+            if (_containerMode && typeMapping == TypeMapping.FidelityTable && plan.IsAggregate)
+            {
+                containerChoice = ContainerTypeRule.Choose(_catalogue, plan.Type.Country, unit.SymbolId, unit.EchelonCode);
+                if (!containerChoice.Found)
+                {
+                    unmapped++;
+                    _log.LogError("CONTAINER: unit {Name} (SIDC '{Sidc}', echelonCode '{Ech}', nation {Nation}) has NO " +
+                                  "Aggregate Container in the catalogue and is NOT created (RL-20260927-03): {Why}.",
+                                  unit.Name, unit.SymbolId, unit.EchelonCode, plan.Type.Country,
+                                  string.Join("; ", containerChoice.Flags));
+                    continue;
+                }
+                plan = ContainerTypeRule.Apply(plan, containerChoice);
+                isContainer = true;
+            }
             if (typeMapping == TypeMapping.FidelityTable)
             {
                 // R-SURFACE-PROXY: annotate the MARKING (bounded - see VrfSettings.ProxyMarkingTag)
@@ -1600,8 +1654,9 @@ public sealed class VrfC2SimService : BackgroundService
             // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid,
             // and the inverse (name -> uuid) so the report callbacks can name their subject.
             _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate,
-                plan.Type.Domain, plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
+                plan.Type.Domain, plan.IsAggregate ? AutoFormationFor(plan.Type) : null, isContainer);
             _c2SimUuidByName[plan.Name] = unit.Uuid;
+            if (isContainer) _containerByName[plan.Name] = containerChoice;   // C1: after the proxy tag - the final name
             // The AUTHORED position (before any de-stack) - the coordinate STP also writes as the
             // route's first vertex (the origin-vertex drop in ExecuteTaskOnTick, sec 3f).
             _authoredPosByName[plan.Name] = (plan.Pos.LatDeg, plan.Pos.LonDeg);
@@ -1668,6 +1723,20 @@ public sealed class VrfC2SimService : BackgroundService
             // said 5 - and the D9 prereg registered the wrong 4 and scored a correct run a MISS.
             // Both lines now take their numbers from CreationCensus over this same final list.
             var census = CreationCensus.Of(toCreate);
+            if (_containerMode)
+            {
+                // C1 (RL-20260927-03): the same census, said as what it is on the aggregate model set.
+                int containers = toCreate.Count(p => _containerByName.ContainsKey(p.Name));
+                _log.LogInformation("CreationPolicy=AtOrder (C13) on the AGGREGATE model set: {Containers} container(s) " +
+                                    "created EMPTY at their authored positions (RL-20260927-03) - every in-scope unit is " +
+                                    "an Aggregate Container (UG52 72.2.1 p1419), Disaggregated, with NO members, TO twins " +
+                                    "included (D-7 of RL-20260927-04); ONLY a unit an order tasks is populated, in place, " +
+                                    "when that order arrives. {Other} other aggregate shell(s); {Platforms} platform(s) " +
+                                    "created in full. The INIT CREATION BARRIER line counts the same shells over the same " +
+                                    "plan list (N15).",
+                                    containers, census.EmptyShells - containers, census.Platforms);
+            }
+            else
             _log.LogInformation("CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their " +
                                 "authored positions ({Flipped} flipped to empty here, {Composed} already an empty " +
                                 "COMPOSED PARENT shell); members are created when an order first references a " +
@@ -2143,9 +2212,12 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _tickActions.Enqueue(() =>
             {
+                // C1: the state comes from the plan (CreationStates.For) - DISAGGREGATED for every aggregate as before,
+                // including every Aggregate Container; AGGREGATED only for a container's warfare-model member (UG52
+                // Table 68 p1470; design sec 8 item 1). No EntityLevel plan asks for Aggregated.
                 if (p.IsAggregate)
                     _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
-                                            AggregateState.Disaggregated, p.CreateSubordinates);
+                                            CreationStates.For(p), p.CreateSubordinates);
                 else
                     _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
             });
@@ -2382,6 +2454,24 @@ public sealed class VrfC2SimService : BackgroundService
                                 ObjectTypeResolver.ModelSetsDir(home));
                 return null;
             }
+            if (_containerMode)
+            {
+                // C1 (design sec 7: "GetResolver rooted at the model set"): the AGGREGATE chain, or the derived SMS
+                // Vrf:CatalogueSms names - never the EntityLevel chain, whose twins of the aggregate types are the
+                // mixed Ground_Aggregate (composition_check.py --twins), and never a silent fallback.
+                string sms = string.IsNullOrWhiteSpace(_vrf.CatalogueSms)
+                    ? UnitPositionPolicy.AggregateModelSet : _vrf.CatalogueSms.Trim();
+                _resolver = ObjectTypeResolver.LoadModelSetChain(home, sms);
+                if (_resolver == null)
+                    _log.LogError("AGGREGATE CONTAINERS: the catalogue '{Sms}' was not found under {Home} - no container " +
+                                  "can be chosen or populated (Vrf:CatalogueSms, Vrf:VrfHome).", sms, home);
+                else
+                    _log.LogInformation("AGGREGATE CONTAINERS: catalogue loaded from {Home} (root {Sms}, {N} templates, " +
+                                        "{D} model-set dir(s)) - the init rule and the composition resolve against it " +
+                                        "(RL-20260927-03).", home, _resolver.RootSms, _resolver.Templates.Count,
+                                        _resolver.ModelSetDirs.Count);
+                return _resolver;
+            }
             _resolver = ObjectTypeResolver.LoadChain(home);
             _log.LogInformation("ComposeHierarchy: catalog loaded from {Home} (root {Sms}, {N} templates) " +
                                 "for coarse-leaf expansion.", home, _resolver.RootSms, _resolver.Templates.Count);
@@ -2541,6 +2631,16 @@ public sealed class VrfC2SimService : BackgroundService
             _materializeOnInitSettled[name] = (c2simUuid, why);
             _log.LogInformation("{Line}", DispatchReadiness.MaterializeHeldLine(
                 name, why, initOutstanding, _initPlannedNames.Count));
+            return;
+        }
+
+        // C1 (RL-20260927-03): ON THE AGGREGATE MODEL SET A CONTAINER IS POPULATED IN PLACE - its members are created
+        // AGGREGATED and attached to the EXISTING container; nothing is deleted or re-created, so cases 2 and 3 below
+        // (expand into the shell / DELETE the shell and re-create it as its template) are unreachable for it. Its
+        // STP TO children (precedence 1) are handled inside, as case 1 is here.
+        if (_containerMode && _containerByName.ContainsKey(name))
+        {
+            PopulateInPlace(c2simUuid, d, why);
             return;
         }
 
@@ -2707,6 +2807,426 @@ public sealed class VrfC2SimService : BackgroundService
         _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                 c2simUuid, string.IsNullOrEmpty(d.C2SimName) ? name : d.C2SimName, name, text,
                 IsoNow(), NewReportId()), ReportKind.Observation);
+    }
+
+    // ================= POPULATED AGGREGATE CONTAINERS (C1) =================
+    // RL-20260927-02, RL-20260927-03, RL-20260927-04; docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md. The rules are
+    // pure and self-tested (--populate-selftest): ContainerCatalogue.cs (the init rule), ContainerComposition.cs (the
+    // composition and the ring), ContainerPopulation.cs (the population state machine, the scripts, D-6). What lives
+    // here is the glue - which thread does what, and what is logged.
+
+    /// <summary>One interpolated segment, formatted invariantly (a harvest parses these numbers).</summary>
+    private static string Inv(FormattableString f) => FormattableString.Invariant(f);
+
+    /// <summary>Vrf:ContainerPopulateTimeoutSeconds in force (derived when 0).</summary>
+    private double ContainerPopulateTimeoutSeconds()
+        => ContainerStartup.PopulateTimeoutSeconds(_vrf.ContainerPopulateTimeoutSeconds,
+                                                   _vrf.PreflightRouteShiftTimeoutSeconds,
+                                                   _vrf.TerrainProfileTimeoutSeconds, _vrf.CompositionTimeoutSeconds);
+
+    /// <summary>Is this unit name an Aggregate Container (C1)?</summary>
+    private bool IsContainerUnit(string name)
+        => _containerMode && !string.IsNullOrEmpty(name) && _containerByName.ContainsKey(name);
+
+    /// <summary>
+    /// START-UP (ExecuteAsync 0b-ii). EntityLevel: one line, nothing else. The aggregate model set: every
+    /// prerequisite of C1 is checked and a missing one REFUSES TO START - AtOrder (RL-20260927-03), the fidelity table
+    /// (the composition key), the aggregate catalogue (the init rule), the composition file, and the bridge's
+    /// publication reader (the gate) - then every composition row is validated against the catalogue and the choices
+    /// are said once, naming the rulings.
+    /// </summary>
+    private bool ContainerStartupPreflight()
+    {
+        if (!_containerMode)
+        {
+            _log.LogInformation("{Line}", ContainerStartup.OffLine(_vrf.ModelSet));
+            return true;
+        }
+        var problems = new List<string>();
+        if (!_vrf.MaterializeAtOrder)
+            problems.Add("Vrf:CreationPolicy must be AtOrder - every unit is an EMPTY container at init and ONLY a tasked " +
+                         "unit is populated, in place, when its order arrives (RL-20260927-03)");
+        if (!UsingFidelityTable)
+            problems.Add("Vrf:TypeMappingMode must be FidelityTable - a tasked container's composition is looked up by its " +
+                         "type-map row id (CreationPlan.MapRowId; design sec 4.1 (3))");
+        var res = GetResolver();
+        if (res == null)
+            problems.Add("the aggregate catalogue could not be loaded (Vrf:VrfHome or MAK_VRFDIR, Vrf:CatalogueSms) - the " +
+                         "init rule cannot tell a container from a unit without it");
+        else
+            _catalogue = new ResolverCatalogue(res);
+        string compPath = CompositionTable.ResolvePath(_vrf.CompositionFile);
+        if (compPath == null)
+            problems.Add($"Vrf:CompositionFile '{_vrf.CompositionFile}' was not found (searched the working directory, the " +
+                         "app directory and every directory above it)");
+        else
+        {
+            try { _composition = CompositionTable.Load(compPath); }
+            catch (Exception ex) { problems.Add($"Vrf:CompositionFile '{compPath}' failed to parse: {ex.Message}"); }
+        }
+        var publishedCount = PublishedCountReader.Bind(_bridge);
+        _containerBridge = new ContainerBridgeAdapter(_bridge, publishedCount);
+        if (publishedCount == null)
+            problems.Add("the loaded VrfBridge.dll has no PublishedSubordinateCount, so the population gate cannot see a " +
+                         "container publish its members (C1's native member, src/VrfFacade/VrfFacade.cpp) - rebuild the " +
+                         "bridge with /t:Rebuild and ALL ELEVEN consumers (RUNBOOK sec 9)");
+        if (problems.Count > 0)
+        {
+            _log.LogCritical("AGGREGATE CONTAINERS (Vrf:ModelSet=AggregateTacticalLevel; RL-20260927-02, RL-20260927-03, " +
+                             "RL-20260927-04) - REFUSING TO START: {Problems}.", string.Join("; ", problems));
+            _life.StopApplication();
+            return false;
+        }
+        int ok = 0, refused = 0;
+        foreach (var row in _composition.Rows)
+        {
+            var t8 = UnitTypeMap.ParseObjectType(row.ContainerObjectType);
+            var entry = t8 != null ? _catalogue.Resolve(t8) : null;
+            var p = CompositionResolver.ExpandRow(row, _composition, _catalogue,
+                                                  entry != null ? CompositionResolver.Rank(entry.Category) : null);
+            if (p.Refused)
+            {
+                refused++;
+                _log.LogError("COMPOSITION ROW {Row} (map rows [{Maps}]) is REFUSED against the catalogue - {Why}. A " +
+                              "container keyed to it gets NO members and its MOVE tasks are refused (TASKABRT) until the " +
+                              "row is fixed (tools/aggregate/composition_check.py is its offline gate).",
+                              row.Id, string.Join(", ", row.MapRowIds), p.Refusal);
+                continue;
+            }
+            ok++;
+            _log.LogInformation("COMPOSITION ROW {Row} (map rows [{Maps}]): {N} simulated leaf unit(s), {K} sub-container(s) " +
+                                "flattened (D-8, RL-20260927-04): [{Leaves}].",
+                                row.Id, string.Join(", ", row.MapRowIds), p.Leaves.Count, p.SubContainersFlattened,
+                                string.Join(", ", p.Leaves.GroupBy(l => l.TemplateName)
+                                                           .Select(g => $"{g.Count()} x {g.Key}")));
+        }
+        _log.LogInformation("AGGREGATE CONTAINERS ON (Vrf:ModelSet=AggregateTacticalLevel; RL-20260927-02, RL-20260927-03, " +
+                            "RL-20260927-04): every in-scope unit is created at init as an EMPTY Aggregate Container (UG52 " +
+                            "72.2.1 p1419), Disaggregated, at its authored position, by the design's init rule (hostile " +
+                            "nation {Opposing}; the NEAREST branch where the catalogue has none, logged). ONLY an order's " +
+                            "PERFORMER is populated (D-5), IN PLACE, when an order first names it: its STP TO subordinates, " +
+                            "else its template's configured members, else the composition table {File} ({Ok} row(s) resolve, " +
+                            "{Refused} refused), FLAT (D-8), each member created AGGREGATED (UG52 Table 68 p1470) on one " +
+                            "centroid-preserving ring round the container and attached by AddToOrganization - nothing is " +
+                            "ever deleted. Its tasks wait for the container to PUBLISH its members " +
+                            "(VrfBridge.PublishedSubordinateCount) for up to {Timeout:F0} s (Vrf:ContainerPopulateTimeoutSeconds" +
+                            "{Derived}); a MOVE on a container with no published members is refused with TASKABRT. Moves are " +
+                            "the container's own scripted tasks: {Along} on a route, {Direct} to a single point, {Patrol} for " +
+                            "a patrol. A vendor completion farther than {Radius:F0} m (Vrf:VertexArrivalRadiusMeters) from the " +
+                            "route end is WITHHELD (D-6). Catalogue: {Catalogue}.",
+                            _nations.Opposing, compPath, ok, refused, ContainerPopulateTimeoutSeconds(),
+                            _vrf.ContainerPopulateTimeoutSeconds > 0 ? "" : ", derived",
+                            ContainerScripts.MoveAlongRoute, ContainerScripts.MoveToLocationDirect,
+                            ContainerScripts.PatrolRoute, _vrf.VertexArrivalRadiusMeters, _catalogue.Describe);
+        return true;
+    }
+
+    /// <summary>
+    /// ORDER TIME (MaterializeUnit's aggregate-model-set branch; any thread - it touches concurrent maps and the
+    /// populator only, and hands every bridge call to the tick thread). POPULATE IN PLACE (RL-20260927-03): resolve
+    /// the composition (precedence: the STP TO -> the template's configured members -> the authored table), plan the
+    /// FLAT members on one ring round the container's point (D-8), register the gate RunTaskAsync awaits, then - off
+    /// the tick thread - test every slot with the M2 point test and move a wet one (VertexNudgeSearch), and - on the
+    /// tick thread - create the members AGGREGATED. Their ObjectCreated attaches them; the sweep waits for the
+    /// container to publish them. A composition that cannot be resolved leaves the container EMPTY, completes the
+    /// gate at once and makes every MOVE on it a TASKABRT.
+    /// </summary>
+    private void PopulateInPlace(string c2simUuid, DeferredUnit d, string why)
+    {
+        string name = d.Plan.Name;
+        if (_childUuidsBySuperior.TryGetValue(c2simUuid, out var childUuids) && childUuids.Count > 0)
+        {
+            PopulateThroughTo(c2simUuid, d, childUuids, why);
+            return;
+        }
+        if (!_names.TryGetUuid(name, out var containerUuid))
+        {
+            DeferPopulate(c2simUuid, name, why);
+            return;
+        }
+        _materialized.TryAdd(c2simUuid, 0);
+        _compositionReady.TryGetValue(name, out var preGate);
+        var now = DateTime.UtcNow;
+        var entry = _catalogue?.Resolve(ContainerTypeRule.Type8Of(d.Plan.Type));
+        var plan = CompositionResolver.Resolve(name, entry, d.Plan.MapRowId, null, _composition, _catalogue);
+        PopulateLayout layout = null;
+        string refusal = plan.Refused ? plan.Refusal : null;
+        if (refusal == null)
+        {
+            layout = PopulatePlanner.Plan(name, d.Plan.Pos.LatDeg, d.Plan.Pos.LonDeg, plan.Leaves, _vrf.DeStackRotationDeg);
+            if (layout.Refused) refusal = layout.Refusal;
+            else if (layout.Members.FirstOrDefault(m => _names.IsRequested(m.Name)) is { } clash)
+                refusal = $"NAME COLLISION: member name '{clash.Name}' is already an object of this run";
+        }
+        if (refusal != null)
+        {
+            _containers.Refuse(name, containerUuid, "POPULATE REFUSED: " + refusal, now);
+            RegisterPopulationGate(name, _containers.GateOf(name), preGate);
+            _log.LogError("POPULATE {Name} ({Why}) REFUSED - {Reason}. The container stays EMPTY at its authored position; " +
+                          "a MOVE on it is refused with TASKABRT, never dispatched to an empty container (RL-20260927-03).",
+                          name, why, refusal);
+            return;
+        }
+        string source = plan.Source == PopulateSource.Table
+            ? $"source 3 - the authored table, row {plan.RowId} (map row {d.Plan.MapRowId})"
+            : $"source 2 - the template's configured members ({entry?.DisplayName})";
+        double timeout = ContainerPopulateTimeoutSeconds();
+        long generation = _containers.Begin(name, containerUuid, layout.Members, source, now, timeout,
+                                            _vrf.CompositionTimeoutSeconds);
+        RegisterPopulationGate(name, _containers.GateOf(name), preGate);
+        string populateLine =
+            $"POPULATE {name} IN PLACE ({why}; RL-20260927-03): {source}: {layout.Members.Count} member(s) FLAT (D-8, " +
+            $"RL-20260927-04: {plan.SubContainersFlattened} sub-container(s) of the composition flattened to their leaves, " +
+            "every leaf attached directly to this container) on ONE ring round its point " +
+            Inv($"({d.Plan.Pos.LatDeg:F6},{d.Plan.Pos.LonDeg:F6}): spacing {layout.SpacingMeters:F0} m (2 x the largest ") +
+            Inv($"Travel footprint of a company-or-below member), radius {layout.RadiusMeters:F0} m (centroid-preserving), ") +
+            Inv($"reach {layout.ReachMeters:F0} m. Each is created AGGREGATED (UG52 Table 68 p1470) and attached by ") +
+            Inv($"AddToOrganization; its tasks wait for the container to PUBLISH them (gate {timeout:F0} s). ") +
+            "NOTHING IS DELETED. Members: [" +
+            string.Join(", ", layout.Members.Select(m => $"{m.Name} ({m.Leaf.TemplateName})")) + "].";
+        _log.LogInformation("{Line}", populateLine);
+        AnnounceSubstitution(c2simUuid, d, name, layout.Members.Count);
+        var members = layout.Members;
+        var force = d.Plan.Force;
+        _ = Task.Run(() =>
+        {
+            List<(double Lat, double Lon, string Verdict)> slots;
+            try { slots = CheckPopulateSlots(members); }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                slots = members.Select(m => (m.LatDeg, m.LonDeg, $"UNVERIFIED (the slot check failed: {msg})")).ToList();
+            }
+            _tickActions.Enqueue(() => IssueMemberCreates(name, generation, members, slots, force));
+        });
+    }
+
+    private void DeferPopulate(string c2simUuid, string name, string why)
+    {
+        // The container's own ObjectCreated has not arrived yet (the order came within seconds of the init) - exactly
+        // MaterializeUnit's deferral: the task waits on the gate, and this runs again from OnVrfObjectCreated.
+        _compositionReady.GetOrAdd(name, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+        _materializeOnCreated[name] = (c2simUuid, why);
+        _log.LogInformation("POPULATE {Name} ({Why}): the container is not bound yet - deferred to its ObjectCreated; the " +
+                            "task waits on the population gate (RL-20260927-03).", name, why);
+    }
+
+    /// <summary>The gate RunTaskAsync awaits for this unit: completed when the population ends (published, refused or
+    /// timed out). A gate a DEFERRAL pre-registered is chained, as MaterializeUnit chains its own.</summary>
+    private void RegisterPopulationGate(string name, Task gate, TaskCompletionSource preGate)
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _compositionReady[name] = tcs;
+        _ = gate.ContinueWith(_ => tcs.TrySetResult(), TaskScheduler.Default);
+        if (preGate != null && !ReferenceEquals(preGate, tcs))
+            _ = tcs.Task.ContinueWith(_ => preGate.TrySetResult(), TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// PRECEDENCE (1), the STP TO (design sec 4.1): the container's declared C2SIM subordinates present in the init are
+    /// existing containers - ATTACHED (never re-created; identity and reports stay theirs) and each POPULATED by these
+    /// same rules. This container is ready when it publishes them AND every one of them is ready. NOT reached by cut A
+    /// (its taskees carry no Subordinate; the TO relations sit on the TO twins, D-7 of RL-20260927-04).
+    /// </summary>
+    private void PopulateThroughTo(string c2simUuid, DeferredUnit d, List<string> childUuids, string why)
+    {
+        string name = d.Plan.Name;
+        if (!_names.TryGetUuid(name, out var containerUuid))
+        {
+            DeferPopulate(c2simUuid, name, why);
+            return;
+        }
+        _materialized.TryAdd(c2simUuid, 0);
+        _compositionReady.TryGetValue(name, out var preGate);
+        var ordered = d.DeclaredChildUuids is { Count: > 0 }
+            ? ComposeOrder.ByDeclared(d.DeclaredChildUuids, childUuids, u => u) : childUuids;
+        var children = new List<(string Name, string Uuid)>();
+        var gates = new List<Task>();
+        foreach (var cu in ordered)
+        {
+            if (!_deferred.TryGetValue(cu, out var cd) || !_containerByName.ContainsKey(cd.Plan.Name)) continue;
+            MaterializeUnit(cu, why + " -> STP TO subordinate of " + name);
+            if (_compositionReady.TryGetValue(cd.Plan.Name, out var cg)) gates.Add(cg.Task);
+            if (_names.TryGetUuid(cd.Plan.Name, out var childUuid)) children.Add((cd.Plan.Name, childUuid));
+        }
+        long generation = _containers.BeginExisting(name, containerUuid, children, DateTime.UtcNow,
+                                                    ContainerPopulateTimeoutSeconds());
+        gates.Add(_containers.GateOf(name));
+        RegisterPopulationGate(name, Task.WhenAll(gates), preGate);
+        _log.LogInformation("POPULATE {Name} IN PLACE ({Why}; RL-20260927-03): source 1 - the STP TO: {N} declared " +
+                            "subordinate(s) present in the init [{Children}] are attached and each populated by the same " +
+                            "rules.", name, why, children.Count, string.Join(", ", children.Select(c => c.Name)));
+        _tickActions.Enqueue(() =>
+        {
+            foreach (var ev in _containers.AttachExisting(name, generation, DateTime.UtcNow, _containerBridge))
+                LogPopulateEvent(ev);
+        });
+    }
+
+    /// <summary>
+    /// OFF THE TICK THREAD (tiles). Every member's slot through the M2 point test (PreflightService.CheckPoint: OSM
+    /// water under the model set's rules, OSM buildings within Vrf:PreflightBuildingClearanceMeters) and, when it is
+    /// wet or on a building, VertexNudgeSearch to the nearest clear ground within Vrf:PreflightVertexNudgeMaxMeters -
+    /// reported like a moved vertex (design sec 5). Unknown ground is never clear, and never "bad": an unreadable slot
+    /// is kept, UNVERIFIED.
+    /// </summary>
+    private List<(double Lat, double Lon, string Verdict)> CheckPopulateSlots(IReadOnlyList<PopulateMember> members)
+    {
+        var outp = new List<(double Lat, double Lon, string Verdict)>(members.Count);
+        var svc = _vrf.PreflightRouteShift && RouteShiftCanScore() ? GetPreflight() : null;
+        if (svc == null)
+        {
+            foreach (var m in members)
+                outp.Add((m.LatDeg, m.LonDeg, "UNVERIFIED (the pre-flight is off or cannot score - the slot is kept)"));
+            return outp;
+        }
+        var opt = new Preflight.VertexNudgeOptions
+        {
+            MaxMeters = Math.Max(0.0, _vrf.PreflightVertexNudgeMaxMeters),
+            StepMeters = 25.0,
+        };
+        foreach (var m in members)
+        {
+            var n = Preflight.VertexNudgeSearch.Nudge(m.Slot + 1, (m.LatDeg, m.LonDeg), null, null, opt,
+                p => Preflight.NudgeVerdict.Of(svc.CheckPoint(p)),
+                c => Preflight.NudgeVerdict.Of(svc.CheckPoint(c)),
+                FormattableString.Invariant($"clear of OSM water and of OSM buildings within {_vrf.PreflightBuildingClearanceMeters:F0} m"));
+            if (n.Moved)
+                outp.Add((n.To.Lat, n.To.Lon, FormattableString.Invariant(
+                    $"SLOT MOVED {n.DistanceM:F0} m {n.Compass} - the planned slot lies {n.Why}; the new point is the nearest ground {n.ClearOf}")));
+            else if (n.Unresolved)
+                outp.Add((m.LatDeg, m.LonDeg, FormattableString.Invariant(
+                    $"KEPT ON BAD GROUND - the slot lies {n.Why} and no ground {n.ClearOf} was found within {n.SearchedMeters:F0} m")));
+            else if (n.Unverified)
+                outp.Add((m.LatDeg, m.LonDeg, $"UNVERIFIED - {n.Why}; the slot is kept"));
+            else
+                outp.Add((m.LatDeg, m.LonDeg, n.OnBridge ? n.Why : "clear"));
+        }
+        return outp;
+    }
+
+    /// <summary>TICK THREAD: create the members AGGREGATED through the same placement path as the init (terrain height
+    /// under each slot, then EnqueueCreates, which registers every name before the first create). Refuses to create
+    /// anything for a population that ended while its slots were being checked.</summary>
+    private void IssueMemberCreates(string container, long generation, IReadOnlyList<PopulateMember> members,
+                                    List<(double Lat, double Lon, string Verdict)> slots, Force force)
+    {
+        var now = DateTime.UtcNow;
+        if (!_containers.MarkIssued(container, generation, now))
+        {
+            _log.LogWarning("POPULATE {Name}: the slot check finished after the population had ended ({Stage}) - NO member " +
+                            "is created.", container, _containers.StageOf(container));
+            return;
+        }
+        var plans = new List<CreationPlan>(members.Count);
+        var inputs = new List<PlacementInput>(members.Count);
+        for (int k = 0; k < members.Count; k++)
+        {
+            var m = members[k];
+            (double Lat, double Lon, string Verdict) s = k < slots.Count ? slots[k] : (m.LatDeg, m.LonDeg, "UNVERIFIED");
+            var memberPlan = ContainerTypeRule.MemberPlan(m, force, s.Lat, s.Lon);   // AGGREGATED, no subordinates
+            plans.Add(memberPlan);
+            inputs.Add(new PlacementInput(memberPlan.Type.Domain, null, null));
+            _log.LogInformation("{Line}",
+                $"POPULATE {container} slot {k + 1} of {members.Count}: {m.Name} ({m.Leaf.TemplateName}, {m.Leaf.Path}) at " +
+                Inv($"({s.Lat:F6},{s.Lon:F6}), bearing {m.BearingDeg:F1} deg from the container point - ") + s.Verdict + ".");
+        }
+        _log.LogInformation("POPULATE {Name}: {N} member create(s) issued AGGREGATED (UG52 Table 68 p1470), each an EMPTY " +
+                            "warfare-model unit with no subordinates of its own; the attach follows their ObjectCreated.",
+                            container, plans.Count);
+        if (IsLiveLikeAltitudeMode()) StartPlacementTerrainQuery(plans, inputs, "CONTAINER POPULATE " + container);
+        else EnqueueCreates(plans);
+    }
+
+    /// <summary>Tick phase: the populations' deadlines and the publication reads (every 250 ms at most).</summary>
+    private void SweepContainerPopulation()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextPopulateSweep) return;
+        _nextPopulateSweep = now.AddMilliseconds(250);
+        foreach (var ev in _containers.Sweep(now, _containerBridge)) LogPopulateEvent(ev);
+    }
+
+    private void LogPopulateEvent(PopulateEvent ev)
+    {
+        if (ev.Warning) _log.LogWarning("{Line}", ev.Text);
+        else _log.LogInformation("{Line}", ev.Text);
+    }
+
+    /// <summary>
+    /// TICK THREAD, at the committed dispatch point of ExecuteTaskOnTick (every deferral - route shift, terrain
+    /// profile - has already returned and re-entered). A CONTAINER MOVES ONLY THROUGH ITS OWN SCRIPTED TASK, which tasks
+    /// its members (PseudoAggregate.ope:115-117; design sec 6), and ONLY once it has PUBLISHED its members. FALSE = the
+    /// task is REFUSED here with TASKABRT: a memberless container's script ends at once (PA_Move_Along_Route.lua:152-155)
+    /// and would read as a success (RL-20260927-03). TRUE = go on: the FORM is decided with every other mover's
+    /// (VertexChainPolicy.FormFor in ExecuteTaskOnTick) - one point -> IssueContainerPointMove
+    /// (PA_Move_To_Location_Direct); a route -> the shared route arm's CreateRoute, then PA_Move_Along_Route
+    /// (PA_Patrol_Route for a patrol) in the route-created callback. Arrival evidence and the stall watchdog judge the
+    /// container's own centroid (D1 - UnitPositionPolicy.SourceFor gives AggregateLeaf: its members are units).
+    /// </summary>
+    private bool ContainerMayMove(OrderTask task, CreatedUnit unit, out int publishedMembers)
+    {
+        var verdict = _containers.MoveVerdict(unit.Name, DateTime.UtcNow);
+        publishedMembers = verdict.Members;
+        if (verdict.Ready) return true;
+        string reason = $"REFUSED: container {unit.Name} has no published members to move - {verdict.Reason}. A " +
+                        "memberless Aggregate Container's move ends at once and is never dispatched as a vacuous " +
+                        "success (RL-20260927-03)";
+        _log.LogError("Task '{Task}' {Reason}.", task.TaskName, reason);
+        _sequencer.NotifyAbandoned(task.TaskUuid);
+        PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason);
+        return false;
+    }
+
+    /// <summary>TICK THREAD: a container's single-point move - PA_Move_To_Location_Direct to the point, issued at
+    /// once (no route object), after ContainerMayMove said it has published members (RL-20260927-03).</summary>
+    private void IssueContainerPointMove(OrderTask task, CreatedUnit unit, string vrfUuid, List<Geodetic> routeGeo,
+                                         int publishedMembers)
+    {
+        var dest = routeGeo[^1];
+        string scriptId = ContainerScripts.ForForm(GroundMoveForm.SinglePointMoveTo, patrol: false);
+        var vars = ContainerScripts.ToLocation(dest.LatDeg, dest.LonDeg, dest.AltMeters);
+        MarkDispatched(task, unit, scriptId, dest, routeGeo);
+        _containers.TryIssueScriptedMove(unit.Name, vrfUuid, scriptId, vars, DateTime.UtcNow, _containerBridge);
+        _arrivalReported.TryRemove(unit.Name, out _);
+        ClearStallState(unit.Name);
+        _log.LogInformation("Task '{Task}': RunScriptedTask {Script} for CONTAINER {Name} ({Vrf}) with [{Vars}] - {N} " +
+                            "published member(s) (RL-20260927-03).", task.TaskName, scriptId, unit.Name, vrfUuid,
+                            string.Join(", ", vars), publishedMembers);
+    }
+
+    /// <summary>
+    /// D-6 (RL-20260927-04), TICK THREAD, from OnVrfTaskCompleted. TRUE = a CONTAINER's vendor completion of a MOVE with
+    /// its centroid farther than Vrf:VertexArrivalRadiusMeters from the route end: TASKCMPLT is WITHHELD - the task
+    /// stays in flight and arrival evidence / the time rules decide (RL-20260921-09), the progress watchdog reports a
+    /// unit that never gets there (RL-20260913-03). FALSE = the existing completion path runs.
+    /// </summary>
+    private bool WithholdShortContainerCompletion(string name, string vrfTaskType)
+    {
+        if (!_inFlight.TryGetCurrent(name, out var rec)) return false;
+        bool hasDestination = rec.DestLat is double && rec.DestLon is double;
+        double distance = double.NaN;
+        if (hasDestination && _names.TryGetUuid(name, out var uuid) && _bridge.TryGetEntityGeodetic(uuid, out var g))
+            distance = RouteExtentPolicy.GreatCircleMeters(g.LatDeg, g.LonDeg, rec.DestLat.Value, rec.DestLon.Value);
+        var verdict = ContainerCompletionPolicy.Decide(true, hasDestination, distance, _vrf.VertexArrivalRadiusMeters);
+        if (verdict == ContainerCompletionPolicy.Verdict.WithholdShort)
+        {
+            _log.LogWarning("CONTAINER {Name} task '{Task}': VR-Forces reported '{Type}' COMPLETE, but {Short} (farther than " +
+                            "Vrf:VertexArrivalRadiusMeters={R:F0} m) - TASKCMPLT is WITHHELD (D-6, RL-20260927-04). The " +
+                            "task stays in flight: arrival evidence and the start time + Duration rule decide its C2SIM " +
+                            "outcome (RL-20260921-09), and a container that never gets there is the progress watchdog's " +
+                            "(RL-20260913-03).", name, rec.TaskName, vrfTaskType ?? "",
+                            ContainerCompletionPolicy.ShortText(distance), _vrf.VertexArrivalRadiusMeters);
+            return true;
+        }
+        if (hasDestination)
+            _log.LogInformation("CONTAINER {Name} task '{Task}': VR-Forces reported '{Type}' COMPLETE with the container {D} " +
+                                "from the route end - handed on to the task's completion rules (D-6, RL-20260927-04).",
+                                name, rec.TaskName, vrfTaskType ?? "",
+                                double.IsFinite(distance)
+                                    ? FormattableString.Invariant($"{distance:F0} m")
+                                    : "(position unreadable - nothing claimed)");
+        return false;
     }
 
     /// <summary>Tick thread (review fix): a case-3 re-created unit is released for tasking when its NEW
@@ -3929,7 +4449,18 @@ public sealed class VrfC2SimService : BackgroundService
                 MaterializeUnit(task.TaskeeUuid, $"task '{task.TaskName}' performer");
                 if (!string.IsNullOrEmpty(task.AffectedEntity) && task.AffectedEntity != task.TaskeeUuid
                     && _unitByC2SimUuid.ContainsKey(task.AffectedEntity))
-                    MaterializeUnit(task.AffectedEntity, $"task '{task.TaskName}' affected entity");
+                {
+                    // C1, D-5 of RL-20260927-04: the PERFORMER only - an affected entity is not tasked, so it is not
+                    // hydrated (RL-20260927-03) and stays an empty container on the map. EntityLevel: unchanged.
+                    if (_containerMode)
+                        _log.LogInformation("Task '{Task}': its affected entity {Affected} is NOT populated - D-5 of " +
+                                            "RL-20260927-04, the performer only (RL-20260927-03: only a tasked unit is " +
+                                            "hydrated); it stays an empty container on the map.", task.TaskName,
+                                            _unitByC2SimUuid.TryGetValue(task.AffectedEntity, out var affected)
+                                                ? affected.Name : task.AffectedEntity);
+                    else
+                        MaterializeUnit(task.AffectedEntity, $"task '{task.TaskName}' affected entity");
+                }
             }
             var t = task;
             var u = unit;
@@ -4075,14 +4606,24 @@ public sealed class VrfC2SimService : BackgroundService
             // ComposeHierarchy guard is gone: _compositionReady is only ever populated by the compose,
             // expand and materialize paths, so its presence is the condition.
             var gates = new List<string> { unit.Name };
-            if (_vrf.MaterializeAtOrder && !string.IsNullOrEmpty(task.AffectedEntity)
+            // C1: on the aggregate model set the affected entity is never populated (D-5 of RL-20260927-04), so no
+            // task waits on it.
+            if (_vrf.MaterializeAtOrder && !_containerMode && !string.IsNullOrEmpty(task.AffectedEntity)
                 && task.AffectedEntity != task.TaskeeUuid
                 && _unitByC2SimUuid.TryGetValue(task.AffectedEntity, out var affectedUnit))
                 gates.Add(affectedUnit.Name);
             foreach (var gateName in gates)
             {
                 if (!_compositionReady.TryGetValue(gateName, out var readyTcs) || readyTcs.Task.IsCompleted) continue;
-                var composeBound = TimeSpan.FromSeconds(_vrf.CompositionTimeoutSeconds + 30);
+                // C1: a CONTAINER's gate is its population's (RL-20260927-03), bounded by
+                // Vrf:ContainerPopulateTimeoutSeconds from the moment the population begins - which the init barrier
+                // may hold back - so this backstop outlives both, and the population's own TimedOut ending (a MOVE
+                // refused with TASKABRT) is always what a hung population produces, never "dispatching anyway".
+                var composeBound = TimeSpan.FromSeconds(IsContainerUnit(gateName)
+                    ? ContainerPopulateTimeoutSeconds() + DispatchReadiness.BarrierSeconds(
+                          _vrf.DispatchReadinessTimeoutSeconds, _vrf.CompositionTimeoutSeconds,
+                          _vrf.TerrainProfileTimeoutSeconds) + ContainerStartup.PopulateSlackSeconds
+                    : _vrf.CompositionTimeoutSeconds + 30);
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken);
                 var done = await Task.WhenAny(readyTcs.Task, Task.Delay(composeBound, cts.Token));
                 if (done == readyTcs.Task) cts.Cancel();   // stop the timer
@@ -4233,7 +4774,12 @@ public sealed class VrfC2SimService : BackgroundService
         // formation messages of this task are captured too (UG52 21.9.1 p483).
         if (_vrf.ObjectConsoleMemberNotifyLevel >= 0 && unit.IsAggregate)
         {
-            var consoleMembers = _bridge.GetAggregateMembers(vrfUuid);
+            // C1: a container's members are UNITS (sub-aggregates), which GetAggregateMembers does not list (it keeps
+            // entities) - so they come from the population's own record, with the uuids their ObjectCreated bound.
+            var consoleMembers = unit.IsContainer
+                ? _containers.MembersOf(unit.Name).Where(m => !string.IsNullOrEmpty(m.Uuid))
+                                                  .Select(m => new AggregateMember { Uuid = m.Uuid, Name = m.Name }).ToList()
+                : _bridge.GetAggregateMembers(vrfUuid);
             if (consoleMembers is { Count: > 0 })
             {
                 // N5 (D7 harvest): DE-DUPLICATE BEFORE REQUESTING, AND SAY HOW MANY ARE DISTINCT.
@@ -4326,7 +4872,13 @@ public sealed class VrfC2SimService : BackgroundService
         // (an ESCRT task may carry no route points, which would otherwise error below). Anything
         // but a distinct escorted entity -> the task's geometry (R3): fall through to the movement
         // below, and - when there is no geometry either - to R2's in-place execution.
-        if (verb.Intent == TaskIntent.Escort)
+        // C1: an Aggregate Container has no follow controller (PseudoAggregate.ope :42-131 - its tasks are the PA_*
+        // scripts), so a DtFollowEntityTask would be a silent no-op on it; it takes the task's own geometry instead,
+        // exactly as an ESCRT without a distinct escorted entity already does (R3).
+        if (verb.Intent == TaskIntent.Escort && unit.IsContainer)
+            _log.LogInformation("ESCRT task '{Task}': {Name} is an Aggregate Container, which has no follow task - it " +
+                                "takes the task's own geometry (C1, RL-20260927-03).", task.TaskName, unit.Name);
+        else if (verb.Intent == TaskIntent.Escort)
         {
             string follow = ResolveAffectedTarget(task, vrfUuid, "ESCRT", "escort", out _);
             if (follow != null)
@@ -4715,7 +5267,9 @@ public sealed class VrfC2SimService : BackgroundService
         // and drive to routeGeo[^1]. Shifting there would cost the search, change nothing the
         // unit drives, and REPORT a detour to the C2 side that never happened - the one thing
         // this feature must never do.
-        bool routeWillBeCollapsed = unit.IsAggregate
+        // C1: a CONTAINER never takes those two aggregate branches (its move is its own scripted task, below), so its
+        // route is never collapsed and the shift runs for it like for any other ground move.
+        bool routeWillBeCollapsed = unit.IsAggregate && !unit.IsContainer
             && (!string.IsNullOrEmpty(_vrf.MoveIntoFormation) || _vrf.AggregatePlanAndMove);
         if (shiftedRoute != null)
             routeGeo = shiftedRoute;
@@ -4878,6 +5432,14 @@ public sealed class VrfC2SimService : BackgroundService
         // the fix (distinct C2SimUuid/VrfUuid types) is a later Phase 4 item.
         _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
 
+        // C1 (RL-20260927-03): A POPULATED AGGREGATE CONTAINER MOVES ONLY THROUGH ITS OWN SCRIPTED TASK - never
+        // MoveIntoFormation / PlanAndMoveTo / a formation set / MoveAlongRoute, which it has no controller for
+        // (PseudoAggregate.ope:40-131), so the three aggregate branches below exclude it - and ONLY once it has
+        // PUBLISHED its members: refused here with TASKABRT otherwise. Its FORM is decided with every other mover's
+        // (VertexChainPolicy.FormFor, below) and issued on the same arms. EntityLevel: IsContainer is never true.
+        int containerMembers = 0;
+        if (unit.IsContainer && !ContainerMayMove(task, unit, out containerMembers)) return;
+
         // LAYER 2 - Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. For an
         // AGGREGATE, when Vrf:MoveIntoFormation is set, issue DtMoveIntoFormationTask to the
         // route's FINAL point in the named formation INSTEAD of moveAlongRoute + SetAggregateFormation
@@ -4885,7 +5447,7 @@ public sealed class VrfC2SimService : BackgroundService
         // Wedge alone; PORT.md sec 10). Aggregate-only + opt-in, so entity moves are unchanged (golden
         // parity). This collapses intermediate waypoints to the destination (the diagnostic "does the
         // set move in formation" path); it takes precedence over the Wedge enrichment for aggregates.
-        if (unit.IsAggregate && !string.IsNullOrEmpty(_vrf.MoveIntoFormation))
+        if (unit.IsAggregate && !unit.IsContainer && !string.IsNullOrEmpty(_vrf.MoveIntoFormation))
         {
             var dest = routeGeo[^1];
             double headingDeg = BearingDeg(routeGeo[0], dest);
@@ -4910,7 +5472,7 @@ public sealed class VrfC2SimService : BackgroundService
         // MoveAlongRoute - does the planner produce a path where the move-along leader plan
         // is EMPTY (the R9 Mojave finding)? Waypoint creation is async like routes: the
         // task is deferred to the waypoint's ObjectCreated.
-        if (unit.IsAggregate && _vrf.AggregatePlanAndMove)
+        if (unit.IsAggregate && !unit.IsContainer && _vrf.AggregatePlanAndMove)
         {
             string wptName = task.TaskName + " WPT";
             _names.Requested(wptName);   // B3: the waypoint's ObjectCreated is matched by this name
@@ -4936,7 +5498,7 @@ public sealed class VrfC2SimService : BackgroundService
         // (the C++ spike used SetAggregateFormation + DtSleep(.5) right before MoveAlongRoute).
         // "auto" = E1 (guidance sec 4): resolve the name PER CREATED TYPE - formation names
         // are per-unit-type and CASE-INCONSISTENT, so one global name can never fit all.
-        if (!string.IsNullOrEmpty(_vrf.AggregateFormation))
+        if (!unit.IsContainer && !string.IsNullOrEmpty(_vrf.AggregateFormation))
         {
             string formation = _vrf.AggregateFormation;
             if (formation.Equals("auto", StringComparison.OrdinalIgnoreCase))
@@ -4980,6 +5542,12 @@ public sealed class VrfC2SimService : BackgroundService
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
         if (moveForm == GroundMoveForm.SinglePointMoveTo)
         {
+            // C1 (RL-20260927-03): a container's single point is its own PA_Move_To_Location_Direct.
+            if (unit.IsContainer)
+            {
+                IssueContainerPointMove(task, unit, vrfUuid, routeGeo, containerMembers);
+                return;
+            }
             MarkDispatched(task, unit, "move-to", routeGeo[^1], routeGeo);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _arrivalReported.TryRemove(unit.Name, out _);
@@ -5017,7 +5585,7 @@ public sealed class VrfC2SimService : BackgroundService
         // 0 members -> loud log + normal aggregate move. Completion: the unit's TASKCMPLT
         // is synthesized when ALL fanned members complete (FanOutTracker).
         IReadOnlyList<AggregateMember>? fanOutMembers = null;
-        if (_vrf.SubordinateFanOut && unit.IsAggregate && !patrol)
+        if (_vrf.SubordinateFanOut && unit.IsAggregate && !unit.IsContainer && !patrol)
         {
             var members = _bridge.GetAggregateMembers(vrfUuid);
             if (members is { Count: > 0 })
@@ -5032,13 +5600,18 @@ public sealed class VrfC2SimService : BackgroundService
                                 "member entities - falling back to the aggregate-level move.",
                                 task.TaskName, unit.Name, vrfUuid);
         }
-        routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol, FanOutMembers: fanOutMembers));
+        // C1 (RL-20260927-03): a CONTAINER's route move is its own scripted task on the route object
+        // (PA_Move_Along_Route, PA_Patrol_Route for a patrol), issued by the route-created callback; null otherwise.
+        string containerScript = unit.IsContainer ? ContainerScripts.ForForm(moveForm, patrol) : null;
+        routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol, FanOutMembers: fanOutMembers,
+                                                ScriptId: containerScript,
+                                                ContainerName: unit.IsContainer ? unit.Name : null));
         _pendingRouteUnit[routeName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
         // The unit is committed to this move now (the route-created callback issues the
         // along-route task); record it so the completion attributes here (P0.1) and any
         // engage below gates on it (P0.3).
-        MarkDispatched(task, unit, patrol ? "patrol" : "move-along", patrol ? (Geodetic?)null : routeGeo[^1],
-                       patrol ? null : routeGeo);
+        MarkDispatched(task, unit, containerScript ?? (patrol ? "patrol" : "move-along"),
+                       patrol ? (Geodetic?)null : routeGeo[^1], patrol ? null : routeGeo);
         if (fanOutMembers != null)
         {
             _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name),
@@ -5057,8 +5630,13 @@ public sealed class VrfC2SimService : BackgroundService
         if (attackTargetVrf != null)
             DeferEngageUntilMoveCompletes(unit, task, vrfUuid, attackTargetVrf);
         _bridge.CreateRoute(routeGeo, routeName);
-        _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; {Action} deferred to route-created.",
-                            task.TaskName, routeName, routeGeo.Count, unit.Name, patrol ? "patrol" : "move");
+        if (containerScript != null)
+            _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for CONTAINER {Name} - {N} published " +
+                                "member(s); RunScriptedTask {Script} deferred to route-created (RL-20260927-03).",
+                                task.TaskName, routeName, routeGeo.Count, unit.Name, containerMembers, containerScript);
+        else
+            _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; {Action} deferred to route-created.",
+                                task.TaskName, routeName, routeGeo.Count, unit.Name, patrol ? "patrol" : "move");
     }
 
     /// <summary>
@@ -5920,6 +6498,13 @@ public sealed class VrfC2SimService : BackgroundService
             && (_compositions.ContainsKey(name) || _childToParent.ContainsKey(name)))
             TryAdvanceComposition(name, e.Uuid);
 
+        // C1 (RL-20260927-03): a MEMBER of a container being populated has been created - when the last one arrives
+        // every member is attached to the container, in planned order (ContainerPopulator.OnMemberCreated). Tick
+        // thread: the AddToOrganization calls inside are safe here.
+        if (_containerMode && !string.IsNullOrEmpty(name) && _containers.IsMember(name, out _))
+            foreach (var ev in _containers.OnMemberCreated(name, e.Uuid, DateTime.UtcNow, _containerBridge))
+                LogPopulateEvent(ev);
+
         // ORDER-TIME MATERIALIZATION case 3 (C13): a shell that was deleted and re-created as its
         // TEMPLATE has arrived. Re-attach it under its superior shell (if it had one) and release the
         // task waiting on it. _names already carries the NEW uuid (bound at the top).
@@ -5970,7 +6555,8 @@ public sealed class VrfC2SimService : BackgroundService
             && _vrf.AggregateFormation.Equals("auto", StringComparison.OrdinalIgnoreCase)
             && _c2SimUuidByName.TryGetValue(name, out var createdC2SimUuid)
             && _unitByC2SimUuid.TryGetValue(createdC2SimUuid, out var createdUnit)
-            && createdUnit.IsAggregate)
+            && createdUnit.IsAggregate
+            && !createdUnit.IsContainer)   // C1 (RL-20260927-03): a container is moved only by its PA_* scripts
         {
             // (the uuid -> name binding is already in _names from the Bind at the top)
             _bridge.RequestAvailableFormations(e.Uuid);
@@ -6010,7 +6596,26 @@ public sealed class VrfC2SimService : BackgroundService
                 _arrivalReported.TryRemove(issuedForUnit, out _);
                 ClearStallState(issuedForUnit);
             }
-            if (pending.Patrol)
+            if (!string.IsNullOrEmpty(pending.ScriptId))
+            {
+                // C1 (RL-20260927-03): a POPULATED CONTAINER's route move - its own scripted task on the route object,
+                // by the route's REAL uuid (the same reason MoveAlongRoute takes it, below), with the vendor plan's
+                // values (ContainerScripts). Issued through the population, which sends it ONLY to a container that
+                // has published its members (checked at dispatch, re-checked here).
+                var vars = ContainerScripts.ForRoute(pending.ScriptId, e.Uuid);
+                var verdict = _containers.TryIssueScriptedMove(pending.ContainerName, pending.TaskeeVrfUuid,
+                                                               pending.ScriptId, vars, DateTime.UtcNow, _containerBridge);
+                if (verdict.Ready)
+                    _log.LogInformation("Route '{Route}' ({RouteUuid}) created; RunScriptedTask {Script} issued for CONTAINER " +
+                                        "{Name} ({Vrf}) with [{Vars}] - {N} published member(s) (RL-20260927-03).",
+                                        name, e.Uuid, pending.ScriptId, pending.ContainerName, pending.TaskeeVrfUuid,
+                                        string.Join(", ", vars), verdict.Members);
+                else
+                    _log.LogError("Route '{Route}' ({RouteUuid}) created, but RunScriptedTask {Script} was NOT issued for " +
+                                  "CONTAINER {Name}: {Why}.", name, e.Uuid, pending.ScriptId, pending.ContainerName,
+                                  verdict.Reason);
+            }
+            else if (pending.Patrol)
             {
                 _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Uuid);
                 _log.LogInformation("Route '{Route}' ({RouteUuid}) created; PatrolRoute issued for {Vrf} (Reconnoiter).",
@@ -8302,12 +8907,28 @@ public sealed class VrfC2SimService : BackgroundService
         // is TaskStatusPolicy.CodeForCompletion(success, taskContinues) -> TASKABRT, no successor
         // release, no parked engage (SynthesizeUnitCompletion; --report-selftest covers both).
         bool success = e.Success;
+        // C1 (RL-20260927-03): a MEMBER of a populated container reports its own steps of the container's scripted
+        // task ("move-along", then "move-to-location-retrograde-task" - PA_Move_Along_Route.lua :75-78, :133). They
+        // are the container's business: said at Debug, never a C2SIM completion; the CONTAINER reports.
+        if (_containerMode && !string.IsNullOrEmpty(marking) && _containers.IsMember(marking, out var memberOf))
+        {
+            _log.LogDebug("VRF task complete: CONTAINER MEMBER {Member} of {Container} / {Task} (success={Ok}) - a step of " +
+                          "its container's scripted task; the container reports (C1).", marking, memberOf, e.TaskType,
+                          success);
+            return;
+        }
         _log.LogInformation("VRF task complete: {Unit} / {Task} (success={Ok})", marking, e.TaskType, success);
         // RL-20260927-01: A LONE PLATFORM'S VERTEX CHAIN SEES ITS COMPLETIONS FIRST - before the watchdog reset,
         // the arrival swallow and the completion below, none of which an INTERMEDIATE vertex may reach: it
         // issues the next Move To (re-entering the tick thread) and stops here. The LAST vertex and a vendor
         // FAILURE end the chain and fall through to everything below, unchanged.
         if (!string.IsNullOrEmpty(marking) && ConsumeVertexChainCompletion(marking, e.TaskType, success)) return;
+        // C1, D-6 of RL-20260927-04: a CONTAINER's vendor completion of a MOVE with its centroid short of the route end
+        // is WITHHELD - before the watchdog's window is dropped below, because the task is NOT over for us: arrival
+        // evidence and the time rules decide it (RL-20260921-09), the watchdog reports a container that never gets
+        // there (RL-20260913-03). A task arrival evidence already reported is left to its swallow below.
+        if (success && IsContainerUnit(marking) && !_arrivalReported.ContainsKey(marking)
+            && WithholdShortContainerCompletion(marking, e.TaskType)) return;
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).

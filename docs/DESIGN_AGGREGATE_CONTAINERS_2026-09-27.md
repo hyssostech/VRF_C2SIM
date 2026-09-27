@@ -7,6 +7,21 @@ when its order arrives). With data/unit-composition-52-aggregate.json (DRAFT) an
 whose `--tree --init-census --twins --vendor` (GATE PASS) and `--selftest` (PASS) reproduce the census, vendor, twin,
 footprint, ring and composition numbers. [V] = read at the cited file:line/page; [A] = assumed. Code lines: main 53215e9.
 
+STATUS 2026-09-27: BUILT OFFLINE on feat/aggregate-containers (from main 0fe0734; not merged) under RL-20260927-02,
+RL-20260927-03 and RL-20260927-04 (D-1..D-8) - `--populate-selftest` (121 checks) and composition_check.py pass; NOT yet
+run live, G1 is its first run (RUNBOOK sec 11i). Deviations from secs 6-8, each deliberate: (a) a container's TYPE is the
+sec 3 rule applied in code (ContainerTypeRule), not rewritten type-map rows - the rows are lane C2's
+(feat/aggregate-authored-units); the row id stays the composition key and typemap_check.py is untouched. (b)
+PublishedSubordinateCount (sec 8 item 4) is written in VrfFacade/VrfBridge but NOT COMPILED here (no C++ toolset on this
+machine); the app binds it by reflection and the aggregate model set REFUSES TO START without it, so G1 needs a native
+/t:Rebuild of the bridge and all eleven consumers. (c) Sec 8 item 3's "gate opens ... at CompositionTimeoutSeconds with a
+WARN" is replaced by a bound (Vrf:ContainerPopulateTimeoutSeconds, derived 85 s) whose expiry REFUSES the unit's moves
+(TASKABRT); members not created by its last CompositionTimeoutSeconds are left out by name. (d) D-6 measures against
+Vrf:VertexArrivalRadiusMeters (100 m), the existing last-vertex bar (sec 10 said ArrivalRadiusMeters). (e) The script ids
+are sent in their XML case (PA_Move_Along_Route), which the vendor's own Lua also sends (group-attack-to-objective.lua:533;
+UG52 36.2.1 p753: ids are lower-cased internally). (f) No Vrf:AggregateNesting: FLAT only (D-8); Nested stays a follow-up.
+(g) No runner Stage 0 pairing of Vrf:CompositionFile; the app validates and logs every row at start-up instead.
+
 ## 1. The five questions
 
 (1) ONLY A CONTAINER HOLDS SUBORDINATES. UG52 72.2.1 p1419: "the aggregate-level simulation objects that are configured

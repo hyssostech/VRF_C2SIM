@@ -21,6 +21,14 @@ public sealed class SimObjectTemplate
     // attach so a MANEUVER sub-unit leads. Parallel to Subordinates; --typemap-selftest keeps using
     // Subordinates (int[]) unchanged.
     public IReadOnlyList<SubordinateSpec> SubordinateSpecs { get; init; } = Array.Empty<SubordinateSpec>();
+    // C1 (RL-20260927-02, RL-20260927-03): the PLATFORM file the template is built on, as a file name
+    // ("AggregateLevelAggregate.ope", "PseudoAggregate.ope"; "" when absent). On the aggregate model set it IS the
+    // role: a warfare-model UNIT or an Aggregate CONTAINER (UG52 72.2.1 p1419; ResolverCatalogue.RoleOfPlatform).
+    public string Platform { get; init; } = "";
+    // C1 (design sec 5): the Travel-posture footprint RADIUS in metres, Base-Physical-Footprint x
+    // Footprint-Posture-Travel-Modifier (UG52 27.1.2-27.1.3: a unit is created in Travel), or null when the
+    // template carries no footprint. Read the way tools/aggregate/composition_check.py travel_footprint reads it.
+    public double? TravelFootprintMeters { get; init; }
 
     public bool IsUnit => ObjectType is { Length: 8 } && ObjectType[0] == 3;
     public override string ToString() => Name;
@@ -158,7 +166,101 @@ public sealed class ObjectTypeResolver
                                      ParseType((string)s.Attribute("objectType"), out _),
                                      ((string)s.Attribute("functionHandle") ?? "").Trim()))
                                  .Where(s => s.ObjectType != null).ToList(),
+                Platform = PlatformFileName((string)so.Attribute("platform")),
+                TravelFootprintMeters = TravelFootprint(so),
             };
+        }
+    }
+
+    // "@(platforms-dir)\AggregateLevelAggregate.ope" -> "AggregateLevelAggregate.ope" (survey_magx.py: basename).
+    private static string PlatformFileName(string platform)
+    {
+        string p = (platform ?? "").Trim().Replace('\\', '/');
+        int slash = p.LastIndexOf('/');
+        return slash >= 0 ? p.Substring(slash + 1) : p;
+    }
+
+    // composition_check.py travel_footprint: every <real> of the simObject, the LAST occurrence of a name winning
+    // (the python reads them into a dict); the Travel modifier defaults to 1.0 when the template does not carry one.
+    private static double? TravelFootprint(XElement so)
+    {
+        double? baseM = null, mod = null;
+        foreach (var r in so.Descendants("real"))
+        {
+            string n = (string)r.Attribute("paramName");
+            if (n != "Base-Physical-Footprint" && n != "Footprint-Posture-Travel-Modifier") continue;
+            if (!double.TryParse((r.Value ?? "").Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                continue;
+            if (n == "Base-Physical-Footprint") baseM = v; else mod = v;
+        }
+        return baseM is double b ? b * (mod ?? 1.0) : null;
+    }
+
+    /// <summary>
+    /// C1 (RL-20260927-03; design sec 7 "GetResolver rooted at the model set"): the chain rooted at an EXACT model set,
+    /// with NO fallback - a missing root returns null, never a silently different catalogue (LoadChain falls back to
+    /// EntityLevel for the 5.0.2 C2simEx case and stays as it is). <paramref name="sms"/> is a model-set NAME in
+    /// data/simulationModelSets ("AggregateTacticalLevel") or a ROOTED path to a derived .sms outside the install
+    /// (the tools/sms recipe writes them under C:\C2SIM\vrf-sms): its own model-set-directory is resolved beside it,
+    /// and its include lines are followed by file name into data/simulationModelSets - the vendor's layout
+    /// (UG52 68.3.1-68.3.3 p1310-1312: the including SMS has the higher priority, so it is read FIRST and wins ties).
+    /// </summary>
+    public static ObjectTypeResolver LoadModelSetChain(string vrfHome, string sms)
+    {
+        if (string.IsNullOrWhiteSpace(sms)) return null;
+        string setsDir = ModelSetsDir(vrfHome);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var dirs = new List<string>();
+        string root;
+        if (Path.IsPathRooted(sms))
+        {
+            if (!File.Exists(sms)) return null;
+            root = sms;
+            string text = File.ReadAllText(sms);
+            var dir = Regex.Match(text, @"\(model-set-directory\s+""([^""]*)""\)");
+            string own = dir.Success && dir.Groups[1].Value.Length > 0
+                ? dir.Groups[1].Value : Path.GetFileNameWithoutExtension(sms);
+            dirs.Add(Path.IsPathRooted(own) ? own : Path.Combine(Path.GetDirectoryName(sms) ?? "", own));
+            seen.Add(Path.GetFileNameWithoutExtension(sms));
+            foreach (Match m in Regex.Matches(text, @"\(include\s+""([^""]*)""\)"))
+            {
+                string inc = Path.GetFileNameWithoutExtension(m.Groups[1].Value.Replace('\\', '/'));
+                if (inc.Length > 0) Follow(inc);
+            }
+        }
+        else
+        {
+            string name = sms.EndsWith(".sms", StringComparison.OrdinalIgnoreCase) ? sms[..^4] : sms;
+            if (!File.Exists(Path.Combine(setsDir, name + ".sms"))) return null;
+            root = name;
+            Follow(name);
+        }
+
+        var templates = new List<SimObjectTemplate>();
+        var used = new List<string>();
+        _sevenField = 0;
+        foreach (string d in dirs)
+        {
+            string vrfSim = Path.Combine(d, "vrfSim");
+            if (!Directory.Exists(vrfSim)) continue;
+            used.Add(vrfSim);
+            foreach (string f in Directory.EnumerateFiles(vrfSim, "*.entity").OrderBy(x => x, StringComparer.Ordinal))
+                templates.AddRange(ReadEntityFile(f));
+        }
+        return new ObjectTypeResolver(templates, used) { RootSms = root, SevenFieldTypes = _sevenField };
+
+        void Follow(string smsName)
+        {
+            string path = Path.Combine(setsDir, smsName + ".sms");
+            if (!File.Exists(path) || !seen.Add(smsName)) return;
+            string text = File.ReadAllText(path);
+            var dir = Regex.Match(text, @"\(model-set-directory\s+""([^""]*)""\)");
+            dirs.Add(Path.Combine(setsDir, dir.Success && dir.Groups[1].Value.Length > 0 ? dir.Groups[1].Value : smsName));
+            foreach (Match m in Regex.Matches(text, @"\(include\s+""([^""]*)""\)"))
+            {
+                string inc = Path.GetFileNameWithoutExtension(m.Groups[1].Value.Replace('\\', '/'));
+                if (inc.Length > 0) Follow(inc);
+            }
         }
     }
 

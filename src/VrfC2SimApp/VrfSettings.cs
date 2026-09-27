@@ -1175,4 +1175,32 @@ public class VrfSettings
     // is no longer the place STP named, so it is KEPT and reported for STP authoring instead. 300 m
     // is half the lateral shift's +/-600 m band. 0 = check and report, never move.
     public double PreflightVertexNudgeMaxMeters { get; set; } = 300.0;
+
+    // ============== POPULATED AGGREGATE CONTAINERS (C1) ==================================================
+    // RL-20260927-02 (hostile RUS; populate the containers, not proxies), RL-20260927-03 (every unit an EMPTY
+    // container at init at its authored position; ONLY a tasked unit is populated, in place, when its order
+    // arrives), RL-20260927-04 (D-1..D-8). All of it is keyed on ModelSet above: on "AggregateTacticalLevel" every
+    // in-scope unit is an Aggregate Container and nothing else changes; on EntityLevel NONE of these keys is read.
+    // docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md; RUNBOOK sec 11i.
+
+    // The authored composition table: what a tasked container is populated with when neither its STP TO nor its
+    // template configures members (design sec 4.1 (3); FM 3-96 doctrine, D-2). Resolved like TypeMapFile (working
+    // directory, then the app directory and every directory above it). Its gate is
+    // tools/aggregate/composition_check.py; the app validates every row against the catalogue at start-up.
+    public string CompositionFile { get; set; } = CompositionTable.DefaultFile;
+
+    // The catalogue the container rule and the composition resolve against. "" = the model set's own SMS in
+    // VrfHome\data\simulationModelSets (AggregateTacticalLevel). A ROOTED path names a DERIVED .sms (the C2 lane's
+    // authored US unit types, tools/sms recipe) - so new composition rows that name those types are accepted with no
+    // code change. Must be the SMS the fixture loads, or the sim will not know the types the app creates.
+    public string CatalogueSms { get; set; } = "";
+
+    // THE PUBLICATION GATE'S BOUND, in WALL seconds from the moment an order starts a container's population: the
+    // slot check, the member creates, the attach and the container PUBLISHING its members must all have happened by
+    // then, or the container's MOVE tasks are refused with TASKABRT (never dispatched to an empty container).
+    // 0 = derived: PreflightRouteShiftTimeoutSeconds (the slot check's worker) + TerrainProfileTimeoutSeconds (the
+    // member placement query) + 2 x CompositionTimeoutSeconds (the creates' round trip, then the publication window)
+    // + 15 s of slack = 85 s at the shipped values. The last CompositionTimeoutSeconds of it is the publication
+    // window: members that have not been created by then are left out, and the rest are attached and awaited.
+    public double ContainerPopulateTimeoutSeconds { get; set; } = 0.0;
 }

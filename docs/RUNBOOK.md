@@ -3800,6 +3800,63 @@ a PLAN gate (DONE 2026-09-25 by the completion unit, to the owner's TEMPORARY po
 scope approved as RL-20260925-01: `docs/CORRECTIONS_LOG.md` F-4). That is a design statement, separate from the measurement in the paragraph above, which
 stands unchanged. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
+### 11i. THE AGGREGATE PROFILE - EVERY UNIT AN EMPTY CONTAINER, THE TASKED ONE POPULATED IN PLACE (C1, 2026-09-27)
+
+Rulings RL-20260927-02 (hostile RUS; populate the containers, not proxies), RL-20260927-03 (every unit an EMPTY
+container at init at its authored position; ONLY a tasked unit populated, in place, when its order arrives) and
+RL-20260927-04 (D-1..D-8). Design: `docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md`. Code: branch
+`feat/aggregate-containers`. OFFLINE-PROVEN ONLY (`--populate-selftest`, `tools/aggregate/composition_check.py`);
+G1 is its first live run.
+
+ONLY ON `Vrf:ModelSet=AggregateTacticalLevel` (read through VrfSettings, the key the M2 pre-flight reads). On
+EntityLevel nothing changes - shells and platforms exactly as before - and the start-up says so once:
+`AGGREGATE CONTAINERS off (...)`. On the aggregate model set:
+
+- INIT: every ground unit the fidelity table maps is created as an EMPTY Aggregate Container (UG52 72.2.1 p1419),
+  Disaggregated, with no members, at its authored (or de-stacked) position. Its type is the design's init rule
+  (`ContainerTypeRule`, sec 3): the nation of its mapped row (RUS 260 for the hostile side), the echelon from SIDC
+  position 12 (else the C2SIM EchelonCode), the branch from the SIDC function ID - the NEAREST branch where the
+  catalogue has none, said on the unit's TYPE MAP line (a nearest-branch container is a PROXY for R-SURFACE-PROXY).
+  Iron Storm: 36 containers, 7 of them of the nearest branch. The census line is
+  `CreationPolicy=AtOrder (C13) on the AGGREGATE model set: 36 container(s) created EMPTY at their authored positions`
+  `(RL-20260927-03) ...`. TO twins are ordinary empty containers (D-7).
+- ORDER: only a task's PERFORMER is populated (D-5 - an affected entity gets one INFO line and stays empty), IN PLACE,
+  the first time an order names it. Source, in order: its declared STP TO subordinates (attached, each populated in
+  turn - nested; cut A never reaches it), else its container template's configured members, else the row of
+  `Vrf:CompositionFile` that claims its type-map row id. Sub-containers are FLATTENED to their leaves (D-8). Every
+  member is created AGGREGATED (UG52 Table 68 p1470) on ONE centroid-preserving ring round the container (spacing 2 x
+  the largest Travel footprint of a company-or-below member; 48 IBCT: 17 members, radius 490 m), each slot through
+  the M2 point test (a wet or built-on slot is moved to the nearest clear ground and said; with the route-shift
+  pre-flight off or unable to score, the slot is kept and logged UNVERIFIED), then attached with AddToOrganization.
+  NOTHING IS DELETED: MaterializeUnit's delete-and-recreate never runs for a container.
+- THE PUBLICATION GATE: the unit's tasks wait until the container PUBLISHES its members -
+  `VrfBridge.PublishedSubordinateCount`, the published sub-aggregates plus entities of its aggregate state. Bound:
+  `Vrf:ContainerPopulateTimeoutSeconds` (0 = derived, 85 s at the shipped values); members not created by the last
+  `Vrf:CompositionTimeoutSeconds` of it are left out, by name. Past the bound: `POPULATE <unit>: POPULATE TIMED OUT
+  ... - its MOVE tasks are REFUSED (TASKABRT)`. No composition at all: `POPULATE <unit> (...) REFUSED - ...`, the
+  same refusal of every move. A HOLD (CNFPSL, ExecutePlanPhase) stays a hold either way.
+- TASKING: the container's own scripted task, by the vendor XML's myScriptId - `PA_Move_Along_Route` on a route
+  (CreateRoute first, as today; route, reverseDirection false, startAtClosestVertex false - the Road to Kaunas
+  plan's values), `PA_Move_To_Location_Direct` to a single point, `PA_Patrol_Route` for a patrol. A member's own
+  completions are logged at Debug; the container reports. Arrival evidence and the stall watchdog judge the
+  container's own centroid (D1, unchanged). The opt-in aggregate probes (Vrf:MoveIntoFormation,
+  Vrf:AggregatePlanAndMove, Vrf:AggregateFormation, Vrf:SubordinateFanOut) never apply to a container.
+- D-6: a vendor completion of a container's move with its centroid farther than `Vrf:VertexArrivalRadiusMeters`
+  (100 m) from the route end is WITHHELD - `... completed short: <D> m from the route end ...` - and arrival
+  evidence and the time rules decide it (RL-20260921-09); a container that never gets there is the watchdog's
+  (RL-20260913-03).
+
+PREREQUISITES, checked at start-up; a missing one is `AGGREGATE CONTAINERS (...) - REFUSING TO START: ...`:
+`Vrf:CreationPolicy=AtOrder` (scripts/RunScenario.sh exports it), `Vrf:TypeMappingMode=FidelityTable`, the
+aggregate catalogue (`Vrf:VrfHome` or MAK_VRFDIR; `Vrf:CatalogueSms` names a derived .sms when the lane-C2 authored
+types live in one), `Vrf:CompositionFile` (default `data/unit-composition-52-aggregate.json`; every row is resolved
+against the catalogue and logged), and A REBUILT BRIDGE. PublishedSubordinateCount is a NEW native member
+(`src/VrfFacade/VrfFacade.cpp`), bound by reflection so the managed build compiles against the pinned bridge - and
+the pinned `VrfBridge.dll` (90272bc9...) does NOT carry it. The deploy for G1 is therefore a native `/t:Rebuild` of
+the bridge plus all eleven consumers (sec 9), on a machine WITH the C++ toolset: on 2026-09-27 this one had none
+(MSBuild MSB4019 on Microsoft.Cpp.Default.props; no VC\Tools\MSVC under VS 18), so the native member is written and
+source-checked but NOT compiled.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
