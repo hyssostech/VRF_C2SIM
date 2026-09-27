@@ -3492,6 +3492,7 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 5195: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
+- RESULT 2026-09-27 (lane E2, IRONSTORM_CUTA_E2-2026-09-27-1, STOPPED at P4; run 20260927T205652Z_run manifest + runner log runs/launch52/RunScenario-ironstorm-e2-20260927T205651Z.log + rtiexec count-grep): the persistent holder 5170 (RtiProbe pid 45600) REUSED, nothing claimed for it. Runner block: 5185 (back end, pid 33060, force-stopped by identity at teardown, StopVrf exit 6), 5187 (WatchVrf pre-check), 5188 (WatchVrf trace, pid 5404), 5189 (VrfC2SimApp, pid 28416, exit 0), 5190 (Stage 2c RtiProbe), 5192 (Stage 2h holder attempt 1, pid 35276, joined in 3 s, left inside its 900 s hold) CONSUMED; 5186 (--no-gui), 5191 (oracle gate passed), 5193-5195 BURNED. No other hand claim. Marker 5185 -> 5196 (written by the runner).
 
 *** NEXT FREE: 5196 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)

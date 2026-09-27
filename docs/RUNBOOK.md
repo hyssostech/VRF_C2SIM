@@ -2754,6 +2754,11 @@ no Duration and no geometry is malformed and is refused, not held (below).
   `Get-VertexChainNames`, suite section 9b); the offline tools
   movement_check, stall_replay, straggler_track, taskee_displacement and console_narrative read the same lines through
   `tools\analysis\applog_chain.py` (`--selftest`), where only the LAST vertex's completion is the task's.
+  CORRECTION 2026-09-27 (E2 prep: the gate replayed offline on E1's own files, PREREG_IRONSTORM_CUTA_E2_2026-09-27.md sec
+  1(l)): the mapping works, the LAST-completion ANCHOR does not engage on a live trace - its TSK rows carry the TRUNCATED
+  DIS marking ('48_IBCT/28'), which Resolve-MarkingKey does not map to the init name (exact or '<name>~<tag>' only), so
+  every taskee is satisfied 'via C2SIM-capture' instead; suite 9b passes because it uses one untruncated name throughout.
+  E2 itself STOPPED before any lone-platform dispatch, so both NOT YET SEEN LIVE items above are still not seen.
 
 - **A MEMBERLESS AGGREGATE ON THE AGGREGATE MODEL SET IS ONE POSITION** (D1 of docs/PLAN_MOVEMENT_2026-09-27.md,
   RL-20260927-01; `UnitPositionPolicy`, checked offline by the D1 section of `--rulings-selftest`). Arrival evidence and
@@ -2868,6 +2873,13 @@ no Duration and no geometry is malformed and is refused, not held (below).
   remove, arriving by configuration instead. A NEGATIVE margin reaching the derivation is still
   clamped to zero there, so a window can never come out SHORTER than the end time it waits for;
   that clamp is a floor against nonsense, not a blessing of zero. Raising the margin is free.
+  CORRECTION 2026-09-27 (run E2, docs/experiments/PREREG_IRONSTORM_CUTA_E2_2026-09-27.md Result): the shipped 60 s did
+  NOT cover the lag. The end timer counts from its FIRST SWEEP after arming (TimedCompletionPolicy.Register stores no
+  clock; Advance anchors on first sighting) while the gate counts from the dispatch stamp; with the order landing at
+  scenario sim 5.6 s (a 0 s pre-order gate on a warm machine) the two origins were >= 45 SIM s apart, and both STREND
+  successors of the CNFPSL holds were SKIPPED 0.8 WALL s before the holds completed. "About 3 x (sim ratio)" is not a
+  bound on that first-sweep gap. Until the seat rules on the timer's origin, an order pushed into a scenario's first
+  seconds can skip every successor of a timed predecessor.
 - **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
   per order names how many task-clock seconds after receipt the deepest chain reaches its last
   dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.
