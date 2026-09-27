@@ -8,14 +8,40 @@ lines): the app log's "Route '<task>' (<route uuid>) created; MoveAlongRoute iss
 (C2SIM uuid); the init gives C2SIM uuid -> unit name. Displacement = haversine from the unit's
 first valid POS row. Prints max and final displacement per tasked unit and the count of units
 beyond 1 km (the movement gate used by the COA-STP1 prereg series).
+M1b (RL-20260927-01): a LONE PLATFORM on Move To per vertex logs no route line; its "Task '<task>':
+MOVE TO PER VERTEX for <unit> (VRF_UUID:<u>) - vertex 1 of <n>" line gives task name -> taskee uuid
+directly (applog_chain.py), and the row is marked "chain".
 All files are read with encoding='utf-8' (errors replaced).
 """
 import argparse
 import glob
 import io
 import math
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import applog_chain  # noqa: E402
+
+RE_ISSUED = re.compile(r"Route '([^']+)' \([^)]+\) created; (?:MoveAlongRoute|R10 fan-out MoveAlongRoute) issued "
+                       r"(?:for|to \d+ members of) (VRF_UUID:[0-9a-f-]+)")
+
+
+def tasked_moves(log_text):
+    """-> [(task name, taskee VRF uuid, 'route' | 'chain')] in log order: every route-line move (the app
+    names a route "<task name> ROUTE") and every vertex-chain dispatch (M1b)."""
+    out = []
+    for line in log_text.splitlines():
+        m = RE_ISSUED.search(line)
+        if m:
+            rn = m.group(1)
+            out.append((rn[:-6] if rn.endswith(' ROUTE') else rn, m.group(2), 'route'))
+            continue
+        s = applog_chain.chain_start(line)
+        if s:
+            out.append((s['task'], s['uuid'], 'chain'))
+    return out
 
 
 def hav(a, b):
@@ -39,8 +65,7 @@ def main():
         print('no app log in', a.run)
         return 1
     log = io.open(logs[0], encoding='utf-8', errors='replace').read()
-    issued = re.findall(r"Route '([^']+)' \([^)]+\) created; (?:MoveAlongRoute|R10 fan-out MoveAlongRoute) issued "
-                        r"(?:for|to \d+ members of) (VRF_UUID:[0-9a-f-]+)", log)
+    issued = tasked_moves(log)
     order = io.open(a.order, encoding='utf-8', errors='replace').read()
     init = io.open(a.init, encoding='utf-8', errors='replace').read()
     name = {}
@@ -55,7 +80,7 @@ def main():
         n = re.search(r'<(?:TaskName|Name)>([^<]+)<', t)
         if p and n:
             tname[n.group(1).strip()] = p.group(1).strip()
-    want = {u for _, u in issued}
+    want = {u for _, u, _ in issued}
     first, far, last, cnt = {}, {}, {}, {}
     for line in io.open(a.run + '/watchvrf-trace.csv', encoding='utf-8', errors='replace'):
         if not line.startswith('POS,'):
@@ -77,22 +102,23 @@ def main():
         d = hav(first[u][:2], (la, lo))
         far[u] = max(far[u], d)
         last[u] = (d, t)
-    print(f'{a.run}: {len(issued)} MoveAlongRoute issued; gate {a.gate_m:.0f} m')
+    n_chain = sum(1 for _, _, k in issued if k == 'chain')
+    print(f'{a.run}: {len(issued) - n_chain} MoveAlongRoute issued, {n_chain} MOVE TO PER VERTEX chain(s); '
+          f'gate {a.gate_m:.0f} m')
     print(f'{"task":22} {"taskee":20} {"POS":>5} {"t0":>6} {"tLast":>6} {"maxDisp":>9} {"lastDisp":>9}')
     beyond = 0
     seen = set()
-    for rn, u in issued:
-        # the app names a route "<task name> ROUTE" (VrfC2SimService.ExecuteTaskOnTick)
-        task_name = rn[:-6] if rn.endswith(' ROUTE') else rn
+    for task_name, u, kind in issued:
         tk = tname.get(task_name, '?')
         un = name.get(tk, tk)[:20]
+        label = (task_name[:16] + ' chain') if kind == 'chain' else task_name[:22]
         if u in first:
-            print(f'{rn[:22]:22} {un:20} {cnt[u]:5} {first[u][2]:6.0f} {last[u][1]:6.0f} {far[u]:8.0f}m {last[u][0]:8.0f}m')
+            print(f'{label:22} {un:20} {cnt[u]:5} {first[u][2]:6.0f} {last[u][1]:6.0f} {far[u]:8.0f}m {last[u][0]:8.0f}m')
             if u not in seen and far[u] >= a.gate_m:
                 beyond += 1
             seen.add(u)
         else:
-            print(f'{rn[:22]:22} {un:20}   no POS rows for {u}')
+            print(f'{label:22} {un:20}   no POS rows for {u}')
     print(f'units beyond the gate: {beyond} of {len(seen)} tasked units with POS rows')
     return 0
 

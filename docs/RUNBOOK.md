@@ -2745,8 +2745,11 @@ no Duration and no geometry is malformed and is refused, not held (below).
   OFF switch: `$env:Vrf__PlatformMoveToPerVertex = "false"` gives every ground mover CreateRoute + MoveAlongRoute as
   before. NOT YET SEEN LIVE (run E1 of the plan): exactly one "move-to" completion per vertex; Move To planning on the nav
   area for a lone M577A2; the stop at each intermediate vertex (the remote controller's move-to carries no continue
-  flag, unlike the vendor's move_along_route_and_continue.lua). The runner's report-evidence RPT path maps a marking to
-  its VRF_UUID from route lines, which a chained platform no longer logs; its capture and R1-applog paths still apply.
+  flag, unlike the vendor's move_along_route_and_continue.lua). The runner's report-evidence gate maps a chained
+  platform to its VRF_UUID from the "MOVE TO PER VERTEX for <unit> (VRF_UUID:...)" line and anchors it on its LAST
+  task-complete record, not vertex 1's (M1b; `Get-VertexChainNames`, suite section 9b); the offline tools
+  movement_check, stall_replay, straggler_track, taskee_displacement and console_narrative read the same lines through
+  `tools\analysis\applog_chain.py` (`--selftest`), where only the LAST vertex's completion is the task's.
 
 - **A MEMBERLESS AGGREGATE ON THE AGGREGATE MODEL SET IS ONE POSITION** (D1 of docs/PLAN_MOVEMENT_2026-09-27.md,
   RL-20260927-01; `UnitPositionPolicy`, checked offline by the D1 section of `--rulings-selftest`). Arrival evidence and

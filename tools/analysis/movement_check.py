@@ -75,10 +75,19 @@ first, then as a unique substring; an ambiguous substring matches nothing.
 EXIT CODES (the tools/Shared/ToolArgs.cs standard): 0 all checks passed, 1 at
 least one FAILED (or nothing was scorable - an empty trace is never a pass), 2
 usage error.
+
+MOVE TO PER VERTEX (RL-20260927-01, M1b). A lone ground platform driven as one Move To per route
+vertex logs one "VRF task complete: <name> / move-to" PER VERTEX. Only its LAST vertex's completion
+is the task's (applog_chain.py): an intermediate vertex, a vacuous last vertex, a stray and a
+frozen-chain completion are un-counted, so COMPLETE / VACUOUS / --expect-complete judge the task,
+not vertex 1.
 """
 import math
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import applog_chain  # noqa: E402  (the per-vertex lines, M1b)
 
 USAGE = [
     "usage: python tools/analysis/movement_check.py <watch.trace> [options]",
@@ -266,6 +275,14 @@ def read_app_log(path):
                 else:
                     name, task_type = rest, ""
                 completed.setdefault(name.strip(), []).append(task_type.strip())
+            # M1b (RL-20260927-01): the VERTEX CHAIN line that follows a vertex's completion says whether
+            # the service passed it on as the TASK's completion (applog_chain.CONSUMED / 'last').
+            ev = applog_chain.chain_event(line)
+            if ev is not None and completed.get(ev["unit"]):
+                if ev["kind"] in applog_chain.CONSUMED:
+                    completed[ev["unit"]].pop()
+                elif ev["kind"] == "last":
+                    completed[ev["unit"]][-1] += " [LAST vertex %d of %d]" % (ev["k"], ev["n"])
             # C15 (2026-09-07): the interface's own completion from arrival evidence produces no
             # 'VRF task complete' line; count its ARRIVAL EVIDENCE line as the completion, and
             # un-count the vendor's later completion that the interface swallowed.
@@ -289,7 +306,9 @@ def read_app_log(path):
             if "C2SIM Order received" in line:
                 order_seen = True
     return {
-        "completed": completed,
+        # a name whose every completion was un-counted (a vertex chain's vertices, a vacuous last
+        # vertex, a swallowed one) did NOT complete - it must not appear as COMPLETE (M1b)
+        "completed": {name: types for name, types in completed.items() if types},
         "report_count": report_count,
         "dropping": dropping,
         "abandoning": abandoning,

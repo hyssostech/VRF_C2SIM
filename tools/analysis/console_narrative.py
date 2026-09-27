@@ -19,6 +19,9 @@ import sys
 import collections
 import os
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import applog_chain  # noqa: E402  (M1b: MOVE TO PER VERTEX lines, RL-20260927-01)
+
 XML_STRING = re.compile(r'<string[^>]*>(.*?)</string>', re.S)
 TASK_WORDS = re.compile(r'ask|ormation|eader|ubordinate|oute|complete|rcvd|Failed|Completed|clearing')
 
@@ -48,6 +51,11 @@ def load_names(run_dir):
             m = re.search(r"Route '([^']+)' \((VRF_UUID:[0-9a-f-]+)\) created; MoveAlongRoute issued for (VRF_UUID:[0-9a-f-]+)", line)
             if m:
                 names.setdefault(m.group(2), m.group(1))
+            # M1b (RL-20260927-01): a lone platform on Move To per vertex logs no route line; its
+            # dispatch line names the unit and its own uuid.
+            s = applog_chain.chain_start(line)
+            if s:
+                names.setdefault(s['uuid'], s['unit'])
     return names
 
 

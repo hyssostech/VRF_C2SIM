@@ -2203,6 +2203,99 @@ Check 'the app log of run 20260902T153837Z maps all three taskees (the live regr
         @('114.MechCoy','1222.MechPlt','1.BdeHQ' | Where-Object { $m.Contains($_) }).Count -eq 3
     } else { $true }))
 
+# 9b. M1b (RL-20260927-01, 2026-09-27): A LONE PLATFORM DRIVEN AS MOVE TO PER VERTEX logs NO route line
+# and ONE task-complete per vertex. The report-evidence gate must still map it (its dispatch line
+# carries its VRF uuid) and must anchor on its LAST completion - anchored on vertex 1, "an RPT later
+# than the completion" is satisfied while the platform is still driving to its last vertex.
+# Line formats verbatim from VrfC2SimService (StartVertexChain / ConsumeVertexChainCompletion); the
+# drift guard below reads them out of the service source, and tools\analysis\applog_chain.py
+# (python, `--selftest`) is the same parser for the offline analysis tools.
+Write-Host '=== 9b. M1b: MOVE TO PER VERTEX lines - runner mapping and the LAST-completion anchor ==='
+$chainLog = @"
+info: VrfC2Sim[0]
+      Task 'T14_48IbctFollowsAndSupports116AbctInAtlanta,Clearing': MOVE TO PER VERTEX for 48_IBCT/28ID__FRIENDLY (VRF_UUID:0a1b2c3d-0000-1111-2222-333344445555) - vertex 1 of 3: MoveToLocation (54.100000,23.100000); the other 2 vertex(es) are issued one at a time, each when the previous Move To COMPLETES. No route object is created (RL-20260927-01: a lone ground platform's Move To plans and recovers each leg, UG52 23.1-23.2).
+info: VrfC2Sim[0]
+      Task 'T10': CreateRoute 'T10 ROUTE' (4 pts) for 1-112_IN; move deferred to route-created.
+info: VrfC2Sim[0]
+      Route 'T10 ROUTE' (VRF_UUID:598ee64f-b8c5-bc4b-a322-6a528ad5403e) created; MoveAlongRoute issued for VRF_UUID:7be55c4f-0cf5-e343-8c5a-0bc9cc550d0a.
+info: VrfC2Sim[0]
+      VERTEX CHAIN 48_IBCT/28ID__FRIENDLY task 'T14_48IbctFollowsAndSupports116AbctInAtlanta,Clearing': vertex 1 of 3 COMPLETED - the unit is 4 m from it and moved 1112 m since dispatch; issuing vertex 2 (RL-20260927-01).
+"@
+$chainMap = Get-VrfUuidByName -AppLogText $chainLog
+Check '9b a MOVE TO PER VERTEX dispatch line maps the platform to ITS OWN VRF uuid - no route line needed' (
+    $chainMap.Contains('48_IBCT/28ID__FRIENDLY') -and $chainMap['48_IBCT/28ID__FRIENDLY'] -eq 'VRF_UUID:0a1b2c3d-0000-1111-2222-333344445555') ('got ' + (($chainMap.Keys | ForEach-Object { $_ + '=' + $chainMap[$_] }) -join ', '))
+Check '9b ... and the route unit in the same log still maps through the route join' (
+    $chainMap.Contains('1-112_IN') -and $chainMap['1-112_IN'] -eq 'VRF_UUID:7be55c4f-0cf5-e343-8c5a-0bc9cc550d0a' -and $chainMap.Count -eq 2)
+$chainNames = @(Get-VertexChainNames -AppLogText $chainLog)
+Check '9b Get-VertexChainNames names the chained platform only (not the route unit, not from a VERTEX CHAIN event line)' (
+    $chainNames.Count -eq 1 -and $chainNames[0] -eq '48_IBCT/28ID__FRIENDLY') ('got ' + ($chainNames -join ','))
+Check '9b Get-VertexChainNames on an empty log is an empty list, not a throw' (@(Get-VertexChainNames -AppLogText '').Count -eq 0)
+# Trace: the platform completes vertex 1 at 100, vertex 2 at 200, vertex 3 (LAST) at 300, and reports its
+# position at 150 - BETWEEN two vertices, still driving; the route unit completes at 150.5.
+$chainTraceHead = @(
+    'TSK,100.0,"48_IBCT/28ID__FRIENDLY","move-to"'
+    'POS,149.0,VRF_UUID:0a1b2c3d-0000-1111-2222-333344445555,54.105000,23.100000,120.0'
+    'RPT,150.0,"POSITION ""48_IBCT/28ID__FRIENDLY"" 54.105000 23.100000"'
+    'TSK,150.5,"1-112_IN","move-along"'
+    'POS,160.0,VRF_UUID:7be55c4f-0cf5-e343-8c5a-0bc9cc550d0a,54.300000,23.300000,120.0'
+    'RPT,161.0,"POSITION ""1-112_IN"" 54.300000 23.300000"'
+    'TSK,200.0,"48_IBCT/28ID__FRIENDLY","move-to"'
+) -join "`n"
+$chainEv = Get-TraceEvidence -TraceText $chainTraceHead
+Check '9b Get-TraceEvidence keeps the FIRST TSK (unchanged) and now also the LAST and the count' (
+    $chainEv.tsk['48_IBCT/28ID__FRIENDLY'] -eq 100.0 -and $chainEv.tskLast['48_IBCT/28ID__FRIENDLY'] -eq 200.0 -and
+    $chainEv.tskN['48_IBCT/28ID__FRIENDLY'] -eq 2 -and $chainEv.tskN['1-112_IN'] -eq 1)
+$chainInit = @{ 'aaaaaaaa-0000-0000-0000-000000000014' = '48_IBCT/28ID__FRIENDLY'; 'aaaaaaaa-0000-0000-0000-000000000010' = '1-112_IN' }
+$chainTaskees = @('aaaaaaaa-0000-0000-0000-000000000014', 'aaaaaaaa-0000-0000-0000-000000000010')
+$eMid = Test-ReportEvidence -Taskees $chainTaskees -TaskeeNames $chainInit -NameToVrfUuid $chainMap -TraceText $chainTraceHead `
+            -ToleranceMeters 2.0 -ChainedNames $chainNames
+Check '9b MID-CHAIN (an RPT between vertex 1 and vertex 2, agreeing with POS): the chained platform is NOT satisfied - its anchor is its LAST TSK, not vertex 1' (
+    -not $eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].satisfied -and
+    $eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].anchor -eq 'LAST of 2 TSK (MOVE TO PER VERTEX)' -and
+    $eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].reason -match 'not later than completion t=200') ($eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].reason)
+Check '9b ... while the ROUTE unit in the same run keeps its FIRST-TSK anchor and is satisfied, unchanged' (
+    $eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000010'].satisfied -and $eMid.PerTaskee['aaaaaaaa-0000-0000-0000-000000000010'].anchor -eq 'first TSK')
+$eOld = Test-ReportEvidence -Taskees $chainTaskees -TaskeeNames $chainInit -NameToVrfUuid $chainMap -TraceText $chainTraceHead -ToleranceMeters 2.0
+Check '9b FAIL-FIRST: without -ChainedNames (the pre-M1b gate) the SAME trace IS satisfied - anchored on vertex 1, while the platform was still driving' (
+    $eOld.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].satisfied -and $eOld.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].anchor -eq 'first TSK')
+$chainTraceDone = $chainTraceHead + "`n" + (@(
+    'TSK,300.0,"48_IBCT/28ID__FRIENDLY","move-to"'
+    'POS,310.0,VRF_UUID:0a1b2c3d-0000-1111-2222-333344445555,54.120000,23.100000,120.0'
+    'RPT,311.0,"POSITION ""48_IBCT/28ID__FRIENDLY"" 54.120000 23.100000"'
+) -join "`n")
+$eDone = Test-ReportEvidence -Taskees $chainTaskees -TaskeeNames $chainInit -NameToVrfUuid $chainMap -TraceText $chainTraceDone `
+             -ToleranceMeters 2.0 -ChainedNames $chainNames
+Check '9b LAST vertex (3 of 3) done and a later RPT agrees with POS: the chained platform IS satisfied, anchored on t=300' (
+    $eDone.AllSatisfied -and $eDone.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].completionT -eq 300.0 -and
+    $eDone.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].anchor -eq 'LAST of 3 TSK (MOVE TO PER VERTEX)') ($eDone.PerTaskee['aaaaaaaa-0000-0000-0000-000000000014'].reason)
+$reChain = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Test-ReportEvidence' }, $true)
+Check '9b runner: its one Test-ReportEvidence call passes -ChainedNames from Get-VertexChainNames on the SAME app-log read' (
+    @($reChain).Count -eq 1 -and $reChain[0].Extent.Text -match '-ChainedNames \(Get-VertexChainNames -AppLogText \$appWhole\)')
+# DRIFT GUARD: the formats the runner and tools\analysis\applog_chain.py parse, read out of the SERVICE
+# SOURCE - a reworded log template breaks this check, not a live run's evidence.
+$svcText = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\VrfC2SimService.cs') -Raw
+$pyChain = Get-Content -LiteralPath (Join-Path $RepoRoot 'tools\analysis\applog_chain.py') -Raw
+$svcFragments = @(
+    "MOVE TO PER VERTEX for {Name} ({Vrf}) - vertex 1 of {N}: MoveToLocation"
+    "VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} COMPLETED - {Where}; "
+    "VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} reported COMPLETE, but {Where} - "
+    "VERTEX CHAIN {Name} task '{Task}': LAST vertex {K} of {N} COMPLETED - {Where}{Vac}. "
+    "VERTEX CHAIN {Name} task '{Task}': LAST vertex {K} of {N} reported COMPLETE, but {Where} - "
+    "VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} FAILED ("
+    "VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} issued - MoveToLocation "
+    "VRF task complete: {Unit} / {Task} (success={Ok})"
+)
+$svcMissing = @($svcFragments | Where-Object { -not $svcText.Contains($_) })
+Check '9b DRIFT GUARD: every per-vertex log template the parsers read is still in VrfC2SimService.cs verbatim' (
+    $svcMissing.Count -eq 0) ('missing: ' + ($svcMissing -join ' | '))
+Check '9b DRIFT GUARD: applog_chain.py carries the dispatch regex, the LAST-before-vertex order and the CONSUMED set' (
+    $pyChain.Contains("MOVE TO PER VERTEX for (?P<unit>.+?) ") -and
+    $pyChain.IndexOf("('last', re.compile") -lt $pyChain.IndexOf("('advance', re.compile") -and
+    $pyChain.Contains("CONSUMED = frozenset({'advance', 'vacuous', 'last_vacuous', 'stray', 'retired'})"))
+$pyUsers = @('movement_check.py', 'stall_replay.py', 'straggler_track.py', 'taskee_displacement.py', 'console_narrative.py' |
+    Where-Object { -not ((Get-Content -LiteralPath (Join-Path $RepoRoot ('tools\analysis\' + $_)) -Raw) -match '(?m)^import applog_chain') })
+Check '9b the five offline analysis tools that read the app log import applog_chain' ($pyUsers.Count -eq 0) ('not importing: ' + ($pyUsers -join ', '))
+
 # 10. STP-844 - THE TWO 5.2 GUI TEARDOWN MODALS, SUPPRESSED BY VENDOR CONFIGURATION.
 # Demo rehearsal D1 (run 20260920T172141Z) was the first GUI-ON 5.2 teardown ever run: the
 # GUI raised UG52 4.6's exit prompt on StopVrf52's WM_CLOSE, nothing answered it, the
