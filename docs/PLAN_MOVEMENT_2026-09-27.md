@@ -26,7 +26,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 |---|---|---|---|---|
 | M1 | Move To per STP vertex for lone platforms; setting Vrf:PlatformMoveToPerVertex (default ON); chain on task completion; vacuous completions logged | feat/movement-moveto-per-vertex | executor (Opus) | MERGED 2026-09-27 (47da73e). Follow-ups M1b: runner report-evidence and the offline analysis tools still key on "MoveAlongRoute issued" lines; a native "continue" flag for intermediate vertices |
 | M2 | C# pre-flight port of the OSM water + building readers; vertex nudge + report; per-profile leg rules keyed on Vrf:ModelSet; river report | feat/preflight-osm-features | executor (Opus) | RUNNING |
-| A1 | Aggregate profile prep: .magx survey, data/unit-type-map-52-aggregate.json, fixture IronStorm_Centre_52_Aggregate (not deployed), Vrf:ModelSet switch, G1 draft checklist | feat/aggregate-profile | executor (Opus) | RUNNING |
+| A1 | Aggregate profile prep: .magx survey, data/unit-type-map-52-aggregate.json, fixture IronStorm_Centre_52_Aggregate (not deployed), Vrf:ModelSet switch, G1 draft checklist | feat/aggregate-profile | executor (Opus) | BUILT OFFLINE 2026-09-27, awaiting merge: docs/experiments/AGGREGATE_PROFILE_OFFLINE_2026-09-27.md. Every row a movable warfare-model leaf (no nation has one above BN); 40/40 Iron Storm PROXY. G1 prerequisite found: C15/C16 skip an aggregate with no members (record sec 6.1) - a leaf's water stop is SILENT until the dispatch lane fixes it |
 | E1 | Registered entity-level run: cut A, T14's ORIGINAL line (derive without (i); (k) stays unmerged), lone platforms on Move To per vertex | run/ironstorm-cuta-e1 | after M1 merge + build/deploy | QUEUED |
 | G1 | Registered aggregate run: one brigade on the same T14 line, no hand waypoints | run/ironstorm-agg-g1 | after M2 + A1 merge, fixture deploy | QUEUED |
 | G2 | Cut A on the aggregate profile; then the full 23-task order in phases | - | after G1 | QUEUED |
@@ -40,7 +40,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | Merge M1 -> main; suite; build + deploy the eleven consumers (RUNBOOK sec 9) | - | deploy is the interface's own output dirs, not C:\MAK |
 | E1 | PREREG | prediction below; holder first (the 09-27 holder expired ~08:30Z); appNumbers from the ledger marker (5170) |
 | Merge M2, A1 -> main; suite; deploy | - | fixture deploy = the one sanctioned file under C:\MAK |
-| G1 | PREREG + RULE | RULE: hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types) is the owner's before the red force is created |
+| G1 | PREREG + RULE | RULE: hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types) is the owner's before the red force is created. CORRECTED by the A1 survey: RUS is DIS 260 in the aggregate catalogue with 131 unit/container templates (107 warfare-model units; "4" counted the label spelling "(RU,"); BLR 31 (24). Both are in the map; Vrf:OpposingNation selects (default RUS) |
 | G2, V1 | PREREG each | - |
 
 ## 3. Pre-registered predictions (the falsifiers of the frame)
@@ -60,7 +60,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 
 ## 5. Open questions
 
-- Hostile-side aggregate mapping (owner's; A1 reports the options).
+- Hostile-side aggregate mapping (owner's; A1 reports the options: AGGREGATE_PROFILE_OFFLINE_2026-09-27.md sec 3 - RUS 131 templates, not 4).
 - Rivers: report only for now; the vendor's road planner per vertex is the candidate if STP's lines keep crossing them.
 - Whether the aggregate abstraction satisfies the demo audience: G1 answers it in one look.
 

@@ -1970,6 +1970,143 @@ Check '8v3 every one of them has a restore: ApplicationNumber/RestUrl/StompUrl i
     $runnerText -match 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')
 
 # ===========================================================================================
+# 8y. -ModelSet: THE AGGREGATE-LEVEL PROFILE SWITCH (RL-20260927-01; the standing rule is Y-15;
+#     docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md step 3). One key selects the model set;
+#     it picks the type map, reaches the app as Vrf__ModelSet, and Stage 0 REFUSES a
+#     fixture/type-map mismatch. The default (EntityLevel) must leave every recorded run as it was.
+# ===========================================================================================
+Write-Host '=== 8y. -ModelSet: one key, the type map it selects, and the fixture/type-map mismatch refusal ==='
+$msParam = $(if ($params.ContainsKey('ModelSet')) { $params['ModelSet'] } else { $null })
+$msVs    = @(if ($msParam) { $msParam.Attributes | Where-Object { $_.TypeName.Name -eq 'ValidateSet' } })
+Check '8y the parameter exists, is a ValidateSet of the two model sets and DEFAULTS TO EntityLevel' (
+    $null -ne $msParam -and $null -ne $msParam.DefaultValue -and $msParam.DefaultValue.Value -eq 'EntityLevel' -and
+    $msVs.Count -eq 1 -and (@($msVs[0].PositionalArguments | ForEach-Object { $_.Value }) -join ',') -eq 'EntityLevel,AggregateTacticalLevel') (
+    $(if ($msParam) { "default=[$($msParam.DefaultValue)]" } else { 'no -ModelSet parameter' }))
+Check '8y Get-ModelSetTypeMapDefault: EntityLevel keeps data/unit-type-map-52.json (the unchanged default); AggregateTacticalLevel -> the aggregate map' (
+    (Get-ModelSetTypeMapDefault -ModelSet 'EntityLevel') -eq 'data/unit-type-map-52.json' -and
+    (Get-ModelSetTypeMapDefault -ModelSet 'AggregateTacticalLevel') -eq 'data/unit-type-map-52-aggregate.json')
+# The fixtures are the COMMITTED ones, so these are real artefacts, not strings typed in the test.
+$msAggScnx = Join-Path $RepoRoot 'tools\FixtureGen\frame_variants\IronStorm_Centre_52_Aggregate.scnx'
+$msEntScnx = Join-Path $RepoRoot 'tools\FixtureGen\frame_variants\R9_Mojave_Empty_52.scnx'
+$msAgg  = Get-ScenarioModelSet -ScnxPath $msAggScnx
+$msEnt  = Get-ScenarioModelSet -ScnxPath $msEntScnx
+$msGone = Get-ScenarioModelSet -ScnxPath (Join-Path $RepoRoot 'tools\FixtureGen\frame_variants\NoSuchFixture.scnx')
+Check '8y Get-ScenarioModelSet: the committed aggregate fixture loads AggregateTacticalLevel' (
+    $msAgg.Readable -and $msAgg.ModelSet -eq 'AggregateTacticalLevel') ("got [$($msAgg.ModelSet)] $($msAgg.Via)")
+Check '8y Get-ScenarioModelSet: the committed shipped-SMS entity fixture loads EntityLevel' (
+    $msEnt.Readable -and $msEnt.ModelSet -eq 'EntityLevel') ("got [$($msEnt.ModelSet)] $($msEnt.Via)")
+Check '8y Get-ScenarioModelSet: a MISSING fixture is Found=false and Unknown - never a guessed model set' (
+    -not $msGone.Found -and $msGone.ModelSet -eq 'Unknown')
+$msTmpSms = Join-Path ([System.IO.Path]::GetTempPath()) ('_DerivedSms.{0}.sms' -f [Guid]::NewGuid().ToString('N'))
+try {
+    [System.IO.File]::WriteAllText($msTmpSms, "(simulation-model-set `r`n   (include ""..\data\simulationModelSets\EntityLevel.sms"")`r`n)`r`n")
+    $msDerived = Get-ModelSetFromSms -Sms $msTmpSms
+} finally {
+    Remove-Item -LiteralPath $msTmpSms -Force -ErrorAction SilentlyContinue
+}
+Check '8y Get-ModelSetFromSms: a DERIVED SMS (absolute path) is classified through its include line' (
+    $msDerived.ModelSet -eq 'EntityLevel' -and $msDerived.Via -match 'includes entitylevel\.sms') ("got [$($msDerived.ModelSet)] $($msDerived.Via)")
+Check '8y Get-ModelSetFromSms: the vendor AggregateLevel.sms is reported as ITSELF - neither profile' (
+    (Get-ModelSetFromSms -Sms '$(DATA_DIR)\simulationModelSets\AggregateLevel.sms').ModelSet -eq 'AggregateLevel')
+$tmEnt = Get-TypeMapModelSet -Path (Join-Path $RepoRoot 'data\unit-type-map-52.json')
+$tmAgg = Get-TypeMapModelSet -Path (Join-Path $RepoRoot 'data\unit-type-map-52-aggregate.json')
+Check '8y Get-TypeMapModelSet: the aggregate map DECLARES AggregateTacticalLevel (modelSetKey)' (
+    $tmAgg.ModelSet -eq 'AggregateTacticalLevel' -and $tmAgg.Via -eq 'modelSetKey')
+Check '8y Get-TypeMapModelSet: the entity map reads as EntityLevel from its modelSet prose (it predates modelSetKey)' (
+    $tmEnt.ModelSet -eq 'EntityLevel' -and $tmEnt.Via -eq 'modelSet prose')
+# THE DECISION TABLE, pure. Each DIRTY row names what it must say.
+$tmNone    = [ordered]@{ Path = 'probe.json'; Found = $true; ModelSet = 'Unknown'; Via = 'declares no model set' }
+$scMissing = [ordered]@{ Path = 'C:\nowhere\X.scnx'; Found = $false; Readable = $false; Sms = ''; ModelSet = 'Unknown'; Via = 'no such file' }
+$vEE  = Test-ModelSetPairing -ModelSet 'EntityLevel' -Is52 $true -TypeMap $tmEnt -Scenario $msEnt
+$vAA  = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmAgg -Scenario $msAgg
+$vAEm = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmEnt -Scenario $msAgg
+$vAEf = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmAgg -Scenario $msEnt
+$vEAf = Test-ModelSetPairing -ModelSet 'EntityLevel' -Is52 $true -TypeMap $tmEnt -Scenario $msAgg
+$v502 = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $false -TypeMap $tmAgg -Scenario $msAgg
+$vAMl = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmAgg -Scenario $scMissing -DryRun $false
+$vAMd = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmAgg -Scenario $scMissing -DryRun $true
+$vEM  = Test-ModelSetPairing -ModelSet 'EntityLevel' -Is52 $true -TypeMap $tmEnt -Scenario $scMissing
+$vAN  = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $tmNone -Scenario $msAgg
+$vEN  = Test-ModelSetPairing -ModelSet 'EntityLevel' -Is52 $true -TypeMap $tmNone -Scenario $msEnt
+Check '8y CLEAN: EntityLevel + entity map + entity fixture -> no refusal, no warning' (
+    @($vEE.Refusals).Count -eq 0 -and @($vEE.Warnings).Count -eq 0) (@($vEE.Refusals) -join ' | ')
+Check '8y CLEAN: AggregateTacticalLevel + aggregate map + aggregate fixture -> no refusal, no warning' (
+    @($vAA.Refusals).Count -eq 0 -and @($vAA.Warnings).Count -eq 0) (@($vAA.Refusals) -join ' | ')
+Check '8y DIRTY: AggregateTacticalLevel with the ENTITY map is REFUSED, naming the map' (
+    @($vAEm.Refusals).Count -eq 1 -and $vAEm.Refusals[0] -match 'FIXTURE/TYPE-MAP MISMATCH' -and $vAEm.Refusals[0] -match 'type map')
+Check '8y DIRTY: AggregateTacticalLevel on an ENTITY fixture is REFUSED, naming what the fixture loads' (
+    @($vAEf.Refusals).Count -eq 1 -and $vAEf.Refusals[0] -match 'loads EntityLevel')
+Check '8y DIRTY: the DEFAULT (EntityLevel) on an AGGREGATE fixture is refused too - the entity map cannot create there' (
+    @($vEAf.Refusals).Count -eq 1 -and $vEAf.Refusals[0] -match 'loads AggregateTacticalLevel')
+Check '8y DIRTY: AggregateTacticalLevel on the 5.0.2 profile is REFUSED' (
+    @($v502.Refusals).Count -eq 1 -and $v502.Refusals[0] -match '5\.2 profile switch')
+Check '8y AggregateTacticalLevel on a fixture that cannot be read: REFUSED live, only WARNED in -DryRun' (
+    @($vAMl.Refusals).Count -eq 1 -and @($vAMd.Refusals).Count -eq 0 -and @($vAMd.Warnings).Count -eq 1 -and
+    $vAMd.Warnings[0] -match 'a LIVE run would be REFUSED')
+Check '8y EntityLevel on a fixture that cannot be read: NOT refused (today''s behaviour), a note only' (
+    @($vEM.Refusals).Count -eq 0 -and @($vEM.Warnings).Count -eq 0 -and @($vEM.Notes).Count -ge 1)
+Check '8y a type map that declares NO model set: refused on AggregateTacticalLevel, accepted (noted) on EntityLevel' (
+    @($vAN.Refusals).Count -eq 1 -and $vAN.Refusals[0] -match 'modelSetKey' -and @($vEN.Refusals).Count -eq 0)
+# THE RUNNER WIRING.
+Check '8y runner: the type map follows -ModelSet unless -TypeMapFile is given' (
+    $runnerText -match '\$TypeMapFile52\s*=\s*\$\(if \(\$TypeMapFile\) \{ \$TypeMapFile \} else \{ Get-ModelSetTypeMapDefault -ModelSet \$ModelSet \}\)')
+Check '8y runner: Vrf__ModelSet is exported to the app on the 5.2 profile, from -ModelSet' (
+    $runnerText -match "\`$AppEnv52\['Vrf__ModelSet'\]\s*=\s*\`$ModelSet")
+Check '8y runner: every refusal goes into Stage 0''s list - nothing is launched on a mismatch' (
+    $runnerText -match 'foreach \(\$x in @\(\$ModelSetVerdict\.Refusals\)\) \{ \$bad \+= \$x \}')
+$ms0 = $runnerText.IndexOf("Say-Head 'Stage 0 - validation")
+$msTm = [regex]::Matches($runnerText, "-TypeMapFile not found")
+Check '8y runner: the -TypeMapFile existence check is INSIDE Stage 0 (it used to append to $bad before Stage 0 created it)' (
+    $msTm.Count -eq 1 -and $ms0 -gt 0 -and $msTm[0].Index -gt $ms0) ("occurrences=$($msTm.Count)")
+Check '8y runner: the manifest records the model set and what Stage 0 checked it against' (
+    $runnerText -match '\$Manifest\.inputs\.modelSet = \[ordered\]@\{' -and
+    $runnerText -match 'fixtureModelSet\s*=' -and $runnerText -match 'typeMapDeclares\s*=')
+# BEHAVIOUR, on the REAL runner in -DryRun: Stage 0 prints the model set whether or not the build
+# tree exists, so these hold in a checkout with nothing built. The default output is 8n's.
+Check '8y the DEFAULT dry run says EntityLevel <- default and that the entity map declares it (nothing else changes)' (
+    $provDefFlat -match 'model set : EntityLevel <- default; exported to the app as Vrf__ModelSet' -and
+    $provDefFlat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
+    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
+$msAggOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ModelSet AggregateTacticalLevel 2>&1 | Out-String)
+$msAggExit = $LASTEXITCODE
+$msAggFlat = ($msAggOut -replace '\s+', ' ')
+Check '8y -ModelSet AggregateTacticalLevel on the default (entity) scenario is REFUSED at Stage 0 with exit 2 and a clear message' (
+    $msAggExit -eq 2 -and $msAggFlat -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel' -and
+    $msAggFlat -match 'loads EntityLevel' -and $msAggFlat -match 'NOTHING was launched') ("exit=$msAggExit")
+Check '8y ... and it selected the AGGREGATE map on its own (no -TypeMapFile given)' (
+    $msAggFlat -match 'type map : data/unit-type-map-52-aggregate\.json - declares AggregateTacticalLevel')
+# THE WRAPPER: passed through only when given, so a default command line is byte-identical.
+$msShText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunScenario.sh') -Raw
+Check '8y RunScenario.sh: --model-set is parsed and passed as -ModelSet ONLY when given' (
+    $msShText -match '--model-set\)\s+MODEL_SET="\$2"; shift 2 ;;' -and
+    $msShText -match '\[ -n "\$MODEL_SET" \] && ARGS\+=\(-ModelSet "\$MODEL_SET"\)' -and
+    $msShText -match "MODEL_SET=''")
+# A TEXT MATCH CANNOT SEE A QUOTING ERROR: an apostrophe inside "${MODEL_SET:-...}" once left the
+# whole wrapper unparseable ("unexpected EOF while looking for matching") while every check above
+# still passed. So the wrapper is PARSED (bash -n) and RUN in --dry-run with the switch.
+$msBash = 'C:\Program Files\Git\bin\bash.exe'
+if (-not (Test-Path -LiteralPath $msBash)) {
+    Check '8y RunScenario.sh parse + dry-run SKIPPED (no bash.exe at the pinned Git path)' $true
+} else {
+    $msShPosix = ((Join-Path $RepoRoot 'scripts\RunScenario.sh') -replace '\\', '/')
+    if ($msShPosix -match '^([A-Za-z]):(.*)$') { $msShPosix = ('/' + $Matches[1].ToLower() + $Matches[2]) }
+    $msSyntax = (& $msBash '-n' $msShPosix 2>&1 | Out-String)
+    $msSyntaxExit = $LASTEXITCODE
+    Check '8y RunScenario.sh parses (bash -n exit 0)' ($msSyntaxExit -eq 0) ($msSyntax.Trim())
+    $msShOut = (& $msBash $msShPosix '--dry-run' '--model-set' 'AggregateTacticalLevel' 2>&1 | Out-String)
+    Check '8y RunScenario.sh --model-set AggregateTacticalLevel --dry-run: accepted and echoed in the wrapper banner' (
+        $msShOut -notmatch 'unknown option' -and ($msShOut -replace '\s+', ' ') -match 'model set : AggregateTacticalLevel')
+}
+# THE KEY IN BOTH APPSETTINGS FILES, default EntityLevel, with the house explanation in Demo.
+$msDemo = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\appsettings.Demo.json') -Raw | ConvertFrom-Json
+$msBase = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\appsettings.json') -Raw | ConvertFrom-Json
+Check '8y appsettings: Vrf:ModelSet is EntityLevel in BOTH files (the default is not in C# only)' (
+    $msDemo.Vrf.ModelSet -eq 'EntityLevel' -and $msBase.Vrf.ModelSet -eq 'EntityLevel')
+Check '8y appsettings.Demo.json: the _ModelSet explanation names RL-20260927-01, the map and the fixture' (
+    $msDemo.Vrf._ModelSet -match 'RL-20260927-01' -and $msDemo.Vrf._ModelSet -match 'unit-type-map-52-aggregate\.json' -and
+    $msDemo.Vrf._ModelSet -match 'IronStorm_Centre_52_Aggregate\.scnx')
+
+# ===========================================================================================
 # 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say
 # ===========================================================================================
 Write-Host '=== 8w. E4: the persistent holders alive at launch; N3: the DEPLOYED build identity ==='

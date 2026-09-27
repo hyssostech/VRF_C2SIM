@@ -157,6 +157,16 @@
     -RtiDir / -Federation beside it is REFUSED: a mixed environment loads the wrong DLLs
     silently. See docs/RUNBOOK.md "5.2 profile".
 
+.PARAMETER ModelSet
+    5.2 ONLY. 'EntityLevel' (default - every run in the record, unchanged) or
+    'AggregateTacticalLevel' (the aggregate-level profile, RL-20260927-01). Selects the type
+    map (data/unit-type-map-52-aggregate.json unless -TypeMapFile is given) and exports
+    Vrf__ModelSet to the app. Stage 0 reads the fixture's .scn (Simulation-Model-Set-Files) and
+    the type map's declared model set and REFUSES a mismatch; on AggregateTacticalLevel a fixture
+    that cannot be read is refused too (warned in -DryRun). Fixture:
+    tools/FixtureGen/frame_variants/IronStorm_Centre_52_Aggregate.scnx (-Scenario
+    IronStorm_Centre_52_Aggregate once deployed).
+
     THE RTI CONNECTION MODE IS NOT A KNOB (2026-09-04). UG52 5.5.1 p190: "You cannot use
     the MAK RTI in lightweight mode with VR-Forces". Every lightweight 5.2 run reflected
     ZERO entities; with MAK RTI 5.0.1 in rtiexec mode the same observer reflected 62
@@ -427,12 +437,25 @@ param(
     [string] $ClientId = '',
 
     # 5.2 ONLY: the fidelity table the app loads (Vrf__TypeMapFile, read under
-    # Vrf:TypeMappingMode=FidelityTable). EMPTY (default) = data/unit-type-map-52.json, the repo map.
+    # Vrf:TypeMappingMode=FidelityTable). EMPTY (default) = the -ModelSet's repo map:
+    # data/unit-type-map-52.json for EntityLevel (every run in the record),
+    # data/unit-type-map-52-aggregate.json for AggregateTacticalLevel.
     # A PROBE may pass another file (e.g. a scratch copy with lifeform rows redirected while the
     # DI-Guy data package is absent - PREREG_COASTP1_52_RUN1 sec 8); the path is recorded in the
     # manifest so the run can never be mistaken for a repo-map run. Note the 5.2 profile SETS
     # Vrf__TypeMapFile for the app from this value - an inherited env var is overwritten.
     [string] $TypeMapFile = '',
+
+    # THE MODEL SET - the aggregate-level profile (RL-20260927-01; the standing rule is Y-15 in
+    # docs/VRF_5.2_DECISION_EVIDENCE.md; docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md step 3).
+    # 'EntityLevel' (DEFAULT) = every run in the record, unchanged. 'AggregateTacticalLevel' = the
+    # vendor's aggregate model set: it selects the type map (default above) and is exported to the
+    # app as Vrf__ModelSet - the key the pre-flight lane uses for its rule set. The fixture must
+    # load the SAME model set: Stage 0 reads the scenario's .scnx and REFUSES a fixture/type-map
+    # mismatch (the aggregate fixture is tools/FixtureGen/frame_variants/
+    # IronStorm_Centre_52_Aggregate.scnx, deployed by the sanctioned fixture write). 5.2 only.
+    [ValidateSet('EntityLevel','AggregateTacticalLevel')]
+    [string] $ModelSet = 'EntityLevel',
 
     # THE ORDER'S CLOCK SCALE (Vrf:DurationScale). 0 (the default) = DO NOT SET IT: the app uses
     # whatever the deployed appsettings.json pins (1.0, the order as written). Anything positive
@@ -938,8 +961,12 @@ $ConnConfigFromAppDataDir = ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAp
 $ConnConfigSha       = $null
 $ConnConfigVendorSha = $null
 $ConnConfigMatch     = $null
-$TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { 'data/unit-type-map-52.json' })
-if ($TypeMapFile -and -not (Test-Path -LiteralPath $TypeMapFile -PathType Leaf)) { $bad += ('-TypeMapFile not found: {0}' -f $TypeMapFile) }
+# The type map follows -ModelSet unless -TypeMapFile names one (Get-ModelSetTypeMapDefault; the
+# EntityLevel default is the same file as before). Its existence is checked at Stage 0 - this line
+# used to append to $bad here, BEFORE Stage 0 creates it, so under StrictMode a missing
+# -TypeMapFile died on an unset variable instead of being reported (moved 2026-09-27).
+$ModelSetPassed = $PSBoundParameters.ContainsKey('ModelSet')
+$TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { Get-ModelSetTypeMapDefault -ModelSet $ModelSet })
 # The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
 # EMPTY by default and therefore NOT PASSED anywhere: run 3857 falsified it observer-side
 # (an observer with no device address still reflected 54-56 entities off the rtiexec sim), so
@@ -2244,6 +2271,33 @@ if ($DurationScaleOn) {
         $bad += ('-DurationScale must be 0 (leave the app''s own value alone) or a finite number in 0.001..1000 (got {0}). It scales BOTH halves of the order''s clock - the Duration that ends a task and the StartTime delay that holds one back - and NOT movement. A non-positive scale is not an instruction to complete everything at once: the app refuses it, logs an ERROR and uses 1.0, so a run given one would be a FULL-LENGTH run carrying a compressed run''s manifest.' -f $DurationScale)
     }
 }
+# THE MODEL SET (RL-20260927-01; Y-15). The fixture, the type map and -ModelSet must name ONE
+# model set: the SMS is fixed per scenario (UG52 13.7 p368) and a type map's object types exist in
+# one catalogue only. Test-ModelSetPairing (RunnerLib) is the rule; this block only gathers its
+# inputs. The fixture is found exactly where LaunchVrf52 will look for it (its $scenarioAbs rule).
+# An EntityLevel run on an unreadable fixture is NOT refused - that is today's behaviour; only a
+# DEFINITE mismatch is, and on AggregateTacticalLevel an unverifiable fixture as well.
+$TypeMapPath52 = $TypeMapFile52
+if (-not [System.IO.Path]::IsPathRooted($TypeMapPath52) -and -not (Test-Path -LiteralPath $TypeMapPath52 -PathType Leaf)) {
+    $TypeMapPath52 = Join-Path $RepoRoot $TypeMapFile52
+}
+if ($TypeMapFile -and -not (Test-Path -LiteralPath $TypeMapPath52 -PathType Leaf)) { $bad += ('-TypeMapFile not found: {0}' -f $TypeMapFile) }
+$ScenarioScnxPath = Join-Path $VrfRoot ('userData\scenarios\{0}.scnx' -f $Scenario)
+$ModelSetTypeMap  = Get-TypeMapModelSet -Path $TypeMapPath52
+$ModelSetScenario = Get-ScenarioModelSet -ScnxPath $ScenarioScnxPath
+$ModelSetVerdict  = Test-ModelSetPairing -ModelSet $ModelSet -Is52 $Is52 -TypeMap $ModelSetTypeMap `
+                                         -Scenario $ModelSetScenario -DryRun ([bool]$DryRun)
+foreach ($x in @($ModelSetVerdict.Refusals)) { $bad += $x }
+# Printed HERE, inside Stage 0, so the facts are on screen even when some OTHER check refuses the
+# run. 5.2 only: the 5.0.2 profile's output stays byte-for-byte what it was (a -ModelSet on 5.0.2
+# is a refusal above, printed with the others).
+if ($Is52) {
+    Say ('  model set   : {0} <- {1}; exported to the app as Vrf__ModelSet' -f $ModelSet, $(if ($ModelSetPassed) { 'argument -ModelSet' } else { 'default' }))
+    Say ('  type map    : {0} - declares {1} ({2})' -f $TypeMapFile52, $ModelSetTypeMap.ModelSet, $ModelSetTypeMap.Via)
+    Say ('  fixture SMS : {0} -> {1} ({2})' -f $(if ($ModelSetScenario.Readable) { $ModelSetScenario.Sms } else { '(not read)' }), $ModelSetScenario.ModelSet, $ModelSetScenario.Via)
+    foreach ($x in @($ModelSetVerdict.Warnings)) { Add-Flag 'WARN' ('MODEL SET: ' + $x) }
+    foreach ($x in @($ModelSetVerdict.Notes))    { Say ('                ' + $x) }
+}
 # Stage 8b WS runaway abort (RUNBOOK 0.5.11 item 17 extension). 0 = off; anything positive is a
 # COUNT of confirmed SampleThreads.ps1 alerts, so there is no upper window to bound it against.
 $WsRunawayOn = ($WsRunawayAbortAfter -gt 0)
@@ -2800,6 +2854,19 @@ $Manifest.inputs.vrfAppDataDir = $(if ($Is52 -and $VrfAppDataDir) { $VrfAppDataD
 # mislabel this review item is about.
 $Manifest.inputs.typeMapFile   = $(if ($Is52) { $TypeMapFile52 } else { '(5.0.2 profile: appsettings)' })
 $Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
+# THE MODEL SET and the two facts Stage 0 checked it against (RL-20260927-01).
+$Manifest.inputs.modelSet = [ordered]@{
+    modelSet          = $ModelSet
+    source            = $(if ($ModelSetPassed) { 'argument -ModelSet' } else { 'default' })
+    exportedToApp     = [bool]$Is52
+    typeMapDeclares   = $ModelSetTypeMap.ModelSet
+    typeMapVia        = $ModelSetTypeMap.Via
+    fixture           = $ModelSetScenario.Path
+    fixtureSms        = $ModelSetScenario.Sms
+    fixtureModelSet   = $ModelSetScenario.ModelSet
+    fixtureVia        = $ModelSetScenario.Via
+    warnings          = @($ModelSetVerdict.Warnings)
+}
 $Manifest.inputs.federation    = $Federation
 # THE PROFILE, in the evidence. A trace can only be compared with another trace from the
 # SAME stack, so which stack ran is a first-class manifest field - roots, binaries, the
@@ -3660,6 +3727,7 @@ if ($Is52) {
     Say ('  app config  : Vrf__Federation="" Vrf__FedFileName="" Vrf__ConfigFileIdentity=true (FomModules CLEARED - config modules are ADDITIVE, DIFF row A9)')
     Say ('                Vrf__ConnectionConfigFile={0}{1}' -f $ConnConfigFile, $(if ($ConnConfigFromAppDataDir) { '  (from the RELOCATED -VrfAppDataDir tree - the one the sim reads)' } else { '  (vendor appData)' }))
     Say ('                Vrf__TypeMapFile={0}' -f $TypeMapFile52)
+    Say ('                Vrf__ModelSet={0}' -f $ModelSet)
     Say ('                Vrf__DeviceAddress={0}' -f $(if ($DeviceAddressPassed) { $DeviceAddress52 } else { '(NOT SET - -DeviceAddress is empty; the app keeps VrfFacade''s 127.0.0.1)' }))
     Say ('  RTI         : rtiexec mode on {0}, rid {1}' -f $RtiDir, (Split-Path -Leaf $RidFile))
     Say ('                Stage 2r ensures a headless rtiexec is LISTENING on TCP 4001 before anything joins; it is never killed and outlives the run.')
@@ -3719,6 +3787,10 @@ if ($Is52) {
     $AppEnv52['Vrf__FedFileName']         = ''
     $AppEnv52['Vrf__ConnectionConfigFile']= $ConnConfigFile
     $AppEnv52['Vrf__TypeMapFile']         = $TypeMapFile52
+    # THE MODEL SET (RL-20260927-01): the key the pre-flight lane reads for its rule set. Set on
+    # every 5.2 run, EntityLevel included, so what the app was told is in the evidence; the value
+    # EntityLevel is the default the key already has, so an entity-level run behaves as before.
+    $AppEnv52['Vrf__ModelSet']            = $ModelSet
     # The interface address is an OVERRIDE only. With -DeviceAddress empty (the default) no
     # Vrf__DeviceAddress is set at all and the app keeps VrfFacade's own 127.0.0.1 - the
     # runner asserts nothing it has not tested. Setting it binds Vrf:DeviceAddress in

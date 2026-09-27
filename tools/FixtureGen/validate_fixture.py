@@ -311,6 +311,30 @@ def describe_sms(path):
     return ok
 
 
+def describe_aggregate_sms(macro_path):
+    """The SHIPPED AggregateTacticalLevel.sms, named through the $(DATA_DIR) macro (2026-09-27,
+    the aggregate-level profile). Not a derived SMS, so nothing is 'overridden'; what is gated
+    is that the vendor file is there and is the model set the type map was surveyed from:
+    model-set-directory AggregateTacticalLevel, including AggregateLevelBase.sms
+    (tools/aggregate/survey_magx.py walks the same chain). The protocol line is INFO: UG52
+    27.1 p528 says the aggregate warfare model only works with HLA Evolved / HLA 4 and the MAK
+    FOM extensions, which the 5.2 runner's connection config provides."""
+    on_disk = bf.expand_vendor_macros(macro_path)
+    ok = _say(True, "aggregate sms exists on disk", on_disk, os.path.isfile(on_disk))
+    if not os.path.isfile(on_disk):
+        return ok
+    txt = _read(on_disk)
+    m = re.search(r'\(model-set-directory\s+"([^"]*)"\)', txt)
+    ok = _say(ok, "sms model-set-directory", m.group(1) if m else "(absent)",
+              bool(m) and m.group(1) == "AggregateTacticalLevel")
+    inc = re.findall(r'\(include\s+"([^"]*)"\s*\)', txt)
+    ok = _say(ok, "sms includes AggregateLevelBase.sms", ", ".join(inc) or "(none)",
+              any(i.replace("\\", "/").lower().endswith("aggregatelevelbase.sms") for i in inc))
+    v = re.search(r'\(validator-string\s+"([^"]*)"\)', txt)
+    _info("sms validator-string (protocol)", v.group(1) if v else "(absent)")
+    return ok
+
+
 def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
                    frame_time=0.033333, aoi=None, terrain=None, sms=None):
     """Validate an EMPTY 5.2 fixture. Returns True/False; prints every check.
@@ -392,12 +416,27 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
               kinds == set(bf.GLOBAL_TYPE_PREFIXES.values()))
 
     # ---- terrain / SMS -------------------------------------------------------
-    want_terrain = terrain or bf.TERRAIN_52
+    want_terrain = bf.resolve_terrain_52(terrain)
     want_sms = bf.resolve_sms_52(sms, verbose=False)
-    if terrain and terrain != bf.TERRAIN_52:
+    if want_terrain == bf.TERRAIN_52_AGGREGATE:
+        on_disk = bf.expand_vendor_macros(want_terrain)
+        ok = _say(ok, "aggregate terrain exists on disk", on_disk, os.path.isfile(on_disk))
+        if os.path.isfile(on_disk):
+            n = bf.count_nav_records(on_disk)
+            ok = _say(ok, "aggregate terrain carries NO nav data",
+                      "%d navData record(s)" % n, n == 0)
+    elif terrain and want_terrain != bf.TERRAIN_52:
         ok = _say(ok, "terrain override exists on disk", terrain, os.path.isfile(terrain))
     if want_sms == bf.SMS_52:
         _info("sms", "the shipped EntityLevel.sms ($(DATA_DIR) macro; no script override)")
+    elif want_sms == bf.SMS_52_AGGREGATE:
+        ok = describe_aggregate_sms(want_sms) and ok
+        # THE PROFILE PAIRING: the same rule the builder refuses on, checked here on the
+        # ARTEFACT, so a hand-edited or old fixture cannot slip past it.
+        ok = _say(ok, "aggregate SMS paired with the aggregate terrain",
+                  "terrain %s" % ("MAK Earth Aggregate (online)" if want_terrain == bf.TERRAIN_52_AGGREGATE
+                                  else want_terrain),
+                  want_terrain == bf.TERRAIN_52_AGGREGATE)
     else:
         ok = describe_sms(want_sms) and ok
     for key, want in (("Terrain-Database", want_terrain),
@@ -505,14 +544,18 @@ if __name__ == "__main__":
     ap.add_argument("--terrain", default=None, metavar="MTF",
                     help="--empty-52: the terrain the fixtures are EXPECTED to name "
                          "(default: the shipped MAK Earth (online).mtf). Pass the "
-                         "navigation-area copy for fixtures built with --terrain.")
+                         "navigation-area copy for fixtures built with --terrain, or "
+                         "'aggregate' for the shipped MAK Earth Aggregate (online).mtf "
+                         "(also gated: it must carry no navData record).")
     ap.add_argument("--sms", default=None, metavar="SMS",
                     help="--empty-52: the simulation model set the fixtures are "
                          "EXPECTED to name. Default = the build default, i.e. the "
                          "derived abstract-graph SMS when it exists on this machine "
                          "(%s) and the shipped EntityLevel.sms otherwise. Pass "
                          "'vendor' for a fixture deliberately built on the shipped "
-                         "SMS, or the path of another derived SMS."
+                         "SMS, 'aggregate' for the aggregate-level profile (shipped "
+                         "AggregateTacticalLevel.sms; the pairing with --terrain "
+                         "aggregate is gated), or the path of another derived SMS."
                          % bf.SMS_52_CUSTOM)
     ap.add_argument("--aoi", default=None, metavar="BOX",
                     help="--empty-52: the playbox the fixture's ScenarioExtentInformation "

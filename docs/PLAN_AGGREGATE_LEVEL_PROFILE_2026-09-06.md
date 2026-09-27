@@ -34,6 +34,14 @@ and-below COAs, AggregateTacticalLevel for battalion+ - a PROFILE (fixture + typ
   (vrfSim --help: "Merges all unit type mapping files (*.magx)") - the same job as our
   fidelity table; the same aggregate code (11:1:225:5:2:0:0) is Tank Company (USA) with 6
   subordinate types in EntityLevel and Tank CO (USA, M1A2) with 0 in AggregateTacticalLevel.
+  [CORRECTED 2026-09-27 by the survey, docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md: the chain
+  (AggregateTacticalLevel -> AggregateLevelBase -> base) holds 453 kind-11 templates and 401 .magx entries.
+  RUS is NOT thin: it is DIS 260 in this catalogue (137 templates deployable "RU"), 131 ground templates, 107
+  warfare-model units; "RU 4" counted the label spelling "(RU,". No nation has a warfare-model UNIT at BDE, DIV,
+  CORPS or RGT - the "BDE 11" are Aggregate Containers, most of them EMPTY generic nodes. The .magx is listed
+  only among vrfGui options (UG52 Table 10 p172, --mergeUnitTypeMap) and maps a type to a GUI element definition
+  beside the .leaf visualizers; 38 entries name types no template publishes, 15 of which land base-sim-aggregate.
+  The sim picks templates from the .entity files, so object types come from there and are resolved.]
 - API: model-set agnostic (createAggregate(objectType, ...), moveAlongRoute(uuid, route),
   addToOrganization) - the same calls select a leaf unit or an entity container depending on
   the scenario's SMS. The shipped remote-control sample is entity-level but uses nothing that
@@ -53,6 +61,16 @@ and-below COAs, AggregateTacticalLevel for battalion+ - a PROFILE (fixture + typ
    Route, TASKCMPLT, position reports); (b) COA-STP1's 11 units; (c) the verb mapping (STP ->
    UG52 35 tasks) - Attack by Fire / Indirect Fire / Move families first.
 
+STATUS 2026-09-27 - steps 1-3 BUILT OFFLINE on feat/aggregate-profile (RL-20260927-01 moved Iron Storm to this
+profile; record docs/experiments/AGGREGATE_PROFILE_OFFLINE_2026-09-27.md). 1: fixture
+IronStorm_Centre_52_Aggregate (Iron Storm AOI, not Mojave; `--sms aggregate --terrain aggregate`; not deployed).
+2: data/unit-type-map-52-aggregate.json, object types from the .entity files (see the correction above), every row
+a movable warfare-model leaf, 40 of 40 Iron Storm units PROXY; RUS and BLR hostile rows both present - which one is
+an owner decision. 3: the key is `Vrf:ModelSet` / runner `-ModelSet` (the name the pre-flight lane uses; not
+`-SimulationModel`); it selects the map and the runner refuses a fixture/type-map mismatch. Step 4 corrections:
+4(a) must not use Tank CO (USA, M1A2) under CreationPolicy=AtOrder - the app's resolver is rooted at EntityLevel and
+would EXPAND it (record sec 6.2); the Iron Storm G1 draft uses Mech CO (USA, M2) for 48 IBCT.
+
 ## What is reused (verified against the code 2026-09-06)
 Bridge + facade untouched; C2SIM parsing, placement (terrain query), route authoring, task
 sequencing, reports (position + TASKCMPLT), runner, observers (WatchVrf reflects aggregates),
@@ -60,6 +78,11 @@ tools/analysis (taskee_displacement.py works on the unit's own uuid), demo start
 CreationPolicy (a leaf shell IS the unit - materialization is ~free). Optional there: the
 compose/expand machinery (N1-N4) - only for battalions-of-companies via addToOrganization.
 Not reused: the entity-level type map; the entity movement diagnosis (C1b, S4/S6).
+[CORRECTED 2026-09-27 by reading main b984945: materialization of a leaf is NOT free - MaterializeUnit deletes the
+shell and re-creates it (case 3, VrfC2SimService.cs:2623-2651), classifying the type with a resolver rooted at
+EntityLevel.sms (:2365). And "reports" is only half reused: position reports read the unit's own position (:1225),
+but arrival evidence (C15) and the stall watchdog (C16) read MEMBER positions and skip an aggregate with no members
+(TryReadMemberPositions, :7306) - i.e. every warfare-model leaf. Record sec 6.]
 
 ## Unknowns (each settled by run 4a)
 TASKCMPLT via DtTaskCompleteReport for aggregate-level tasks (assumed same path); a leaf unit's
