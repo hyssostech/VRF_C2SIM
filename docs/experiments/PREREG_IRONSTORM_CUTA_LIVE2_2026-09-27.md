@@ -65,7 +65,7 @@ reports. A demo-readiness confirmation at n = 1, not an experiment.
 (a) PERFORMERS - unchanged from -1 sec 1(a) [A]: 28ID = ONE M1A2 PLATFORM; 48 IBCT = one M577A2 PLATFORM; 1-112 IN = an
 AGGREGATE of 6 members, created AtOrder. T02 is a platform ATTACK whose AffectedEntity is the performer itself (R3 self)
 -> AdvanceOnly with ROEHold. No unit ATTACK in cut A: the fire-at-will line is PREDICTED ABSENT (P8).
-(b) DurationScale 0.25 is plan P7 / CHANGES.md "recommended", NOT an owner ruling (as -1).
+(b) DurationScale 0.25 is plan P7 / CHANGES.md "recommended", a plan recommendation, not a ruling on file (as -1).
 (c) THE TASKS (order 7a986137...69f5c7 [V], init 2000e856...3eec [V]; scaled seconds are SIMULATION seconds):
 
 | Task (uuid) | performer | verb -> decision | geometry / distance | start | armed end |
