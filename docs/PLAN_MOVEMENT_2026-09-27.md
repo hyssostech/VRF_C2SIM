@@ -40,6 +40,9 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | G2 | Cut A on the aggregate profile; then the full 23-task order in phases | - | after G1 | QUEUED |
 | V1 | STP verbs onto the aggregate task set (attack-by-fire, breach, fire support) | - | after G2 | LATER |
 
+| C1 decisions | RULED 2026-09-27 (RL-20260927-04, "As recommended" + D-2 revised): D-1 28ID = HQ only; D-3 company-level HQ; D-4 Mech CO for a US rifle company until authored; D-5 performer only; D-6 withhold a short/vacuous container completion; D-7 TO twins display-only (ask STP why each formation is exported twice); D-8 flat containers. D-2: compose to doctrine (FM 3-96) and AUTHOR the missing US unit types (engineer, support, others) - package C2 | design/aggregate-containers (43b4232) | - | DESIGN DONE; code lane next |
+| C2 | Author the US unit types the aggregate catalogue lacks, as new unit types in the derived model set (recipe pattern of tools/sms/Deploy-C2SimSms.ps1: vendor files never committed, our edits recorded): Infantry BN (IBCT), FA BN, Brigade Engineer BN, Brigade Support BN, division HQ; from the catalogue's own engineer/support/infantry units of other nations (Engineering BN (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)) with US nation code and equipment; UG52 72.2 parameters (Attack, Vulnerability, Supplies, Engineering systems), 27.2.3. The aggregate breach/obstacle tasks (Breach_Obstacles, Improve_Breach, Destroy/Improve_Obstacle) become available to the full order's BREACH task. Fixture on the derived SMS | feat/aggregate-authored-units | executor (Opus), parallel to the C1 code lane | NEXT |
+
 ## 2. Order and gates
 
 | step | gate | note |
