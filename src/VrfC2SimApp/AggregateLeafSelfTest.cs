@@ -143,9 +143,10 @@ public static class AggregateLeafSelfTest
               !UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.NotYetJudgeable, 30.0)
               && UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.NotYetJudgeable, 60.0)
               && !UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.AggregateLeaf, 600.0)
-              && !UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.Members, 600.0),
-              "(d4) an entity-level aggregate still memberless 60 s after dispatch is SAID (once), never judged; a leaf " +
-              "and a unit with members are never warned about");
+              && !UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.Members, 600.0)
+              && !UnitPositionPolicy.ShouldWarnMemberless(UnitPositionSource.Unbound, 600.0),
+              "(d4) an entity-level aggregate still memberless 60 s after dispatch is SAID (once), never judged; a leaf, " +
+              "a unit with members and a unit with NO object bound yet are never warned about as memberless");
 
         // Start-up line.
         string lineAgg = UnitPositionPolicy.StartupLine("AggregateTacticalLevel", true, true);
@@ -166,6 +167,10 @@ public static class AggregateLeafSelfTest
         string reader = Between(src, "private bool TryReadUnitPositions(", "private void NoteMemberlessSkip(");
         Check(ref failures, src.Contains("=> TryReadUnitPositions(name, out positions, out total, out _);"),
               "(d5) TryReadMemberPositions (the dispatch baseline and the engage fallback's reader) delegates to the ONE reader");
+        Check(ref failures, reader.Contains("source = UnitPositionSource.Unbound;")
+                            && reader.IndexOf("source = UnitPositionSource.Unbound;", StringComparison.Ordinal)
+                               < reader.IndexOf("if (!_names.TryGetUuid(name, out var vrfUuid)) return false;", StringComparison.Ordinal),
+              "(d5) a unit with no object bound yet leaves the reader as Unbound - never mistaken for a memberless aggregate");
         Check(ref failures, reader.Contains("UnitPositionPolicy.SourceFor(isAggregate: true, members?.Count ?? 0, _aggregateModelSet)")
                             && reader.Contains("source == UnitPositionSource.AggregateLeaf")
                             && reader.Contains("total = 1;")

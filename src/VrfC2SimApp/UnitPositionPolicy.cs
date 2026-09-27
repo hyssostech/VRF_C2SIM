@@ -20,6 +20,9 @@ public enum UnitPositionSource
     /// arrive asynchronously after the create) or it is an empty shell. NOTHING to judge this tick - it is
     /// skipped, exactly as before D1.</summary>
     NotYetJudgeable,
+    /// <summary>No VR-Forces object is bound to the unit's name yet (platform or aggregate alike): nothing to
+    /// judge, and nothing to say about members - the R1 poll names an unbound unit once already.</summary>
+    Unbound,
 }
 
 /// <summary>

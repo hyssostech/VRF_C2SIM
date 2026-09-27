@@ -7337,7 +7337,7 @@ public sealed class VrfC2SimService : BackgroundService
     {
         positions = null;
         total = 0;
-        source = UnitPositionSource.NotYetJudgeable;
+        source = UnitPositionSource.Unbound;   // no object bound yet: not judged, and not a "no members" case
         if (!_names.TryGetUuid(name, out var vrfUuid)) return false;
         bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
                            && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
