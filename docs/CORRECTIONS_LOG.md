@@ -604,3 +604,14 @@ label spelling "(RU," and did not distinguish simulated units from containers. E
 survey_magx.py; docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md): RUS (DIS 260) 107 simulated units, BLR (246) 24; NO
 nation has a simulated unit at RGT/BDE/DIV/CORPS - those entries are containers, filled by the vendor with battalion and
 company units (Road to Kaunas). The ledger line carries a dated bracketed correction; the decision it describes is unchanged.
+
+## C1 design: "81 units inside 17 containers", "Move Along Route per MG Table 1", "the TO composes the taskee" (2026-09-27)
+Claimed (PLAN_MOVEMENT C1 and line 19, the C1 hand-over): Road to Kaunas has 81 simulated units inside its 17 containers; a
+container is tasked with the vendor's higher-unit Move Along Route (MG 2.4.1 Table 1); the STP TO is the first composition
+source for a tasked container. Why wrong: 51 of the 81 are inside, 30 at force level; MG sec 2.4 is the ENTITY-level
+ground-vehicle table - an aggregate container has no move controller, and every task the vendor's plans give one is scripted
+(pa_move_along_route for a move) bar the built-in wait; and the tasked cut-A units are COA task-force units with no Superior
+and no Subordinate - the 15 TO relations (as RL-20260927-02's reading describes them) sit on separate TO twins, so the TO
+reaches no cut-A taskee. Evidence: tools/aggregate/composition_check.py --vendor; PseudoAggregate.ope:40-131;
+data/STP-IRON-STORM-SYNTHETIC_Initialization.xml; docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md sec 1 and 4.1. No ruling
+changes; the TO question is the owner's decision D-7.
