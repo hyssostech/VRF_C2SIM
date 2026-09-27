@@ -48,6 +48,10 @@ import zipfile
 DEFAULT_VRF_HOME = os.environ.get("VRF_HOME") or r"C:\MAK\vrforces5.2d"
 TOP_SMS = "AggregateTacticalLevel"
 UNIT_KIND = 11
+# The C2SIM derived aggregate model set (tools/sms/Deploy-C2SimAggregateSms.ps1): AggregateTacticalLevel
+# plus the AUTHORED US unit types. Deployed at run time under C:\C2SIM\vrf-sms, never in the repo.
+DERIVED_AGGREGATE_SMS = (os.environ.get("C2SIM_AGGREGATE_SMS")
+                         or r"C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms")
 
 # UG52 appendix D.3.4 p1689-1690 ("Unit Category"; Force, Team, Squad, Section are VR-Forces
 # extensions). -1 is a matchType wildcard, not an enumeration.
@@ -180,13 +184,24 @@ class Template(object):
 
 
 class Chain(object):
-    """The installed model-set chain + the vendor's best-match rule (ObjectTypeResolver.cs)."""
+    """The installed model-set chain + the vendor's best-match rule (ObjectTypeResolver.cs).
 
-    def __init__(self, vrf_home=DEFAULT_VRF_HOME, top_sms=TOP_SMS):
+    derived_sms: the ABSOLUTE path of a derived .sms OUTSIDE the vendor tree (the C2SIM derived
+    sets under C:\\C2SIM\\vrf-sms, tools/sms). It heads the chain - an including SMS has the higher
+    priority (UG52 68.3.3 p1312), so its templates win a best-match tie - its model-set-directory
+    is resolved against the .sms file's own directory (the layout the deployed derived sets use:
+    NAME.sms beside NAME\\), and its (include ...) lines are followed into the vendor tree by file
+    name exactly as for a vendor SMS. top_sms is then ignored."""
+
+    def __init__(self, vrf_home=DEFAULT_VRF_HOME, top_sms=TOP_SMS, derived_sms=None):
         self.vrf_home = vrf_home
         self.sets_dir = os.path.join(vrf_home, "data", "simulationModelSets")
-        self.order = []          # [(sms name, model-set-directory)]
-        self._follow(top_sms, set())
+        self.order = []          # [(sms name, model-set-directory)] - an absolute directory for a derived SMS
+        self.derived_sms = derived_sms
+        if derived_sms:
+            self._follow_derived(derived_sms)
+        else:
+            self._follow(top_sms, set())
         self.templates = []
         self.unreadable = []
         for sms, mset in self.order:
@@ -197,6 +212,20 @@ class Chain(object):
                 if f.lower().endswith(".entity"):
                     self._read_entity(os.path.join(d, f), sms)
         self.magx = self._read_all_magx()
+
+    def _follow_derived(self, path):
+        if not os.path.isfile(path):
+            raise IOError("derived SMS not found: %s (deploy it: tools/sms/Deploy-C2SimAggregateSms.ps1)" % path)
+        text = open(path, "r", encoding="utf-8", errors="replace").read()
+        name = os.path.splitext(os.path.basename(path))[0]
+        m = re.search(r'\(model-set-directory\s+"([^"]*)"\)', text)
+        mset = m.group(1) if m and m.group(1) else name
+        self.order.append((name, os.path.join(os.path.dirname(os.path.abspath(path)), mset)))
+        seen = set([name.lower()])
+        for inc in re.findall(r'\(include\s+"([^"]*)"\)', text):
+            base = os.path.splitext(os.path.basename(inc.replace("\\", "/")))[0]
+            if base:
+                self._follow(base, seen)
 
     def _follow(self, sms, seen):
         path = os.path.join(self.sets_dir, sms + ".sms")
@@ -731,6 +760,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Survey the 5.2d aggregate-level unit catalogue (read-only).")
     ap.add_argument("--vrf-home", default=DEFAULT_VRF_HOME)
     ap.add_argument("--top-sms", default=TOP_SMS)
+    ap.add_argument("--derived-sms", default=None, metavar="SMS",
+                    help="survey a DERIVED chain headed by this .sms (absolute path; e.g. %s). "
+                         "Overrides --top-sms." % DERIVED_AGGREGATE_SMS)
     ap.add_argument("--out", default=None, help="write the markdown catalogue here")
     ap.add_argument("--csv", default=None, help="write the full per-template table here")
     ap.add_argument("--reference-scnx", default=None,
@@ -739,7 +771,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest(a.vrf_home)
-    chain = Chain(a.vrf_home, a.top_sms)
+    chain = Chain(a.vrf_home, a.top_sms, derived_sms=a.derived_sms)
     rows = build_rows(chain)
     ref = None
     if a.reference_scnx:

@@ -648,6 +648,12 @@ SMS_52_AGGREGATE = r"$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms"
 TERRAIN_52_AGGREGATE = (r"$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration"
                         r"\MAK Earth Aggregate (online).mtf")
 SMS_AGGREGATE_ALIASES = ("aggregate", "aggregatetacticallevel", "aggregatetacticallevel.sms")
+# THE C2SIM DERIVED AGGREGATE SET (package C2, RL-20260927-04): AggregateTacticalLevel.sms INCLUDED unchanged
+# plus the authored US unit types, built at deploy time by tools/sms/Deploy-C2SimAggregateSms.ps1. Named by
+# ABSOLUTE path like the entity-level derived sets (UG52 Table 15 p271). It is of the AGGREGATE family, so the
+# aggregate terrain pairing applies to it exactly as to the shipped set (is_aggregate_sms follows its include).
+SMS_52_AGGREGATE_C2SIM = r"C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms"
+SMS_AGGREGATE_C2SIM_ALIASES = ("aggregate-c2sim", "c2sim_aggregatetacticallevel", "c2sim_aggregatetacticallevel.sms")
 TERRAIN_AGGREGATE_ALIASES = ("aggregate", "mak earth aggregate (online)",
                              "mak earth aggregate (online).mtf")
 # Where the two macros point on THIS install (the shipped-terrain listing of 2026-09-04 and the
@@ -684,6 +690,8 @@ def resolve_sms_52(sms, verbose=True):
         return SMS_52
     if sms.strip().lower() in SMS_AGGREGATE_ALIASES:
         return SMS_52_AGGREGATE
+    if sms.strip().lower() in SMS_AGGREGATE_C2SIM_ALIASES:
+        return SMS_52_AGGREGATE_C2SIM
     return sms
 
 
@@ -697,8 +705,31 @@ def resolve_terrain_52(terrain):
     return terrain
 
 
+def sms_family(sms, depth=0):
+    """'AggregateTacticalLevel', 'EntityLevel' or None: the vendor SMS an SMS string is, or (a derived set named by
+    absolute path) reaches through its (include ...) lines - the rule of scripts/RunnerLib.ps1 Get-ModelSetFromSms:
+    a vendor SMS by its FILE NAME, a derived one opened and followed, depth-capped."""
+    if not sms or depth > 4:
+        return None
+    leaf = sms.replace("/", "\\").split("\\")[-1].strip().lower()
+    if leaf == "aggregatetacticallevel.sms":
+        return "AggregateTacticalLevel"
+    if leaf == "entitylevel.sms":
+        return "EntityLevel"
+    if not os.path.isfile(sms):
+        return None
+    with open(sms, "r", encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    for inc in re.findall(r'\(include\s+"([^"]*)"\s*\)', text):
+        fam = sms_family(inc, depth + 1)
+        if fam:
+            return fam
+    return None
+
+
 def is_aggregate_sms(sms):
-    return sms == SMS_52_AGGREGATE
+    """The shipped aggregate set, or a derived set that INCLUDES it (the C2SIM authored set)."""
+    return sms == SMS_52_AGGREGATE or sms_family(sms) == "AggregateTacticalLevel"
 
 
 def count_nav_records(mtf_path):
@@ -1047,9 +1078,9 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     # plans on a nav mesh. REFUSED rather than warned: a mismatched fixture loads and runs, and
     # the mismatch would only show up as units moving on the wrong terrain classes.
     if is_aggregate_sms(sms) and terrain != TERRAIN_52_AGGREGATE:
-        raise SystemExit("--sms aggregate needs --terrain aggregate (%s): the aggregate model set "
-                         "is paired with the vendor's aggregate terrain (Road to Kaunas does the "
-                         "same); got %s" % (TERRAIN_52_AGGREGATE, terrain))
+        raise SystemExit("--sms %s needs --terrain aggregate (%s): the aggregate model set "
+                         "(and a derived set including it) is paired with the vendor's aggregate terrain "
+                         "(Road to Kaunas does the same); got %s" % (sms, TERRAIN_52_AGGREGATE, terrain))
     donor_path = DONORS_52.get(donor, donor)
     if not os.path.isfile(donor_path):
         raise SystemExit("donor .scnx not found: %s" % donor_path)
@@ -1151,6 +1182,9 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
             sms_note = "  (the shipped SMS - no script override)"
         elif sms == SMS_52_AGGREGATE:
             sms_note = "  (the shipped AGGREGATE-LEVEL model set - pair with data/unit-type-map-52-aggregate.json)"
+        elif is_aggregate_sms(sms):
+            sms_note = ("  (a DERIVED aggregate set including AggregateTacticalLevel.sms - the composition's "
+                        "'authored' variant runs on it)")
         elif sms == SMS_52_CUSTOM:
             sms_note = "  (DEFAULT since G7b - includes EntityLevel.sms, abstract graphs on)"
         else:
@@ -1307,8 +1341,10 @@ if __name__ == "__main__":
                          "'vendor' (same as --no-custom-sms) for the shipped "
                          "EntityLevel.sms, 'aggregate' for the shipped "
                          "AggregateTacticalLevel.sms (the aggregate-level profile; it "
-                         "REQUIRES --terrain aggregate), or another derived SMS by "
-                         "absolute path (must exist)." % SMS_52_CUSTOM)
+                         "REQUIRES --terrain aggregate), 'aggregate-c2sim' for the derived "
+                         "authored set %s (tools/sms; also REQUIRES --terrain aggregate), "
+                         "or another derived SMS by absolute path (must exist)."
+                         % (SMS_52_CUSTOM, SMS_52_AGGREGATE_C2SIM))
     ap.add_argument("--no-custom-sms", action="store_true",
                     help="--empty only: shorthand for --sms vendor. Writes the shipped "
                          "EntityLevel.sms, i.e. the pre-2026-09-14 default - nav-mesh "

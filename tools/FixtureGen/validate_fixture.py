@@ -14,6 +14,7 @@ import math
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -335,6 +336,58 @@ def describe_aggregate_sms(macro_path):
     return ok
 
 
+VENDOR_SMS_ROOT = r"C:\MAK\vrforces5.2d\data\simulationModelSets"
+
+
+def describe_aggregate_derived_sms(path):
+    """A DERIVED aggregate set named by absolute path (package C2: C2SIM_AggregateTacticalLevel, built by
+    tools/sms/Deploy-C2SimAggregateSms.ps1). Gated: the file exists; it INCLUDES AggregateTacticalLevel.sms
+    (UG52 68.3.1 p1310) and keeps the vendor's HLA validator-string (the aggregate warfare model needs HLA
+    Evolved, UG52 27.1 p528); its model-set directory has vrfSim.opd (68.3.5 p1314) and at least one .entity;
+    every .entity parses and publishes a kind-11 type; NO .entity shares a file name with a vendor aggregate
+    template (the set is meant to ADD types, not override them - an override is reported as a FAIL here)."""
+    ok = _say(True, "derived aggregate sms exists on disk", path, os.path.isfile(path))
+    if not os.path.isfile(path):
+        return ok
+    txt = _read(path)
+    inc = re.findall(r'\(include\s+"([^"]*)"\s*\)', txt)
+    ok = _say(ok, "sms includes AggregateTacticalLevel.sms", ", ".join(inc) or "(none)",
+              any(i.replace("\\", "/").lower().endswith("/aggregatetacticallevel.sms") for i in inc))
+    v = re.search(r'\(validator-string\s+"([^"]*)"\)', txt)
+    ok = _say(ok, "sms keeps the vendor HLA validator-string", v.group(1) if v else "(absent)",
+              bool(v) and "hla1516e" in v.group(1))
+    m = re.search(r'\(model-set-directory\s+"([^"]*)"\s*\)', txt)
+    mset = m.group(1) if m else None
+    ok = _say(ok, "sms model-set-directory", mset or "(absent)", bool(mset))
+    if not mset:
+        return ok
+    d = os.path.join(os.path.dirname(os.path.abspath(path)), mset)
+    ok = _say(ok, "model-set directory carries vrfSim.opd", d, os.path.isfile(os.path.join(d, "vrfSim.opd")))
+    ents = sorted(f for f in os.listdir(os.path.join(d, "vrfSim")) if f.lower().endswith(".entity")) \
+        if os.path.isdir(os.path.join(d, "vrfSim")) else []
+    ok = _say(ok, "authored .entity files", "%d under %s\\vrfSim" % (len(ents), mset), bool(ents))
+    vendor_names = set()
+    for sub in ("AggregateTacticalLevel", "AggregateLevelBase"):
+        vd = os.path.join(VENDOR_SMS_ROOT, sub, "vrfSim")
+        if os.path.isdir(vd):
+            vendor_names |= set(f.lower() for f in os.listdir(vd))
+    for f in ents:
+        try:
+            so = ET.parse(os.path.join(d, "vrfSim", f)).getroot().find("simObject")
+            ot = so.get("objectType") if so is not None else None
+        except ET.ParseError as e:
+            ot, so = None, None
+            _info("  parse error", "%s: %s" % (f, e))
+        good = bool(ot) and ot.split(":")[0] == "11" and f.lower() not in vendor_names
+        ok = _say(ok, "  authored type", "%s  %s%s" % (f, ot or "(no objectType)",
+                                                    "  (SHADOWS a vendor file)" if f.lower() in vendor_names else ""),
+                  good)
+    visuals = os.path.join(d, "gui", "visuals", "Unit")
+    nv = len([f for f in os.listdir(visuals) if f.lower().endswith((".leaf", ".magx"))]) if os.path.isdir(visuals) else 0
+    _info("unit symbols (.leaf + .magx)", "%d under %s\\gui\\visuals\\Unit" % (nv, mset))
+    return ok
+
+
 def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
                    frame_time=0.033333, aoi=None, terrain=None, sms=None):
     """Validate an EMPTY 5.2 fixture. Returns True/False; prints every check.
@@ -434,6 +487,12 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
         # THE PROFILE PAIRING: the same rule the builder refuses on, checked here on the
         # ARTEFACT, so a hand-edited or old fixture cannot slip past it.
         ok = _say(ok, "aggregate SMS paired with the aggregate terrain",
+                  "terrain %s" % ("MAK Earth Aggregate (online)" if want_terrain == bf.TERRAIN_52_AGGREGATE
+                                  else want_terrain),
+                  want_terrain == bf.TERRAIN_52_AGGREGATE)
+    elif bf.is_aggregate_sms(want_sms):
+        ok = describe_aggregate_derived_sms(want_sms) and ok
+        ok = _say(ok, "derived aggregate SMS paired with the aggregate terrain",
                   "terrain %s" % ("MAK Earth Aggregate (online)" if want_terrain == bf.TERRAIN_52_AGGREGATE
                                   else want_terrain),
                   want_terrain == bf.TERRAIN_52_AGGREGATE)

@@ -904,6 +904,11 @@ rebuild the four trees BEFORE any fixture build or deploy with
 (`-WhatIf` first; writes only under `C:\C2SIM\vrf-sms`, never `C:\MAK`; tools/sms/README.md).
 Without it a FixtureGen build with no `--sms` falls back to the shipped SMS with only a stdout
 NOTE (build_fixture.py resolve_sms_52), and the fixtures that name the SMS cannot load it.
+AGGREGATE DERIVED SMS (package C2): `IronStorm_Centre_52_Aggregate_C2SIM` names
+`C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms` (the AUTHORED US unit types); build it with
+`tools\sms\Deploy-C2SimAggregateSms.ps1` the same way (`-WhatIf` first; tools/sms/README.md). On the
+shipped aggregate SMS those types land EMPTY containers: the composition's "authored" variant runs
+only with that fixture (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7).
 
 ### 0.5.14 LAUNCHING A RUN - the wrapper, the markers, exit 127, the 64-bit rule (2026-09-14)
 

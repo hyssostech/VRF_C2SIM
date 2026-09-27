@@ -103,3 +103,69 @@ ce5166579f7e08283994f690c0c56820cfdab5f3afef1d9c2747b201b5a289e8  */vrfSim/platf
 2df34a50ff0d476e76b84db6d710cd10b3ad402d12288901f04631289b589484  */vrfSim/systems/movement/ground-tracked.sysdef
 aeb77abfe687fbce1aeb52d7d620f70c894f4647f8bba8cf8cedccc310eaa1b0  */vrfSim.opd (= vendor)
 ```
+
+## The AGGREGATE derived set: `Deploy-C2SimAggregateSms.ps1` (package C2, 2026-09-27)
+
+Builds `<Dest>\C2SIM_AggregateTacticalLevel.sms` + `<Dest>\C2SIM_AggregateTacticalLevel\` - the seven AUTHORED US
+Army unit types of RL-20260927-04 (Infantry BN (USA, IBCT), FA BN (USA, IBCT), Brigade Engineer BN (USA, IBCT),
+Brigade Support BN (USA), Division HQ (USA), FA BN (USA, ABCT), Brigade Engineer BN (USA, ABCT)). The set INCLUDES the
+shipped `AggregateTacticalLevel.sms` unchanged and only ADDS: `vrfSim.opd` (= the vendor's), one `vrfSim\*.entity`
+per type (an SMS's object types ARE those files, UG52 68.8 p1326) and one `gui\visuals\Unit\*.leaf` + `*.magx` per
+type (its symbol). Record, provenance and open items: `docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md`.
+
+The chain, every step checked:
+- `aggregate_authored_design.json` - the DECISIONS (donor, assemblies, set values, system deletes/grafts, symbol),
+  each with its reason and doctrine paragraph.
+- `python tools/aggregate/authored_units.py --write` - turns them into `C2SIM_AggregateTacticalLevel.recipe.json`:
+  literal edits against the installed vendor files (a single-line edit names the exact line; a block edit its first
+  line, line count and sha256) plus the sha256 of every input and of every OUTPUT. `--check` = the committed recipe
+  equals the regeneration (the gate after any design or vendor change); `--report` = the rolled values and every
+  value KEPT from a donor; `--selftest` = the roll-up port against the vendor's own rolled units + DIRTY controls;
+  `--emit DIR` = the Python-side build into a scratch directory (refuses C:\MAK).
+- `Deploy-C2SimAggregateSms.ps1` - asserts every edit on the installed files, builds in memory, gates each output
+  (ASCII, XML parse / .sms parentheses, sha256 == recipe), then writes; a failed assertion writes nothing.
+
+```
+& "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File tools\sms\Deploy-C2SimAggregateSms.ps1 -WhatIf
+& "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File tools\sms\Deploy-C2SimAggregateSms.ps1
+& "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File tools\sms\Deploy-C2SimAggregateSms.ps1 -SelfTest
+```
+Parameters and guards as `Deploy-C2SimSms.ps1` (`-VrfRoot`, `-Dest`, plus `-Recipe`); exit codes in the script
+header (0 ok; 2 bad argument or missing file; 3 vendor changed / output hash / not ASCII / no parse / read-back /
+stray file). `-SelfTest` builds CLEAN into a temp directory (22 files + the .sms, idempotent rerun) and runs six DIRTY
+controls on a mirrored vendor tree - an edited donor line, a line inside an edited block, the first line of a deleted
+block, a line inside a grafted source block, an asserted .sms line, a donor line no edit touches - each must exit 3
+having written nothing. NO `smsChecksum*.cksm`: those are the upgrade tool's checksums of the STANDARD sets (UG52
+68.5.2 p1319); MAKTest ships none.
+
+THE PAIRING: the authored types exist ONLY in this set. On the shipped `AggregateTacticalLevel.sms` they land empty
+generic containers or the base abstract, so the `authored` composition variant runs only with the fixture
+`IronStorm_Centre_52_Aggregate_C2SIM` (tools/FixtureGen). Do not "Roll Up" these types in the Simulation Object
+Editor: it would overwrite the recipe's set values (UG52 72.5 p1428) - rerun this script instead.
+
+Manifest of the 2026-09-27 build (vendor 5.2d inputs: 22, sha256 each in the recipe's `vendorInputs`):
+```
+22e99245ee29f27d312d2065ef5199643e60efdcd4b6c4fd0d109d8da4b5a7f1  C2SIM_AggregateTacticalLevel.sms
+6384a5a9662a5cdfb4f56d60bf347834e9fa3d14c298f992de7b3830d5608d16  */vrfSim.opd (= vendor)
+60e60943e6df057be80d3ac6db46ba720abd28082bd6a1c619eafcbbd20ff143  */vrfSim/Infantry BN (USA, IBCT).entity
+e8669ce3dcc88624cc776e683942b103878a5af6c62f64ff97c19ea8667db3fe  */vrfSim/FA BN (USA, IBCT).entity
+ee8d53f4b12d1e7d967036d984c5fb10a17ca8a35e1c2123fa4f70ec79629165  */vrfSim/Brigade Engineer BN (USA, IBCT).entity
+56a646fd259737921f402bbb37e96d820f7c6a9534ffe66986d53b686284a6d8  */vrfSim/Brigade Support BN (USA).entity
+d8cc0074ad2098f011661eea0d61bbfed032701773c14278402508e905b23e67  */vrfSim/Division HQ (USA).entity
+91ee9579223829a8555b2622761e8b881853321da86ecc50aa60d53a963e5bd0  */vrfSim/FA BN (USA, ABCT).entity
+0cf7fa388ea206cae2e8dd80173a4d35f3810dba5859abe3664d3a3b72dc7c0d  */vrfSim/Brigade Engineer BN (USA, ABCT).entity
+3a3cf3ab3ab67396d0ad9b7843e0ff45389a20dd3e626bf4066ee236edca845c  */gui/visuals/Unit/Infantry BN (USA, IBCT).leaf
+cf3811217151871a46aba0ae518f7b80e6bfe92354add5e7db4badd0bac4635e  */gui/visuals/Unit/Infantry BN (USA, IBCT).magx
+9b0244eb2083e3854bb270540e33358f2008d11eb83a99126714405a1d8efa7a  */gui/visuals/Unit/FA BN (USA, IBCT).leaf
+913b4d9bcf149adecfed607149da64f3762ea0680f30cbf7eb9089730f2e5276  */gui/visuals/Unit/FA BN (USA, IBCT).magx
+e9a9c3152611b19afb1393426dc17ed8157bfad2d7707e837f1feebe65d6a30d  */gui/visuals/Unit/Brigade Engineer BN (USA, IBCT).leaf
+0e710bcb2a71cdf3360023080318be3ce1e23b7f6ea48278b9a477889918f60b  */gui/visuals/Unit/Brigade Engineer BN (USA, IBCT).magx
+f9ac0dfbce0cab9b1a79e5c138882339a75f7e632257d132638ccd3a61e81541  */gui/visuals/Unit/Brigade Support BN (USA).leaf
+b09e0955162d8f7170286d95c76f49fc78d0852a5f32beb5ce023a790ad4fb4f  */gui/visuals/Unit/Brigade Support BN (USA).magx
+20f64e6d9bfaf3f616e4402bf7cdcd65f2b15e7bac2b79d588d7a9ce1052bb57  */gui/visuals/Unit/Division HQ (USA).leaf
+a4650f5829152faf332cc723ec7a873e3218b47619ecc37fe104727f193f803e  */gui/visuals/Unit/Division HQ (USA).magx
+7293305e99f322b60e63548d26fd3d1a05884e92768b3e3b2e84f7ec0a2f6d47  */gui/visuals/Unit/FA BN (USA, ABCT).leaf
+4d577b0cc60c7b4d8ff3c1131f6dfc767f98ab804fe36f89cbb4ddbcdc036e41  */gui/visuals/Unit/FA BN (USA, ABCT).magx
+54d52aea6e521ac1d696349ccee120af742f88d3a6f8314764b3472446e53833  */gui/visuals/Unit/Brigade Engineer BN (USA, ABCT).leaf
+b4fb636484d3c14d0145d15f9e7ed66482b26fc1b16425bf693bcaac7c1151a2  */gui/visuals/Unit/Brigade Engineer BN (USA, ABCT).magx
+```

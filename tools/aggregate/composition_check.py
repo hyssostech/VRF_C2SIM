@@ -21,6 +21,14 @@ Gates (each exits non-zero on failure):
   mapKeys     every mapRowId exists in the aggregate type map; the row key equals its first map row's key
   coverage    every PERFORMER of the cut-A order resolves (the UnitTypeMap port in typemap_check.py) to a map row
               a composition row covers
+VARIANTS (package C2, RL-20260927-04): every row carries "variant" - "catalogue" (catalogue units only; the vendor
+SMS), "authored" (the doctrinal composition with the AUTHORED US types; the derived set C2SIM_AggregateTacticalLevel,
+tools/sms) or "all" (both). Each variant is gated AS A WHOLE on ITS OWN chain: the catalogue variant (catalogue +
+all rows) on the vendor chain, the authored variant (authored + all rows) on the DEPLOYED derived chain - so a
+compose reference across variants fails, and the authored variant's leaves are proved to be simulated units only
+where they exist. Also gated: at most one row per variant covers a map row; an AUTHORED entry sits only in an
+authored row and names a type of the type map's authoredRows (and only an AUTHORED entry may). --selftest proves
+the pairing: the authored variant gated on the VENDOR chain FAILS (its types land empty containers there).
 Reports:
   --tree         each row expanded to its simulated leaves, with the Travel-posture footprints read off the
                  leaves' .entity files and the derived centroid-preserving ring (DeStacker.CentroidPreservingRadius)
@@ -58,9 +66,12 @@ IRON_STORM_INIT = tc.IRON_STORM_INIT
 SCENARIO_ROOT = os.path.join(sm.DEFAULT_VRF_HOME, "userData", "scenarios")
 MAX_DEPTH = 4
 ROLES = ("UNIT", "CONTAINER")
-FIDELITIES = ("EXACT", "PROXY")
-ROW_FIELDS = {"id": str, "key": dict, "mapRowIds": list, "servesUnits": str, "container": dict, "depth": str,
-              "provenance": str, "subordinates": list, "omitted": list}
+FIDELITIES = ("EXACT", "PROXY", "AUTHORED")
+CONTAINER_FIDELITIES = ("EXACT", "PROXY")
+VARIANTS = ("catalogue", "authored")
+ROW_VARIANTS = VARIANTS + ("all",)
+ROW_FIELDS = {"id": str, "variant": str, "key": dict, "mapRowIds": list, "servesUnits": str, "container": dict,
+              "depth": str, "provenance": str, "subordinates": list, "omitted": list}
 SUB_FIELDS = {"function": str, "count": int, "role": str, "objectType": str, "templateName": str,
               "fidelity": str, "note": str, "provenance": str}
 C2SIM_NS = {"c": "http://www.sisostds.org/schemas/C2SIM/1.1"}
@@ -242,11 +253,19 @@ def gate_schema(g, comp):
     if not g.check(isinstance(rows, list) and rows, "schema: rows is a non-empty list"):
         return
     problems = []
+    vs = comp.get("variants")
+    if not isinstance(vs, dict) or sorted(vs) != sorted(VARIANTS) or \
+            any(not isinstance(vs[k], dict) or not vs[k].get("modelSet") or not vs[k].get("note") for k in vs):
+        problems.append("variants must describe exactly %s, each with a modelSet and a note" % (VARIANTS,))
+    if comp.get("defaultVariant") not in VARIANTS:
+        problems.append("defaultVariant %r is not one of %s" % (comp.get("defaultVariant"), VARIANTS))
     for r in rows:
         rid = r.get("id", "?")
         for k, typ in ROW_FIELDS.items():
             if k not in r or not isinstance(r[k], typ):
                 problems.append("%s: field %s missing or not %s" % (rid, k, typ.__name__))
+        if r.get("variant") not in ROW_VARIANTS:
+            problems.append("%s: variant %r is not one of %s" % (rid, r.get("variant"), ROW_VARIANTS))
         key = r.get("key") if isinstance(r.get("key"), dict) else {}
         for k in ("functionId", "echelon", "nationRole", "nation"):
             if not isinstance(key.get(k), str) or not key.get(k):
@@ -255,8 +274,8 @@ def gate_schema(g, comp):
         for k in ("objectType", "templateName", "fidelity"):
             if not isinstance(cont.get(k), str) or not cont.get(k):
                 problems.append("%s: container.%s missing" % (rid, k))
-        if cont.get("fidelity") not in FIDELITIES:
-            problems.append("%s: container.fidelity %r" % (rid, cont.get("fidelity")))
+        if cont.get("fidelity") not in CONTAINER_FIDELITIES:
+            problems.append("%s: container.fidelity %r (containers are catalogue templates)" % (rid, cont.get("fidelity")))
         if isinstance(r.get("subordinates"), list) and not r["subordinates"]:
             problems.append("%s: no subordinates (an EMPTY container cannot move)" % rid)
         for s in r.get("subordinates", []) if isinstance(r.get("subordinates"), list) else []:
@@ -270,8 +289,11 @@ def gate_schema(g, comp):
                 problems.append("%s: role %r" % (where, s.get("role")))
             if s.get("fidelity") not in FIDELITIES:
                 problems.append("%s: fidelity %r" % (where, s.get("fidelity")))
-            if s.get("fidelity") == "PROXY" and not s.get("note", "").strip():
-                problems.append("%s: PROXY without a note" % where)
+            if s.get("fidelity") in ("PROXY", "AUTHORED") and not s.get("note", "").strip():
+                problems.append("%s: %s without a note" % (where, s.get("fidelity")))
+            if s.get("fidelity") == "AUTHORED" and (r.get("variant") != "authored" or s.get("role") != "UNIT"):
+                problems.append("%s: an AUTHORED entry is a UNIT of an 'authored' row (this row is %r)"
+                                % (where, r.get("variant")))
             if s.get("role") == "CONTAINER" and not s.get("compose"):
                 problems.append("%s: CONTAINER without 'compose'" % where)
             if s.get("role") == "UNIT" and "compose" in s:
@@ -421,15 +443,68 @@ class Gate(tc.Gate):
     pass
 
 
-def run_gates(comp, typemap, chain, quiet=False):
+class PrefixGate(object):
+    """The same Gate, every verdict labelled with the variant it is about."""
+
+    def __init__(self, g, prefix):
+        self.g, self.prefix = g, prefix
+
+    def check(self, ok, what, detail=""):
+        return self.g.check(ok, self.prefix + what, detail)
+
+
+def variant_rows(comp, variant):
+    return [r for r in comp.get("rows", []) if r.get("variant") in (variant, "all")]
+
+
+def gate_variant_unique(g, comp_v):
+    seen = collections.Counter(mid for r in comp_v.get("rows", []) for mid in (r.get("mapRowIds") or []))
+    dup = sorted(k for k, v in seen.items() if v > 1)
+    g.check(not dup, "variants: at most one row of the variant covers each map row", str(dup))
+
+
+def gate_authored_entries(g, comp, typemap):
+    """An AUTHORED entry names a type of the type map's authoredRows (same template name); no other entry may."""
+    authored = dict((a.get("objectType"), a.get("templateName")) for a in typemap.get("authoredRows") or [])
+    bad = []
+    for r in comp.get("rows", []):
+        for s in r.get("subordinates", []):
+            where = "%s/%s" % (r.get("id"), s.get("function"))
+            ot = s.get("objectType")
+            if s.get("fidelity") == "AUTHORED":
+                if ot not in authored:
+                    bad.append("%s: AUTHORED %s is no authoredRows type of the type map" % (where, ot))
+                elif authored[ot] != s.get("templateName"):
+                    bad.append("%s: names %r, the type map's authored row says %r" % (where, s.get("templateName"), authored[ot]))
+            elif ot in authored:
+                bad.append("%s: %s is an AUTHORED type but the entry says %s" % (where, ot, s.get("fidelity")))
+    g.check(not bad, "authored: every AUTHORED entry is a type of the type map's authoredRows, and only those are",
+            "; ".join(bad[:6]))
+
+
+def run_gates(comp, typemap, chain, quiet=False, derived=None, derived_why="", authored_chain=None):
+    """Returns (gate, {variant: {row id: nodes}}, {variant: coverage lines}). authored_chain overrides the chain the
+    authored variant is gated on (the selftest's pairing control passes the VENDOR chain)."""
     g = Gate(quiet=quiet)
     gate_schema(g, comp)
     if g.bad:
         return g, None, None
-    gate_container(g, comp, chain)
-    trees = gate_resolution_and_tree(g, comp, chain)
-    gate_map_keys(g, comp, typemap)
-    cov = gate_coverage(g, comp, typemap)
+    trees, cov = {}, {}
+    for v in VARIANTS:
+        ch = chain if v == "catalogue" else (authored_chain or derived)
+        pg = PrefixGate(g, "[%s] " % v)
+        if ch is None:
+            pg.check(False, "the derived set is DEPLOYED (the authored types exist only there)",
+                     "%s - run tools/sms/Deploy-C2SimAggregateSms.ps1" % derived_why)
+            continue
+        comp_v = dict(comp)
+        comp_v["rows"] = variant_rows(comp, v)
+        gate_container(pg, comp_v, ch)
+        trees[v] = gate_resolution_and_tree(pg, comp_v, ch)
+        gate_map_keys(pg, comp_v, typemap)
+        gate_variant_unique(pg, comp_v)
+        cov[v] = gate_coverage(pg, comp_v, typemap)
+    gate_authored_entries(g, comp, typemap)
     return g, trees, cov
 
 
@@ -724,9 +799,10 @@ def vendor_report(chain, root=SCENARIO_ROOT):
 # Self-test: CLEAN control, the draft's pinned numbers, then DIRTY controls
 # ---------------------------------------------------------------------------------------------
 
-def selftest(path=DEF_COMPOSITION):
+def selftest(path=DEF_COMPOSITION, derived_path=None):
     g = Gate()
     chain = sm.Chain()
+    derived, why = tc.load_derived(derived_path)
     typemap = json.load(open(DEF_MAP, encoding="utf-8"))
     comp = json.load(open(path, encoding="utf-8"))
     print("--- 1. ports ---")
@@ -757,26 +833,39 @@ def selftest(path=DEF_COMPOSITION):
             "TODAY's EntityLevel-rooted materialization would DELETE the 48 IBCT container (the in-place rule's reason)",
             repr(tw))
 
-    print("--- 2. CLEAN control: the committed draft passes every gate, with its pinned counts ---")
-    clean, trees, _cov = run_gates(comp, typemap, chain, quiet=True)
+    print("--- 2. CLEAN control: the committed table passes every gate, with its pinned counts ---")
+    clean, trees, _cov = run_gates(comp, typemap, chain, quiet=True, derived=derived, derived_why=why)
     g.check(clean.bad == 0, "CLEAN: %s passes all gates" % os.path.basename(path), "; ".join(clean.failures))
-    pinned = {"C-USA-DIV-UCI": (1, 0), "C-USA-BDE-UCI": (17, 3), "C-USA-BN-UCI": (5, 0),
-              "C-USA-BDE-UCA": (26, 6), "C-USA-BN-UCIZ": (8, 1)}
+    pinned = {("catalogue", "C-USA-DIV-UCI"): (1, 0), ("catalogue", "C-USA-BDE-UCI"): (17, 3),
+              ("catalogue", "C-USA-BN-UCI"): (5, 0), ("catalogue", "C-USA-BDE-UCA"): (26, 6),
+              ("catalogue", "C-USA-BN-UCIZ"): (8, 1),
+              # the authored variant: 28ID = its HQ; 48 IBCT flat (D-8) = HQ + 3 INF + CAV + FA + ENG + SPT;
+              # 116 ABCT = the catalogue row + FA, ENG, SPT
+              ("authored", "C-USA-DIV-UCI-A"): (1, 0), ("authored", "C-USA-BDE-UCI-A"): (8, 0),
+              ("authored", "C-USA-BDE-UCA-A"): (29, 6), ("authored", "C-USA-BN-UCI"): (5, 0),
+              ("authored", "C-USA-BN-UCIZ"): (8, 1)}
     if trees:
-        for rid, (nl, nc) in pinned.items():
-            lv, ct = leaves_and_containers(trees.get(rid, []))
-            g.check((len(lv), len(ct)) == (nl, nc), "%s expands to %d leaf unit(s) and %d sub-container(s)" % (
-                rid, nl, nc), "got %d and %d" % (len(lv), len(ct)))
+        for (v, rid), (nl, nc) in sorted(pinned.items()):
+            lv, ct = leaves_and_containers((trees.get(v) or {}).get(rid, []))
+            g.check((len(lv), len(ct)) == (nl, nc), "[%s] %s expands to %d leaf unit(s) and %d sub-container(s)" % (
+                v, rid, nl, nc), "got %d and %d" % (len(lv), len(ct)))
+        ibct = (trees.get("authored") or {}).get("C-USA-BDE-UCI-A", [])
+        authored_leaves = [n for n in ibct if n.tmpl is not None and n.tmpl.sms == (derived.order[0][0] if derived else "")]
+        g.check(len(authored_leaves) == 6 and all(n.role == "UNIT" and n.tmpl.role == "UNIT" for n in authored_leaves),
+                "[authored] 48 IBCT: 6 of its 8 leaves are AUTHORED warfare-model units from the derived set "
+                "(3 INF, FA, ENG, SPT)", [n.tmpl.name for n in ibct if n.tmpl])
 
     print("--- 3. DIRTY controls: each defect must FAIL its own gate ---")
 
-    def dirty(name, mutate, expect):
+    def dirty(name, mutate, expect, **kw):
         d = copy.deepcopy(comp)
         mutate(d)
-        res, _t, _c = run_gates(d, typemap, chain, quiet=True)
+        params = dict(derived=derived, derived_why=why)
+        params.update(kw)
+        res, _t, _c = run_gates(d, typemap, chain, quiet=True, **params)
         hit = any(expect in f for f in res.failures)
         g.check(hit, "DIRTY %s -> fails '%s' (%d gate(s) failed)" % (name, expect, res.bad),
-                "failures: %s" % res.failures)
+                "failures: %s" % res.failures[:4])
 
     def row(d, rid):
         return next(r for r in d["rows"] if r["id"] == rid)
@@ -839,6 +928,36 @@ def selftest(path=DEF_COMPOSITION):
     dirty("a non-ASCII note", non_ascii, "schema")
     dirty("a PROXY with no note", proxy_no_note, "schema")
     dirty("a row with no subordinates", empty_row, "schema")
+
+    # the variants and the authored types (package C2)
+    def authored_in_catalogue(d):
+        a = next(s for s in row(d, "C-USA-BDE-UCI-A")["subordinates"] if s["fidelity"] == "AUTHORED")
+        row(d, "C-USA-BDE-UCI")["subordinates"].append(copy.deepcopy(a))
+
+    def unregistered_authored(d):
+        a = next(s for s in row(d, "C-USA-BDE-UCI-A")["subordinates"] if s["fidelity"] == "AUTHORED")
+        a["objectType"] = "3:11:1:225:6:3:1:250"
+
+    def authored_as_exact(d):
+        a = next(s for s in row(d, "C-USA-BDE-UCI-A")["subordinates"] if s["fidelity"] == "AUTHORED")
+        a["fidelity"] = "EXACT"
+
+    def two_rows_one_variant(d):
+        dup = copy.deepcopy(row(d, "C-USA-DIV-UCI"))
+        dup["id"] = "C-USA-DIV-UCI-DUP"
+        d["rows"].append(dup)
+
+    def cross_variant_compose(d):
+        row(d, "C-USA-BDE-UCI")["subordinates"][1]["compose"] = "C-USA-DIV-UCI-A"
+
+    dirty("an AUTHORED entry in a catalogue row", authored_in_catalogue, "an AUTHORED entry is a UNIT of an 'authored' row")
+    dirty("an AUTHORED entry the type map does not register", unregistered_authored, "no authoredRows type")
+    dirty("an authored type entered as EXACT", authored_as_exact, "is an AUTHORED type but the entry says")
+    dirty("two rows of one variant covering one map row", two_rows_one_variant, "at most one row of the variant")
+    dirty("a catalogue row composing an authored row", cross_variant_compose, "names no row")
+    dirty("THE PAIRING: the authored variant on the VENDOR SMS (its types land empty containers)", lambda d: None,
+          "[authored] resolution", authored_chain=chain)
+    dirty("the derived set not deployed", lambda d: None, "is DEPLOYED", derived=None)
     print("COMPOSITION SELFTEST %s (%d problem(s))" % ("PASS" if g.bad == 0 else "FAIL", g.bad))
     return 0 if g.bad == 0 else 1
 
@@ -853,23 +972,31 @@ def main(argv=None):
     ap.add_argument("--vendor", action="store_true", help="print the vendor aggregate-scenario evidence")
     ap.add_argument("--twins", action="store_true",
                     help="print what TODAY's EntityLevel-rooted materialization would do with each container type")
+    ap.add_argument("--derived-sms", default=None, metavar="SMS",
+                    help="the deployed derived set the authored variant runs on (default %s)" % sm.DERIVED_AGGREGATE_SMS)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
-        return selftest(a.composition)
+        return selftest(a.composition, a.derived_sms)
     print("=== aggregate composition gate: %s ===" % a.composition)
     comp = json.load(open(a.composition, encoding="utf-8"))
     typemap = json.load(open(a.map, encoding="utf-8"))
     chain = sm.Chain()
-    g, trees, cov = run_gates(comp, typemap, chain)
-    if cov:
-        for name, kind, rid, ok in cov:
-            print("  [info] cut-A %-9s %-52s -> map row %-10s %s" % (kind, name[:52], rid,
-                                                                   "composed" if ok else "NOT composed"))
+    derived, why = tc.load_derived(a.derived_sms)
+    g, trees, cov = run_gates(comp, typemap, chain, derived=derived, derived_why=why)
+    for v in VARIANTS:
+        for name, kind, rid, ok in (cov or {}).get(v, []):
+            print("  [info] [%s] cut-A %-9s %-52s -> map row %-10s %s" % (v, kind, name[:52], rid,
+                                                                        "composed" if ok else "NOT composed"))
     if trees and a.tree:
-        print("--- composition tree ---")
-        for line in tree_report(comp, trees):
-            print(line)
+        for v in VARIANTS:
+            if v not in trees:
+                continue
+            print("--- composition tree, variant %s (%s) ---" % (v, (comp.get("variants") or {}).get(v, {}).get("modelSet")))
+            comp_v = dict(comp)
+            comp_v["rows"] = variant_rows(comp, v)
+            for line in tree_report(comp_v, trees[v]):
+                print(line)
     if a.init_census:
         print("--- init census: the EMPTY container each Iron Storm unit is created as (hostile RUS) ---")
         rows = init_census(chain, typemap)

@@ -4,6 +4,11 @@
   "status": "READ BY THE APP on Vrf:ModelSet=AggregateTacticalLevel since C1 (feat/aggregate-containers, 2026-09-27): Vrf:CompositionFile, the authored source (3) of an in-place population, every row resolved against the catalogue and logged at start-up; decisions D-1..D-8 of docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md sec 10 are RL-20260927-04 (docs/RULINGS.md); offline gate tools/aggregate/composition_check.py",
   "sourceDoc": "docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md (design, provenance, decisions owed); gate: tools/aggregate/composition_check.py",
   "typeMap": "data/unit-type-map-52-aggregate.json",
+  "variants": {
+    "catalogue": {"modelSet": "AggregateTacticalLevel", "sms": "$(DATA_DIR)\\simulationModelSets\\AggregateTacticalLevel.sms", "fixture": "IronStorm_Centre_52_Aggregate", "note": "catalogue units only - a PROXY where the vendor catalogue has no US type (the C1 draft). Runs on the shipped SMS. The G1 fallback if the authored set is not yet live-proven."},
+    "authored": {"modelSet": "C2SIM_AggregateTacticalLevel", "sms": "C:\\C2SIM\\vrf-sms\\C2SIM_AggregateTacticalLevel.sms", "fixture": "IronStorm_Centre_52_Aggregate_C2SIM", "note": "the doctrinal composition (FM 3-96) with the AUTHORED US unit types of package C2 (RL-20260927-04). REQUIRES the derived set (tools/sms/Deploy-C2SimAggregateSms.ps1) and a fixture on it: on the shipped SMS its authored types land EMPTY generic containers or the base abstract (typemap_check.py prints which). NOT live-proven."}
+  },
+  "defaultVariant": "catalogue",
   "notes": [
     "WHAT A ROW IS: the sub-units the interface creates and attaches (addToOrganization) INTO an existing, EMPTY Aggregate Container when an order first tasks the unit (RL-20260927-03: populate in place, never delete and re-create). The container itself is created at init by the design's init rule (sec 3; ContainerTypeRule in the app) - 'container' records the type that rule lands for the row's units (composition_check.py --init-census), and the app reads it only to check the row's echelons at start-up. UG52 72.2.1 p1419: warfare-model units cannot hold subordinates, containers can.",
     "KEY: 'key' is the type map's lookup key (functionId, SIDC echelon char, nationRole, nation) and 'mapRowIds' the type-map rows the app will look a unit up by (CreationPlan.MapRowId). A row with no mapRowIds is only ever reached through another row's 'compose'.",
@@ -13,11 +18,13 @@
     "NESTING (decision D-8): the rows keep the nested ORBAT (battalion sub-containers). For G1 the populate planner FLATTENS a row - every simulated leaf attached directly to the tasked container - because PA_Move_Along_Route.lua:133 ends each subordinate's move with the built-in move-to-location-retrograde-task, which a sub-container has no controller for, and no vendor plan exercises that case.",
     "PROXY = a real catalogue unit of the wrong branch, mobility, echelon or service standing in; 'note' says which. The US catalogue has NO Army infantry unit at any echelon, no US Army battalion-level maneuver unit other than the Stryker cavalry squadron, no US engineer or brigade-support unit, and no infantry division container.",
     "provenance keys: FM3-96 = FM 3-96 Brigade Combat Team, HQDA, January 2021 (supersedes 8 October 2015), chapter 1, paragraph numbers as cited; CAT = the named container template's configured subordinates (docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md sec 3); RTK = the vendor's Road to Kaunas scenario ORBAT (RoadToKaunas.scnx .orb/.oob); TASK = the C2SIM task text in data/IRONSTORM_CUTA_Order.xml.",
-    "ASCII only; CRLF; every row re-proved against the installed chain by composition_check.py."
+    "ASCII only; CRLF; every row re-proved against the installed chain by composition_check.py.",
+    "VARIANTS (package C2): every row carries 'variant' - 'catalogue' (the C1 draft rows), 'authored' (FM 3-96 composition with the AUTHORED US types, flat leaf units per D-8) or 'all' (rows valid in both: 1-112 IN's companies, the ABCT's mech-heavy CAB). A resolver picks ONE variant (defaultVariant, or the run's setting) and uses the rows of that variant plus the 'all' rows; each variant covers each map row at most once. The catalogue rows come FIRST, so a resolver that ignores 'variant' and takes the first row of a map key gets the catalogue composition, which runs on the shipped SMS. composition_check.py gates the catalogue variant on the vendor chain and the authored variant on the DEPLOYED derived chain (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md)."
   ],
   "rows": [
     {
       "id": "C-USA-DIV-UCI",
+      "variant": "catalogue",
       "key": {"functionId": "UCI", "echelon": "I", "nationRole": "friendly", "nation": "USA"},
       "mapRowIds": ["F-UCI-I"],
       "servesUnits": "28ID__FRIENDLY_INFANTRY_DIVISION (cut A T01 hold, T02 advance 5,341 m); the same map row also serves 4ID and the TO twins 28ID/III_Corps, 4ID/III_Corps, 29ID",
@@ -33,6 +40,7 @@
     },
     {
       "id": "C-USA-BDE-UCI",
+      "variant": "catalogue",
       "key": {"functionId": "UCI", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
       "mapRowIds": ["F-UCI-H"],
       "servesUnits": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE (cut A T13 hold, T14 advance 2,757 m; G1's brigade); the same map row also serves the TO twin 48IBCT/28ID and 1st (GE) Airborne Brigade",
@@ -52,6 +60,7 @@
     },
     {
       "id": "C-USA-BN-UCI",
+      "variant": "all",
       "key": {"functionId": "UCI", "echelon": "F", "nationRole": "friendly", "nation": "USA"},
       "mapRowIds": ["F-UCI-F"],
       "servesUnits": "1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE (cut A T10 advance 2,617 m); each infantry battalion of C-USA-BDE-UCI; the same map row also serves the TO twin 1st Battalion, 112th Infantry Regiment/28ID",
@@ -67,6 +76,7 @@
     },
     {
       "id": "C-USA-BDE-UCA",
+      "variant": "catalogue",
       "key": {"functionId": "UCATA", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
       "mapRowIds": ["F-UCATA-H", "F-UCA-H"],
       "servesUnits": "116_ABCT/28ID (the SUPPORTED unit named as T14's second AffectedEntity - not a performer in cut A; populated only if the owner rules affected entities in, D-5) and its TO twin 116ABCT/28ID",
@@ -85,6 +95,7 @@
     },
     {
       "id": "C-USA-BN-UCIZ",
+      "variant": "all",
       "key": {"functionId": "UCIZ", "echelon": "F", "nationRole": "friendly", "nation": "USA"},
       "mapRowIds": [],
       "servesUnits": "the mech-heavy combined arms battalion of C-USA-BDE-UCA (no Iron Storm unit maps to this key directly)",
@@ -97,6 +108,65 @@
         {"function": "TANK", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:2:0:0", "templateName": "Tank CO (USA, M1A2)", "fidelity": "EXACT", "note": "US armor company", "provenance": "FM3-96 1-41"}
       ],
       "omitted": []
+    },
+    {
+      "id": "C-USA-DIV-UCI-A",
+      "variant": "authored",
+      "key": {"functionId": "UCI", "echelon": "I", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCI-I"],
+      "servesUnits": "28ID__FRIENDLY_INFANTRY_DIVISION (cut A T01 hold, T02 advance 5,341 m) and the other units of map row F-UCI-I - as C-USA-DIV-UCI",
+      "container": {"objectType": "3:11:1:225:9:4:1:0", "templateName": "DIV, Mech Infantry", "fidelity": "PROXY", "note": "the catalogue has no infantry division container; the mechanized-infantry division is the nearest branch (display only - a container has no warfare model)"},
+      "depth": "HQ-ONLY",
+      "provenance": "RL-20260927-04 (D-1 as recommended: the division is its headquarters); FM3-96 p1-1 (the division is the tactical headquarters over two to five BCTs); FM3-94 5-22, 5-23 (the division headquarters and headquarters battalion); TASK T02 '28ID HQ transitions ...'",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:20:1:205", "templateName": "Division HQ (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED division headquarters and headquarters battalion (type map authoredRows A-DIV-HQ; derived set C2SIM_AggregateTacticalLevel) in place of the Stryker HHT proxy", "provenance": "FM3-94 5-22 (main, tactical and rear command posts, mobile command group), 5-23 (the HHB)"}
+      ],
+      "omitted": [
+        {"function": "BCTs and division troops", "doctrine": "FM3-96 p1-1 (two to five BCTs per division)", "reason": "not tasked: in the init they are separate units (the TO twin 28ID/III_Corps declares 8 brigades/regiments and 1 battalion), and cut A tasks none of them; composing them in would hydrate the whole division tree (RL-20260927-03). Owner decision D-1."}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCI-A",
+      "variant": "authored",
+      "key": {"functionId": "UCI", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCI-H"],
+      "servesUnits": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE (cut A T13 hold, T14 advance 2,757 m; G1's brigade) and the other units of map row F-UCI-H - as C-USA-BDE-UCI",
+      "container": {"objectType": "3:11:1:225:8:3:1:1", "templateName": "BDE", "fidelity": "EXACT", "note": "the generic infantry brigade container (BDE Light Infantry.entity), given the US country code - the vendor's own way (Road to Kaunas: Wolf BDE 11:1:255:8:4:1:0 lands 'BDE, Mech Infantry')"},
+      "depth": "FULL",
+      "provenance": "RL-20260927-04 (D-2 revised: compose to doctrine and author the US types the catalogue lacks; D-8 flat); FM3-96 1-6 (organic to the IBCT: three Infantry battalions, the Cavalry squadron, field artillery, engineer, intelligence, signal, sustainment and CBRN reconnaissance units); flat leaf units, HQ first (RTK)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the brigade HHC - no BCT HQ is authored (an owner item)", "provenance": "FM3-96 1-6 (organic HHC); RTK (HQ is designator 1 in every vendor brigade)"},
+        {"function": "INF", "count": 3, "role": "UNIT", "objectType": "3:11:1:225:6:3:1:201", "templateName": "Infantry BN (USA, IBCT)", "fidelity": "AUTHORED", "note": "the AUTHORED IBCT infantry battalion (authoredRows A-INF-BN-IBCT), one battalion-level warfare-model unit each, flat (D-8); moves on foot", "provenance": "FM3-96 1-6, 1-7, 1-8, 1-9"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "PROXY", "note": "the Stryker cavalry squadron stands in for the IBCT cavalry squadron (FM3-96 1-11: HHT, two mounted and one dismounted troop, wheeled) - the only US Army battalion-level maneuver unit the catalogue simulates", "provenance": "FM3-96 1-6, 1-11"},
+        {"function": "FA", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:7:1:202", "templateName": "FA BN (USA, IBCT)", "fidelity": "AUTHORED", "note": "the AUTHORED IBCT field artillery battalion, 12 M119 + 6 M777 (authoredRows A-FA-BN-IBCT)", "provenance": "FM3-96 1-12"},
+        {"function": "ENG", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:10:1:203", "templateName": "Brigade Engineer BN (USA, IBCT)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade engineer battalion (authoredRows A-BEB-IBCT): breach, obstacle, fortification and mine systems with their construction supplies; no bridging (FM3-96 1-19)", "provenance": "FM3-96 1-13, 1-17, 1-18, 1-19"},
+        {"function": "SPT", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:31:1:204", "templateName": "Brigade Support BN (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade support battalion (authoredRows A-BSB), a resupplier (UG52 27.3.2)", "provenance": "FM3-96 1-27"}
+      ],
+      "omitted": [
+        {"function": "FSC", "doctrine": "FM3-96 1-7, 1-11, 1-12, 1-13, 1-27: six forward support companies, one with each battalion and the squadron, normally in direct support", "reason": "not separate leaves and not inside the BSB leaf: each supports its battalion forward - an owner item (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md)"}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCA-A",
+      "variant": "authored",
+      "key": {"functionId": "UCATA", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCATA-H", "F-UCA-H"],
+      "servesUnits": "116_ABCT/28ID and its TO twin - as C-USA-BDE-UCA (populated only if affected entities are ruled in, D-5)",
+      "container": {"objectType": "3:11:1:225:8:2:1:0", "templateName": "BDE, Armor", "fidelity": "EXACT", "note": "the generic armor brigade container (Road to Kaunas: 42 Panzer 11:1:78:8:2:1:0 lands it)"},
+      "depth": "FULL",
+      "provenance": "RL-20260927-04 (D-2 revised); FM3-96 1-39 (field artillery, engineer and sustainment units are organic to the ABCT), 1-41 (the three combined arms battalions), 1-44 (FA), 1-18 and 1-19 (BEB), 1-27 (BSB)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the brigade HHC", "provenance": "FM3-96 1-39; RTK (HQ first)"},
+        {"function": "AR", "count": 2, "role": "CONTAINER", "objectType": "3:11:1:225:6:2:1:0", "templateName": "Armor CAB Group (USA)", "compose": "CATALOGUE", "fidelity": "EXACT", "note": "the vendor's own US combined arms battalion: HHC PA (USA, CAB) + 2 Tank CO (USA, M1A2) + 1 Mech CO (USA, M2) - exactly FM3-96 1-41's armor-heavy battalion", "provenance": "CAT (Armor CAB Group (USA).entity); FM3-96 1-41; RTK (TF 2/5/CAV and CMD 2/5/CAV are this template)"},
+        {"function": "MECH", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:4:1:0", "templateName": "BN, Mech Infantry", "compose": "C-USA-BN-UCIZ", "fidelity": "EXACT", "note": "the mech-heavy combined arms battalion (no vendor template; mirrored from Armor CAB Group (USA))", "provenance": "FM3-96 1-41"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "PROXY", "note": "the Stryker cavalry squadron stands in for the ABCT cavalry squadron (M3/M1-equipped)", "provenance": "FM3-96 1-39 (Cavalry organic)"},
+        {"function": "FA", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:8:1:206", "templateName": "FA BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "the AUTHORED ABCT field artillery battalion, 18 M109 Paladin (authoredRows A-FA-BN-ABCT)", "provenance": "FM3-96 1-44"},
+        {"function": "ENG", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:10:1:207", "templateName": "Brigade Engineer BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "the AUTHORED ABCT brigade engineer battalion (authoredRows A-BEB-ABCT), tracked, with bridging and Volcano", "provenance": "FM3-96 1-13, 1-18, 1-19"},
+        {"function": "SPT", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:31:1:204", "templateName": "Brigade Support BN (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade support battalion (authoredRows A-BSB); the ABCT BSB differs mainly in maintenance (FM3-96 1-27)", "provenance": "FM3-96 1-27"}
+      ],
+      "omitted": [
+        {"function": "FSC", "doctrine": "FM3-96 1-7, 1-11, 1-12, 1-13, 1-27: six forward support companies, one with each battalion and the squadron, normally in direct support", "reason": "not separate leaves and not inside the BSB leaf: each supports its battalion forward - an owner item (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md)"}
+      ]
     }
   ]
 }
