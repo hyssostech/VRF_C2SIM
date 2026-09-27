@@ -518,9 +518,15 @@ TRAJECTORIES [V: trace POS fixes every ~2 s, OSM z14 transects across T14's orig
 UNEXPLAINED OR OPEN:
 - The vendor judged 48 IBCT's destination point OUTSIDE the nav area (L4373 / L4375), while its own start (L4367) and
   28ID's destination (L4277) were inside. The point is 117.9 m from the nearest OSM building, 397.8 m from OSM water and
-  80.8 m from a waterway [V]. Why the mesh excludes it is NOT known; candidates, none checked: a hole in the maple mesh at
-  that point (the area was generated with the biome's trees, PREREG_IRONSTORM_TREES_2026-09-26), a cell classed
-  non-traversable, the area's boundary. It changed the planner's branch, not the outcome.
+  80.8 m from a waterway [V]. Both platforms received their destination 10 m ABOVE the terrain [V: console Move-To
+  geocentric L2073 / L2351 -> 142.9 m and 151.5 m; terrain profile replies L2019 / L2051 -> 132.9 m and 141.5 m; the
+  TerrainProfile vertex rule, TerrainClearanceMeters 10, VrfSettings.cs :833-848]. The vendor's test takes that point as
+  given (isPointInNavArea, ground-vehicle-move-to.lua :197-214 of the C2SIM override) and asks
+  findClosestPointInNavigationArea for a mesh point "vs in an obstacle" within a horizontal radius and a vertical limit
+  whose defaults are not documented (scriptInterface.h :377-389). The same +10 m passed for 28ID, so the clearance alone
+  does not explain the failure. Candidates, none checked: an obstacle (a mesh hole) at that point - the area was
+  generated with the biome's trees, PREREG_IRONSTORM_TREES_2026-09-26 - or a vertical-limit edge case. It changed the
+  planner's branch, not the outcome.
 - Whether the track touched the lake's OSM edge between the two bracketing fixes (P21's note): the 2 s sampling cannot say.
 - That the track follows the 24-point plan is inferred: the plan's points are not logged [A].
 - The per-vertex continuation (vertex k -> k+1) and M1b's report-evidence mapping remain NOT YET SEEN LIVE (P15, P27).
