@@ -80,10 +80,18 @@
 #        the two scripts' contracts stay comparable.)
 #   5 = unexpected terminating error - VR-Forces MAY STILL BE RUNNING
 #   6 = FORCED: the graceful close was refused and the run's OWN back end (pid + start time
-#       matched) was force-stopped; nothing else of VR-Forces is left. A refused close, scoreable.
+#       matched) was force-stopped; NO OTHER VR-Forces process is up. A refused close, scoreable.
+#       After the force the script waits up to -ForcedExitWaitSec (default 60) for the forced pid
+#       to leave the process table. If at that deadline the ONLY survivors are the forced pid(s) -
+#       same pid AND same start time (Resolve-StopVrfPostForce, RunnerLib) - it is still exit 6,
+#       with the explicit line "forced pid N still exiting after S s". Stop-Process has already
+#       terminated it; a multi-GB back end can take tens of seconds to unmap (2026-09-27: pid
+#       30600, 4.3 GB, gone ~5-20 s after a 15 s wait, which was then misreported as exit 7).
 #   7 = FORCED the run's OWN back end, but ANOTHER VR-Forces process is still up (a front end, a
-#       launcher, or a back end that is not this run's). Something WAS killed, so this is not 3;
-#       something is still up, so it is not 6 (laneR3 review S1, 2026-09-26).
+#       launcher, or a back end that is not this run's - including the forced pid number reused
+#       by a later process, or a survivor whose start time cannot be read). Something WAS killed,
+#       so this is not 3; something ELSE is still up, so it is not 6 (laneR3 review S1, 2026-09-26).
+#       The forced pid still exiting is NOT "another process" (IRONSTORM_CUTA_LIVE-2026-09-27-1).
 # ASCII only.
 [CmdletBinding()]
 param(
@@ -97,6 +105,9 @@ param(
     # is force-stopped if - and only if - it matches both (exit 6). Not given: nothing is forced.
     [int]    $ForceOwnBackendPid     = 0,
     [string] $ForceOwnBackendStartUtc = '',
+    # After a force: how long to wait for the forced pid to leave the process table before the
+    # verdict. A forced pid still exiting at this deadline is exit 6 with a diagnostic, never 7.
+    [int]    $ForcedExitWaitSec      = 60,
     [switch] $DryRun
 )
 
@@ -116,6 +127,7 @@ if ($GraceSec -lt 1 -or $GraceSec -ge $TimeoutSec) {
     Say-Fail ("GraceSec must be 1..TimeoutSec-1 (got {0} with TimeoutSec {1}); it is spent INSIDE the total budget." -f $GraceSec, $TimeoutSec)
     exit 2
 }
+if ($ForcedExitWaitSec -lt 1 -or $ForcedExitWaitSec -gt 600) { Say-Fail ("ForcedExitWaitSec must be between 1 and 600 (got {0})." -f $ForcedExitWaitSec); exit 2 }
 
 $ownStartUtc = $null
 if (($ForceOwnBackendPid -gt 0) -xor (-not [string]::IsNullOrWhiteSpace($ForceOwnBackendStartUtc))) {
@@ -143,6 +155,7 @@ Say ('  GraceSec   : {0} (front-end only, before the back-end is asked)' -f $Gra
 Say ('  DryRun     : {0}' -f [bool]$DryRun)
 if ($ForceOwnBackendPid -gt 0) {
     Say ('  OwnBackend : pid {0} started {1:o} - force-stopped ONLY if the graceful close is refused and BOTH match' -f $ForceOwnBackendPid, $ownStartUtc)
+    Say ('  ForcedExitWaitSec : {0} (after a force, the wait for the forced pid to leave the process table)' -f $ForcedExitWaitSec)
 } else {
     Say '  OwnBackend : (not given) - NO FORCE on any path'
 }
@@ -427,7 +440,7 @@ if ($DryRun) {
     Say-Ok 'would record TEARDOWN DIAGNOSTICS before any close request: each back end''s MainWindowTitle and MainWindowHandle, its Win32_Process parent (ParentProcessId) and any conhost.exe / OpenConsole.exe / WindowsTerminal.exe parent or child - the A3 discriminator (window="" on both 2026-09-26 refusals).'
     Say-Ok 'console exit (UG52 4.6 p146 "press Q and then Enter") is NOT DELIVERABLE headless: LaunchVrf52.ps1 starts the back end with a plain Start-Process (no -RedirectStandardInput), so its console input is not this script''s to write. The close request stays taskkill WITHOUT /F.'
     if ($ForceOwnBackendPid -gt 0) {
-        Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6 (exit 7 if another VR-Forces process is still up after it). rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc)
+        Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6 (after up to {3}s for it to exit; still exiting then = exit 6 with a "still exiting" line; exit 7 only if ANOTHER VR-Forces process is still up). rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc, $ForcedExitWaitSec)
     } else {
         Say-Ok 'NO FORCE: -ForceOwnBackendPid / -ForceOwnBackendStartUtc not given, so a refused close ends at exit 3 with nothing killed (the watchdog and manual path).'
     }
@@ -532,6 +545,7 @@ if ($left.Count -eq 0) {
 
 # ---- 3b. A3: the graceful close was REFUSED - force the run's OWN back end, and nothing else ----
 $forced = @()
+$forcedRec = @()
 if ($ForceOwnBackendPid -gt 0) {
     try {
         Write-WindowDiagnostic -Why ('TIMEOUT after ' + $TimeoutSec + 's, BEFORE any force') -Emit ${function:Say-Fail}
@@ -558,27 +572,57 @@ if ($ForceOwnBackendPid -gt 0) {
             Say-Fail ('FORCED - graceful close refused (see diagnostics): Stop-Process -Id {0} -Force on {1} ({2}). A force-stopped JOINED federate may leave a STALE FEDERATE in rtiexec (RUNBOOK sec 0) - the next launch''s join is the check.' -f $p.Id, $p.ProcessName, $v.Why)
             Stop-Process -Id $p.Id -Force -ErrorAction Continue
             $forced += $p.Id
+            $forcedRec += [pscustomobject]@{ Pid = $p.Id; StartUtc = $st }
         }
     }
     if ($forced.Count -gt 0) {
-        $forceDeadline = (Get-Date).AddSeconds(15)
+        # A force-stopped multi-GB back end can take tens of seconds to leave the process table
+        # (2026-09-27: pid 30600, 4.3 GB, still listed after the old fixed 15 s wait -> false exit 7).
+        $forceStarted  = Get-Date
+        $forceDeadline = $forceStarted.AddSeconds($ForcedExitWaitSec)
         while ((Get-Date) -lt $forceDeadline -and @($forced | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -gt 0) {
             Start-Sleep -Seconds 1
         }
+        $waited = [int][math]::Round(((Get-Date) - $forceStarted).TotalSeconds)
         $left = @()
+        $survivors = @()
         foreach ($n in @($procFrontend, $procBackend, $procLauncher)) {
-            foreach ($p in @(Get-Procs $n)) { $left += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) }
+            foreach ($p in @(Get-Procs $n)) {
+                $left += ('{0}(pid {1})' -f $p.ProcessName, $p.Id)
+                $pst = try { $p.StartTime.ToUniversalTime() } catch { $null }
+                $survivors += [pscustomobject]@{ Name = $p.ProcessName; Pid = $p.Id; StartUtc = $pst }
+            }
         }
         $rtiLeft = @()
         foreach ($n in $rtiNames) { foreach ($p in @(Get-Procs $n)) { $rtiLeft += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) } }
         if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }
-        if ($left.Count -eq 0) {
+        # The verdict: exit 7 ONLY for a genuinely OTHER VR-Forces process. A survivor counts as the
+        # forced one still exiting only on the same identity rule that authorised the force
+        # (Resolve-StopVrfPostForce -> Test-OwnBackendIdentity: image + pid + start time). A failed
+        # classification falls through to exit 7 (the conservative reading), never to 6.
+        $pv = try { Resolve-StopVrfPostForce -Forced $forcedRec -Survivors $survivors } catch {
+            Say-Fail ('the post-force classification failed ({0}) - every survivor is treated as ANOTHER process.' -f $_.Exception.Message)
+            $null
+        }
+        if ($null -eq $pv -and $left.Count -eq 0) {
             Say-Fail ('VR-Forces 5.2d is down ONLY BECAUSE the run''s own back end was FORCED (pid {0}) after its graceful close was refused. Exit 6.' -f ($forced -join ', '))
             exit 6
         }
+        if ($null -ne $pv -and $pv.Code -eq 6) {
+            if (@($pv.StillExiting).Count -gt 0) {
+                Say-Warn ('forced pid {0} still exiting after {1} s (same pid AND start time as forced: {2}). Stop-Process has terminated it; its teardown had not finished at the wait''s end. No OTHER VR-Forces process is up.' -f ($forced -join ', '), $waited, (@($pv.StillExiting) -join ', '))
+                Say-Fail ('VR-Forces 5.2d is coming down ONLY BECAUSE the run''s own back end was FORCED (pid {0}) after its graceful close was refused; the forced pid was still exiting after {1} s. Exit 6.' -f ($forced -join ', '), $waited)
+            } else {
+                Say-Fail ('VR-Forces 5.2d is down ONLY BECAUSE the run''s own back end was FORCED (pid {0}) after its graceful close was refused. Exit 6.' -f ($forced -join ', '))
+            }
+            exit 6
+        }
+        if ($null -ne $pv) {
+            Say-Fail ('post-force verdict after {0} s: {1}' -f $waited, $pv.Why)
+        }
     }
 }
-Say-Fail ('still running after {0}s: {1}. {2}' -f $TimeoutSec, ($left -join ', '), $(if ($forced.Count -gt 0) { 'pid ' + ($forced -join ', ') + ' was FORCED; the processes listed are what is left.' } else { 'NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0).' }))
+Say-Fail ('still running after {0}s: {1}. {2}' -f $TimeoutSec, ($left -join ', '), $(if ($forced.Count -gt 0) { 'pid ' + ($forced -join ', ') + ' was FORCED; the processes listed are what is left (the post-force verdict above says which are OTHER processes).' } else { 'NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0).' }))
 # THE DIAGNOSTIC D1 OWED AND DID NOT HAVE (STP-844). "Inspect the screen for a modal"
 # is not an artifact: on D1 it cost a separate, hand-run enumeration hours later to learn
 # which two dialogs were up. This produces that evidence in the run's own stopvrf log,

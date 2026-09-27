@@ -640,7 +640,12 @@ Start-Process, so its console input is not ours; (c) given `-ForceOwnBackendPid`
 refused back end that matches both, exit 6 - see sec 0's exception. Exit codes: 0 down, 2 bad
 args, 3 still running (nothing forced), 5 unexpected error, 6 FORCED, 7 FORCED the own back end
 but another VR-Forces process still up (laneR3 S1: 3 used to cover that case, against its "NOTHING
-was killed" contract). Offline stand-in exercise (a renamed PING.EXE with no window): pair matched
+was killed" contract). After a force it waits up to `-ForcedExitWaitSec` (default 60) for the
+forced pid to exit; if the ONLY survivor at that deadline is the forced pid itself (same pid AND
+start time, `Resolve-StopVrfPostForce` in RunnerLib) the code is still 6, with the log line "forced
+pid N still exiting after S s" - exit 7 is reserved for a genuinely OTHER VR-Forces process
+(IRONSTORM_CUTA_LIVE-2026-09-27-1: the old fixed 15 s wait reported the still-exiting forced
+pid 30600 as exit 7). Offline stand-in exercise (a renamed PING.EXE with no window): pair matched
 -> FORCED, exit 6; start time off by 1 h (a reused pid) -> "NOT forced", exit 3; own back end plus
 a second back-end image that is not ours -> ours FORCED, the other survives, exit 7.
 

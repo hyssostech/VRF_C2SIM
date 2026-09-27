@@ -1668,3 +1668,54 @@ function Test-OwnBackendIdentity {
     }
     return [pscustomobject]@{ Match = $true; Why = ('pid {0} started {1:o} (within {2} s of the recorded start)' -f $ActualPid, $a, $ToleranceSec) }
 }
+
+# ---- StopVrf52 POST-FORCE VERDICT (2026-09-27, IRONSTORM_CUTA_LIVE-2026-09-27-1) -------------
+# After StopVrf52 force-stops the run's own back end it lists every VR-Forces process still up.
+# In the 2026-09-27 pre-warm the ONLY one listed was the forced pid itself (30600, 4.3 GB, still
+# tearing down 15 s after Stop-Process) and the script returned exit 7 - "ANOTHER VR-Forces
+# process is still up" - which stopped a registered run. A survivor is the FORCED PROCESS STILL
+# EXITING only if it passes the same identity rule that authorised the force (Test-OwnBackendIdentity:
+# back-end image, same pid, start time within tolerance) against one of the forced records;
+# anything else - another pid, the pid reused by a later process, an unreadable start time, any
+# other image - is OTHER. Pure: the caller passes what it read.
+#   -Forced     records { Pid; StartUtc } of the processes this script force-stopped
+#   -Survivors  records { Name; Pid; StartUtc } of every VR-Forces process still listed
+# Returns Code (0 / 3 / 6 / 7 per the StopVrf52 header), StillExiting and Others (display
+# strings), and Why.
+function Resolve-StopVrfPostForce {
+    param(
+        [object[]]$Forced = @(),
+        [object[]]$Survivors = @(),
+        [double]$ToleranceSec = 2.0
+    )
+    $forcedList = @($Forced | Where-Object { $null -ne $_ })
+    $survList   = @($Survivors | Where-Object { $null -ne $_ })
+    $still  = @()
+    $others = @()
+    foreach ($s in $survList) {
+        $label = '{0}(pid {1})' -f $s.Name, $s.Pid
+        $isForced = $false
+        foreach ($f in $forcedList) {
+            $v = Test-OwnBackendIdentity -ExpectedPid ([int]$f.Pid) -ExpectedStartUtc $f.StartUtc `
+                     -ActualPid ([int]$s.Pid) -ActualStartUtc $s.StartUtc -ActualName ([string]$s.Name) -ToleranceSec $ToleranceSec
+            if ($v.Match) { $isForced = $true; break }
+        }
+        if ($isForced) { $still += $label } else { $others += $label }
+    }
+    if ($forcedList.Count -eq 0) {
+        # Nothing was forced: the pre-existing contract (0 down, 3 still up and NOTHING killed).
+        $code = if ($survList.Count -eq 0) { 0 } else { 3 }
+        return [pscustomobject]@{ Code = $code; StillExiting = @(); Others = @($others)
+                                  Why = $(if ($code -eq 0) { 'nothing forced, nothing left' } else { 'nothing forced; still up: ' + ($others -join ', ') }) }
+    }
+    if ($others.Count -gt 0) {
+        return [pscustomobject]@{ Code = 7; StillExiting = @($still); Others = @($others)
+                                  Why = ('FORCED, and OTHER VR-Forces processes are still up: {0}{1}' -f ($others -join ', '),
+                                         $(if ($still.Count -gt 0) { ' (plus the forced ' + ($still -join ', ') + ', still exiting)' } else { '' })) }
+    }
+    if ($still.Count -gt 0) {
+        return [pscustomobject]@{ Code = 6; StillExiting = @($still); Others = @()
+                                  Why = ('FORCED; the only VR-Forces process still listed is the forced {0}, still exiting (same pid AND start time) - no other VR-Forces process is up' -f ($still -join ', ')) }
+    }
+    return [pscustomobject]@{ Code = 6; StillExiting = @(); Others = @(); Why = 'FORCED; nothing of VR-Forces is left' }
+}

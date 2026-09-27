@@ -2455,6 +2455,48 @@ Check '10f StopVrf52: exit 3 now means NOTHING was forced - it is only reached w
 Check '10f the runner branches on StopVrf exit 7 (FORCED, something else still up) as a teardown FAILURE, and its note lists 7' (
     $rnText -match '(?m)^\s*7\s*\{[^\r\n]*teardownOk\s*=\s*\$false[^\r\n]*FORCED' -and $rnText -match '7 FORCED')
 
+Write-Host '=== 10g. StopVrf52 post-force verdict: the forced pid STILL EXITING is not "another process" (Resolve-StopVrfPostForce, RunnerLib) ==='
+# IRONSTORM_CUTA_LIVE-2026-09-27-1 (pre-warm run 20260927T003120Z_run): the graceful close of pid
+# 30600 was refused, StopVrf52 forced it by identity, waited 15 s, and listed as "left" only
+# vrfSimHLA1516e(pid 30600) - the forced pid itself, 4.3 GB, still tearing down - and returned
+# exit 7 ("other VR-Forces processes are still up"), which stopped a registered run. Exit 7 is
+# reserved for GENUINELY OTHER processes; the forced pid (same pid AND same start time) still
+# exiting at the wait's end is exit 6 with an explicit "still exiting" line.
+$hasPostForce = [bool](Get-Command Resolve-StopVrfPostForce -ErrorAction SilentlyContinue)
+Check '10g Resolve-StopVrfPostForce lives in RunnerLib (pure, so the classification is testable offline)' $hasPostForce
+$pf0 = [datetime]::SpecifyKind([datetime]'2026-09-27T00:31:40.5000000', [System.DateTimeKind]::Utc)
+function PfSurv { param($n, $id, $st) return [pscustomobject]@{ Name = $n; Pid = $id; StartUtc = $st } }
+function PostForce {
+    param($forced, $surv)
+    if (-not $hasPostForce) { return $null }
+    return Resolve-StopVrfPostForce -Forced $forced -Survivors $surv
+}
+$pfForced = @([pscustomobject]@{ Pid = 30600; StartUtc = $pf0 })
+$g1 = PostForce $pfForced @(PfSurv 'vrfSimHLA1516e' 30600 $pf0.AddMilliseconds(300))
+Check '10g THE 2026-09-27 CASE: the only survivor is the forced pid (same pid, same start) still exiting -> exit 6, not 7' (
+    $hasPostForce -and $g1.Code -eq 6 -and @($g1.StillExiting).Count -eq 1 -and @($g1.Others).Count -eq 0) $(if ($g1) { 'code=' + $g1.Code + ' ' + $g1.Why } else { 'not defined' })
+Check '10g and says so: the verdict names the forced pid as STILL EXITING' ($hasPostForce -and $g1.Why -match 'still exiting' -and $g1.Why -match '30600')
+$g2 = PostForce $pfForced @()
+Check '10g nothing left after the force -> exit 6' ($hasPostForce -and $g2.Code -eq 6 -and @($g2.StillExiting).Count -eq 0)
+$g3 = PostForce $pfForced @(PfSurv 'vrfSimHLA1516e' 30601 $pf0)
+Check '10g a DIFFERENT back-end pid left up -> exit 7 (genuinely another process)' ($hasPostForce -and $g3.Code -eq 7 -and @($g3.Others).Count -eq 1)
+$g4 = PostForce $pfForced @(PfSurv 'vrfSimHLA1516e' 30600 $pf0.AddHours(1))
+Check '10g the forced pid REUSED by a later process (start time differs) -> exit 7, never absorbed' ($hasPostForce -and $g4.Code -eq 7)
+$g5 = PostForce $pfForced @(PfSurv 'vrfSimHLA1516e' 30600 $null)
+Check '10g the forced pid with an UNREADABLE start time -> exit 7 (no identity, no absorption)' ($hasPostForce -and $g5.Code -eq 7)
+$g6 = PostForce $pfForced @((PfSurv 'vrfSimHLA1516e' 30600 $pf0), (PfSurv 'vrfGui' 11111 $pf0))
+Check '10g forced pid still exiting PLUS a front end up -> exit 7, and only the front end is listed as other' (
+    $hasPostForce -and $g6.Code -eq 7 -and @($g6.Others).Count -eq 1 -and @($g6.Others)[0] -match 'vrfGui' -and @($g6.StillExiting).Count -eq 1)
+$g7 = PostForce $pfForced @(PfSurv 'vrfGui' 30600 $pf0)
+Check '10g a non-back-end image under the forced pid + start -> exit 7 (the image is part of the identity)' ($hasPostForce -and $g7.Code -eq 7)
+$g8 = PostForce @() @(PfSurv 'vrfSimHLA1516e' 30600 $pf0)
+Check '10g nothing forced and something up -> exit 3 (the "NOTHING was killed" contract is untouched)' ($hasPostForce -and $g8.Code -eq 3)
+Check '10g StopVrf52 takes the verdict from Resolve-StopVrfPostForce and waits -ForcedExitWaitSec (default 60, validated) for the forced pid' (
+    $sv52Code -match 'Resolve-StopVrfPostForce -Forced' -and $sv52Code -match '\[int\]\s+\$ForcedExitWaitSec\s*=\s*60\b' -and
+    $sv52Code -match 'ForcedExitWaitSec must be' -and $sv52Code -notmatch 'AddSeconds\(15\)')
+Check '10g StopVrf52 header documents the still-exiting case under exit 6 and keeps 7 for OTHER processes' (
+    $sv52Text -match '(?m)^#\s+6 = [\s\S]{0,900}still exiting' -and $sv52Text -match '7 = FORCED')
+
 Write-Host '=== 10e. STP-844 LaunchVrf52 precheck: GUI-on only, advisory only, no StrictMode leak ==='
 Check '10e the precheck is gated on a front end actually being launched (-NoGui raises no dialog)' (
     $lv52Text -match 'if \(-not \$NoGui\) \{[\s\S]{0,4000}vrfGui TEARDOWN PROMPTS ARE ON')
