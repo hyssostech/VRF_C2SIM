@@ -1,6 +1,6 @@
 # AUTHORED US unit types for the aggregate-level profile - package C2 (2026-09-27)
 
-Lane feat/aggregate-authored-units (from main 0fe0734); HEAVY; offline - no VR-Forces launch, nothing written under
+Lane feat/aggregate-authored-units (on main 5c09435); HEAVY; offline - no VR-Forces launch, nothing written under
 C:\MAK. Under RL-20260927-04 (D-2 revised: compose to doctrine and AUTHOR the US unit types the catalogue lacks) and
 RL-20260927-02 (populated containers, RUS hostile). [V] = read at the cited file/page or reproduced by a tool here;
 [A] = assumed, not provable offline. NOT live-proven: no scenario has loaded these types yet.
