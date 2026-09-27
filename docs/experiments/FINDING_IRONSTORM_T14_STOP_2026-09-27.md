@@ -51,6 +51,7 @@ Cut-A change (i): one waypoint 54.014600, 23.331500 routes T14 round the lake's 
 4,169 m; 0 wet samples at 0 / +-25 / +-50 m; maple corridor PASS min 0.9167; order sha256 5d6bbae4...49fc9a
 (data/IRONSTORM_CUTA_CHANGES.md (i)). Found on the way, NOT changed: T10's (h) leg 2 grazes OSM water (1 centreline
 sample at 54.02359, 23.31049; 81 / 102 samples at 25 / 50 m right of travel) - an owner decision.
+Since fixed by cut-A change (j) (a second T10 waypoint 54.024000, 23.313000; data/IRONSTORM_CUTA_CHANGES.md (j)).
 
 ## 5. Adversarial review
 
