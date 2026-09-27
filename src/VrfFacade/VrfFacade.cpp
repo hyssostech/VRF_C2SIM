@@ -1093,6 +1093,36 @@ std::vector<AggregateMember> VrfFacade::GetAggregateMembers(const std::string& a
     return out;
 }
 
+namespace {
+    // C1: the valid designators of one published designator list. Takes the list by CONST reference: on a non-const
+    // DtAggregateStateRepository the subAggregates()/entities() overload that is chosen returns a POINTER
+    // (vl/aggregateStateRepository.h:88/:91), so the caller reads through a const repository pointer.
+    int countValid(const DtGlobalObjectDesignatorList& list) {
+        int n = 0;
+        for (int i = 0; i < list.numObjects(); ++i) {
+            bool valid = false;
+            list.object(i, &valid);
+            if (valid) ++n;
+        }
+        return n;
+    }
+}
+
+int VrfFacade::PublishedSubordinateCount(const std::string& aggregateUuid) const {
+    if (!p_->uuidMgr) return -1;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(aggregateUuid));
+    if (!obj) return -1;
+    // The same typed-then-static resolution as GetAggregateMembers above (and the same caveat).
+    DtAggregateStateRepository* asr = nullptr;
+    if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
+        asr = agg->aggregateStateRep();
+    if (!asr)
+        asr = static_cast<DtReflectedAggregate*>(obj)->aggregateStateRep();
+    if (!asr) return -1;
+    const DtAggregateStateRepository* casr = asr;
+    return countValid(casr->subAggregates()) + countValid(casr->entities());
+}
+
 void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string& formationName) {
     // No-op if 'uuid' is not an aggregate leader (per the controller contract).
     p_->controller->setAggregateFormation(DtUUID(uuid), DtString(formationName.c_str()), DtSimSendToAll);

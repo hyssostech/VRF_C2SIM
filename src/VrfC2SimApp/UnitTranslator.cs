@@ -30,7 +30,21 @@ public readonly record struct CreationPlan(
     // AddToOrganization - the vendor-sample recipe. The service sets this false on a PARENT
     // (a unit that is another survivor's Superior); leaves keep true (a leaf platoon's template
     // subs ARE its real vehicles). Default true = today's behaviour, byte-identical.
-    bool CreateSubordinates = true);
+    bool CreateSubordinates = true,
+    // C1 (RL-20260927-03; UG52 Table 68 p1470): true = create this aggregate AGGREGATED ("a unit that does not have
+    // subordinate simulation objects") - a warfare-model member of a populated Aggregate Container on the aggregate
+    // model set, as the vendor saves 335 of 335 of them. Default false = DISAGGREGATED, which is what every aggregate
+    // was created as before C1 (VrfC2SimService.EnqueueCreates) and still is on EntityLevel - byte-identical.
+    bool CreateAggregated = false);
+
+/// <summary>C1: the aggregate state a plan is created in - the ONE place EnqueueCreates reads it from.</summary>
+public static class CreationStates
+{
+    /// <summary>AGGREGATED only when the plan asks for it (a container member, C1); DISAGGREGATED otherwise - every
+    /// aggregate on EntityLevel, and every Aggregate Container (the vendor saves 83 of 83 Disaggregated).</summary>
+    public static AggregateState For(CreationPlan plan)
+        => plan.CreateAggregated ? AggregateState.Aggregated : AggregateState.Disaggregated;
+}
 
 /// <summary>
 /// How C2SIM/echelon unit classes map onto VR-Forces DIS objectTypes. See VrfSettings.TypeMappingMode.

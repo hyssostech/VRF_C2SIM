@@ -166,6 +166,15 @@ if (args.Length > 0 && args[0] == "--scripted-task-selftest")
 if (args.Length > 0 && args[0] == "--initgraphics-selftest")
     return InitGraphicsSelfTest.Run(args.Length >= 2 ? args[1] : null);
 
+// POPULATED AGGREGATE CONTAINERS (C1; RL-20260927-02, RL-20260927-03, RL-20260927-04): the composition
+// resolver (precedence, flattening, refusal of unknown types), the ring and the names, the init rule on all 36
+// Iron Storm units, the in-place population against a fake bridge (create AGGREGATED, attach, publication gate,
+// scripted task; never a delete; refusals and the timeout), D-6, the scripts against the vendor XML, and the
+// entity-level path unchanged. READS the installed aggregate catalogue (C:\MAK\vrforces5.2d, or VRF_HOME /
+// MAK_VRFDIR) and loads the bridge assembly for its value types - the MAK bin dirs must be on PATH.
+if (args.Length > 0 && args[0] == "--populate-selftest")
+    return ContainerSelfTest.Run();
+
 // THE REAL STP EXPORT through the offline intake path (2026-09-20): the ClientId diagnostic, the
 // order-borne + task-symbol graphics resolution, the precedence rule when a task carries both, and
 // the two verbs the export added. Pure managed - no bridge, no MAK, no network, no server.
@@ -186,7 +195,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
                             "--placement-reclamp-selftest [--disabled], " +
-                            "--scripted-task/--initgraphics/--stpexport-selftest, " +
+                            "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
                             "--osm-selftest [real-osm-tile-dir], " +
                             "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
