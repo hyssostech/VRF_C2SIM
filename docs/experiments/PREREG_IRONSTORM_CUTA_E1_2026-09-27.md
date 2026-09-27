@@ -1,7 +1,7 @@
 # PREREG - IRON STORM CUT A, RUN E1: lone platforms on Move To per vertex, T14 on its ORIGINAL line (one scored run)
 
 STATUS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered 2026-09-27 (the registration commit's own time is the
-stamp; see git log) by lane E1 (session 5fc25950) on branch run/ironstorm-cuta-e1 from main b984945, BEFORE the holder,
+stamp; see git log) by lane E1 (session 5fc25950) on branch run/ironstorm-cuta-e1 from main 5e8d6f1, BEFORE the holder,
 the order validation push and the scored run. Nothing in this file has been launched: no push, no holder, no appNumber
 claim - the preparation phase stops here and the seat gives the go-live. Written from the -2 registration
 (PREREG_IRONSTORM_CUTA_LIVE2_2026-09-27.md - its settings, sequence and P0-P21, carried where still valid) and the
@@ -12,18 +12,22 @@ seat's E1 brief. Marks: [V] = checked while writing this file; [A] = taken from 
 PREREG ID: IRONSTORM_CUTA_E1-2026-09-27-1
 DATE (UTC): 2026-09-27, before any launch (the registration commit's own timestamp is authoritative; the launch waits for the
 seat's go-live)
-BINARY / COMMIT: main b984945 (contains the M1 merge d75a8d0 / 47da73e, RL-20260927-01). BUILT AND DEPLOYED BY THIS LANE
-2026-09-27T17:12:24-17:12:44Z per RUNBOOK sec 9 - ALL ELEVEN consumers, `dotnet build <csproj> -c Release
--p:BridgeConfig=Release-5.2 -t:Rebuild -m:1`, 0 errors, VrfC2SimApp's documented 4 CA2024 + 2 CS8632 - into the MAIN
-checkout's own output folders (never C:\MAK) [V]: src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe sha256
-97e292854265f8047840e97c89f54b1239e3eb793821c1cf98c8f3198d17620d, VrfC2SimApp.dll sha256
-4fbb47021395e1dbbded5e04161a272f0b5794b4fa9de33f20c22acf5ffed496, ProductVersion 1.0.0+git.b984945.Release-5.2 (exe and
-dll, no +DIRTY); appsettings.json 71be859e...2f94f = src (PlatformMoveToPerVertex true, VertexArrivalRadiusMeters 100);
-VrfBridge.dll 90272bc9...f25847 (the pin, NOT rebuilt) in all eleven output trees and the build directory. Offline suites
-against the DEPLOYED exe [V 17:13-17:14Z]: 25 of 25 exit 0, the three --disabled fail-first arms exit 1 as designed;
---rulings-selftest 389 PASS / 0 FAIL (its RL-20260927-01 section 73 PASS); --routeshift-selftest 90 ok / 0 fail, 0
-network fetches; `DOTNET_ENVIRONMENT=Demo --runtime-check` "runtime-check: OK". `git diff --stat b984945..HEAD -- src` on
-this branch is EMPTY [V at the registration commit]. Fixture C:\MAK\vrforces5.2d\userData\scenarios\
+BINARY / COMMIT: main 5e8d6f1, whose src, tools and scripts are those of 3e5ab14 - the E1 build target PLAN_MOVEMENT row
+E1 names ("main 3e5ab14 (M1 + D1 + A1). M2 merges AFTER E1 on purpose"; `git diff --stat 3e5ab14 5e8d6f1` touches only
+docs/PLAN_MOVEMENT_2026-09-27.md [V]): M1 (47da73e, merged d75a8d0, RL-20260927-01), D1 + M1b (b817609) and A1 (3e5ab14).
+BUILT AND DEPLOYED BY THIS LANE 2026-09-27T18:00:25-18:00:42Z per RUNBOOK sec 9 - ALL ELEVEN consumers, `dotnet build
+<csproj> -c Release -p:BridgeConfig=Release-5.2 -t:Rebuild -m:1`, 0 errors, VrfC2SimApp's documented 4 CA2024 + 2
+CS8632 - into the MAIN checkout's own output folders (never C:\MAK) [V]: src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\
+VrfC2SimApp.exe sha256 af19d6be5dba39e31584345a19b8658ed32d38ac33569be7e36b091fb84edcb2, VrfC2SimApp.dll sha256
+249824129d4980480295d8180e8ddfda2202daf41b708da8ea8dbfefefef5eb4, ProductVersion 1.0.0+git.5e8d6f1.Release-5.2 (exe and
+dll, no +DIRTY); appsettings.json 1d068ec7...8196f3 = src (PlatformMoveToPerVertex true, VertexArrivalRadiusMeters 100,
+ModelSet EntityLevel); VrfBridge.dll 90272bc9...f25847 (the pin, NOT rebuilt) in all eleven output trees and the build
+directory. (An earlier deploy of b984945 by this lane, 17:12Z, is SUPERSEDED: main moved to the named target while the
+preparation ran.) Offline suites against the DEPLOYED exe [V 18:01-18:02Z]: 25 of 25 exit 0, the three --disabled
+fail-first arms exit 1 as designed; --rulings-selftest 431 PASS / 0 FAIL (its RL-20260927-01 section 73 PASS, its D1
+section 42 PASS); --routeshift-selftest 90 ok / 0 fail, 0 network fetches; `DOTNET_ENVIRONMENT=Demo --runtime-check`
+"runtime-check: OK". `git diff --stat 5e8d6f1..HEAD -- src` on this branch is EMPTY [V at the registration commit].
+Fixture C:\MAK\vrforces5.2d\userData\scenarios\
 IronStorm_Centre_52_Nav_AG_maple.scnx sha256 57465c3545e884f0c32d283e945f35ce6694233cc17a0bc14116dd4aa44a0e32 [V].
 TIER AND GATE: HEAVY / PREREG
 RUN KIND: movement
@@ -51,11 +55,16 @@ OWN-RECORD CITATION:
 - docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 0-6 (the claim, the vendor text, the stops read
   against it; sec 5.2 the per-vertex form and why vertices are checked before dispatch; sec 6 its falsifier).
 - M1 (47da73e, merged d75a8d0): src/VrfC2SimApp/VertexChain.cs (VertexChainPolicy.FormFor :88-94, StartupLine :113-132,
-  VertexChainTracker) and VrfC2SimService.cs :759 (start-up line), :4957-4982 (the form decision), :5316-5387
-  (StartVertexChain; dispatch line :5377), :5396-5475 (completion outcomes and their lines), :5514-5544
-  (IssueNextVertex), :8012 (VRF task complete) [V at b984945]; RUNBOOK sec 11 bullet "GROUND MOVEMENT SINCE 2026-09-27"
+  VertexChainTracker) and VrfC2SimService.cs :771 (start-up line), :4975-5000 (the form decision), :5334-5405
+  (StartVertexChain; dispatch line :5395), :5414-5493 (completion outcomes and their lines), :5532-5562
+  (IssueNextVertex), :8100 (VRF task complete) [V at 5e8d6f1]; RUNBOOK sec 11 bullet "GROUND MOVEMENT SINCE 2026-09-27"
   (the lines to look for; "NOT YET SEEN LIVE (run E1 of the plan): exactly one "move-to" completion per vertex; Move To
-  planning on the nav area for a lone M577A2; the stop at each intermediate vertex").
+  planning on the nav area for a lone M577A2; the stop at each intermediate vertex"). M1b (b817609): the runner's
+  report-evidence gate maps a chained platform from its MOVE TO PER VERTEX line and anchors it on its LAST
+  task-complete record (RunnerLib.ps1 Get-VertexChainNames); tools/analysis/applog_chain.py parses the per-vertex lines.
+  D1 (b817609): on EntityLevel a memberless aggregate is still not judged, with one "TASK JUDGES: ... NO members"
+  warning per task (VrfC2SimService.cs :7401), and a start-up line names the model set (:776, UnitPositionPolicy.
+  StartupLine); on EntityLevel the ARRIVAL EVIDENCE and STALL lines are unchanged (their D1 suffix is empty) [V].
 - IRONSTORM_CUTA_LIVE-2026-09-27-1 (PREREG_IRONSTORM_CUTA_LIVE1_2026-09-27.md): its unscored pre-warm, run
   20260927T003120Z, is THIS RUN'S CONTROL - 48 IBCT on the SAME line (the (e) line of the pre-(i) order) on Move Along
   Route drove ~850 m and stopped dead 0.5 m from the OSM lake (FINDING_IRONSTORM_T14_STOP_2026-09-27.md, H1).
@@ -131,18 +140,20 @@ PassagePoint_28ID_SLOT0], 2 points (-2's T02 L-ROUTE read "(2 pts)" [V: run 2026
 points. `leg_check.py --dump-resolved` on the E1 order resolves T14 to [54.040348, 23.324206] alone, T02 to the
 PassagePoint alone, T10 to [(h), (j), PassagePoint] [V].
 (h) ONE engage-path line per DISPATCH PASS (P8), as -1 1(g) and -2 1(h).
-(i) THE FORM is decided once, on the FINAL route (VrfC2SimService.cs :4957): one point -> MoveToLocation; a
+(i) THE FORM is decided once, on the FINAL route (VrfC2SimService.cs :4975): one point -> MoveToLocation; a
 non-aggregate ground mover with two or more points, not a patrol, with Vrf:PlatformMoveToPerVertex on -> Move To per
 vertex; anything else -> CreateRoute + MoveAlongRoute. So T02 and T14 take Move To per vertex (one vertex each unless a
 route shift inserts points), T10 the unit route task exactly as in -2, and the holds nothing.
 (j) HARNESS NOTES carried from the -2 lane [A]: --parse-init needs the MAK PATH prefix
 (PATH=/c/MAK/vrforces5.2d/bin64:/c/MAK/makRti5.0.1/bin:$PATH) or VrfBridge.dll is not found; the runner reads its
-executables and the ledger from the MAIN checkout; StopVrf52's exit code is the teardown gate. NEW (PLAN_MOVEMENT row M1,
-follow-up M1b): the runner's report-evidence RPT path maps a marking to its VRF_UUID from route lines (RunnerLib.ps1
-:446-468), which a chained platform no longer logs; its C2SIM-capture and R1-applog satisfiers still apply, and this run
-does not use --stop-when-complete, so it changes no verdict here - RECORDED ('via' per taskee). The offline analysis
-tools that key on "MoveAlongRoute issued" (tools/analysis) are not used for scoring; the scorer (sec 4) keys on the
-console and DISPATCHED lines.
+executables and the ledger from the MAIN checkout; StopVrf52's exit code is the teardown gate. NEW: a chained platform
+logs no route line; since M1b the runner's report-evidence gate maps it from its MOVE TO PER VERTEX line and anchors it
+on its LAST task-complete record. This run does not use --stop-when-complete, so that gate decides nothing here - its
+'via' per taskee is RECORDED. The scorer (sec 4) keys on the console and DISPATCHED lines, and
+tools/analysis/applog_chain.py (M1b's parser, `--selftest`) cross-checks the chain lines at the harvest. THE MODEL SET:
+--model-set is NOT passed, so the runner's default EntityLevel is exported to the app as Vrf__ModelSet=EntityLevel and
+the fixture is checked to load EntityLevel ("C2SIM_EntityLevel_AbstractGraphs.sms includes entitylevel.sms") [V: prep
+dry run, sec 3 E].
 
 ## Conditions
 
@@ -161,44 +172,49 @@ is a separate and finer measure on the WatchVrf trace (sec 4), not the watchdog'
 
 DEVIATION FROM RECORD: stall detection is switched on with --env Vrf__StallDetection=true, not by loading the demo profile the owner named ("ON in the demo profile (Recommended)", RL-20260925-01 Q3); the runner path loads no Demo overlay and loading it would also change the application number, connection config and console levels.
 
-DEVIATION FROM RECORD: the successor-gate floor is 60 s, not the 7200 s the wrapper exports ("export Vrf__TaskPredecessorTimeoutSeconds=7200", scripts/RunScenario.sh:308); the computed wait is max(60, 300 + 60) = 360 SIM s, so T02 and T14 are not held two hours behind a late predecessor for no reason.
+DEVIATION FROM RECORD: the successor-gate floor is 60 s, not the 7200 s the wrapper exports ("export Vrf__TaskPredecessorTimeoutSeconds=7200", scripts/RunScenario.sh:320); the computed wait is max(60, 300 + 60) = 360 SIM s, so T02 and T14 are not held two hours behind a late predecessor for no reason.
 
 DEVIATION FROM RECORD: consoles at level 4, not the demo setting of plan P7 ("--object-console 3 --member-console 3"); the house template requires level 4 for a movement run and the movers here are lone platforms.
 
 DEVIATION FROM RECORD: a FALLBACK placement does not stop this run, where DEMO_RUNBOOK sec 0.4 says of anything but N of N from the terrain query "Stop, warm the area, start again"; the record in -2 sec 1(e)1 shows warming does not change that line on this AO, and the re-clamp that repairs it is scored in P5.
 
 Flag note (not a deviation): `--no-gui` is written explicitly in step E; it is the runner's default (scripts/RunScenario.sh
-:102) and -1 and -2 kept it. Vrf:PlatformMoveToPerVertex is NOT passed: the shipped default (ON) is what is under test.
+:41, :107) and -1 and -2 kept it. Vrf:PlatformMoveToPerVertex is NOT passed: the shipped default (ON) is what is under test.
+--model-set is NOT passed either: the runner's default EntityLevel (sec 1(j)).
 
 ## 2. What the code emits - log-line shapes
 
-src at b984945 differs from -2's 80f707f only by M1 (47da73e) in VrfC2SimApp, and M1 removed or re-worded no existing
-log template (`git diff 80f707f b984945` of VrfC2SimService.cs and DeferredDispatch.cs removes only comments and the
-one-point test [V]). So -2 sec 2's shapes stand, at shifted line numbers [V at b984945]: L-DISP (:5156 `DISPATCHED <name>
-task '<T>' (<kind>) at WALL <iso>Z, SIMULATION clock <s> s`; a chained platform's kind is `move-to-per-vertex`), L-ROUTE
-(:5040 `Task '<T>': CreateRoute '<route>' (<N> pts) for <name>; move deferred to route-created.`), L-MAR (:6006 `Route
-'<route>' (<uuid>) created; MoveAlongRoute issued for <vrf>.`), L-SHIFT-ON (:729), L-SHIFTED (:6641), L-NOFLAG (:6680
-`ROUTE SHIFT - no leg flagged; the route is unchanged.`), L-CENSUS (:1654), L-CLOCK (:844), L-RATIO (:6990), L-WDOG
-(:7792), L-STALL (:7595), L-REPORTS (:1063), and the resolver, CNFPSL, R3-self, FOLSPT, bare-move and completion shapes
-as -2 names them. NEW, from M1 [V]:
-- L-M1-ON (:759 -> VertexChain.cs :119-127): `MOVE TO PER VERTEX ON (Vrf:PlatformMoveToPerVertex, RL-20260927-01;
+src at 5e8d6f1 differs from -2's 80f707f by M1 (47da73e), D1 + M1b (b817609) and A1's model-set plumbing (3e5ab14), and
+none of them removed or re-worded an existing log template: `git diff 80f707f 5e8d6f1` of VrfC2SimService.cs and
+DeferredDispatch.cs removes only comments, the one-point test, two position reads and two format strings to which D1
+appended a suffix that is EMPTY on EntityLevel (ARRIVAL EVIDENCE `{Leaf}`, STALL `onePosition`) [V]. So -2 sec 2's shapes
+stand, at shifted line numbers [V at 5e8d6f1]: L-DISP (:5174 `DISPATCHED <name> task '<T>' (<kind>) at WALL <iso>Z,
+SIMULATION clock <s> s`; a chained platform's kind is `move-to-per-vertex`), L-ROUTE (:5058 `Task '<T>': CreateRoute
+'<route>' (<N> pts) for <name>; move deferred to route-created.`), L-MAR (:6024 `Route '<route>' (<uuid>) created;
+MoveAlongRoute issued for <vrf>.`), L-SHIFT-ON (:741), L-SHIFTED (:6659), L-NOFLAG (:6698 `ROUTE SHIFT - no leg flagged;
+the route is unchanged.`), L-CENSUS (:1672), L-CLOCK (:862), L-RATIO (:7018), L-WDOG (:7872), L-STALL (:7675), L-REPORTS
+(:1081), and the resolver, CNFPSL, R3-self, FOLSPT, bare-move and completion shapes as -2 names them. NEW [V]:
+- L-M1-ON (:771 -> VertexChain.cs :119-127): `MOVE TO PER VERTEX ON (Vrf:PlatformMoveToPerVertex, RL-20260927-01;
   FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27 sec 5.2): a LONE ground PLATFORM with a route of two or more points is driven
   as one Move To per route vertex ... A vertex completion farther than 100 m (Vrf:VertexArrivalRadiusMeters) from its
   vertex is logged VACUOUS (R11). ...`; its off twin begins `MOVE TO PER VERTEX off (`.
-- L-MOVETO (:5377): `Task '<T>': MOVE TO PER VERTEX for <name> (<vrf>) - vertex 1 of <N>: MoveToLocation (<lat>,<lon>);
+- L-MODELSET (:776 -> UnitPositionPolicy.StartupLine, D1): `MODEL SET for task judging: Vrf:ModelSet='EntityLevel' -> ...
+  (D1, RL-20260927-01). A memberless aggregate is NOT judged ...`, INFO; a WARNING if the value is not recognised.
+  L-JUDGES (:7401, D1): `TASK JUDGES: <name> (task '<T>') is an aggregate with NO members <S> WALL s after dispatch ...`.
+- L-MOVETO (:5395): `Task '<T>': MOVE TO PER VERTEX for <name> (<vrf>) - vertex 1 of <N>: MoveToLocation (<lat>,<lon>);
   the other <N-1> vertex(es) are issued one at a time, each when the previous Move To COMPLETES. No route object is created
   (RL-20260927-01: ...).`
-- L-VRFDONE (:8012): `VRF task complete: <marking> / <taskType> (success=<True|False>)`.
-- L-VTX (:5418) `VERTEX CHAIN <marking> task '<T>': vertex k of N COMPLETED - the unit is D m from it and moved M m since
-  <dispatch|vertex j>; issuing vertex k+1 (...)`, L-VTX-ISSUE (:5541) `VERTEX CHAIN ... vertex k of N issued -
-  MoveToLocation (<lat>,<lon>) (...)`, and L-VTX-LAST (:5425) `VERTEX CHAIN <marking> task '<T>': LAST vertex k of N
+- L-VRFDONE (:8100): `VRF task complete: <marking> / <taskType> (success=<True|False>)`.
+- L-VTX (:5436) `VERTEX CHAIN <marking> task '<T>': vertex k of N COMPLETED - the unit is D m from it and moved M m since
+  <dispatch|vertex j>; issuing vertex k+1 (...)`, L-VTX-ISSUE (:5559) `VERTEX CHAIN ... vertex k of N issued -
+  MoveToLocation (<lat>,<lon>) (...)`, and L-VTX-LAST (:5443) `VERTEX CHAIN <marking> task '<T>': LAST vertex k of N
   COMPLETED - the unit is D m from it and moved M m since dispatch<suffix>. The chain ends and this completion goes to the
   task's own completion rules ...`.
-- THE CHAIN FAILURE FAMILY, all PREDICTED ABSENT: `VERTEX CHAIN` lines carrying VACUOUS (:5410, :5435), FAILED (:5445),
-  SWALLOWED (:5453, :5463) or `is NOT issued` (:5523, :5534); `is ALREADY driving this task's MOVE TO PER VERTEX chain`
-  (:5327); `the MOVE TO PER VERTEX chain of task ... ends at vertex` (:5129, :5757); `MOVE TO PER VERTEX chain(s) FROZEN`
-  (:7490). NOT in that family: the service's own `VRF completion for <unit> after the arrival-evidence report of task
-  <T> - swallowed.` (:8028, lower case), the benign path when arrival evidence reported first (RECORDED).
+- THE CHAIN FAILURE FAMILY, all PREDICTED ABSENT: `VERTEX CHAIN` lines carrying VACUOUS (:5428, :5453), FAILED (:5463),
+  SWALLOWED (:5471, :5481) or `is NOT issued` (:5541, :5552); `is ALREADY driving this task's MOVE TO PER VERTEX chain`
+  (:5345); `the MOVE TO PER VERTEX chain of task ... ends at vertex` (:5147, :5775); `MOVE TO PER VERTEX chain(s) FROZEN`
+  (:7566). NOT in that family: the service's own `VRF completion for <unit> after the arrival-evidence report of task
+  <T> - swallowed.` (:8116, lower case), the benign path when arrival evidence reported first (RECORDED).
 - Vendor console lines, the object's own console at level 4 (`VRF console [n] <name> (VRF_UUID:...): ...`), as counted in
   -2: L-PROOF `C2SIM override ground-vehicle-move-to.lua: useAbstractGraphs=true`; L-PLAN `Planned path has <N> points.`
   and `Node Is destination in nav area?: <success|failure>`.
@@ -206,18 +222,18 @@ as -2 names them. NEW, from M1 [V]:
 ## 3. Sequence and exact command lines - the GO-LIVE (nothing below has been run unless marked PREP)
 
 All from Git Bash at the MAIN checkout F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM, HEAD main
-(b984945 when this was written). The runner writes its appNumber block into the MAIN checkout's working-tree
+(5e8d6f1 when this was written). The runner writes its appNumber block into the MAIN checkout's working-tree
 OPUS_EXECUTION_PLAN.md; that block is carried back to this branch afterwards (the IS1 / IS2 procedure).
 
 A0. PRECONDITIONS: (1) the seat's go-live; (2) no other lane building, running a suite or an agent (the two offline lanes
     of PLAN_MOVEMENT row M2 / A1 finished or paused - the quiet period cannot start before); (3) the order the runner reads
     is byte-identical to the registered one - data/IRONSTORM_CUTA_E1_Order.xml of the main checkout once the seat has
     merged this branch, or else this worktree's absolute path - sha256 7d5b4034...ddb9a either way; (4) the deployed build is
-    still b984945 (exe 97e29285..., dll 4fbb4702...) and `git diff --stat b984945..main -- src` is EMPTY. If main's src has
-    moved on, NOTHING is rebuilt: the registered build is what runs, and the difference is recorded. If the DEPLOYED
-    hashes differ (another lane rebuilt the main checkout's output folders), STOP before D: the BINARY line above no
-    longer describes what would run, and the seat decides between a rebuild of b984945 (a new hash, re-registered) and
-    a new registration.
+    still 5e8d6f1 (exe af19d6be..., dll 24982412...) and `git diff --stat 5e8d6f1..main -- src` is EMPTY. If main's src
+    has moved on (M2 merges AFTER E1 by the plan), NOTHING is rebuilt: the registered build is what runs, and the
+    difference is recorded. If the DEPLOYED hashes differ (another lane rebuilt the main checkout's output folders), STOP
+    before D: the BINARY line above no longer describes what would run, and the seat decides between a rebuild of the
+    registered source (a new hash, re-registered) and a new registration.
 A.  Read-only checks, re-run immediately before E: DOTNET_ENVIRONMENT empty; 0 Vrf__ variables; processes - rtiexec 47980,
     rtiForwarder 50740 and rtiAssistant 30240 up and never touched; no RtiProbe (before D), vrfNavGenerator, build, vrfSim,
     vrfGui, VrfC2SimApp, WatchVrf or ListenReports; REST 200 on 18080; exe / dll / appsettings / bridge / fixture / order /
@@ -227,7 +243,8 @@ A.  Read-only checks, re-run immediately before E: DOTNET_ENVIRONMENT empty; 0 V
     marker read.
 B.  No build (done in the preparation, above).
 C.  Order validation (no federate, no appNumber):
-    - C1 `VrfC2SimApp.exe --parse-order <E1 order>` [PREP V, exit 0]: "Tasks: 5"; durations 1200000 ms x 4 and 1800000 ms
+    - C1 `VrfC2SimApp.exe --parse-order <E1 order>` [PREP V with the deployed 5e8d6f1 exe, exit 0; the same output on
+      b984945's]: "Tasks: 5"; durations 1200000 ms x 4 and 1800000 ms
       (T10); T10 mapGraphic c8d9cd1a, 51a59f89, cc23071f in that order; T14 mapGraphic 7351f662-f857-e05a-b533-f9a46e0fb095
       ONLY; T02 startAfter f7b52ba4, T14 startAfter 37677c40; T10 simStartMs 1200000; 0 warn / error / schema lines.
     - C2 `VrfC2SimApp.exe --parse-init data/IRONSTORM_CUTA_Initialization.xml "Not Set"` with the MAK PATH prefix [PREP V,
@@ -266,13 +283,15 @@ E.  DRY RUN, then THE RUN once, stdout to a FILE, never piped:
 
     --order (here and in C3) is data/IRONSTORM_CUTA_E1_Order.xml once the seat has merged this branch; unmerged, it is
     this worktree's absolute path (A0 (3)) - the registered sha256 decides, not the path.
-    The dry run is the same line plus --dry-run and its own log name. PREP DRY RUN [V 2026-09-27T17:40:23Z, exit 0], with
-    the order given as this worktree's absolute path: order accepted; "deployed VrfC2SimApp BUILD IDENTITY: git b984945,
-    written 2026-09-27T17:12:28Z"; no holder present then, so it planned its block from 5170 (5170-5180, marker -> 5181);
-    nothing launched, no run directory, marker unmoved (runs/launch52/RunScenario-ironstorm-e1-prep-dryrun-
-    20260927T174022Z.log). THE GO-LIVE DRY RUN must show: the new holder recognised as a PERSISTENT FEDERATION HOLDER;
-    build identity b984945; the block M+4..M+14 exactly as sec 5; marker would advance to M+15. A different layout is
-    written into sec 5 BEFORE launch.
+    The dry run is the same line plus --dry-run and its own log name. PREP DRY RUN [V 2026-09-27T18:03:18Z, exit 0; a first
+    one at 17:40:23Z on the superseded b984945 build also exit 0], with the order given as this worktree's absolute path:
+    order accepted; "deployed VrfC2SimApp BUILD IDENTITY: git 5e8d6f1, written 2026-09-27T18:00:28Z"; "model set :
+    EntityLevel <- default; exported to the app as Vrf__ModelSet"; type map data/unit-type-map-52.json declares
+    EntityLevel and the fixture loads EntityLevel ("matches -ModelSet"); no holder present then, so it planned its block
+    from 5170 (5170-5180, marker -> 5181); nothing launched, no run directory, marker unmoved, the main checkout's tracked
+    tree unchanged (runs/launch52/RunScenario-ironstorm-e1-prep-dryrun-20260927T180318Z.log). THE GO-LIVE DRY RUN must
+    show: the new holder recognised as a PERSISTENT FEDERATION HOLDER; build identity 5e8d6f1; model set EntityLevel; the
+    block M+4..M+14 exactly as sec 5; marker would advance to M+15. A different layout is written into sec 5 BEFORE launch.
 
     Defaults kept: --profile 5.2; REST/STOMP 18080/61614, the PRIVATE server only; route shift ON; Move To per vertex ON; the
     runner's Stage 2h holder (it JOINS the federation the persistent holder keeps). GATE on teardown: StopVrf52's exit 0
@@ -337,11 +356,12 @@ the scorer (a waterway false positive), fixed before the second pass.
 | P18 | TEARDOWN, scored on StopVrf52's exit code inside the runner: 0 or 6 (6 = the run's own back end force-stopped by identity, including one still exiting at the 60 s post-force deadline), and no vrfSim / VrfC2SimApp / WatchVrf / ListenReports left. RECORDED beside it: StopVrf52's post-force wait line (`forced pid N still exiting after S s` or the clean exit-6 line, StopVrf52.ps1 :625-635 since 6e7295d) and the runner's own post-check. | HIGH | Exit 3, 5 or 7 = STOP. | |
 | P19 | T10 RESOLVED ROUTE (identical geometry to -2): T10 resolves to [(h) wp 54.029734 / 23.305499, (j) wp 54.024000 / 23.313000, PassagePoint_48_IBCT_SLOT0]. T10's distinct L-RESOLVE lines are exactly: for c8d9cd1a and for 51a59f89 each "1 vertex(es) dropped - they ARE the taskee's own position"; "path from MapGraphicID c8d9cd1a-... (line, 1 vertices): 1 vertex(es) joined" (no gap suffix - first graphic); "path from MapGraphicID 51a59f89-... (line, 1 vertices): 1 vertex(es) joined <d> m after the previous graphic's end" with d in 795-815; cc23071f -> PassagePoint_48_IBCT_SLOT0 "(<kind>, 1 vertex): appended as the route's DESTINATION"; zero resolver WARNINGs for T10. T10's L-ROUTE reads "(4 pts)" (4 + 2 per L-SHIFTED line for T10, if any). | HIGH | Any other vertex list, drop/join count or order, destination, a resolver warning for T10, or another L-ROUTE point count = STOP. | |
 | P19b | T14 RESOLVED ROUTE - THE RUN'S ONE VARIABLE, so HIGH (MEDIUM in -2): exactly one "MapGraphicID 7351f662-f857-e05a-b533-f9a46e0fb095 -> FollowAndSupport_48_IBCT_SLOT1__FRIENDLY_FOLLOW_AND_SUPPORT (line): 1 vertex(es) dropped" line and one "path from MapGraphicID 7351f662-... (line, 1 vertices): 1 vertex(es) joined." with NO gap suffix; ZERO resolver lines naming 7ff48b93 (the (i) graphic); zero resolver warnings for T14; T14's L-MOVETO reads "vertex 1 of 1: MoveToLocation (54.040348,23.324206)". With an L-SHIFTED line for T14: vertex 1 of 1 + the inserted count, and the first inserted point - recorded. | HIGH | Any other T14 route (another graphic, another drop / join, another destination) = STOP: the run would not test the registered line. | |
-| P20 | HEADLINE: T14's 48 IBCT reaches within 100 m of its destination 54.040348, 23.324206 (closest trace fix after dispatch) by window end - on its ORIGINAL line, round the water and the hamlet, by the planner. | HIGH | Not within 100 m = STOP. NAMED OUTCOMES, each recorded with the stop point, its obstacle report (the STALL measure) and the object's last console lines: (1) the P20F condition; (2) a stall AT an OSM feature (water or building within 10 m ahead); (3) a chain FAILED line (the planner aborted visibly, PathPlanFailure) and its TASKABRT; (4) still moving at window end. | |
+| P20 | HEADLINE: T14's 48 IBCT reaches within 100 m of its destination 54.040348, 23.324206 (closest trace fix after dispatch) by window end - on its ORIGINAL line, round the water and the hamlet, by the planner. | HIGH | Not within 100 m = STOP. NAMED OUTCOMES, each recorded with the stop point, its obstacle report (the STALL measure) and the object's last console lines: (1) the P20F condition; (2) a stall AT an OSM feature (water or building within 10 m ahead); (3) a chain FAILED line (the planner aborted visibly, PathPlanFailure) and its TASKABRT; (4) still moving at window end. Not a named outcome of P20 but of P11 / P12: (5) a watchdog STALL (TASKABRT, report-only by design) followed by recovery and arrival - two terminal reports for one uuid, so P11 and P12 miss and the run STOPS as a recovery after a stall. | |
 | P20b | T02's 28ID reaches within 100 m of PassagePoint_28ID_SLOT0 54.028874, 23.264401 by window end (closest trace fix). | HIGH | Not within 100 m = STOP, with the same named outcomes. | |
 | P20F | THE FALSIFIER (PLAN_MOVEMENT sec 3): NO stall of T14 of 60 SIM s or more with no OSM feature within ~10 m ahead (the STALL measure above; a BORDERLINE 30-90 s stall is named as such). The same measure is RECORDED for T02. A platform that never moves 5 m is P6's, not P20F's. | HIGH | The condition met = the frame of RL-20260927-01 is wrong for this vehicle and ground: STOP and ask; no re-run under this registration. | |
 | P21 | NO WATER ON ANY TRACK: no POS fix of any object that moved > 50 m (28ID, 48 IBCT, 1-112 IN and its members) falls in an OSM water cell (the z14 osm-water raster, leg_check.load_osm_water, scratch u3\laneI2\osm\osm-water); a fix on an absent tile is counted UNKNOWN, never dry. For T14 this now reads whether the PLANNER kept it out of the water its line crosses. | MEDIUM | >= 1 wet fix, or any mover fix on an absent tile = recorded MEDIUM miss (a shore-hugging path can read wet at the raster's ~5.6 m cell). | |
-| P22 | M1 IS THE BUILD: L-M1-ON exactly once, naming "100 m (Vrf:VertexArrivalRadiusMeters)"; ZERO `MOVE TO PER VERTEX off (` lines. | HIGH | Missing, duplicated or the off line = STOP (not the registered build or setting). | |
+| P22 | M1 AND D1 ARE THE BUILD: L-M1-ON exactly once, naming "100 m (Vrf:VertexArrivalRadiusMeters)"; ZERO `MOVE TO PER VERTEX off (` lines; L-MODELSET exactly once at INFO, naming `Vrf:ModelSet='EntityLevel'`. | HIGH | Missing, duplicated, the off line, or a MODEL SET WARNING / another model set = STOP (not the registered build or setting). | |
+| P22b | NO UNJUDGED MOVER: ZERO L-JUDGES ("TASK JUDGES: ... is an aggregate with NO members") lines - 1-112 IN's members reflect as in -2, and the two lone platforms are not aggregates. | MEDIUM | Any L-JUDGES line = recorded MEDIUM miss (that mover's arrival and stall are then unjudged by the app; the trace still scores P6b / P20). | |
 | P23 | THE FORM PER MOVER: exactly one L-MOVETO for T02 (28ID, "vertex 1 of 1: MoveToLocation (54.028874,23.264401)") and one for T14 (P19b); ZERO L-ROUTE and ZERO L-MAR for T02 or T14 (no "CreateRoute" naming the T2_ or T14_ task, no MoveAlongRoute for 28ID's or 48 IBCT's VRF_UUID); for T10 exactly one L-ROUTE and one L-MAR (P10) and ZERO L-MOVETO naming 1-112 IN. With an L-SHIFTED line for a lone platform: "vertex 1 of N" with N = 1 + its inserted points. | HIGH | Any other form for any mover = STOP. | |
 | P24 | VENDOR COMPLETIONS: for T02 and for T14, if its track comes within 15 m of its destination (the 5.2 near-distance, CLAUDE.md D7 / Y-13): exactly one L-VRFDONE for its marking, success=True, whose type CONTAINS "move-to" (VertexChainPolicy.IsChainMoveToType, the chain's own test); the literal type is RECORDED (expected "move-to", moveToTask.h :60 - never yet seen here: every run log on this machine carries only move-along, patrol-route and fire-at-target [V]). ZERO L-VRFDONE for either marking of another type or with success=False. T10: one "... / move-along (success=True)" if it arrives, as -2. A platform ending 15-100 m from its destination is RECORDED. | HIGH | A second completion, another type, success=False, or none for a platform whose track came within 15 m = STOP. | |
 | P25 | THE LAST VERTEX: for each lone platform with an L-VRFDONE, exactly one L-VTX-LAST "LAST vertex 1 of 1 COMPLETED - the unit is D m from it" with D < 100 and no VACUOUS suffix; ZERO lines of the chain failure family (sec 2); ZERO L-VTX and L-VTX-ISSUE lines (there is no vertex 2 without a route shift; with an L-SHIFTED line, one L-VTX + one L-VTX-ISSUE per intermediate vertex, each D < 100 - recorded, and the continuation is then exercised). The benign lower-case "- swallowed." line of :8028 is RECORDED, not scored. | HIGH | A missing, duplicated or D >= 100 LAST line, or any failure-family line = STOP. | |
@@ -352,8 +372,9 @@ the scorer (a waterway false positive), fixed before the second pass.
 WHY P3, P20, P20b AND P20F ARE HIGH: they are the frame's own predictions (FINDING_GROUND_MOVEMENT_PRACTICE secs 0 and 5.2,
 PLAN_MOVEMENT sec 3), each backed by vendor text (UG52 23.1-23.2.2, moveToTask.h :181-184) and never observed here - E1
 is the observation (PLAN sec 6), and a miss on any of them is a reason to stop and understand, not to adjust. WHY P3b,
-P11b AND P21 ARE MEDIUM: the planning line's wording depends on which planner answers; the late path depends on a
-planned-path length nobody has seen; a path that hugs a shore can read wet on a ~5.6 m raster without being in the water.
+P11b, P21 AND P22b ARE MEDIUM: the planning line's wording depends on which planner answers; the late path depends on a
+planned-path length nobody has seen; a path that hugs a shore can read wet on a ~5.6 m raster without being in the water;
+D1's warning is one day old and has never run live.
 
 STOP RULES:
 - A missed HIGH row is a STOP: record it, no patch, no re-run under this registration, nothing adjusted.
@@ -365,14 +386,15 @@ STOP RULES:
 ONE VARIABLE: for the headline mover T14, the TASK a lone ground platform gets - Move To per vertex (RL-20260927-01)
 instead of Move Along Route - on the SAME line, the (e) line of the pre-(i) order; the CONTROL is run 20260927T003120Z (the
 -1 pre-warm, unscored: 48 IBCT on Move Along Route drove ~850 m of that line and stopped dead 0.5 m from the OSM lake).
-Other differences from that control, named so that no claim rests on them: the build (b984945 against 80f707f - M1, plus
-StopVrf52 7ba070a / 6e7295d, which touch teardown only), T10's (j) waypoint, the run length (2,700 s against 120 s) and
-the persistent holder. Against run -2 (20260927T021020Z) T14 differs in BOTH its route ((i) removed) and its task, so -2 is
+Other differences from that control, named so that no claim rests on them: the build (5e8d6f1 against 80f707f - M1; D1,
+which changes nothing on EntityLevel but one start-up line and a memberless-aggregate warning; M1b and A1's runner
+changes; StopVrf52 7ba070a / 6e7295d, which touch teardown only), T10's (j) waypoint, the run length (2,700 s against
+120 s) and the persistent holder. Against run -2 (20260927T021020Z) T14 differs in BOTH its route ((i) removed) and its task, so -2 is
 a reference, not the control.
 
 ## 5. Application numbers
 
-The Appendix B marker reads `*** NEXT FREE: 5170 ***` at b984945 [V]. NOTHING is claimed by this registration (the
+The Appendix B marker reads `*** NEXT FREE: 5170 ***` at 5e8d6f1 [V]. NOTHING is claimed by this registration (the
 preparation phase's hard stop). At the go-live, from the marker M read then (5170 unless another run has moved it):
 - the persistent holder: M, M+1, M+2, M+3, hand-claimed in Appendix B and committed on this branch BEFORE it joins; one
   attempt per number until one joins; numbers not reached are BURNED, never reused; marker -> M+4;
