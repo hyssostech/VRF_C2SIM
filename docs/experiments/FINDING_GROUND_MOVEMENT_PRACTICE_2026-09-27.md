@@ -138,6 +138,15 @@ and lakes, and they do nothing for the next feature class nobody has mapped yet.
    Move To to each vertex in sequence (facade MoveToLocation exists; the vendor's move_along_route_and_continue
    .lua is the pattern); units keep the unit Move Along Route (they already plan per vertex). Arrival stays on
    telemetry. Registered A/B on the original -2 T14 geometry: prediction, arrives on Move To per vertex.
+   Owner's question (same day): is the vendor's model one Move To to the destination rather than segments? Yes for a
+   POINT (MG 2.4 "Movement to a point is now performed by a Move To task"); each per-vertex segment is that same
+   planner run with a nearer destination, so segments lose nothing of the planner - they keep STP's intermediate
+   points (passage/release points), which one Move To discards. Neither form makes a BAD VERTEX safe: the script
+   checks "Is destination in nav area?" (ground-vehicle-move-to.lua :1423), falls back to the feature planner, and
+   on failure sets PathPlanFailure and aborts (:1401-1404) - a visible abort, not a silent stop; its only endpoint
+   adjustment is to a road shoulder (:423-460), never out of water. So STP vertices must be checked BEFORE dispatch
+   (water / building -> nudge to the nearest clear ground and report, as change (e) did by hand for T14's lake
+   destination). For a two-point route (T02, T14 in cut A) per-vertex and single Move To coincide.
 3. Keep: the nav mesh (the planner's slope/soil input, UG 23.2.1), the stall watchdog as ruled, route shift ON as
    the fallback where no nav area exists. Retire after 1-2 are live-proven: the hand-edited waypoints (i)(j)(k)
    and the corridor gate as a launch bar (it scores a mesh the entity task never used).
