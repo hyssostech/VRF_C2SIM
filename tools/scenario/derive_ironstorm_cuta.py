@@ -14,6 +14,9 @@ INPUTS  (byte-exact, never modified)
 OUTPUTS (tracked)
     data/IRONSTORM_CUTA_Initialization.xml
     data/IRONSTORM_CUTA_Order.xml
+    data/IRONSTORM_CUTA_E1_Order.xml     the REGISTERED VARIANT "--without i" (run E1): the
+                                         same derivation with change (i) left out - see
+                                         VARIANTS at the end of the change list
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
 (change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
@@ -125,10 +128,25 @@ and the consequences.
       2,775 m (was 2,729 m). >= 110 m from water of any source on all three legs, >= 164 m from
       sectors (28,21)/(28,22); maple-area corridor PASS (CHANGES.md (j)). See apply_t10_waypoint.
 
+  VARIANTS - a change LEFT OUT, only where a registered run needs it (VARIANTS below).
+    "--without i" (2026-09-27, run E1; docs/PLAN_MOVEMENT_2026-09-27.md row E1, ruling
+      RL-20260927-01) -> data/IRONSTORM_CUTA_E1_Order.xml. The same derivation with change (i)
+      left out: T14 keeps its ORIGINAL line - the FollowAndSupport graphic 7351f662 only - to the
+      (e) destination, which STAYS. (a)-(h) and (j) are applied exactly as above; the init is the
+      same byte-identical copy. Purpose: a lone platform is now driven by Move To per vertex, so
+      the vendor's PLANNER, not a hand waypoint, has to take T14 round the lake. The original line
+      is ASSERTED (assert_t14_original_line), not assumed. Only 'i' may be left out; every other
+      letter is refused - (k), on an unmerged branch, is not a change of this derivation at all.
+    Every run of the script derives EVERY variant, gates each, and proves the without-(i) order is
+    the full order minus exactly (i)'s two insertions (remove_change_i) - one change apart, so a
+    run on it varies T14's route and nothing else. `--check` verifies every variant on disk.
+
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
-    python tools/scenario/derive_ironstorm_cuta.py --check         # verify, write nothing
+    python tools/scenario/derive_ironstorm_cuta.py --without i     # write the E1 variant
+    python tools/scenario/derive_ironstorm_cuta.py --check         # verify ALL, write nothing
     python tools/scenario/derive_ironstorm_cuta.py --selftest      # pure-function tests
+EXIT: 0 ok; 2 a gate failed; 3 --check found a mismatch; 4 a --without letter was refused.
 
 The script is deterministic: the same inputs always produce byte-identical outputs, and
 it prints the SHA-256 of every input and output so a derivation can be audited later.
@@ -148,6 +166,7 @@ SRC_INIT = os.path.join(REPO, 'data', 'STP-IRON-STORM-SYNTHETIC_Initialization.x
 SRC_ORDER = os.path.join(REPO, 'data', 'STP-IRON-STORM-SYNTHETIC_Order.xml')
 OUT_INIT = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_Initialization.xml')
 OUT_ORDER = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_Order.xml')
+OUT_ORDER_E1 = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_E1_Order.xml')
 
 NS = 'http://www.sisostds.org/schemas/C2SIM/1.1'
 Q = '{%s}' % NS
@@ -423,6 +442,17 @@ def unit_init_position(init_text, unit_uuid):
     return pos[0]
 
 
+def t14_waypoint_entity():
+    """The (i) graphic's <Entity> text, exactly as apply_t14_waypoint inserts it."""
+    return route_entity(T14WP_NAME, T14WP_GRAPHIC, T14WP_START, T14WP_WAYPOINT)
+
+
+def t14_waypoint_ref():
+    """The (i) MapGraphicID line, exactly as apply_t14_waypoint inserts it into T14's block."""
+    return ('%s<MapGraphicID>%s</MapGraphicID><!--T14_Waypoint ADDED BY CUT A (i)-->%s'
+            % (INDENT, T14WP_GRAPHIC, EOL))
+
+
 def apply_t14_waypoint(text, log, init_text):
     """(i) Add T14's waypoint graphic right after the FollowAndSupport graphic's <Entity> and
     reference it from T14, before the FollowAndSupport reference. Every anchor is asserted."""
@@ -446,8 +476,7 @@ def apply_t14_waypoint(text, log, init_text):
     if end < 0:
         raise AssertionError('(i) no </Entity> after the FollowAndSupport graphic')
     end += len(close)
-    text = (text[:end] + route_entity(T14WP_NAME, T14WP_GRAPHIC, T14WP_START, T14WP_WAYPOINT)
-            + text[end:])
+    text = text[:end] + t14_waypoint_entity() + text[end:]
     ref = (INDENT + '<MapGraphicID>%s</MapGraphicID><!--FollowAndSupport_48_IBCT_SLOT1-->'
            % T14WP_FOLLOW_GRAPHIC)
     t14 = text.find('<UUID>%s</UUID>' % T14WP_TASK)
@@ -455,9 +484,7 @@ def apply_t14_waypoint(text, log, init_text):
     at_ref = text.find(ref, blk_start, t14)
     if t14 < 0 or at_ref < 0 or text.count(ref) != 1:
         raise AssertionError('(i) T14 does not carry the FollowAndSupport reference exactly once')
-    line = ('%s<MapGraphicID>%s</MapGraphicID><!--T14_Waypoint ADDED BY CUT A (i)-->%s'
-            % (INDENT, T14WP_GRAPHIC, EOL))
-    text = text[:at_ref] + line + text[at_ref:]
+    text = text[:at_ref] + t14_waypoint_ref() + text[at_ref:]
     log('  (i) T14 waypoint: + Route graphic %s [%s,%s -> %s,%s] referenced before the '
         'FollowAndSupport graphic (routes round Jezioro Wiersnie, OSM way 197345448; '
         'destination unchanged)'
@@ -546,6 +573,124 @@ def apply_t10_waypoint(text, log, init_text):
         '(b) destination (keeps (h) leg 2 off an OSM pond; destination unchanged)'
         % (T10WP_GRAPHIC[:8], REROUTE_START[0], REROUTE_START[1],
            T10WP_WAYPOINT[0], T10WP_WAYPOINT[1]))
+    return text
+
+
+# ---------------------------------------------------------------------------
+# VARIANTS - a change LEFT OUT, only where a registered run needs it. 2026-09-27, run E1.
+#
+# WHY. RL-20260927-01 ("Go", docs/PLAN_MOVEMENT_2026-09-27.md): a LONE ground platform is now
+# driven by Move To per STP vertex, and Move To PLANS each leg - roads, the nav mesh, round
+# feature obstacles - and recovers from a blockage (UG52 23.1-23.2), where Move Along Route
+# drove STP's straight line and planned nothing (UG52 23.3). Change (i) is a hand-placed
+# waypoint that did the planner's job for T14. Run E1 takes it away on purpose: T14 drives its
+# ORIGINAL line, whose centreline enters the OSM lake at 834 m, and the PLANNER has to take it
+# round. The (e) destination stays (it moved the END POINT out of the lake, and Move To cannot
+# end in water either, FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27 sec 5.2).
+#
+# RULES. A variant is a named, registered output file - never an ad-hoc edit. Only the letters
+# in a VARIANTS key may be left out; anything else is refused, so a typo cannot produce a
+# plausible wrong order. (k) (T14 round the hamlet) lives on the unmerged branch
+# fix/ironstorm-t14-hamlet and is not a change of this derivation.
+# ---------------------------------------------------------------------------
+CHANGE_LETTERS = 'abcdefghij'      # every change of THIS derivation, (a)-(j)
+
+VARIANTS = {                       # changes left out -> the order file it is written to
+    frozenset(): OUT_ORDER,        # the cut as ruled: (a)-(j)
+    frozenset('i'): OUT_ORDER_E1,  # run E1: T14 on its ORIGINAL line, (a)-(h) and (j)
+}
+
+
+def variant_label(without):
+    """A variant's name in log lines: 'as ruled, (a)-(j)' or 'without (i)'."""
+    if not without:
+        return 'as ruled, (a)-(j)'
+    return 'without %s' % ', '.join('(%s)' % c for c in sorted(without))
+
+
+def parse_without(spec):
+    """The --without text -> the frozenset of change letters to leave out ('' = none).
+    Letters are comma-separated. Every letter must be a change of this derivation, lower-case,
+    and the resulting set must be a REGISTERED variant; anything else raises ValueError - the
+    script never guesses which order was meant."""
+    text = (spec or '').strip()
+    if not text:
+        return frozenset()
+    letters = set()
+    for tok in text.split(','):
+        tok = tok.strip()
+        if len(tok) != 1 or tok not in CHANGE_LETTERS:
+            raise ValueError('unknown change letter %r - this derivation has (%s)%s'
+                             % (tok, ') ('.join(CHANGE_LETTERS),
+                                '; (k) is on the unmerged branch fix/ironstorm-t14-hamlet'
+                                if tok.lower() == 'k' else ''))
+        letters.add(tok)
+    key = frozenset(letters)
+    if key not in VARIANTS:
+        raise ValueError('no registered variant leaves out %s; the registered variants are: %s'
+                         % (', '.join('(%s)' % c for c in sorted(key)),
+                            '; '.join(variant_label(v) for v in sorted(VARIANTS, key=len))))
+    return key
+
+
+def assert_t14_original_line(text, init_text):
+    """The E1 variant's claim, CHECKED rather than assumed: T14 names exactly ONE MapGraphicID,
+    the FollowAndSupport graphic, whose vertices are [48 IBCT's init position, the (e)
+    destination] - so the resolver drops the first and T14 drives start -> (e) destination - and
+    the (i) waypoint graphic is nowhere in the order."""
+    if T14WP_GRAPHIC in text:
+        raise AssertionError('(i) left out, but its waypoint graphic %s is in the order'
+                             % T14WP_GRAPHIC)
+    pos = unit_init_position(init_text, T14WP_UNIT)
+    if pos != T14WP_START:
+        raise AssertionError('48 IBCT init position is %r, expected %r' % (pos, T14WP_START))
+    g = text.find('<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC)
+    if g < 0 or text.count('<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC) != 1:
+        raise AssertionError('expected the FollowAndSupport graphic exactly once')
+    blk = text[g:text.find('</TaskGraphic>', g)]
+    verts = re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>', blk)
+    if verts != [T14WP_START, NUDGE_TO]:
+        raise AssertionError('FollowAndSupport vertices are %r, expected [start, (e) destination]'
+                             % (verts,))
+    t14 = text.find('<UUID>%s</UUID>' % T14WP_TASK)
+    if t14 < 0:
+        raise AssertionError('T14 is not in the order')
+    refs = re.findall(r'<MapGraphicID>([^<]*)</MapGraphicID>',
+                      text[text.rfind('<Task>', 0, t14):t14])
+    if refs != [T14WP_FOLLOW_GRAPHIC]:
+        raise AssertionError('T14 names MapGraphicID(s) %r, expected only the FollowAndSupport '
+                             'graphic %s' % (refs, T14WP_FOLLOW_GRAPHIC))
+
+
+def remove_change_i(text):
+    """The inverse of apply_t14_waypoint on a derived order: remove its ONE added graphic
+    <Entity> and its ONE added MapGraphicID line, each asserted to occur exactly once. Every run
+    uses it to prove the without-(i) order is the full order minus (i) and NOTHING else."""
+    for label, piece in (('the (i) graphic entity', t14_waypoint_entity()),
+                         ('the (i) MapGraphicID line', t14_waypoint_ref())):
+        n = text.count(piece)
+        if n != 1:
+            raise AssertionError('%s occurs %d time(s), expected exactly 1' % (label, n))
+        text = text.replace(piece, '')
+    return text
+
+
+def apply_added_graphics(text, log, init_text, without=frozenset()):
+    """(h), then (i) unless the variant leaves it out, then (j) - the three added graphics, in
+    the order derive_order has always applied them. (j) does not depend on (i)."""
+    # (h) the T10 reroute (after (b) put the destination reference in T10's block).
+    text = apply_reroute(text, log, init_text)
+    # (i) T14's waypoint round the lake (after (e) put the destination on the graphic).
+    if 'i' in without:
+        assert_t14_original_line(text, init_text)
+        log('  (i) LEFT OUT (--without i, run E1): T14 keeps its ORIGINAL line - the '
+            'FollowAndSupport graphic %s only, [%s,%s -> %s,%s]; the (e) destination stays'
+            % (T14WP_FOLLOW_GRAPHIC[:8], T14WP_START[0], T14WP_START[1],
+               NUDGE_TO[0], NUDGE_TO[1]))
+    else:
+        text = apply_t14_waypoint(text, log, init_text)
+    # (j) T10's second waypoint, keeping (h) leg 2 off the pond (after (h) added its graphic).
+    text = apply_t10_waypoint(text, log, init_text)
     return text
 
 
@@ -724,8 +869,11 @@ def write(path, text):
 
 
 # ---------------------------------------------------------------------------
-def derive_order(src_text, log, init_text=None):
-    """Apply (a), (b), (c), (e), (f), (g), (h), (i) and (j) to the order text. Returns the derived text."""
+def derive_order(src_text, log, init_text=None, without=frozenset()):
+    """Apply (a), (b), (c), (e), (f), (g), (h), (i) and (j) to the order text, minus the changes
+    `without` names - which must be a REGISTERED variant (VARIANTS). Returns the derived text."""
+    if frozenset(without) not in VARIANTS:
+        raise AssertionError('no registered variant leaves out %r' % sorted(without))
     blocks = TASK_BLOCK.findall(src_text)
     log('order carries %d <Task> blocks' % len(blocks))
     if len(blocks) != src_text.count('<Task>'):
@@ -818,14 +966,8 @@ def derive_order(src_text, log, init_text=None):
     # file's and not the export's.
     text = apply_water_nudge(text, log)
 
-    # (h) the T10 reroute (after (b) put the destination reference in T10's block).
-    text = apply_reroute(text, log, init_text)
-
-    # (i) T14's waypoint round the lake (after (e) put the destination on the graphic).
-    text = apply_t14_waypoint(text, log, init_text)
-
-    # (j) T10's second waypoint, keeping (h) leg 2 off the pond (after (h) added its graphic).
-    text = apply_t10_waypoint(text, log, init_text)
+    # (h), (i) unless the variant leaves it out, (j) - see apply_added_graphics.
+    text = apply_added_graphics(text, log, init_text, frozenset(without))
 
     # (a) last, so it covers the whole derived document including nothing new (the
     # inserted lines carry no duration).
@@ -1014,6 +1156,92 @@ def selftest():
     finally:
         globals()['T10WP_WAYPOINT'] = saved
 
+    print('variants (--without):')
+    check('no --without = the cut as ruled', parse_without(''), frozenset())
+    check('--without i = the run E1 variant', parse_without('i'), frozenset('i'))
+    check('--without " i " (whitespace tolerated)', parse_without(' i '), frozenset('i'))
+    check('the ruled cut writes IRONSTORM_CUTA_Order.xml',
+          os.path.basename(VARIANTS[frozenset()]), 'IRONSTORM_CUTA_Order.xml')
+    check('without (i) writes IRONSTORM_CUTA_E1_Order.xml',
+          os.path.basename(VARIANTS[frozenset('i')]), 'IRONSTORM_CUTA_E1_Order.xml')
+    check('exactly two registered variants', len(VARIANTS), 2)
+    # Refused, and for the RIGHT reason: an unknown letter ((k) is on an unmerged branch, and
+    # malformed shapes) is 'unknown change letter'; a real change that no registered variant
+    # leaves out is 'no registered variant'.
+    for bad, why in (('k', 'unmerged branch'), ('z', 'unknown change letter'),
+                     ('I', 'unknown change letter'), ('(i)', 'unknown change letter'),
+                     ('ij', 'unknown change letter'), ('i,', 'unknown change letter'),
+                     (',i', 'unknown change letter'), ('i,k', 'unmerged branch'),
+                     ('a', 'no registered variant'), ('e', 'no registered variant'),
+                     ('j', 'no registered variant'), ('i,j', 'no registered variant')):
+        try:
+            parse_without(bad)
+            ok = False
+            print('  MISMATCH %-46s accepted a --without it must refuse' % repr(bad))
+        except ValueError as exc:
+            if why in str(exc):
+                print('  ok       refused --without %-8r (%s)' % (bad, why))
+            else:
+                ok = False
+                print('  MISMATCH %-46s refused, but not as %r: %s' % (repr(bad), why, exc))
+    try:
+        derive_order('', lambda m: None, None, frozenset('a'))
+        ok = False
+        print('  MISMATCH %-46s accepted an unregistered variant' % 'derive_order without (a)')
+    except AssertionError as exc:
+        if 'no registered variant' in str(exc):
+            print('  ok       refused: derive_order without (a) (not a registered variant)')
+        else:
+            ok = False
+            print('  MISMATCH %-46s refused for another reason: %s'
+                  % ('derive_order without (a)', exc))
+
+    print('apply_added_graphics with / without (i):')
+    init_both = init_ok + init_i          # 1-112 IN and 48 IBCT, one <Entity> each
+    order_both = order + order_i          # T10's (b) destination + T14's FollowAndSupport line
+    with_i = apply_added_graphics(order_both, lambda m: None, init_both)
+    without_i = apply_added_graphics(order_both, lambda m: None, init_both, frozenset('i'))
+    check('with (i): the waypoint graphic added once',
+          with_i.count('<UUID>%s</UUID>' % T14WP_GRAPHIC), 1)
+    check('with (i): T14 names the waypoint, then FollowAndSupport',
+          re.findall(r'<MapGraphicID>([^<]*)</MapGraphicID>', with_i[with_i.rindex('<Task>'):]),
+          [T14WP_GRAPHIC, T14WP_FOLLOW_GRAPHIC])
+    check('without (i): no waypoint graphic anywhere', T14WP_GRAPHIC in without_i, False)
+    check('without (i): T14 names ONLY the FollowAndSupport graphic',
+          re.findall(r'<MapGraphicID>([^<]*)</MapGraphicID>',
+                     without_i[without_i.rindex('<Task>'):]), [T14WP_FOLLOW_GRAPHIC])
+    check('without (i): (h) and (j) still applied once each',
+          (without_i.count('<UUID>%s</UUID>' % REROUTE_GRAPHIC),
+           without_i.count('<UUID>%s</UUID>' % T10WP_GRAPHIC)), (1, 1))
+    check('without (i): the (e) destination is still the line end',
+          re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>',
+                     without_i[without_i.index('<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC):])[:2],
+          [T14WP_START, NUDGE_TO])
+    check('without (i) == with (i) minus its two insertions',
+          remove_change_i(with_i) == without_i, True)
+    for label, o, i in (('(i) graphic present', with_i, init_both),
+                        ('48 IBCT moved in the init', order_both,
+                         init_both.replace(T14WP_START[0], '54.0')),
+                        ('destination not the (e) one', order_both.replace(NUDGE_TO[1], '23.3'),
+                         init_both),
+                        ('T14 names a second graphic',
+                         order_both.replace('SLOT1-->', 'SLOT1-->' + EOL + INDENT
+                                            + '<MapGraphicID>x</MapGraphicID>'), init_both)):
+        try:
+            assert_t14_original_line(o, i)
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused (original line): %s' % label)
+    for label, doc in (('remove (i) where it is absent', without_i),
+                       ('remove (i) where it occurs twice', with_i + t14_waypoint_ref())):
+        try:
+            remove_change_i(doc)
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused: %s' % label)
+
     print('gate (proven on a DIRTY control first, per the ASCII rule):')
     good = ('<?xml version="1.0" encoding="utf-8"?>\r\n<MessageBody xmlns="%s">\r\n'
             '  <A>x</A>\r\n</MessageBody>' % NS)
@@ -1050,9 +1278,19 @@ def main(argv=None):
                          'on disk differ from what the script would write')
     ap.add_argument('--selftest', action='store_true',
                     help='run the pure-function tests and exit')
+    ap.add_argument('--without', metavar='LETTERS', default='',
+                    help="write a REGISTERED variant that leaves change(s) out. Only 'i' exists: "
+                         "run E1, T14 on its original line -> data/IRONSTORM_CUTA_E1_Order.xml. "
+                         "Any other letter is refused (exit 4). --check always verifies every "
+                         "variant, whatever this says.")
     args = ap.parse_args(argv)
     if args.selftest:
         return selftest()
+    try:
+        without = parse_without(args.without)
+    except ValueError as exc:
+        print('REFUSED --without %r: %s' % (args.without, exc))
+        return 4
 
     def log(msg):
         print(msg)
@@ -1061,22 +1299,49 @@ def main(argv=None):
     src_init = read(SRC_INIT)
     log('INPUT  %s  sha256 %s' % (os.path.basename(SRC_INIT), sha(src_init)))
     log('INPUT  %s  sha256 %s' % (os.path.basename(SRC_ORDER), sha(src_order)))
+    # EVERY registered variant is derived and gated on every run, whatever is written, so the
+    # variants cannot drift apart; the ruled cut first.
+    orders = {}
+    for v in sorted(VARIANTS, key=len):
+        log('')
+        log('=== ORDER VARIANT: %s -> %s ===' % (variant_label(v), os.path.basename(VARIANTS[v])))
+        orders[v] = derive_order(src_order, log, src_init, v)
     log('')
-    out_order = derive_order(src_order, log, src_init)
     out_init = derive_init(src_init, log)
     log('')
 
     problems = []
-    gate(out_order, 'derived order', problems)
+    for v in orders:
+        gate(orders[v], 'derived order (%s)' % variant_label(v), problems)
     gate(out_init, 'derived init', problems)
     if problems:
         for p in problems:
             print('GATE FAILURE: %s' % p)
         return 2
     log('gates: ASCII, CRLF, STP-830 comment scan, well-formedness, root, namespace, '
-        'duration pattern - ALL PASS')
+        'duration pattern - ALL PASS (%d order variant(s) + the init)' % len(orders))
 
-    for path, text in ((OUT_INIT, out_init), (OUT_ORDER, out_order)):
+    # ONE CHANGE APART: the without-(i) order must be the full order minus (i)'s two insertions
+    # and nothing else - what lets a run on it claim T14's route as its one variable.
+    try:
+        one_apart = remove_change_i(orders[frozenset()]) == orders[frozenset('i')]
+    except AssertionError as exc:
+        print('CHECK FAILURE: the full order does not carry (i) as derived: %s' % exc)
+        return 3
+    if not one_apart:
+        print('CHECK FAILURE: the without-(i) order is NOT the full order minus (i) - they '
+              'differ elsewhere too')
+        return 3
+    log('variants: without (i) == as ruled minus (i)\'s graphic entity and MapGraphicID line - '
+        'ONE change apart')
+
+    if args.check:
+        targets = [(OUT_INIT, out_init)] + [(VARIANTS[v], orders[v]) for v in orders]
+        if without:
+            log('(--check verifies every variant; --without %s does not narrow it)' % args.without)
+    else:
+        targets = [(OUT_INIT, out_init), (VARIANTS[without], orders[without])]
+    for path, text in targets:
         name = os.path.basename(path)
         if args.check:
             if not os.path.exists(path):
@@ -1090,6 +1355,12 @@ def main(argv=None):
             write(path, text)
             log('OUTPUT %s  sha256 %s  (%d bytes)'
                 % (name, sha(text), len(text.encode('utf-8'))))
+    if not args.check:
+        for v in orders:
+            if v != without:
+                log('NOT WRITTEN %s (%s; derived and gated only - %s writes it)'
+                    % (os.path.basename(VARIANTS[v]), variant_label(v),
+                       '--without ' + ','.join(sorted(v)) if v else 'a run with no --without'))
     return 0
 
 
