@@ -1,12 +1,20 @@
 # PREREG - IRON STORM CUT A, RUN E1: lone platforms on Move To per vertex, T14 on its ORIGINAL line (one scored run)
 
-STATUS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered 2026-09-27 (the registration commit's own time is the
-stamp; see git log) by lane E1 (session 5fc25950) on branch run/ironstorm-cuta-e1 from main 50a7a62 (docs only after
-the build commit 5e8d6f1), BEFORE the holder, the order validation push and the scored run. Nothing in this file has been
-launched: no push, no holder, no appNumber claim - the preparation phase stops here and the seat gives the go-live.
+STATUS: SCORED 2026-09-27 (Result at the end): every HIGH prediction held, the headline P20 included (P19b by its MISS
+column - a wording defect is recorded there); one MEDIUM miss, P11b; the falsifier P20F did not fire. Registered by lane
+E1 (session 5fc25950; the registration commit's own time is the stamp) on branch run/ironstorm-cuta-e1 from main 50a7a62
+(docs only after the build 5e8d6f1), BEFORE the holder, the order validation push and the scored run 20260927T182140Z.
 Written from the -2 registration
 (PREREG_IRONSTORM_CUTA_LIVE2_2026-09-27.md - its settings, sequence and P0-P21, carried where still valid) and the
 seat's E1 brief. Marks: [V] = checked while writing this file; [A] = taken from the record, not re-checked.
+
+GO-LIVE 2026-09-27 ~18:16Z: the seat gave the go-live; the preparation branch is merged into main as 3f937db (src equal to
+5e8d6f1's). AMENDMENT 2026-09-27, written and committed BEFORE any push, holder or launch, at the seat's go-live
+instruction: P20F (the falsifier) EXCLUDES a stall with another vehicle within 25 m ahead - that is a TRAFFIC STALL,
+RECORDED with the vehicle named, not the falsifier. P20F fires only for a stall of >= 60 SIM s with no OSM feature within
+~10 m ahead AND no vehicle within 25 m ahead. "A vehicle within 25 m ahead" = a POS fix of any other trace object that
+is not a route or tactical-graphic object, inside the 25 m half-disc in front of the stall point (the same heading as the
+OSM test), at a trace time inside the stall run (+-2 s). Everything else stands as registered.
 
 ## Registration
 
@@ -357,9 +365,9 @@ the scorer (a waterway false positive), fixed before the second pass.
 | P18 | TEARDOWN, scored on StopVrf52's exit code inside the runner: 0 or 6 (6 = the run's own back end force-stopped by identity, including one still exiting at the 60 s post-force deadline), and no vrfSim / VrfC2SimApp / WatchVrf / ListenReports left. RECORDED beside it: StopVrf52's post-force wait line (`forced pid N still exiting after S s` or the clean exit-6 line, StopVrf52.ps1 :625-635 since 6e7295d) and the runner's own post-check. | HIGH | Exit 3, 5 or 7 = STOP. | |
 | P19 | T10 RESOLVED ROUTE (identical geometry to -2): T10 resolves to [(h) wp 54.029734 / 23.305499, (j) wp 54.024000 / 23.313000, PassagePoint_48_IBCT_SLOT0]. T10's distinct L-RESOLVE lines are exactly: for c8d9cd1a and for 51a59f89 each "1 vertex(es) dropped - they ARE the taskee's own position"; "path from MapGraphicID c8d9cd1a-... (line, 1 vertices): 1 vertex(es) joined" (no gap suffix - first graphic); "path from MapGraphicID 51a59f89-... (line, 1 vertices): 1 vertex(es) joined <d> m after the previous graphic's end" with d in 795-815; cc23071f -> PassagePoint_48_IBCT_SLOT0 "(<kind>, 1 vertex): appended as the route's DESTINATION"; zero resolver WARNINGs for T10. T10's L-ROUTE reads "(4 pts)" (4 + 2 per L-SHIFTED line for T10, if any). | HIGH | Any other vertex list, drop/join count or order, destination, a resolver warning for T10, or another L-ROUTE point count = STOP. | |
 | P19b | T14 RESOLVED ROUTE - THE RUN'S ONE VARIABLE, so HIGH (MEDIUM in -2): exactly one "MapGraphicID 7351f662-f857-e05a-b533-f9a46e0fb095 -> FollowAndSupport_48_IBCT_SLOT1__FRIENDLY_FOLLOW_AND_SUPPORT (line): 1 vertex(es) dropped" line and one "path from MapGraphicID 7351f662-... (line, 1 vertices): 1 vertex(es) joined." with NO gap suffix; ZERO resolver lines naming 7ff48b93 (the (i) graphic); zero resolver warnings for T14; T14's L-MOVETO reads "vertex 1 of 1: MoveToLocation (54.040348,23.324206)". With an L-SHIFTED line for T14: vertex 1 of 1 + the inserted count, and the first inserted point - recorded. | HIGH | Any other T14 route (another graphic, another drop / join, another destination) = STOP: the run would not test the registered line. | |
-| P20 | HEADLINE: T14's 48 IBCT reaches within 100 m of its destination 54.040348, 23.324206 (closest trace fix after dispatch) by window end - on its ORIGINAL line, round the water and the hamlet, by the planner. | HIGH | Not within 100 m = STOP. NAMED OUTCOMES, each recorded with the stop point, its obstacle report (the STALL measure) and the object's last console lines: (1) the P20F condition; (2) a stall AT an OSM feature (water or building within 10 m ahead); (3) a chain FAILED line (the planner aborted visibly, PathPlanFailure) and its TASKABRT; (4) still moving at window end. Not a named outcome of P20 but of P11 / P12: (5) a watchdog STALL (TASKABRT, report-only by design) followed by recovery and arrival - two terminal reports for one uuid, so P11 and P12 miss and the run STOPS as a recovery after a stall. | |
+| P20 | HEADLINE: T14's 48 IBCT reaches within 100 m of its destination 54.040348, 23.324206 (closest trace fix after dispatch) by window end - on its ORIGINAL line, round the water and the hamlet, by the planner. | HIGH | Not within 100 m = STOP. NAMED OUTCOMES, each recorded with the stop point, its obstacle report (the STALL measure) and the object's last console lines: (1) the P20F condition; (1b) a TRAFFIC STALL, another vehicle within 25 m ahead (AMENDMENT), recorded with the vehicle named; (2) a stall AT an OSM feature (water or building within 10 m ahead); (3) a chain FAILED line (the planner aborted visibly, PathPlanFailure) and its TASKABRT; (4) still moving at window end. Not a named outcome of P20 but of P11 / P12: (5) a watchdog STALL (TASKABRT, report-only by design) followed by recovery and arrival - two terminal reports for one uuid, so P11 and P12 miss and the run STOPS as a recovery after a stall. | |
 | P20b | T02's 28ID reaches within 100 m of PassagePoint_28ID_SLOT0 54.028874, 23.264401 by window end (closest trace fix). | HIGH | Not within 100 m = STOP, with the same named outcomes. | |
-| P20F | THE FALSIFIER (PLAN_MOVEMENT sec 3): NO stall of T14 of 60 SIM s or more with no OSM feature within ~10 m ahead (the STALL measure above; a BORDERLINE 30-90 s stall is named as such). The same measure is RECORDED for T02. A platform that never moves 5 m is P6's, not P20F's. | HIGH | The condition met = the frame of RL-20260927-01 is wrong for this vehicle and ground: STOP and ask; no re-run under this registration. | |
+| P20F | THE FALSIFIER (PLAN_MOVEMENT sec 3): NO stall of T14 of 60 SIM s or more with no OSM feature within ~10 m ahead (the STALL measure above; a BORDERLINE 30-90 s stall is named as such). The same measure is RECORDED for T02. A platform that never moves 5 m is P6's, not P20F's. [AMENDED 2026-09-27 BEFORE LAUNCH, see the AMENDMENT under STATUS: a stall with another vehicle within 25 m ahead is a TRAFFIC STALL, RECORDED with the vehicle named, not the falsifier; the condition is now a stall of >= 60 SIM s with no OSM feature within ~10 m ahead AND no vehicle within 25 m ahead.] | HIGH | The condition met = the frame of RL-20260927-01 is wrong for this vehicle and ground: STOP and ask; no re-run under this registration. | |
 | P21 | NO WATER ON ANY TRACK: no POS fix of any object that moved > 50 m (28ID, 48 IBCT, 1-112 IN and its members) falls in an OSM water cell (the z14 osm-water raster, leg_check.load_osm_water, scratch u3\laneI2\osm\osm-water); a fix on an absent tile is counted UNKNOWN, never dry. For T14 this now reads whether the PLANNER kept it out of the water its line crosses. | MEDIUM | >= 1 wet fix, or any mover fix on an absent tile = recorded MEDIUM miss (a shore-hugging path can read wet at the raster's ~5.6 m cell). | |
 | P22 | M1 AND D1 ARE THE BUILD: L-M1-ON exactly once, naming "100 m (Vrf:VertexArrivalRadiusMeters)"; ZERO `MOVE TO PER VERTEX off (` lines; L-MODELSET exactly once at INFO, naming `Vrf:ModelSet='EntityLevel'`. | HIGH | Missing, duplicated, the off line, or a MODEL SET WARNING / another model set = STOP (not the registered build or setting). | |
 | P22b | NO UNJUDGED MOVER: ZERO L-JUDGES ("TASK JUDGES: ... is an aggregate with NO members") lines - 1-112 IN's members reflect as in -2, and the two lone platforms are not aggregates. | MEDIUM | Any L-JUDGES line = recorded MEDIUM miss (that mover's arrival and stall are then unjudged by the app; the trace still scores P6b / P20). | |
@@ -433,4 +441,119 @@ PLAN_MOVEMENT_2026-09-27.md row E1; DEMO_READINESS row 16; HANDOFF sec 6 (200 x 
 
 ## Result (written after the harvest, never from a live read)
 
-PENDING - the run has not been launched (REGISTERED - LAUNCH PENDING; the go-live is the seat's).
+Written 2026-09-27 ~19:45Z by lane E1 (session 5fc25950) from the harvested files of the scored run 20260927T182140Z_run
+(main checkout runs\): vrfc2simapp.log (617,287 lines, streamed grep; L = its line numbers; the object consoles quoted
+here are the level-4 lines the interface relays into its own log), reports-captured.log, run-manifest.json,
+watchvrf-trace.csv (scratch u3\laneE1: e1_score.py with its controls, t14_track.py, line_track.py, chords.py, p13.py,
+speeds.py), stopvrf.stdout.log (S = its line numbers), thread-samples.csv, the runner log
+runs\launch52\RunScenario-ironstorm-e1-20260927T182140Z.log (R) and the holder log
+runs\launch52\e1-holder-20260927T182043Z.log (H). Vendor sim logs were not opened; the rtiexec log was count-grepped
+only. Holder 45600 (appNo 5170) joined 18:20:55Z (H18); runner launch 18:21:40Z; order pushed after a 44.4 s gate
+(R249); window 2,700 s; runner exit 0. Registration rows are cited by ID and by their line in this file (reg. L343-L377,
+unchanged since the registration).
+
+### VERDICT: SCORED. Every HIGH prediction held, the headline P20 and the falsifier P20F included: 48 IBCT on Move To drove round the water and the hamlet of its ORIGINAL line and ended 6.9 m from its destination, with no stall at all. One MEDIUM miss: P11b (T14 arrived EARLY, path (a)). One wording defect of this registration, recorded under P19b.
+
+| # | Reg. | Verdict | Evidence |
+|---|---|---|---|
+| P0 | L343 | PASS | (i) H18 "HOLDER JOINED: pid 45600 appNo 5170"; R78 "RtiProbe pid=45600 ... a PERSISTENT FEDERATION HOLDER"; rtiexec count-grep 18:20:30-19:14Z: 12 "because it already exists", 7 joins (45600, the Stage 2h holder 26040, 12732, the back end "VR-Forces Sim Engine", 37968, WatchVrf 47668, the app 3040), 0 creates; L49 "READY - joined the federation" (once). (ii) L221 "4 unit(s) created as EMPTY shells ... 32 platform(s) created in full". (iii) L55 "STALL WATCHDOG: ... on the SIMULATION clock" (once); L32 TASK CLOCK (R4) "SIMULATION clock"; L1448 "... timing out against the SIMULATION clock; Vrf:DurationScale=0.25"; L22 L-SHIFT-ON (once). (iv) R242 stage 7d; R249 "NAV AREA ACQUIRED after 44.4s"; 0 NOT-READY, no exit 3. (v) exe af19d6be / dll 24982412 / bridge 90272bc9 / appsettings 1d068ec7 identical at step A and after the run (~19:29Z) [V]; order 7d5b4034 and fixture 57465c35 unchanged. READY TO TASK L682 "36 of 36 ... after 12.3 s" (recorded). |
+| P1 | L344 | RECORDED | L399 "0 of 36 create altitude(s) came from the TERRAIN QUERY, 36 from the FALLBACK" - as written down in sec 1(f); L401 PLACEMENT RE-CLAMP "32 of 36 object(s) - LAND PLATFORMS ONLY"; the order-time materialization L1458 "1 of 1 ... TERRAIN QUERY". |
+| P2 | L345 | PASS | First L-AREA L1354 (`NavArea-ground-platform IRONSTORM-CENTRE_maple`) before L-ORDER L1380; all 53 L-AREA rows name the maple area; R249 "NAV AREA ACQUIRED after 44.4s ... IRONSTORM-CENTRE_maple"; R251 first placement -> area row 49.5 s, "WARM file cache" by the runner's 60 s threshold (-2: 7.2 s). |
+| P3 | L346 | PASS | L-PROOF `C2SIM override ground-vehicle-move-to.lua: useAbstractGraphs=true` on 28ID's OWN console L4289 and on 48 IBCT's L5371, one each (-2 had none for either); 30 more for the six 1-112 IN members (32 in all). |
+| P3b | L347 | PASS | 28ID L4995 "Planned path has 50 points."; 48 IBCT L6735 "Planned path has 24 points.". RECORDED, the branch each took: 28ID L4277 "Node Is destination in nav area?: success" -> L4287 "Calc off road nav path part" -> L4995. 48 IBCT L4367 "Is current point in nav area?: success", then L4373 / L4375 "Condition false." / "fail in action Is destination in nav area?" -> L4379 "Plan off feature path", L4385 "Not using roads for move planning.", L5253 "Planned path has 1 parts." (the feature planner's line, first seen here), L5365 "Is PathPart outside nav area?" false -> L5369 "Calc off road nav path part" -> L6735. Both platforms: "Is path blocked?" false on every tick (28ID 560, 48 IBCT 263); 0 back-up, skirt or global-replan nodes started. |
+| P4 | L348 | PASS | 5 TASKSTRT, one per uuid (L1412 T01, L1440 T13, L2031 T10, L2045 T14, L2061 T02); T02 L-DISP L2059 after T01 TASKCMPLT L1817; T14 L-DISP L2043 after T13 TASKCMPLT L1811; L1394 T10 "start delay 300 s (order says 1200 s; Vrf:DurationScale=0.25) - it will not dispatch before then." before T10 L-DISP L2029; zero predecessor SKIPs (the one "SKIPPED" is L1829, route-extent rule (c)). |
+| P5 | L349 | PASS | L2023 (1-112 IN, gap 0.3 m), L2039 (48 IBCT, 0.0 m), L2055 (28ID, 0.0 m) "is ON the terrain"; 0 OFF gate lines; 0 retired lines. |
+| P6 | L350 | PASS | Since dispatch (trace): T02 28ID 5,341.4 m; T14 48 IBCT 2,424.8 m. |
+| P6b | L351 | PASS | All six 1-112 IN members 2,541-2,677 m since T10's dispatch. |
+| P6c | L352 | RECORDED | L-PLAN: 28ID 1 (50 points); 48 IBCT 1 part + 24 points; T10 members 4-7 lines each (4-34 points); 0 "not enough (0) points". Max speed over 2 s fixes (m per SIM s, the trace's CON clock): 28ID 11.0, 48 IBCT 11.3, T10 members 10.3-15.9. Net: 28ID 5,341 m, to 0.9 m from its destination; 48 IBCT 2,425 m, to 6.9 m; T10 members end 11.6-50.9 m from the PassagePoint (the unit's proxy 2.2 m). |
+| P7 | L353 | PASS | T01 L1416 + L1418, T13 L1444 + L1446 (one L-CNFPSL + one IN PLACE each); L1414 / L1442 "end time armed at 300 s ... it has no destination"; TASKCMPLT L1817 (T01) / L1811 (T13) "(300 s after dispatch)"; 2 STP-866 Observations in the capture, one per hold (f7b52ba4 / 28ID, 37677c40 / 48 IBCT); no L-ROUTE, L-MOVETO, MoveToLocation or OVERDUE for either. |
+| P8 | L354 | PASS | L-R3SELF L1837, L2013, L2057, all T02; T02 passes = 1 + L1839 (route-shift check queued) + L2015 (terrain profile request) = 3; 0 L-FAW, 0 FireAt, 0 deferred-engage lines. |
+| P9 | L355 | PASS | One L-FOLSPT L2041 "rules of engagement as ordered ('ROEHold')" (L1827 / L1997 are the V4b geometry lines: they name the verb, not an ROE); one L-MOVETO L2049; 0 L-ROUTE for T14; L2047 "end time armed at 300 s ... it has a destination". |
+| P10 | L356 | PASS | L-BARE L1855 / L1985 / L2027 (one per pass); L-ROUTE L2035 "(4 pts)"; L-MAR L2077; L2033 armed at 450 s, "it has a destination"; no IN PLACE for T10. |
+| P11 | L357 | PASS (HIGH and MEDIUM) | One path each; no TASKCMPLT before start + Duration. T14 (a): ARRIVAL EVIDENCE L111121 (37.4 WALL s = 252.2 SIM s after dispatch, nearest 165 m, past its traversal bar), L-HELD L111123, L-END L133531 "the unit had already arrived", TASKCMPLT L133533 "(300 s after dispatch)". T02 (b), as predicted: OVERDUE L133529 (310 of 300 s), nothing sent at the end, ARRIVAL EVIDENCE L211231 (541.2 SIM s), L211233, TASKCMPLT L211235 "complete on arrival". T10 (b): OVERDUE L183577 (454 of 450 s), ARRIVAL EVIDENCE L453783 (1,322.1 SIM s, 4/6 members), L453785, TASKCMPLT L453787. On both chained platforms the arrival evidence came first and the vendor completion was then swallowed (P25). |
+| P11b | L358 | MEDIUM MISS | T14 took path (a), early: arrival evidence at 252.2 SIM s (trace: within 100 m at 257.6 SIM s), 48 s inside its 300 s end. The registered arithmetic assumed a planned path well longer than the line plus planning time; measured, the track is ~2.4% longer than the 2,426 m line and the plan took ~2 SIM s (console stamps 961.46 -> 963.56). |
+| P12 | L359 | PASS | 0 SUPPRESSED; one terminal report per uuid (5 TASKCMPLT, 0 TASKABRT); 0 `task=(none)`; capture = log (5 TASKSTRT / 5 TASKCMPLT / 0 TASKABRT; 10,021 records); L617283 "10021 delivered, 0 FAILED". |
+| P13 | L360 | RECORDED | No L-STALL. OVERDUE: T02 at 310 s (L133529; 2,776 m since dispatch, trace), T10 at 454 s (L183577; members 659-730 m since dispatch, 460-528 m over the preceding 360 SIM s). Arrivals: T14 252.2 SIM s (L111121, farthest travel 2,269 of 2,426 m), T02 541.2 SIM s (L211231, 5,133 of 5,341 m), T10 1,322.1 SIM s (L453783, farthest 2,552 of 2,772 m; members 2,067-2,353 m since dispatch). The trace clock gives 256.6 / 547.0 SIM s (CON pairs) and 1,367.3 SIM s (L-RATIO fallback) for the three spans: +1.7%, +1.1%, +3.4%. |
+| P14 | L361 | PASS | 0 L-ENGAGE / FireAt / "Fire Weapon" lines. |
+| P15 | L362 | PASS | L22 L-SHIFT-ON once; 0 L-SHIFTED; L-NOFLAG T14 L1967, T10 L1969, T02 L2005. Each lone platform's chain therefore had ONE vertex: the per-vertex continuation was NOT exercised (sec 0, sec 7). |
+| P16 | L363 | RECORDED | L-DISP SIM stamps: T01 / T13 634.1 s (L1410, L1438); T10 / T14 / T02 947.1 s (L2029, L2043, L2059). 45 L-RATIO lines, SIM/WALL 7.275-14.378. |
+| P17 | L364 | PASS | 0 BACK END LOST; runner exit 0 (manifest runnerExitCode; not the WS-runaway 6); no .dmp / .callstack.log under C:\MAK\vrforces5.2d or C:\MAK\logs written after 18:21Z (names only); VrfC2SimApp exit 0 (R441 "clean resign"); rtiexec 47980, rtiForwarder 50740, rtiAssistant 30240 and the holder 45600 up and untouched at 19:28Z [V]. |
+| P18 | L365 | PASS | StopVrf exit 6 (R450): the graceful close (taskkill without /F, S24) did not end the back end within 120 s (the window diagnostic S28-S31 found only "NVOGLDC invisible" and "Default IME"), then S33 "FORCED ... Stop-Process -Id 14448 -Force" by identity. RECORDED: the post-force line is the clean S35 "VR-Forces 5.2d is down ONLY BECAUSE the run's own back end was FORCED (pid 14448) after its graceful close was refused. Exit 6." - NO "still exiting after S s" line (the -2 anomaly did not recur; n = 1); the runner's post-check R455 "no VR-Forces processes remain" (-2: the forced pid still listed, runner exit 4); thread-samples.csv: 14448 "process gone" at 19:13:34.30Z. |
+| P19 | L366 | PASS | L1841 / L1843 "1 vertex(es) dropped" (c8d9cd1a, 51a59f89); L1845 c8d9cd1a "(line, 1 vertices): 1 vertex(es) joined." (no suffix); L1847 51a59f89 "... joined 805 m after the previous graphic's end"; L1849 cc23071f -> PassagePoint_48_IBCT_SLOT0 "(point, 1 vertex): appended as the route's DESTINATION"; the same distinct lines on the second pass L1971-L1979; 0 resolver warnings; L2035 "(4 pts)". The waypoint coordinates are the order's [A: derive --check]. |
+| P19b | L367 | PASS by its MISS column; WORDING DEFECT recorded | L1819 "MapGraphicID 7351f662-f857-e05a-b533-f9a46e0fb095 -> FollowAndSupport_48_IBCT_SLOT1__FRIENDLY_FOLLOW_AND_SUPPORT (line): 1 vertex(es) dropped"; L1821 "path from MapGraphicID 7351f662-... (line, 1 vertices): 1 vertex(es) joined." (no gap suffix); 0 lines naming 7ff48b93; 0 warnings; L2049 "vertex 1 of 1: MoveToLocation (54.040348,23.324206)". The prediction column's "exactly one" is NOT met literally: the same two lines recur on T14's second dispatch pass (L1989 / L1991, after the route-shift result L1967). The resolver logs once per pass, as in -2 (its L1337-L1343 / L1513-L1519) and as P19 words it for T10 ("distinct"). The MISS column (another graphic, another drop / join, another destination) is not met: the route is the registered one. Read strictly, the count is a HIGH miss; that reading is the seat's to take. |
+| P20 | L368 | PASS - THE HEADLINE HELD | 48 IBCT's closest and final trace fix 6.9 m from 54.040348, 23.324206 (t 145.5; within 100 m at t 143.4 = 37.5 WALL s / 257.6 SIM s after dispatch); L117793 "move-to (success=True)", L117795 "7 m from it". No named outcome occurred. Path shape: TRAJECTORIES below. |
+| P20b | L369 | PASS | 28ID closest and final 0.9 m (t 186.7); within 100 m at t 184.6 = 78.6 WALL s / 555.0 SIM s after dispatch; L220017 "move-to (success=True)". |
+| P20F | L370 | PASS: the condition was not met | 0 stationary runs (>= 2 consecutive fixes within 5 m) between first movement and arrival for T14: no stall of any length, so no falsifier, no TRAFFIC STALL (the amendment) and no BORDERLINE stall. The same measure for T02 (recorded): 0. |
+| P21 | L371 | PASS | 0 wet fixes over the 9 objects that moved > 50 m (28ID, 48 IBCT, the 1-112 IN proxy and its 6 members); 0 fixes on absent tiles. RECORDED beside it, not the registered measure: the straight chord between T14's two fixes that bracket the lake (t 120.7 -> 122.7, 813 -> 963 m along) clips the OSM lake's west edge (43 m of chord, <= ~3 m inside); at ~150 m between fixes the trace cannot tell whether the track touched the edge. |
+| P22 | L372 | PASS | L24 L-M1-ON once, naming "100 m (Vrf:VertexArrivalRadiusMeters)"; 0 "MOVE TO PER VERTEX off (" lines; L26 L-MODELSET once at INFO (L25 "info:"), "Vrf:ModelSet='EntityLevel' -> EntityLevel"; 0 MODEL SET warnings. |
+| P22b | L373 | PASS | 0 L-JUDGES lines. |
+| P23 | L374 | PASS | L-MOVETO T02 L2065 "vertex 1 of 1: MoveToLocation (54.028874,23.264401)" and T14 L2049, one each; 0 CreateRoute naming the T2_ or T14_ task and 0 MoveAlongRoute for 28ID's (83a522fb) or 48 IBCT's (a4cbe933) VRF_UUID; T10: one L-ROUTE L2035 and one L-MAR L2077 (VRF_UUID a950852e), 0 L-MOVETO naming 1-112 IN. |
+| P24 | L375 | PASS | Both tracks came within 15 m (6.9 m, 0.9 m): L117793 "VRF task complete: 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE / move-to (success=True)" and L220017 "28ID__FRIENDLY_INFANTRY_DIVISION / move-to (success=True)", one each; the literal type is "move-to", its first sighting on this machine; T10 L616701 "move-along (success=True)"; 3 L-VRFDONE in all. |
+| P25 | L376 | PASS | L117795 "LAST vertex 1 of 1 COMPLETED - the unit is 7 m from it and moved 2424 m since dispatch"; L220019 "... 1 m from it and moved 5341 m since dispatch"; no VACUOUS suffix; 0 chain-failure-family lines; 0 L-VTX / L-VTX-ISSUE. RECORDED: the benign "- swallowed." lines L117797, L220021, L616703 (arrival evidence had reported first each time). |
+| P27 | L377 | RECORDED | Path shape: TRAJECTORIES below. Route shift: one "check queued" and one "no leg flagged" per mover (T14 L1831 / L1967, T02 L1839 / L2005, T10 L1857 / L1969). Nav-area results: P3b. Placement: P1. Teardown and post-force line: P18. Report-evidence 'via': NONE printed - the runner evaluates report evidence only under -StopWhenComplete (RunC2SimScenario.ps1 :5308 [V]), which this run did not pass, so M1b's chained-platform mapping did not run live. L-VRFDONE types: "move-to" x2, "move-along" x1. |
+
+TRAJECTORIES [V: trace POS fixes every ~2 s, OSM z14 transects across T14's original line; lateral offsets east +]:
+- T14, 48 IBCT (one M577A2), Move To vertex 1 of 1: start 54.019389, 23.313902; vertex = destination 54.040348,
+  23.324206 (2,426 m); first move t 108.3 (dispatch t 105.9); track ~2,485 m (+2.4%); end 54.040357, 23.324102, 6.9 m
+  from the destination; completion path (a), held to its 300 s end. A 27 m westward swing in the first 20 m, back on the
+  line by 129 m along; then 4-13 m west, and 24.6 m west at 813 m along (23.4 m from the lake polygon, 18 m before the
+  line's first wet point); 1.1 m west at 963 m along (29.8 m from it). On the transects the lake lies EAST of the line
+  there (its west shore 5-20 m west of the line from 840 to 920 m along) and another water body lies WEST (its east edge
+  27-56 m west of the line from 900 to 960 m along): the track passed the lake on its WEST shore, through the dry neck
+  between the two (about 20 m wide at 920 m along). The hamlet: passed on its EAST side, +31.8 m at 1,102 m along, 11.8 m
+  from the nearest footprint (the footprints straddle the line, -12..+22 m, at 1,091-1,117 m along). Then 82-132 m east
+  of the line from 1,238 to 2,201 m along, round the EAST side of the second water body on the line (it reaches ~115 m
+  east of the line at 1,900-1,940 m along; closest sampled 19.8 m at 1,932 m along), across a mapped stream between 2,064
+  and 2,201 m along, and back onto the destination. Closest sampled approach to the -1 lake stop 32.3 m; to the -2 hamlet
+  stop 393.7 m (that stop is on the (i) route, a different line).
+- T02, 28ID (one M1A2), Move To vertex 1 of 1: start 53.992385, 23.211255; destination 54.028874, 23.264401 (5,341 m;
+  "Is destination in nav area?" success, a 50-point plan); track ~5,374 m (+0.6%), within +-49 m of the line; nearest
+  building 19.4 m (at the destination), nearest OSM water 168.7 m; end 54.028877, 23.264414, 0.9 m from the destination;
+  path (b): OVERDUE at 310 s, TASKCMPLT on arrival at 541.2 SIM s.
+- T10, 1-112 IN (aggregate, 6 members), unit route unchanged: CreateRoute 4 pts [live start, (h), (j),
+  PassagePoint_48_IBCT_SLOT0] + MoveAlongRoute; the proxy's track 2,781 m; members 2,541-2,677 m from their dispatch
+  fixes, ending 11.6-50.9 m from the PassagePoint (the proxy 2.2 m); path (b): OVERDUE at 454 s, TASKCMPLT on arrival at
+  1,322.1 SIM s (4/6 members within 500 m).
+
+UNEXPLAINED OR OPEN:
+- The vendor judged 48 IBCT's destination point OUTSIDE the nav area (L4373 / L4375), while its own start (L4367) and
+  28ID's destination (L4277) were inside. The point is 117.9 m from the nearest OSM building, 397.8 m from OSM water and
+  80.8 m from a waterway [V]. Both platforms received their destination 10 m ABOVE the terrain [V: console Move-To
+  geocentric L2073 / L2351 -> 142.9 m and 151.5 m; terrain profile replies L2019 / L2051 -> 132.9 m and 141.5 m; the
+  TerrainProfile vertex rule, TerrainClearanceMeters 10, VrfSettings.cs :833-848]. The vendor's test takes that point as
+  given (isPointInNavArea, ground-vehicle-move-to.lua :197-214 of the C2SIM override) and asks
+  findClosestPointInNavigationArea for a mesh point "vs in an obstacle" within a horizontal radius and a vertical limit
+  whose defaults are not documented (scriptInterface.h :377-389). The same +10 m passed for 28ID, so the clearance alone
+  does not explain the failure. Candidates, none checked: an obstacle (a mesh hole) at that point - the area was
+  generated with the biome's trees, PREREG_IRONSTORM_TREES_2026-09-26 - or a vertical-limit edge case. It changed the
+  planner's branch, not the outcome.
+- Whether the track touched the lake's OSM edge between the two bracketing fixes (P21's note): the 2 s sampling cannot say.
+- That the track follows the 24-point plan is inferred: the plan's points are not logged [A].
+- The per-vertex continuation (vertex k -> k+1) and M1b's report-evidence mapping remain NOT YET SEEN LIVE (P15, P27).
+
+Adversarial review: the competing hypothesis for the headline is that 48 IBCT arrived because of something that differs
+from the -1 control other than its task - the build's other changes, the persistent holder, the 2,700 s window against
+120 s, T10's (j) waypoint - or that the -1 stop was a transient. Against it [V]: (1) the object's own console shows
+ground-vehicle-move-to.lua planning a 24-point path at dispatch (L5369 -> L6735), which Move Along Route never enters (-2
+P3: no L-PROOF on either platform); (2) the track leaves the line BEFORE the lake (24.6 m west at 813 m along, 18 m short
+of the first wet point) and swings up to 132 m east round the second water body - a literal executor drives the line;
+(3) "Is path blocked?" was false on every tick and no back-up, skirt or replan node started, so the detours were planned,
+not reactive; (4) the -1 vehicle sat dead at the lake edge for 757 SIM s, to the end of its window. What would falsify "the
+planner did it": a Move Along Route run on this build, line and area that also arrives - not run; the reading rests on
+the control plus the console, n = 1. The P19b count wording was scored by its MISS column and is flagged, not buried.
+P11b's miss is in the registered arithmetic (the detour length), not in the frame. Unexplained: the destination's
+nav-area judgment (above).
+
+Measurement [V]: in one scored run on the maple area (build 5e8d6f1), both lone platforms got one Move To each and ran
+the vendor's planner on their own consoles. 48 IBCT, on the ORIGINAL T14 line on which the same vehicle stopped dead at
+the lake edge on Move Along Route in the -1 control, passed the lake on its west shore, the hamlet on its east side and
+the second water body on its east side, and ended 6.9 m from its destination 252 SIM s after dispatch, with no stall, no
+blockage and no replan. 28ID arrived 0.9 m from its destination; T10's unit route behaved as in -2; 10,021 reports were
+delivered, 0 failed; the teardown was StopVrf exit 6 with nothing left running.
+
+Design implication, stated separately [A]: the frame of RL-20260927-01 survived its first live test. For a lone ground
+platform on this terrain, the vendor's planning task is what carries it past the lake that stopped the literal executor
+on this same line (-1), and past the hamlet and the second water body beyond it. This rests on n = 1 (one M577A2 on one line, one M1A2 on open ground). It says nothing yet about the
+per-vertex continuation (1-vertex chains only), about units or the aggregate profile (G1), or about why the mesh rejected
+T14's destination point. Iron Storm cut A had all three movers arrive in one run for the first time; the full order and
+G1 remain before any demo claim.

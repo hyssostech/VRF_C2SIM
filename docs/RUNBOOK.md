@@ -2743,11 +2743,15 @@ no Duration and no geometry is malformed and is refused, not held (below).
   from its vertex is a WARNING naming it VACUOUS (the R11 trap, docs/UNIT_MOVEMENT_RESEARCH.md :394-412): the chain
   continues, and a vacuous LAST vertex is not taken as the task's arrival - arrival evidence and the time rules decide.
   OFF switch: `$env:Vrf__PlatformMoveToPerVertex = "false"` gives every ground mover CreateRoute + MoveAlongRoute as
-  before. NOT YET SEEN LIVE (run E1 of the plan): exactly one "move-to" completion per vertex; Move To planning on the nav
-  area for a lone M577A2; the stop at each intermediate vertex (the remote controller's move-to carries no continue
-  flag, unlike the vendor's move_along_route_and_continue.lua). The runner's report-evidence gate maps a chained
-  platform to its VRF_UUID from the "MOVE TO PER VERTEX for <unit> (VRF_UUID:...)" line and anchors it on its LAST
-  task-complete record, not vertex 1's (M1b; `Get-VertexChainNames`, suite section 9b); the offline tools
+  before. SEEN LIVE in E1 (2026-09-27, 1-vertex chains; docs/experiments/PREREG_IRONSTORM_CUTA_E1_2026-09-27.md Result):
+  one "VRF task complete: <unit> / move-to (success=True)" per lone platform, and the planner on a lone M577A2's own
+  console - its destination failed "Is destination in nav area?", so the vendor first printed the feature planner's
+  "Planned path has 1 parts." and then nav-planned that part ("Planned path has 24 points."). NOT YET SEEN LIVE: the
+  stop at each intermediate vertex (the remote controller's move-to carries no continue flag, unlike the vendor's
+  move_along_route_and_continue.lua), and the runner's report-evidence gate for a chained platform (it runs only under
+  -StopWhenComplete, which E1 did not pass). That gate maps a chained platform to its VRF_UUID from the "MOVE TO PER
+  VERTEX for <unit> (VRF_UUID:...)" line and anchors it on its LAST task-complete record, not vertex 1's (M1b;
+  `Get-VertexChainNames`, suite section 9b); the offline tools
   movement_check, stall_replay, straggler_track, taskee_displacement and console_narrative read the same lines through
   `tools\analysis\applog_chain.py` (`--selftest`), where only the LAST vertex's completion is the task's.
 

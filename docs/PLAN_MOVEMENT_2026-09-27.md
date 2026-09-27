@@ -35,7 +35,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | D1 | A memberless simulated aggregate counts as ONE position for arrival evidence and the stall watchdog, decided by Vrf:ModelSet (UnitPositionPolicy); EntityLevel unchanged | fix/aggregate-leaf-position | M1 executor, resumed | MERGED 2026-09-27 (b817609). Open (owner's call at G1): a vacuous VENDOR completion of an aggregate's route task still sends TASKCMPLT - the vertex-distance guard could withhold it |
 | M1b | Runner report-evidence anchors a chained platform on its LAST vertex; tools/analysis/applog_chain.py is the one parser for the per-vertex lines | with D1 | M1 executor | MERGED 2026-09-27 (b817609) |
 | C1 | Populate the containers (RL-20260927-02: "going back to populating the containers is what needs to be gone while we still remember it"): a brigade/division/corps = an Aggregate Container (UG52 72.2.1 p1419) holding warfare-model units, recursively down to units the catalogue simulates. Composition sources, in order: the STP TO (corps -> division -> brigade: 15 Superior relations; 4 battalions), the catalogue's configured sub-units (few), then an authored composition table per unit type (DESIGN_ORBAT_TO_VRF sec 5 (b); USA armour/mech/infantry stop at CO in the aggregate catalogue, RUS has 38 BNs). Tasking a container = the vendor's higher-unit Move Along Route (MG Table 1); arrival/stall on its sub-units or its own centroid (D1). RL-20260927-03 (C13 restated): ALL units are created at init as empty containers at their authored positions (visible on the map); ONLY a tasked unit is populated, when the order arrives - populate in place (create sub-units + addToOrganization), never delete-and-recreate the shell | feat/aggregate-containers | design lane after E1, then code | NEXT - before G1 |
-| E1 | Registered entity-level run: cut A, T14's ORIGINAL line (derive without (i); (k) stays unmerged), lone platforms on Move To per vertex | run/ironstorm-cuta-e1 | prep lane running; build target = main 3e5ab14 (M1 + D1 + A1). M2 merges AFTER E1 on purpose: its water rule would shift T14's leg before the vendor's planner ever saw it, and E1 exists to test the planner on the authored line | PREP |
+| E1 | Registered entity-level run: cut A, T14's ORIGINAL line (derive without (i); (k) stays unmerged), lone platforms on Move To per vertex | run/ironstorm-cuta-e1 | lane E1; build 5e8d6f1 (src = 3e5ab14: M1 + D1 + A1). M2 was held back so that the planner saw the authored line; that hold is now released | SCORED 2026-09-27 (run 20260927T182140Z; PREREG_IRONSTORM_CUTA_E1_2026-09-27.md Result): every HIGH held; T14 on Move To ARRIVED 6.9 m from its destination on its ORIGINAL line, no stall; MEDIUM miss P11b (early, not late). Open: the vendor judged T14's destination point outside the nav area (unexplained); the vertex k -> k+1 continuation is not yet seen live |
 | G1 | Registered aggregate run: one brigade on the same T14 line, no hand waypoints | run/ironstorm-agg-g1 | after M2 + A1 merge, fixture deploy | QUEUED |
 | G2 | Cut A on the aggregate profile; then the full 23-task order in phases | - | after G1 | QUEUED |
 | V1 | STP verbs onto the aggregate task set (attack-by-fire, breach, fire support) | - | after G2 | LATER |
@@ -46,16 +46,16 @@ status changes here the same turn they happen; a phase that closes collapses to 
 |---|---|---|
 | M1, M2, A1 build offline in parallel | PLAN (done: RL-20260927-01) | worktrees; M1 owns the dispatch branch, M2 owns Preflight/*, A1 owns tools/data/scripts |
 | Merge M1 -> main; suite; build + deploy the eleven consumers (RUNBOOK sec 9) | - | deploy is the interface's own output dirs, not C:\MAK |
-| E1 | PREREG | prediction below; holder first (the 09-27 holder expired ~08:30Z); appNumbers from the ledger marker (5170) |
+| E1 | PREREG | DONE 2026-09-27: holder 5170 (pid 45600, holds to ~02:20Z 09-28), runner block 5174-5184, marker 5185 |
 | Merge M2, A1 -> main; suite; deploy | - | fixture deploy = the one sanctioned file under C:\MAK |
 | G1 | PREREG | RULED 2026-09-27 (RL-20260927-02): hostile side RUS; representation = POPULATED CONTAINERS (C1), not proxies - G1 runs after C1. Prerequisites: C1 merged; D1 merged; M2's aggregate water rules; the fixture deploy (one sanctioned file); CreationPolicy=AtInit with ComposeHierarchy=false (materialization deletes and re-creates, and the EntityLevel-rooted resolver can expand an aggregate type onto the empty base abstract); NO --pre-order-gate nav-area (the aggregate model loads no nav data) |
 | G2, V1 | PREREG each | - |
 
 ## 3. Pre-registered predictions (the falsifiers of the frame)
 
-- E1: T14 (one M577A2) on its original line reaches within 100 m of its destination; T02 arrives; T10 as in run -2.
-  MISS = T14 stalls >= 60 sim s with no OSM feature within ~10 m ahead -> the frame is wrong; STOP and ask.
-  Also recorded: the planner's path shape (does it skirt the lake/hamlet), vacuous-completion warnings, per-vertex log lines.
+- E1: HELD 2026-09-27 (PREREG_IRONSTORM_CUTA_E1_2026-09-27.md Result). T14 on Move To passed the lake on its west shore,
+  the hamlet and the second water body on their east side, and ended 6.9 m from its destination; no stall (the MISS did
+  not fire); T02 0.9 m; T10 as in -2; no vacuous completion.
 - G1: the pre-flight detours the wet leg and the brigade arrives; OR it reports "no cleared line" and the unit stops AT the
   lake edge with a report. MISS = a silent stop, or a stop with no water within ~50 m. M2's offline reading of the (e)
   line says branch 2: "VERTEX CHECK ... 0 moved", "OSM WATER ON THE LINE" (lake 197345448 from ~0.84 km), "EXPECTED SLOW",
@@ -81,5 +81,5 @@ status changes here the same turn they happen; a phase that closes collapses to 
 
 ## 6. Not claimed
 
-Rivers solved; combat/attack verbs at aggregate level; timing generalisation (n = 1 per run); that Move To plans on the
-maple nav area for a lone M577A2 (documented, not yet observed - E1 is the observation).
+Rivers solved; combat/attack verbs at aggregate level; timing generalisation (n = 1 per run); the per-vertex continuation
+(vertex k -> k+1: E1 drove 1-vertex chains). Move To planning on the maple nav area for a lone M577A2 is OBSERVED once (E1).
