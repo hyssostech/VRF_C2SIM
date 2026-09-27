@@ -16,7 +16,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
   0.65; forest/town/mountain 0.25; water/river/alpine 0 = stop). No obstacle avoidance, no nav mesh.
   CORRECTED 2026-09-27 (A1, AGGREGATE_CATALOGUE_2026-09-27): the catalogue has NO simulated (movable) unit above battalion
   for any nation; its BDE/DIV/CORPS entries are CONTAINERS, which the vendor fills with battalion and company units (Road
-  to Kaunas: 81 simulated units inside 17 containers). So a brigade is either (a) a company/battalion-sized simulated
+  to Kaunas: 51 of its 81 simulated units inside 17 containers - corrected 2026-09-27 by the C1 design lane). So a brigade is either (a) a company/battalion-sized simulated
   aggregate standing in for it (PROXY, moves, reports; the first arm) or (b) a container the interface populates with
   sub-units (the vendor's shape; package C1, later). Iron Storm on the map A1 built: 0 EXACT, 40 PROXY.
 - One pre-flight, both profiles: STP's vertices and legs are checked against the OSM water and buildings the sim reads;
