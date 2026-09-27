@@ -17,8 +17,8 @@ OUTPUTS (tracked)
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
 (change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
-and ONE AffectedEntity added (changes (f) and (g), owner directions), no graphic is added or
-removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
+and ONE AffectedEntity added (changes (f) and (g), owner directions), exactly ONE graphic is
+added (change (h), an owner selection: T10's reroute), none is removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
 preserved byte for byte. See data/IRONSTORM_CUTA_CHANGES.md for the rationale
 and the consequences.
 
@@ -92,6 +92,15 @@ and the consequences.
       enum. Only the code changes - no AffectedEntity, Duration or relation is touched.
       CONSEQUENCE: until the interface maps a CNFPSL verb, T01 and T13 are unmapped verbs,
       and the T01->T02 / T13->T14 STREND chains depend on how the interface treats them.
+
+  (h) T10 IS REROUTED round nav-area sectors (28,21) and (28,22). OWNER SELECTION 2026-09-26
+      ("Maples + reroute T10's leg around the two sectors (Recommended)"). ONE waypoint,
+      54.029734 / 23.305499, carried by ONE added Line/Route graphic (c8d9cd1a...; vertices =
+      1-112 IN's init position, asserted, then the waypoint) referenced by T10 before its (b)
+      PassagePoint. The interface's route assembly drops the start vertex (within 100 m of the
+      taskee) and appends the PassagePoint as the destination: start -> waypoint -> PassagePoint,
+      2,729 m. Every route sector reads >= 0.9 on the red-maple nav area and both legs are dry
+      (CHANGES.md (h)). See apply_reroute.
 
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
@@ -217,6 +226,123 @@ NUDGE_TO = ('54.040348', '23.324206')
 NUDGE_EXPECTED_SITES = 2       # the graphic's 2nd vertex + T14's embedded Location
 NUDGE_GRAPHIC = '7351f662-f857-e05a-b533-f9a46e0fb095'
 NUDGE_TASK = '1075b583-a7b8-45e5-b22b-d09988c9443e'
+
+
+# ---------------------------------------------------------------------------
+# (h) T10's REROUTE round two navigation-mesh sectors. OWNER SELECTION 2026-09-26
+# ("Maples + reroute T10's leg around the two sectors (Recommended)").
+#
+# WHY. On the IRONSTORM-CENTRE nav area generated on the red-maple terrain (biome 04's
+# Sycamore / White Oak -> RedMapleSpring; docs/experiments/PREREG_IRONSTORM_TREES_2026-09-26.md
+# Part 2) T10's straight leg crosses sectors (28,21) 0.8485 and (28,22) 0.8857, below the
+# 0.9 abstract-graph connectivity bar the owner set for every route sector. Both are
+# lake-edge sectors (water 0.34 / 0.22); no tree lever clears (28,21) (0.818 / 0.849 / 0.862
+# across three generations). The route goes round them instead.
+#
+# HOW, with the least new geometry: ONE new waypoint. T10 references ONE new Line/Route
+# graphic whose two vertices are 1-112 IN's own init position and the waypoint, placed
+# BEFORE the (b) PassagePoint reference, which stays the destination. The interface's
+# route assembly (TaskGeometryResolver SF9 rule: lines supply the path, points the
+# destination, and a line vertex within OriginCoincidenceMeters = 100 m of the taskee is
+# dropped) turns that into the route  start -> WAYPOINT -> PassagePoint_48_IBCT_SLOT0.
+# The first vertex being the taskee's own position is the export's own convention (T14's
+# TaskGraphic 7351f662 starts at 48 IBCT's position). The unit's init position and the
+# destination are asserted, not assumed. The only graphic this cut ADDS.
+#
+#   BEFORE  54.04268819191243/23.30823457011959 -> 54.019388734463774/23.313901568645093
+#           (2,620 m straight; sectors (28,21) 0.8485 and (28,22) 0.8857 on the maple area)
+#   AFTER   ... -> REROUTE_WAYPOINT -> ... (see CHANGES.md for the corridor and water checks)
+# ---------------------------------------------------------------------------
+REROUTE_TASK = '9aab7fe6-c7fb-4e74-b586-e11a00fc3eb9'          # T10
+REROUTE_UNIT = '8d5b2ba6-73c1-6c55-812c-7c8078ea8c97'          # 1-112_IN/28ID
+REROUTE_START = ('54.04268819191243', '23.30823457011959')     # its init position
+REROUTE_DEST_GRAPHIC = 'cc23071f-aa60-9f52-884c-11505051cc99'  # (b) PassagePoint_48_IBCT_SLOT0
+REROUTE_WAYPOINT = ('54.029734', '23.305499')
+# uuid5(NAMESPACE_URL, 'urn:c2sim-vrf:IRONSTORM_CUTA:(h):T10-reroute:2026-09-26') - fixed,
+# so the derivation stays byte-reproducible.
+REROUTE_GRAPHIC = 'c8d9cd1a-b808-5b8d-97be-7beb98393a62'
+REROUTE_NAME = 'T10_Reroute_1-112_IN__CUT_A_H_ROUTE_AROUND_SECTORS_28_21_28_22'
+
+
+def reroute_entity():
+    """The one added graphic, in the export's own Line/Route layout (the axis-of-advance
+    SIDC the export uses for its routes)."""
+    def loc(lat, lon):
+        return ('                      <Location>' + EOL
+                + '                        <GeodeticCoordinate>' + EOL
+                + '                          <Latitude>%s</Latitude>' % lat + EOL
+                + '                          <Longitude>%s</Longitude>' % lon + EOL
+                + '                        </GeodeticCoordinate>' + EOL
+                + '                      </Location>' + EOL)
+    return ('      <Entity>' + EOL
+            + '        <PhysicalEntity>' + EOL
+            + '          <MapGraphic>' + EOL
+            + '            <TacticalGraphic>' + EOL
+            + '              <Line>' + EOL
+            + '                <Route>' + EOL
+            + '                  <APP6CSymbol>' + EOL
+            + '                    <APP6C-SIDC>GFGPOLAGM-----X</APP6C-SIDC>' + EOL
+            + '                  </APP6CSymbol>' + EOL
+            + '                  <Name>%s</Name>' % REROUTE_NAME + EOL
+            + '                  <SISOEntityType>' + EOL
+            + ''.join('                    <%s>0</%s>' % (k, k) + EOL for k in (
+                'DISCategory', 'DISCountry', 'DISDomain', 'DISExtra', 'DISKind',
+                'DISSpecific', 'DISSubCategory'))
+            + '                  </SISOEntityType>' + EOL
+            + '                  <UUID>%s</UUID>' % REROUTE_GRAPHIC + EOL
+            + '                  <CurrentState>' + EOL
+            + '                    <PhysicalState>' + EOL
+            + loc(*REROUTE_START) + loc(*REROUTE_WAYPOINT)
+            + '                    </PhysicalState>' + EOL
+            + '                  </CurrentState>' + EOL
+            + '                </Route>' + EOL
+            + '              </Line>' + EOL
+            + '            </TacticalGraphic>' + EOL
+            + '          </MapGraphic>' + EOL
+            + '        </PhysicalEntity>' + EOL
+            + '      </Entity>' + EOL)
+
+
+def apply_reroute(text, log, init_text):
+    """(h) Add the reroute graphic right after the destination graphic's <Entity> and
+    reference it from T10, before the (b) reference. Every anchor is asserted."""
+    if REROUTE_GRAPHIC in text:
+        raise AssertionError('(h) the reroute graphic %s is already present' % REROUTE_GRAPHIC)
+    # the unit's init position must be exactly the line's first vertex
+    at = init_text.find('<UUID>%s</UUID>' % REROUTE_UNIT) if init_text else -1
+    if at < 0:
+        raise AssertionError('(h) unit %s is not in the init' % REROUTE_UNIT)
+    ent = init_text.rfind('<Entity>', 0, at)
+    pos = re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>',
+                     init_text[ent:at])
+    if pos != [REROUTE_START]:
+        raise AssertionError('(h) 1-112 IN init position is %r, expected %r' % (pos, REROUTE_START))
+    # the destination graphic's Entity: insert after its closing tag
+    g = text.find('<UUID>%s</UUID>' % REROUTE_DEST_GRAPHIC)
+    if g < 0 or text.count('<UUID>%s</UUID>' % REROUTE_DEST_GRAPHIC) != 1:
+        raise AssertionError('(h) expected the destination graphic exactly once')
+    close = '      </Entity>' + EOL
+    end = text.find(close, g)
+    if end < 0:
+        raise AssertionError('(h) no </Entity> after the destination graphic')
+    end += len(close)
+    text = text[:end] + reroute_entity() + text[end:]
+    # T10's block: the new MapGraphicID goes right before the (b) one
+    ref = (INDENT + '<MapGraphicID>%s</MapGraphicID><!--PassagePoint_48_IBCT_SLOT0 ADDED BY CUT A-->'
+           % REROUTE_DEST_GRAPHIC)
+    t10 = text.find('<UUID>%s</UUID>' % REROUTE_TASK)
+    blk_start = text.rfind('<Task>', 0, t10)
+    at_ref = text.find(ref, blk_start, t10)
+    if at_ref < 0 or text.count(ref) != 1:
+        raise AssertionError('(h) T10 does not carry the (b) reference exactly once')
+    line = ('%s<MapGraphicID>%s</MapGraphicID><!--T10_Reroute ADDED BY CUT A (h)-->%s'
+            % (INDENT, REROUTE_GRAPHIC, EOL))
+    text = text[:at_ref] + line + text[at_ref:]
+    log('  (h) T10 reroute: + Route graphic %s [%s,%s -> %s,%s] referenced before the (b) '
+        'destination (OWNER SELECTION 2026-09-26; avoids nav sectors (28,21) / (28,22))'
+        % (REROUTE_GRAPHIC[:8], REROUTE_START[0], REROUTE_START[1],
+           REROUTE_WAYPOINT[0], REROUTE_WAYPOINT[1]))
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +521,7 @@ def write(path, text):
 
 # ---------------------------------------------------------------------------
 def derive_order(src_text, log, init_text=None):
-    """Apply (a), (b), (c), (e), (f) and (g) to the order text. Returns the derived text."""
+    """Apply (a), (b), (c), (e), (f), (g) and (h) to the order text. Returns the derived text."""
     blocks = TASK_BLOCK.findall(src_text)
     log('order carries %d <Task> blocks' % len(blocks))
     if len(blocks) != src_text.count('<Task>'):
@@ -488,6 +614,9 @@ def derive_order(src_text, log, init_text=None):
     # file's and not the export's.
     text = apply_water_nudge(text, log)
 
+    # (h) the T10 reroute (after (b) put the destination reference in T10's block).
+    text = apply_reroute(text, log, init_text)
+
     # (a) last, so it covers the whole derived document including nothing new (the
     # inserted lines carry no duration).
     text, changes = rewrite_durations(text)
@@ -561,6 +690,31 @@ def selftest():
             apply_code_fix(bad, 'ATTACK', 'FOLSPT', 'sup', 'S')
             ok = False
             print('  MISMATCH %-46s accepted a block it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused: %s' % label)
+
+    print('apply_reroute (h):')
+    init_ok = ('<Entity>' + EOL + '<Latitude>%s</Latitude>' % REROUTE_START[0] + EOL
+               + '<Longitude>%s</Longitude>' % REROUTE_START[1] + EOL
+               + '<UUID>%s</UUID>' % REROUTE_UNIT + EOL)
+    order = ('      <Entity>' + EOL + '<UUID>%s</UUID>' % REROUTE_DEST_GRAPHIC + EOL
+             + '      </Entity>' + EOL + '<Task>' + EOL
+             + INDENT + '<MapGraphicID>%s</MapGraphicID><!--PassagePoint_48_IBCT_SLOT0 ADDED BY CUT A-->'
+             % REROUTE_DEST_GRAPHIC + EOL + '<UUID>%s</UUID>' % REROUTE_TASK + EOL)
+    r = apply_reroute(order, lambda m: None, init_ok)
+    check('graphic added once', r.count('<UUID>%s</UUID>' % REROUTE_GRAPHIC), 1)
+    check('T10 names the reroute BEFORE the destination',
+          0 < r.index('<MapGraphicID>%s' % REROUTE_GRAPHIC) < r.index('<MapGraphicID>%s' % REROUTE_DEST_GRAPHIC),
+          True)
+    check('graphic entity after the destination entity',
+          r.index('<UUID>%s</UUID>' % REROUTE_DEST_GRAPHIC) < r.index('<UUID>%s</UUID>' % REROUTE_GRAPHIC), True)
+    for label, o, i in (('unit moved in the init', order, init_ok.replace(REROUTE_START[0], '54.0')),
+                        ('already applied', r, init_ok),
+                        ('T10 lacks the (b) reference', order.replace('ADDED BY CUT A', 'x'), init_ok)):
+        try:
+            apply_reroute(o, lambda m: None, i)
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
         except AssertionError:
             print('  ok       refused: %s' % label)
 
