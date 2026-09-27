@@ -87,6 +87,27 @@ no flag, but it ate most of the calibration margin on the marginal legs (0.966 -
 `--vrf-home` and `--shared-data` override the `C:\MAK` locations (or set `VRF_HOME` /
 `MAK_SHARED_DATA`).
 
+THE C# PORT NOW READS THE OSM SETS TOO (2026-09-27, RL-20260927-01; `src/VrfC2SimApp/Preflight/
+OsmFeatures.cs`, docs/RUNBOOK.md sec 12a). Same tiles (z14 `osm-water` and `osm`, TMS rows,
+`14_<x>_<tmsy>.pbf` under `<PreflightCacheDir>\osm-water` and `\osm`, so a `--fetch` folder drops
+in), same vendor filters (the water selectStyle and islet/sand/scrub filter above; the building filter
+exactly as `--osm-buildings` copied it - that reader is on branch `fix/ironstorm-t14-hamlet`, commit
+cf10e52, not yet on main when this was written), and the same rule that a tile missing from the dir or
+0 bytes is UNKNOWN, never clear. Its `--osm-selftest` re-asserts this tool's OSM selftest cases on
+synthetic tiles built from the real cached features (the two -2 T14 buildings flag at 0.0 m and pass
+100 m west; the -1 stop is 0.46 m from lake 197345448). Where the two DIFFER, on purpose: (1) the water VERDICT
+is exact point/segment-to-polygon geometry, not the 256 x 256 raster `water_grids` builds, and only
+the reported extent is sampled (at the step) - so a first crossing can differ by a few metres (the (e)
+leg enters lake 197345448 at 830.9 m exactly; this tool's 2 m raster says 834 m, the C# at 8 m 838 m);
+(2) on the AggregateTacticalLevel model set the C# also reads River LINES from the `osm` set
+(waterway river/canal/tidal_channel, VRFSIM.Aggregate.feature.model.xml RiverL) at the vendor's 5 m
+MAK_WIDTH default (featureconfig.txt:423), which this tool does not; (3) the C# treats water under
+or beside a drivable OSM road BRIDGE's deck as dry (so a route STP authored over a bridge is neither
+flagged nor has its bridge vertex moved - RUNBOOK sec 12a), which this tool does not; (4) the
+interface's own fetcher answers a 404 with a small marker tile ("the server has no features here", KNOWN empty), where
+`osm_sector_map.py --fetch` writes 0 bytes for every non-200 - so a folder warmed by the python fetcher
+reads as UNKNOWN wherever the server had nothing, until one ONLINE interface run replaces those files.
+
 ## Start positions
 
 The interface SPREADS co-located units onto 700 m rings at init (DeStack), so a unit's authored

@@ -3833,7 +3833,9 @@ silently; take a line any part of which had no elevation tile (unknown is never 
 FORMATION BAND choose which SIDE of the leg to detour to. The side comes from the route-line
 verdict alone and the band may only push the detour further out on that same side - the fix for the
 southward shift of run 20260915T023743Z (DESIGN_ROUTE_SHIFT sec 4.2a). A flagged leg no offset
-clears is dispatched AS AUTHORED with an ObservationReport saying so.
+clears is dispatched AS AUTHORED with an ObservationReport saying so. (Since RL-20260927-01 the
+VERTEX CHECK that runs just before the shift DOES move a vertex that lies in OSM water or on a
+building, and reports every move - sec 12a. The shift itself still never moves one.)
 
 THE THREE THINGS TO LOOK FOR IN THE LOG:
 
@@ -3904,3 +3906,88 @@ zero tiles were fetched). On the 1-35 ridge leg it reproduces the record: the au
 1.098, the chosen shift +75 m NORTH at 0.803 with a formation band max of 0.878, 1-1's T23 leg
 (0.870) and 1-35's authored V0->V1 line (0.524 - the line N2d drove) left untouched, and the
 42.9 km PL BLUE leg flagged with no cleared line in the band.
+
+### 12a. OSM FEATURES, THE VERTEX CHECK AND THE LEG RULE PER MODEL SET (RL-20260927-01, 2026-09-27)
+
+WHY. 48 IBCT stopped 0.5 m outside an OSM lake (the -1 pre-warm) and 3.2 m from an OSM building
+(the -2 run) on lines the raster pre-flight scored clear (FINDING_IRONSTORM_T14_STOP). The sim reads
+OSM features the raster never saw, so the pre-dispatch stage above now reads them too: the z14 vector
+tiles of vr-theworld's mbtiles sets `osm-water` (the VRFSIM "Lake" layer, osm.features.water.xml, and
+the top layer of the land-cover composite) and `osm` (building footprints; on the aggregate model set
+also River lines and forest/municipal land use). They are cached in `<PreflightCacheDir>\osm-water`
+and `\osm` - the layout `tools\navdata\osm_sector_map.py --fetch` writes and `leg_check.py
+--osm-water / --osm-buildings` read. The vendor filters are transcribed (selectStyle and the
+islet/sand/scrub filter; the building filter as leg_check copied it; RiverL; MAK_WIDTH 5 m,
+featureconfig.txt:423). Plan row M2 of docs/PLAN_MOVEMENT_2026-09-27.md, under the owner's "Go",
+RL-20260927-01.
+
+THE VERTEX CHECK (before the shift, after the origin-vertex drop; the unit's own live position is
+never checked). Every authored vertex is tested against OSM water of any class and OSM building
+footprints closer than `Vrf:PreflightBuildingClearanceMeters` (10 m, leg_check's own default). On
+EntityLevel "water" means within the same 25 m the leg rule uses, so a moved vertex does not re-flag
+its own legs; on AggregateTacticalLevel it means IN the water (the aggregate model reads the unit's
+centre point, UG52 27.1.4). A bad vertex is moved to the first KNOWN-clear point on rings every 25 m
+out to `Vrf:PreflightVertexNudgeMaxMeters` (300): clear of water, of buildings, and - EntityLevel only
+- not on flagged slope (the calibrated 40 m window scored along the approach from the previous vertex
+and the departure to the next). Each ring is tried cheapest path first (previous -> candidate -> next),
+so a passage point stays on its lane and a final vertex moves to the NEAR shore. Every move is a
+WARNING and an ObservationReport (`VERTEX MOVED <d> m <dir> from (...) to (...) - the authored vertex
+lies IN OSM water ...`); no clear ground within the maximum keeps the vertex and reports it as an STP
+authoring defect (`VERTEX NOT MOVED`); a vertex whose tiles cannot be read is `UNVERIFIED`, kept and
+logged. `...NudgeMaxMeters = 0` checks and reports and never moves. The vertex chain of sec 11 (Move
+To per vertex, RL-20260927-01) then drives the checked vertices like any other.
+
+THE LEG RULE, per `Vrf:ModelSet` (the aggregate-profile lane reads the same key; an unknown value
+falls back to EntityLevel with a WARNING at the pre-flight's first use; RL-20260927-01):
+
+| | `EntityLevel` (default) | `AggregateTacticalLevel` |
+|---|---|---|
+| a leg is FLAGGED by | the slope ratio (>= 0.92, unchanged) OR OSM water within +/-25 m of the line | OSM water (Lake areas; River lines at MAK_WIDTH 5 m) ON the centreline - MAK_WATERWAY is speed-factor 0 (tank-aggregated-movement.sysdef :112-131) |
+| slope ratio | as before | OFF |
+| buildings | never a leg flag (the planner routes round them) - vertex check only | never a leg flag (they cannot stop an aggregate) - vertex check only |
+| forest / swamp / municipal | - | REPORTED as expected slow (0.25), never flagged |
+| NOT read | - | Ocean, Coast, Alpine, Mountain, Hills sets (inland AO so far) |
+
+A WET LEG. A leg flagged for water runs the same lateral search round the water's own span (plus the
+slope window when it is flagged for both), and a candidate is accepted only when it is KNOWN clear of
+OSM water - and, on EntityLevel, clear on slope as before. A candidate with known OSM water on it is
+refused on EVERY leg. If the SAME water that flags the leg (same OSM id, or same OSM name - a river is
+several ways) lies on the line at BOTH ends of the +/-600 m band, the leg is reported as `RIVER
+CROSSING ... needs a road/bridge; STP authoring` and nothing is searched; any other water at a band
+end (a different lake) does not count, so a lake district is searched, not misread as a river. A leg
+nothing clears is `NO CLEARED LINE` and is dispatched as authored, as before: the stage still never
+refuses a task.
+
+BRIDGES. The remedy the plan gives STP for a river is a route over a BRIDGE (RL-20260927-01, plan sec
+0), so neither check may undo it. A drivable OSM road bridge (a highway line with a bridge tag the
+vendor renders - osm.bridges.xml - that is not a footway/path/cycleway/rail; MAK_WIDTH 8 m unless
+tagged, featureconfig.txt:211) carries what is on it: a point IN water counts as dry when it is on the
+deck (within half the width + 3 m of the bridge line), and a point merely NEAR water counts as dry
+anywhere in the bridge's approach zone (corridor + half width + 3 m). So a passage point on a bridge
+is kept, and a leg that crosses on the bridge is not flagged (an INFO line names the bridge). Water
+20 m beside a bridge is still water. (The lane-I2 Iron Storm tile cache carries 23 drivable
+road-bridge line pieces, so this is not hypothetical there.)
+
+MEASURED, offline on the real Iron Storm tiles (lane I2 cache, fetched 2026-09-26; `--osm-selftest
+<osm dir> <raster dir>`): cut-A's T14 (e) line (lakes OSM 197345448 and 197345447 on it) and the line
+STP exported (197345448 and 16373221) both flag for OSM water on both model sets and end in NO CLEARED
+LINE - every offset each leg leaves room for (up to 175 m on the (e) line, 100 m on the exported one)
+runs into the lakes, and neither is a river crossing (the west band end meets a DIFFERENT lake). Both
+destinations are dry, so the vertex check moves nothing. On those tiles E1 and G1 on the (e) line would
+dispatch the authored line, with those reports on the bus.
+
+UNKNOWN IS NEVER CLEAR. A missing or 0-byte OSM tile is UNKNOWN (the python fetcher writes 0 bytes
+for ANY non-200, failures included). Online, the interface fetches it: 404 = the server has nothing
+there, KNOWN empty, and a marker tile is written so an offline run knows it too; a 5xx, a timeout or a
+body that is not a vector tile is UNKNOWN, retried up to 3 times, never cached. With
+`Vrf:PreflightOffline=true` only the cache is read, so PRE-WARM the OSM sets with one ONLINE run over
+the AO. Lines to look for: `ROUTE PRE-FLIGHT MODEL SET <set> ...` (first use: the rule, the OSM file
+counts, how many are 0 bytes), `VERTEX CHECK (<set>) - N authored vertex(es) checked ...`, `OSM WATER
+WITHIN 25 m OF THE LINE` / `ON THE LINE`, `OSM tile(s) under this leg could NOT be read`, `NO ROUTE
+SHIFT - RIVER CROSSING ...`.
+
+OFFLINE PROOF: `VrfC2SimApp --osm-selftest` - the vector-tile reader, the vendor filters, the
+geometry, the leg rule per model set, the nudge, the river test, the reports and the cache semantics,
+on synthetic tiles built from the real cached lake and building features; `--preflight-selftest` and
+`--routeshift-selftest` are unchanged (the fixture comparison runs with the OSM readers off, as
+leg_check's own defaults are).

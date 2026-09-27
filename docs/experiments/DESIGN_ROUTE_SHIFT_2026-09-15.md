@@ -80,6 +80,10 @@ Argument:
 REJECTED ALTERNATIVES, with the reason:
 
 - **Move the far vertex onto clear ground** - changes STP's objective. Refused outright.
+  NOTE 2026-09-27 (RL-20260927-01): the refusal stands for THIS feature - the lateral shift still
+  moves no vertex. A separate VERTEX CHECK that runs before it now moves a vertex that itself lies in
+  OSM water or on a building (the nearest clear ground within 300 m, every move reported to C2) - a
+  different trigger from a flagged leg; docs/RUNBOOK.md sec 12a.
 - **Give the whole leg a parallel offset** (what PREREG_RIDGE_AG 3.3 measured) - moves BOTH
   endpoints, i.e. moves the vertices. The table is the evidence that a cleared side exists;
   it is not the shape of the remedy.

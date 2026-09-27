@@ -72,6 +72,23 @@ public sealed record LegMetrics
 
     /// <summary>True when any sample of this leg sits on ground the vendor calls water.</summary>
     public bool Water => WaterSamples > 0;
+
+    // ---- OSM FEATURES AND THE PER-MODEL-SET VERDICT (RL-20260927-01) ------------------------
+    // Set by PreflightService, which owns the tiles and the rules; the scorer never sees them.
+    // Osm is null when the OSM readers are off (every parity run - leg_check's are opt-in too).
+
+    /// <summary>What the OSM features say about this leg under the model set's rules.</summary>
+    public OsmLegFeatures Osm { get; init; }
+
+    /// <summary>THE VERDICT THE PRE-DISPATCH STAGE ACTS ON (ModelSetRules.FlagLeg): EntityLevel =
+    /// the slope flag OR OSM water within 25 m; AggregateTacticalLevel = OSM water ON the centreline
+    /// only. Equal to <see cref="Flagged"/> whenever the OSM readers are off, so the lateral shift
+    /// behaves exactly as before on every parity run. <see cref="Flagged"/> itself is untouched: it is
+    /// still the slope flag the leg_check fixture comparison pins.</summary>
+    public bool ShiftFlagged { get; init; }
+    public bool FlagSlope { get; init; }
+    public bool FlagWater { get; init; }
+    public string FlagReason { get; init; } = "";
 }
 
 /// <summary>
@@ -188,6 +205,7 @@ public static class LegScorer
             water ??= samples[i];
         }
 
+        bool flagged = ratio >= threshold && lengthM > windowM && !noVerdict;
         return new LegMetrics
         {
             LengthM = lengthM,
@@ -217,7 +235,11 @@ public static class LegScorer
             NanSamples = nanN,
             NanFraction = nanFraction,
             NoVerdict = noVerdict,
-            Flagged = ratio >= threshold && lengthM > windowM && !noVerdict,
+            Flagged = flagged,
+            // Until a service applies a model set's rules, the stage acts on the slope flag alone -
+            // which is exactly the behaviour before RL-20260927-01.
+            ShiftFlagged = flagged,
+            FlagSlope = flagged,
             Start = a,
             End = b,
             WaterSamples = waterN,

@@ -26,6 +26,48 @@ public sealed record PreflightOptions
     public bool AllowLifeforms { get; init; }
     public string FriendlyNation { get; init; } = "USA";
     public string OpposingNation { get; init; } = "RUS";
+
+    // ---- RL-20260927-01: OSM FEATURES, THE VERTEX CHECK AND THE MODEL-SET LEG RULE ------------
+
+    /// <summary>Vrf:ModelSet - which rule set flags a leg (ModelSetRules).</summary>
+    public ModelSet ModelSet { get; init; } = ModelSet.EntityLevel;
+
+    /// <summary>
+    /// Read the OSM water / building / land-use tiles. DEFAULT FALSE HERE, on purpose: every
+    /// fixture comparison against tools/preflight/leg_check.py runs with the tool's defaults, and the
+    /// tool's OSM readers are opt-in (--osm-water / --osm-buildings). The interface turns this ON
+    /// (VrfC2SimService.GetPreflight), so every live pre-dispatch stage reads them.
+    /// </summary>
+    public bool OsmFeatures { get; init; }
+
+    /// <summary>Vrf:PreflightBuildingClearanceMeters: a vertex whose nearest OSM footprint is
+    /// closer than this is bad ground (leg_check.py's DEF_BUILDING_CLEARANCE).</summary>
+    public double BuildingClearanceMeters { get; init; } = 10.0;
+
+    /// <summary>Vrf:PreflightVertexNudgeMaxMeters; 0 = check and report, never move.</summary>
+    public double VertexNudgeMaxMeters { get; init; } = 300.0;
+
+    /// <summary>The ring spacing of the nudge search (25 m, the vendor's slot spacing).</summary>
+    public double VertexNudgeStepMeters { get; init; } = 25.0;
+
+    /// <summary>Self-test seam: read the OSM sets from here instead of CacheDir (empty = CacheDir,
+    /// the shipped layout: &lt;cache&gt;/osm-water and &lt;cache&gt;/osm next to the raster tiles).</summary>
+    public string OsmCacheDir { get; init; } = "";
+}
+
+/// <summary>
+/// The whole pre-dispatch stage for one route (RL-20260927-01): the vertex check, then the lateral
+/// shift on the checked route. <see cref="Vertices"/> holds one row per authored vertex that was
+/// checked (clear rows included, so a log can say how many were looked at).
+/// </summary>
+public sealed record PreDispatchOutcome(List<VertexNudge> Vertices,
+                                        List<(double Lat, double Lon)> CheckedRoute,
+                                        PreflightService.RouteShiftOutcome Shift)
+{
+    public int MovedCount => Vertices.Count(v => v.Moved);
+    public int UnresolvedCount => Vertices.Count(v => v.Unresolved);
+    public int UnverifiedCount => Vertices.Count(v => v.Unverified);
+    public bool Changed => MovedCount > 0 || Shift.Changed;
 }
 
 /// <summary>The vehicle limit resolved for one unit, with the note that explains it.</summary>
@@ -65,6 +107,7 @@ public sealed class PreflightService : IDisposable
     private readonly TileSource _tiles;
     private readonly SoilChain _soil;
     private readonly VendorSms _sms;
+    private readonly OsmTileProvider _osm;
 
     public PreflightOptions Options => _opt;
     public TileSource Tiles => _tiles;
@@ -82,11 +125,20 @@ public sealed class PreflightService : IDisposable
     /// tile source and assert what a timeout or a 5xx does to a leg's verdict (F2) without a
     /// network, a port or a wall-clock wait. null = the ordinary curl-like client.
     /// </summary>
-    internal PreflightService(PreflightOptions opt, HttpClient http)
+    internal PreflightService(PreflightOptions opt, HttpClient http) : this(opt, http, null) { }
+
+    /// <summary>
+    /// RL-20260927-01 self-test seam, the same shape as the HttpClient one: a SYNTHETIC OSM world in
+    /// place of the tile cache, so the leg rule, the vertex check and the river test can be driven on
+    /// ground built for the purpose. null = the tile source's own OSM tiles (production).
+    /// </summary>
+    internal PreflightService(PreflightOptions opt, HttpClient http, OsmTileProvider osmOverride)
     {
         _opt = opt;
         _tiles = new TileSource(opt.CacheDir, opt.Offline, opt.Nearest, http,
-                                opt.ElevationLevel, opt.ElevationMinLevel);
+                                opt.ElevationLevel, opt.ElevationMinLevel,
+                                string.IsNullOrEmpty(opt.OsmCacheDir) ? null : opt.OsmCacheDir);
+        _osm = osmOverride ?? _tiles.OsmProvider;
         _soil = new SoilChain(opt.SharedData, opt.VrfHome);
         _sms = new VendorSms(Path.Combine(opt.VrfHome, "data", "simulationModelSets",
                                           "EntityLevel", "vrfSim"));
@@ -140,6 +192,30 @@ public sealed class PreflightService : IDisposable
     /// to shout about, because a leg nothing could be sampled for is not a clear leg.
     /// </summary>
     public LegMetrics ScoreLeg((double Lat, double Lon) a, (double Lat, double Lon) b, double limitRaw)
+        => ScoreLeg(a, b, limitRaw, withOsm: true);
+
+    /// <summary>The model set's rules (Vrf:ModelSet; RL-20260927-01).</summary>
+    public ModelSetRules Rules => ModelSetRules.For(_opt.ModelSet);
+
+    /// <summary>
+    /// As <see cref="ScoreLeg((double Lat, double Lon), (double Lat, double Lon), double)"/>, and -
+    /// when the OSM readers are on and <paramref name="withOsm"/> - the leg's OSM features and the
+    /// model set's verdict on it. A candidate polyline's scorer passes false: it asks the OSM question
+    /// itself, exactly, without the samples a report needs.
+    /// </summary>
+    public LegMetrics ScoreLeg((double Lat, double Lon) a, (double Lat, double Lon) b, double limitRaw,
+                               bool withOsm)
+    {
+        var slope = ScoreSlope(a, b, limitRaw);
+        var osm = withOsm && _opt.OsmFeatures
+            ? OsmQuery.Leg(_osm, a, b, Rules, _opt.StepM)
+            : null;
+        var leg = slope with { Osm = osm };
+        var (flagged, fs, fw, reason) = Rules.FlagLeg(leg);
+        return leg with { ShiftFlagged = flagged, FlagSlope = fs, FlagWater = fw, FlagReason = reason };
+    }
+
+    private LegMetrics ScoreSlope((double Lat, double Lon) a, (double Lat, double Lon) b, double limitRaw)
     {
         double length = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
         int n = LegScorer.SampleCount(length, _opt.StepM);
@@ -182,6 +258,10 @@ public sealed class PreflightService : IDisposable
     /// </summary>
     public (List<LegMetrics> Legs, int Degenerate) ScoreRoute(IReadOnlyList<(double Lat, double Lon)> route,
                                                               double limitRaw)
+        => ScoreRoute(route, limitRaw, withOsm: true);
+
+    public (List<LegMetrics> Legs, int Degenerate) ScoreRoute(IReadOnlyList<(double Lat, double Lon)> route,
+                                                              double limitRaw, bool withOsm)
     {
         var legs = new List<LegMetrics>();
         int degenerate = 0;
@@ -190,7 +270,7 @@ public sealed class PreflightService : IDisposable
             if (TileMath.DistanceMeters(route[i].Lat, route[i].Lon,
                                         route[i + 1].Lat, route[i + 1].Lon) < LegScorer.MinLegM)
             { degenerate++; continue; }
-            legs.Add(ScoreLeg(route[i], route[i + 1], limitRaw) with { Index = i + 1 });
+            legs.Add(ScoreLeg(route[i], route[i + 1], limitRaw, withOsm) with { Index = i + 1 });
         }
         return (legs, degenerate);
     }
@@ -225,7 +305,7 @@ public sealed class PreflightService : IDisposable
     public Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> WorstRatioScorer(double limitRaw)
         => poly =>
         {
-            var (legs, _) = ScoreRoute(poly, limitRaw);
+            var (legs, _) = ScoreRoute(poly, limitRaw, withOsm: false);
             if (legs.Count == 0) return new PolyScore(double.PositiveInfinity, 0);
             double worst = 0.0;
             int nan = 0;
@@ -253,18 +333,206 @@ public sealed class PreflightService : IDisposable
     public RouteShiftOutcome ShiftRoute(IReadOnlyList<(double Lat, double Lon)> route,
                                         double limitRaw, RouteShiftOptions shiftOptions)
     {
+        var rules = Rules;
         var (legs, degenerate) = ScoreRoute(route, limitRaw);
         var shifts = new List<LegShift>();
-        var scorer = WorstRatioScorer(limitRaw);
+        // The aggregate profile scores no slope, so the formation band (a slope criterion) has
+        // nothing to say there; everything else in the options is the same search.
+        var opt = rules.UseSlope ? shiftOptions : shiftOptions with { ClearFormationBand = false };
+        // OSM readers off (every parity run): EXACTLY the pre-RL-20260927-01 scorer and flag.
+        var scorer = _opt.OsmFeatures ? CandidateScorer(limitRaw) : WorstRatioScorer(limitRaw);
         foreach (var leg in legs)
         {
-            if (!leg.Flagged) continue;
+            if (!leg.ShiftFlagged) continue;
             int i = leg.Index - 1;
             if (i < 0 || i + 1 >= route.Count) continue;
-            shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, shiftOptions, scorer));
+            if (!leg.FlagWater)
+            {
+                // Flagged for slope alone: the pre-OSM search, except that a candidate with KNOWN
+                // OSM water on it is refused (a detour is never driven into a known lake).
+                shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, opt, scorer));
+                continue;
+            }
+            // Flagged for WATER: the same lateral search round the water's own span (plus the slope
+            // window when both flagged), accepting only KNOWN water-clear lines - unless the water
+            // runs right across the band, which no lateral detour can clear.
+            var legOpt = opt with { RequireFeaturesKnown = true };
+            var waterSpan = (leg.Osm.WaterFirstSM, leg.Osm.WaterLastSM);
+            if (RouteShift.IsRiverCrossing(route[i], route[i + 1], waterSpan, legOpt,
+                                           SameWaterProbe(route[i], route[i + 1]), out string probe))
+            {
+                shifts.Add(RouteShift.RiverCrossingShift(leg, legOpt, probe));
+                continue;
+            }
+            shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, legOpt, scorer, DetourSpan(leg)));
         }
         var applied = RouteShift.Apply(route, shifts);
         return new RouteShiftOutcome(applied, shifts, legs, degenerate);
+    }
+
+    /// <summary>The span a WATER-flagged leg's detour must clear: where its water lies within the
+    /// corridor, widened to the slope window when the leg was flagged for both.</summary>
+    private static (double Start, double End) DetourSpan(LegMetrics leg)
+    {
+        double s0 = leg.Osm.WaterFirstSM, s1 = leg.Osm.WaterLastSM;
+        if (leg.FlagSlope)
+        {
+            double w0 = TileMath.DistanceMeters(leg.Start.Lat, leg.Start.Lon, leg.WorstFrom.Lat, leg.WorstFrom.Lon);
+            double w1 = TileMath.DistanceMeters(leg.Start.Lat, leg.Start.Lon, leg.WorstTo.Lat, leg.WorstTo.Lon);
+            s0 = Math.Min(s0, w0);
+            s1 = Math.Max(s1, w1);
+        }
+        return (s0, s1);
+    }
+
+    /// <summary>
+    /// THE CANDIDATE SCORER once the OSM readers are on (RL-20260927-01): the slope half exactly as
+    /// <see cref="WorstRatioScorer"/> (entity level only - the aggregate scores no slope, and reads no
+    /// elevation for a candidate at all), plus the exact OSM water test of the whole polyline.
+    /// </summary>
+    public Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> CandidateScorer(double limitRaw)
+    {
+        var rules = Rules;
+        var slope = WorstRatioScorer(limitRaw);
+        return poly =>
+        {
+            double worst = 0.0;
+            int nan = 0;
+            if (rules.UseSlope)
+            {
+                var s = slope(poly);
+                worst = s.WorstRatio;
+                nan = s.NanSamples;
+            }
+            if (!_opt.OsmFeatures) return new PolyScore(worst, nan);
+            var (wet, minD, unknown) = OsmQuery.Polyline(_osm, poly, rules, _opt.StepM);
+            return new PolyScore(worst, nan, wet, unknown, minD);
+        };
+    }
+
+    /// <summary>
+    /// The river test's probe for the leg a-&gt;b (no elevation read): is the water on a band-end line the
+    /// SAME water - same OSM id, or same non-empty OSM name - as the water within the corridor of the
+    /// leg itself? See RouteShift.IsRiverCrossing for why "same" and not "any".
+    /// </summary>
+    public Func<IReadOnlyList<(double Lat, double Lon)>, RouteShift.BandEndProbe> SameWaterProbe(
+        (double Lat, double Lon) a, (double Lat, double Lon) b)
+    {
+        var rules = Rules;
+        var (legHits, _) = OsmQuery.WaterHits(_osm, new[] { a, b }, rules, _opt.StepM);
+        var ids = new HashSet<string>(legHits.Select(h => h.Id), StringComparer.Ordinal);
+        var names = new HashSet<string>(legHits.Where(h => h.Name.Length > 0).Select(h => h.Name), StringComparer.Ordinal);
+        return poly =>
+        {
+            var (hits, unknown) = OsmQuery.WaterHits(_osm, poly, rules, _opt.StepM);
+            var same = hits.Where(h => ids.Contains(h.Id) || (h.Name.Length > 0 && names.Contains(h.Name)))
+                           .Select(h => h.Id).Distinct(StringComparer.Ordinal).ToList();
+            return new RouteShift.BandEndProbe(same.Count > 0, hits.Count > same.Count, unknown,
+                                               string.Join(",", same.Take(3)));
+        };
+    }
+
+    /// <summary>What <see cref="OsmQuery.Point"/> says about one point under this service's rules.</summary>
+    public OsmPointCheck CheckPoint((double Lat, double Lon) p)
+        => OsmQuery.Point(_osm, p, Rules, _opt.BuildingClearanceMeters);
+
+    /// <summary>
+    /// "NOT ON FLAGGED SLOPE" for a nudge candidate on the entity profile: the calibrated sustained
+    /// window (Vrf:PreflightWindowMeters, 40 m) along the APPROACH to the candidate (from its
+    /// predecessor's direction) and along the DEPARTURE from it (towards its successor), each scored
+    /// by the same LegScorer against the unit's own limit. Known = both windows had every sample;
+    /// flagged = either window's ratio reaches the threshold. Local on purpose: a leg flagged by a
+    /// ridge two kilometres away says nothing about whether THIS point is drivable.
+    /// </summary>
+    public (bool Known, bool Flagged, double Ratio) LocalSlope((double Lat, double Lon) c,
+                                                                (double Lat, double Lon)? prev,
+                                                                (double Lat, double Lon)? next,
+                                                                double limitRaw)
+    {
+        double w = _opt.WindowM;
+        double worst = 0.0;
+        bool known = true;
+        if (prev.HasValue && TileMath.DistanceMeters(prev.Value.Lat, prev.Value.Lon, c.Lat, c.Lon) >= LegScorer.MinLegM)
+        {
+            var leg = ScoreSlope(RouteShift.PointAlong(c, prev.Value, w), c, limitRaw);
+            if (leg.NoVerdict) known = false; else worst = Math.Max(worst, leg.Ratio);
+        }
+        if (next.HasValue && TileMath.DistanceMeters(c.Lat, c.Lon, next.Value.Lat, next.Value.Lon) >= LegScorer.MinLegM)
+        {
+            var leg = ScoreSlope(c, RouteShift.PointAlong(c, next.Value, w), limitRaw);
+            if (leg.NoVerdict) known = false; else worst = Math.Max(worst, leg.Ratio);
+        }
+        return (known, known && worst >= _opt.Threshold, worst);
+    }
+
+    /// <summary>
+    /// THE VERTEX CHECK (RL-20260927-01): every AUTHORED vertex of the route - index 0, the unit's
+    /// own live position, is never touched - is tested against OSM water and buildings under the
+    /// model set's rules, and a bad one is nudged to the nearest clear ground (VertexNudgeSearch).
+    /// Sequential: a vertex's predecessor is the already-checked one, so the search's "stay on the
+    /// lane" cost is measured against the route that will actually be driven.
+    /// </summary>
+    public List<VertexNudge> CheckVertices(IReadOnlyList<(double Lat, double Lon)> route, double limitRaw,
+                                           out List<(double Lat, double Lon)> checkedRoute)
+    {
+        var rules = Rules;
+        var outp = new List<VertexNudge>();
+        checkedRoute = route?.ToList() ?? new List<(double Lat, double Lon)>();
+        if (!_opt.OsmFeatures || checkedRoute.Count < 2) return outp;
+        var nopt = new VertexNudgeOptions
+        {
+            MaxMeters = Math.Max(0.0, _opt.VertexNudgeMaxMeters),
+            StepMeters = Math.Max(1.0, _opt.VertexNudgeStepMeters),
+        };
+        string clearOf = FormattableString.Invariant(
+                             $"clear of OSM water{(rules.WaterCorridorMeters > 0 ? $" within {rules.WaterCorridorMeters:F0} m" : "")}")
+                       + FormattableString.Invariant($" and of OSM buildings within {_opt.BuildingClearanceMeters:F0} m")
+                       + (rules.UseSlope ? " and not on flagged slope" : "");
+        var route0 = checkedRoute;
+        for (int i = 1; i < route0.Count; i++)
+        {
+            var v = route0[i];
+            var prev = route0[i - 1];
+            (double Lat, double Lon)? next = i + 1 < route0.Count ? route0[i + 1] : null;
+            // A chained start that sits ON the task's first vertex is the unit's own position.
+            if (TileMath.DistanceMeters(prev.Lat, prev.Lon, v.Lat, v.Lon) < LegScorer.MinLegM) continue;
+            var n = VertexNudgeSearch.Nudge(i, v, prev, next, nopt,
+                p => NudgeVerdict.Of(CheckPoint(p)),
+                c =>
+                {
+                    var pc = CheckPoint(c);
+                    if (!pc.Known || pc.Bad || !rules.UseSlope) return NudgeVerdict.Of(pc);
+                    var (known, flagged, ratio) = LocalSlope(c, prev, next, limitRaw);
+                    return new NudgeVerdict(known, false, false, flagged,
+                        !known ? "slope UNKNOWN (no elevation under the 40 m windows)"
+                               : FormattableString.Invariant($"local slope ratio {ratio:F3}"));
+                },
+                clearOf);
+            outp.Add(n);
+            if (n.Moved) route0[i] = n.To;
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// THE PRE-DISPATCH STAGE, whole (RL-20260927-01): the vertex check, then the lateral shift on the
+    /// checked route. The authored vertices are copied through in order; a vertex the check moved is
+    /// the only one that changes, and every shift row whose leg ends on a moved vertex says so.
+    /// *** NEVER FROM THE VR-FORCES TICK THREAD *** - it reads tiles.
+    /// </summary>
+    public PreDispatchOutcome PreDispatch(IReadOnlyList<(double Lat, double Lon)> route, double limitRaw,
+                                          RouteShiftOptions shiftOptions)
+    {
+        var vertices = CheckVertices(route, limitRaw, out var checkedRoute);
+        var shift = ShiftRoute(checkedRoute, limitRaw, shiftOptions);
+        var moved = new HashSet<int>(vertices.Where(v => v.Moved).Select(v => v.RouteIndex));
+        if (moved.Count > 0)
+            shift = shift with
+            {
+                Shifts = shift.Shifts.Select(s => moved.Contains(s.LegIndex) || moved.Contains(s.LegIndex - 1)
+                                                  ? s with { EndpointMoved = true } : s).ToList(),
+            };
+        return new PreDispatchOutcome(vertices, checkedRoute, shift);
     }
 
     /// <summary>

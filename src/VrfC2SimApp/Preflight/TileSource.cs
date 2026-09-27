@@ -187,6 +187,13 @@ public sealed class TileSource : IDisposable
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), bool> _absent = new();
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), int> _failures = new();
 
+    // ---- OSM FEATURE TILES (RL-20260927-01) - see OsmTile(). A decoded tile is memoised only when
+    // its answer is definitive (features, a server 404, or an offline miss that nothing can fill);
+    // a failed fetch or an undecodable cache file is NOT, so it stays loud and retryable.
+    private readonly string _osmRoot;
+    private readonly ConcurrentDictionary<(OsmSet set, int x, int y), OsmTile> _osm = new();
+    private readonly ConcurrentDictionary<(OsmSet set, int x, int y), int> _osmFailures = new();
+
     /// <summary>
     /// How many times ONE tile may be fetched before the process gives up on it for good. It is a
     /// bound on a WEDGED network, not a retry policy with backoff: each attempt already carries the
@@ -198,8 +205,9 @@ public sealed class TileSource : IDisposable
     public const int MaxFetchAttempts = 3;
 
     /// <summary>Tiles this process has given up fetching (MaxFetchAttempts reached without an
-    /// answer). Read by the self-tests and by nothing that makes a verdict.</summary>
-    public int ExhaustedTiles => _failures.Count(kv => kv.Value >= MaxFetchAttempts);
+    /// answer), raster and OSM alike. Read by the self-tests and by nothing that makes a verdict.</summary>
+    public int ExhaustedTiles => _failures.Count(kv => kv.Value >= MaxFetchAttempts)
+                               + _osmFailures.Count(kv => kv.Value >= MaxFetchAttempts);
 
     // m7 (cold-start review 02b51de): several pre-flight workers score routes concurrently and
     // both counters are written from Bytes(). Plain int++ is read-modify-write and UNDER-COUNTS, and
@@ -245,9 +253,15 @@ public sealed class TileSource : IDisposable
     public TileSource(string cacheDir, bool offline = false, bool nearest = false,
                       HttpClient http = null,
                       int elevationLevel = TileMath.DefaultElevationLevel,
-                      int elevationMinLevel = TileMath.DefaultMinElevationLevel)
+                      int elevationMinLevel = TileMath.DefaultMinElevationLevel,
+                      string osmCacheDir = null)
     {
         _cacheDir = cacheDir;
+        // THE OSM SETS LIVE NEXT TO THE RASTER TILES: <cache>/osm-water/14_x_y.pbf and
+        // <cache>/osm/14_x_y.pbf - the layout tools/navdata/osm_sector_map.py --fetch writes and
+        // leg_check.py --osm-water/--osm-buildings read, so a warm copy drops straight in.
+        // osmCacheDir is a self-test seam (synthetic OSM tiles beside the committed raster cache).
+        _osmRoot = string.IsNullOrEmpty(osmCacheDir) ? cacheDir : osmCacheDir;
         _offline = offline;
         _nearest = nearest;
         // A level below the floor, or a floor above the level, would silently disable the
@@ -644,6 +658,182 @@ public sealed class TileSource : IDisposable
         if (im == null) return null;
         int v = im.Value(px, py);
         return v < 0 ? null : v;
+    }
+
+    // ================= OSM FEATURE TILES (RL-20260927-01) =====================================
+    // The z14 vector tiles of vr-theworld's mbtiles sets osm-water and osm - the same tiles the sim
+    // streams (osm.features.water.xml:6, osm.features.xml:21) and the same files
+    // tools/preflight/leg_check.py --osm-water / --osm-buildings read.
+    //
+    // *** A MISSING OR EMPTY TILE IS UNKNOWN, NEVER CLEAR. *** The four cases, and why:
+    //   cached, non-empty, decodes  -> KNOWN, its features.
+    //   the interface's 404 marker  -> KNOWN, no features: the SERVER said it has nothing here.
+    //   0-byte file                 -> UNKNOWN: osm_sector_map.py --fetch writes 0 bytes for ANY
+    //                                  non-200, failures included, so it cannot say which. Online, it
+    //                                  is re-fetched to find out; offline it stays UNKNOWN.
+    //   missing file                -> offline: UNKNOWN (Vrf:PreflightOffline = score only what the
+    //                                  cache holds; a tile that is not there is not "no feature").
+    //                                  Online: fetched. 404/410/204 -> KNOWN empty, and the marker is
+    //                                  WRITTEN so the next offline run knows it too; 5xx/timeout/an
+    //                                  undecodable body -> UNKNOWN, not memoised, retried up to
+    //                                  MaxFetchAttempts, never cached (SF3's rule).
+    // Note the difference from the elevation cascade, where an offline miss is ABSENCE so the level
+    // cascade can fall through: there is no coarser OSM layer to fall to, and "no tile" read as "no
+    // lake" is exactly the false green that stopped 48 IBCT at the lake edge.
+
+    /// <summary>vr-theworld's mbtiles root (osm.features.water.xml:6; osm.features.xml:21).</summary>
+    public const string MbtilesBase = "http://vr-theworld.com/vr-theworld/mbtiles";
+
+    /// <summary>Where one OSM set's tiles are cached: &lt;cache&gt;/osm-water or &lt;cache&gt;/osm.</summary>
+    public string OsmDirectory(OsmSet set) => Path.Combine(_osmRoot, OsmSets.Name(set));
+
+    /// <summary>The <see cref="OsmTileProvider"/> of this source.</summary>
+    public OsmTileProvider OsmProvider => GetOsmTile;
+
+    /// <summary>One z14 tile of one OSM set - see the block comment above for what KNOWN means.</summary>
+    public OsmTile GetOsmTile(OsmSet set, int x, int tmsY)
+    {
+        var key = (set, x, tmsY);
+        if (_osm.TryGetValue(key, out var known)) return known;
+        var tile = LoadOsmTile(set, x, tmsY, out bool memoise);
+        if (memoise) _osm[key] = tile;
+        return tile;
+    }
+
+    private OsmTile LoadOsmTile(OsmSet set, int x, int y, out bool memoise)
+    {
+        memoise = false;
+        string fn = Path.Combine(OsmDirectory(set), OsmTileMath.FileName(x, y));
+        long len = -1;
+        try { var fi = new FileInfo(fn); if (fi.Exists) len = fi.Length; }
+        catch { /* unreadable metadata - treated as not cached */ }
+
+        if (len > 0)
+        {
+            byte[] data;
+            try { data = File.ReadAllBytes(fn); }
+            catch (Exception e) { return OsmTile.Unknown(set, x, y, "cache file unreadable: " + e.Message); }
+            Interlocked.Increment(ref _cacheHits);
+            try
+            {
+                var layers = Mvt.Decode(data);
+                memoise = true;
+                return OsmTile.FromLayers(set, x, y, layers,
+                    Mvt.IsAbsentMarker(layers) ? "absent (the server answered 404; cached marker)" : "cached");
+            }
+            catch (FormatException e)
+            {
+                // SF3 carried over: a cache file that is not a vector tile is FAILED, loud, and not
+                // memoised - never read as "no features". The operator deletes it to re-fetch.
+                Interlocked.Increment(ref _undecodable);
+                return OsmTile.Unknown(set, x, y,
+                    "the cache file is not a vector tile (" + e.Message + ") - delete " + fn + " to re-fetch it");
+            }
+        }
+
+        if (_offline)
+        {
+            // Nothing can fill the cache in this process, so the answer is final for the run.
+            memoise = true;
+            return OsmTile.Unknown(set, x, y, len == 0
+                ? "0-byte cache file (the python fetcher's mark for ANY non-200, failures included) and Vrf:PreflightOffline is TRUE"
+                : "not in the tile cache and Vrf:PreflightOffline is TRUE");
+        }
+
+        var key = (set, x, y);
+        if (_osmFailures.TryGetValue(key, out int fails) && fails >= MaxFetchAttempts)
+            return OsmTile.Unknown(set, x, y,
+                FormattableString.Invariant($"the fetch failed {fails} time(s); given up for this process"));
+
+        string url = $"{MbtilesBase}/{OsmSets.Name(set)}/{OsmTileMath.Zoom}/{x}/{y}.pbf";
+        byte[] body;
+        try
+        {
+            using var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            int code = (int)resp.StatusCode;
+            if (code == 404 || code == 410 || code == 204)
+                return AbsentOsmTile(set, x, y, fn, FormattableString.Invariant($"absent (the server answered {code})"),
+                                     out memoise);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _osmFailures.AddOrUpdate(key, 1, (_, n) => n + 1);
+                return OsmTile.Unknown(set, x, y,
+                    FormattableString.Invariant($"HTTP {code} - the server did not answer the question"));
+            }
+            body = resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception e)
+        {
+            _osmFailures.AddOrUpdate(key, 1, (_, n) => n + 1);
+            return OsmTile.Unknown(set, x, y, "the fetch failed: " + e.GetType().Name);
+        }
+        // A 200 with no body is a valid EMPTY vector tile: known, nothing here.
+        if (body == null || body.Length == 0)
+            return AbsentOsmTile(set, x, y, fn, "empty (the server answered 200 with no body)", out memoise);
+        List<Mvt.Layer> decoded;
+        try { decoded = Mvt.Decode(body); }
+        catch (FormatException)
+        {
+            // SF3: DECODE BEFORE THE CACHE. A success body that is not a tile (a captive portal, a
+            // proxy error page) is FAILED - never written, never read as "no features".
+            Interlocked.Increment(ref _undecodable);
+            _osmFailures.AddOrUpdate(key, 1, (_, n) => n + 1);
+            return OsmTile.Unknown(set, x, y, "the server's body is not a vector tile");
+        }
+        try { Directory.CreateDirectory(OsmDirectory(set)); File.WriteAllBytes(fn, body); }
+        catch { /* the cache is an optimisation, not a requirement */ }
+        Interlocked.Increment(ref _fetched);
+        memoise = true;
+        return OsmTile.FromLayers(set, x, y, decoded, "fetched");
+    }
+
+    /// <summary>The server has nothing here: KNOWN and empty, and the marker is written so an offline
+    /// run later knows the same thing instead of reading the tile as UNKNOWN.</summary>
+    private OsmTile AbsentOsmTile(OsmSet set, int x, int y, string fn, string state, out bool memoise)
+    {
+        memoise = true;
+        try { Directory.CreateDirectory(OsmDirectory(set)); File.WriteAllBytes(fn, Mvt.AbsentMarkerTile()); }
+        catch { /* the cache is an optimisation */ }
+        Interlocked.Increment(ref _fetched);
+        return OsmTile.FromLayers(set, x, y, Array.Empty<Mvt.Layer>(), state);
+    }
+
+    /// <summary>What the OSM part of a cache holds, for the start-up banner: files per set, and how
+    /// many of them are 0 bytes (UNKNOWN to this reader) or carry no vector-tile signature.</summary>
+    public sealed record OsmCacheCensus(int WaterFiles, int WaterEmpty, int AllFiles, int AllEmpty, int Undecodable);
+
+    public static OsmCacheCensus CensusOsmCache(string cacheDir)
+    {
+        int wf = 0, we = 0, af = 0, ae = 0, bad = 0;
+        foreach (var set in new[] { OsmSet.Water, OsmSet.All })
+        {
+            string dir = Path.Combine(cacheDir ?? "", OsmSets.Name(set));
+            if (!Directory.Exists(dir)) continue;
+            IEnumerable<string> files;
+            try { files = Directory.EnumerateFiles(dir, "*.pbf").ToList(); }
+            catch { continue; }
+            foreach (string p in files)
+            {
+                long n;
+                int first = -1, second = -1;
+                try
+                {
+                    n = new FileInfo(p).Length;
+                    if (n > 0)
+                    {
+                        using var fs = File.OpenRead(p);
+                        first = fs.ReadByte();
+                        second = fs.ReadByte();
+                    }
+                }
+                catch { continue; }
+                if (set == OsmSet.Water) { wf++; if (n == 0) we++; }
+                else { af++; if (n == 0) ae++; }
+                // A vector tile opens with a layer (field 3, wire 2 = 0x1a) or a gzip header.
+                if (n > 0 && first != 0x1a && !(first == 0x1f && second == 0x8b)) bad++;
+            }
+        }
+        return new OsmCacheCensus(wf, we, af, ae, bad);
     }
 
     public void Dispose() => _http?.Dispose();

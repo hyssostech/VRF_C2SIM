@@ -47,6 +47,15 @@ public sealed record RouteShiftOptions
 
     /// <summary>C1's acceptance ceiling.</summary>
     public double AcceptRatio => Threshold - MarginRatio;
+
+    /// <summary>
+    /// RL-20260927-01: refuse a candidate any of whose OSM tiles could not be read. Set for a leg
+    /// flagged FOR WATER - a detour taken to clear water must be KNOWN to clear it (unknown is never
+    /// clear). Left false for a leg flagged for slope alone, which keeps its pre-OSM behaviour (the
+    /// CLCplus soil check still refuses a candidate over land-cover water) and says in its note when
+    /// OSM water was not checked. A candidate with KNOWN OSM water on it is refused either way.
+    /// </summary>
+    public bool RequireFeaturesKnown { get; init; }
 }
 
 /// <summary>
@@ -59,7 +68,14 @@ public sealed record RouteShiftOptions
 /// is an ACTION - it changes where vehicles drive - and refuses any candidate with a single
 /// unknown sample: unknown is never clear.
 /// </summary>
-public readonly record struct PolyScore(double WorstRatio, int NanSamples);
+/// <remarks>RL-20260927-01 adds the OSM half: <paramref name="WaterHits"/> = segments with OSM water
+/// inside the model set's corridor, <paramref name="FeatureUnknown"/> = OSM tiles the polyline touched
+/// that could not be read, <paramref name="WaterClearanceM"/> = its nearest approach to OSM water
+/// (+infinity when none, which is also the value when the OSM readers are off - so every pre-OSM
+/// caller, the self-tests included, scores exactly as before).</remarks>
+public readonly record struct PolyScore(double WorstRatio, int NanSamples, int WaterHits = 0,
+                                        int FeatureUnknown = 0,
+                                        double WaterClearanceM = double.PositiveInfinity);
 
 /// <summary>One offset the chooser tried, and what became of it. Kept so the log and the
 /// ObservationReport can say WHY an offset was picked or why none was.</summary>
@@ -67,6 +83,8 @@ public sealed record ShiftCandidate(double OffsetMeters, double Ratio, double Ba
                                     int NanSamples, bool Accepted, string Refusal)
 {
     public bool Refused => Refusal.Length > 0;
+    /// <summary>OSM tiles this candidate touched that could not be read (RL-20260927-01).</summary>
+    public int FeatureUnknown { get; init; }
 }
 
 /// <summary>The outcome for ONE leg: shifted (with the two waypoints), or not (with the reason).</summary>
@@ -102,6 +120,19 @@ public sealed record LegShift
     /// would leave the WHOLE unit on the face to spare one slot line - but some slot lines may sit
     /// on flagged ground and every channel says so.</summary>
     public bool BandNotCleared { get; init; }
+
+    // ---- RL-20260927-01 ------------------------------------------------------------------
+    /// <summary>Why the leg was flagged (slope, OSM water, or both) - ModelSetRules.FlagLeg.</summary>
+    public string FlagReason { get; init; } = "";
+    /// <summary>The leg was flagged for OSM WATER (it may also have been flagged for slope).</summary>
+    public bool FlagWater { get; init; }
+    /// <summary>OSM water lies on the line at BOTH ends of the lateral band: no lateral detour can
+    /// clear it. Reported as an STP authoring defect (a road/bridge is the only way across);
+    /// nothing is searched and the authored line is dispatched.</summary>
+    public bool RiverCrossing { get; init; }
+    /// <summary>An endpoint of this leg is a vertex the VERTEX CHECK moved (reported separately), so
+    /// "STP's own vertices are unchanged" would be false of this leg.</summary>
+    public bool EndpointMoved { get; init; }
 }
 
 /// <summary>
@@ -305,25 +336,34 @@ public static class RouteShift
     /// </summary>
     /// <param name="score">Scores a polyline: its worst leg ratio and its missing-tile count. The
     /// ONLY way terrain enters this class.</param>
+    /// <param name="window">RL-20260927-01: the along-leg span to detour round, in metres from
+    /// <paramref name="a"/>. Null = the slope scorer's worst window (every pre-OSM caller); a leg
+    /// flagged for WATER passes the span its water occupies (unioned with the slope window when it
+    /// is flagged for both).</param>
     public static LegShift ChooseForLeg((double Lat, double Lon) a, (double Lat, double Lon) b,
                                         LegMetrics leg, RouteShiftOptions opt,
-                                        Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> score)
+                                        Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> score,
+                                        (double Start, double End)? window = null)
     {
         var tried = new List<ShiftCandidate>();
         double legLen = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
         double bearing = BearingDegrees(a, b);
         // The flagged window's own ends, taken from the scorer's worst-window endpoints - which
         // ARE on the leg - rather than re-derived from the centre and a half width.
-        double windowStart = TileMath.DistanceMeters(a.Lat, a.Lon, leg.WorstFrom.Lat, leg.WorstFrom.Lon);
-        double windowEnd = TileMath.DistanceMeters(a.Lat, a.Lon, leg.WorstTo.Lat, leg.WorstTo.Lon);
+        double windowStart = window?.Start
+                             ?? TileMath.DistanceMeters(a.Lat, a.Lon, leg.WorstFrom.Lat, leg.WorstFrom.Lon);
+        double windowEnd = window?.End
+                           ?? TileMath.DistanceMeters(a.Lat, a.Lon, leg.WorstTo.Lat, leg.WorstTo.Lon);
         double bestRatio = double.NaN, bestOffset = double.NaN;
 
         // ------------------------------------------------ PHASE A: the SIDE, from C1 alone
         double sideSign = 0.0, sideMag = 0.0, sideRatio = double.NaN;
+        int sideUnknown = 0;
         List<(double Lat, double Lon)> sidePoly = null;
         for (double mag = opt.StepMeters; mag <= opt.MaxMeters + 1e-9; mag += opt.StepMeters)
         {
-            var clearing = new List<(double Offset, double Ratio, List<(double Lat, double Lon)> Poly)>();
+            var clearing = new List<(double Offset, double Ratio, List<(double Lat, double Lon)> Poly,
+                                     double Clear, int Unknown)>();
             foreach (double sign in new[] { 1.0, -1.0 })
             {
                 double offset = sign * mag;
@@ -337,22 +377,36 @@ public static class RouteShift
                 if (sc.NanSamples > 0)
                 {
                     tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, sc.NanSamples, false,
-                                                 UnknownReason(sc.NanSamples)));
+                                                 UnknownReason(sc.NanSamples)) { FeatureUnknown = sc.FeatureUnknown });
+                    continue;
+                }
+                string feat = FeatureRefusal(sc, opt);
+                if (feat.Length > 0)
+                {
+                    tried.Add(new ShiftCandidate(offset, sc.WorstRatio, double.NaN, 0, false, feat)
+                              { FeatureUnknown = sc.FeatureUnknown });
                     continue;
                 }
                 if (double.IsNaN(bestRatio) || sc.WorstRatio < bestRatio)
                 { bestRatio = sc.WorstRatio; bestOffset = offset; }
-                if (sc.WorstRatio <= opt.AcceptRatio) clearing.Add((offset, sc.WorstRatio, poly));
+                if (sc.WorstRatio <= opt.AcceptRatio)
+                    clearing.Add((offset, sc.WorstRatio, poly, sc.WaterClearanceM, sc.FeatureUnknown));
                 else tried.Add(new ShiftCandidate(offset, sc.WorstRatio, double.NaN, 0, false,
                                                   FormattableString.Invariant(
-                                                      $"ratio {sc.WorstRatio:F3} > {opt.AcceptRatio:F3}")));
+                                                      $"ratio {sc.WorstRatio:F3} > {opt.AcceptRatio:F3}"))
+                               { FeatureUnknown = sc.FeatureUnknown });
             }
             if (clearing.Count == 0) continue;
-            clearing.Sort((x, y) => x.Ratio.CompareTo(y.Ratio));
+            // Lower ratio decides the side; on an exact tie (the aggregate profile scores no slope, so
+            // every water-clear candidate ties at 0) the side that stays FURTHER from water wins, and a
+            // tie on that too keeps the search order (right side first). STABLE on purpose: with the
+            // OSM readers off both clearances are +infinity and this is exactly the old ordering.
+            clearing = clearing.OrderBy(x => x.Ratio).ThenByDescending(x => x.Clear).ToList();
             sideSign = Math.Sign(clearing[0].Offset);
             sideMag = mag;
             sideRatio = clearing[0].Ratio;
             sidePoly = clearing[0].Poly;
+            sideUnknown = clearing[0].Unknown;
             string winSide = SideWordFor(bearing, clearing[0].Offset);
             string notSide = FormattableString.Invariant(
                                  $"C1 cleared, but {winSide} cleared at the same {mag:F0} m")
@@ -369,13 +423,15 @@ public static class RouteShift
         // ------------------------------------ PHASE B: the MAGNITUDE, on the chosen side only
         string side = SideWordFor(bearing, sideSign);
         double fbOffset = double.NaN, fbRatio = double.NaN;
+        int fbUnknown = 0;
         List<(double Lat, double Lon)> fbPoly = null;
         for (double mag = sideMag; mag <= opt.MaxMeters + 1e-9; mag += opt.StepMeters)
         {
             double offset = sideSign * mag;
             List<(double Lat, double Lon)> poly;
             double ratio;
-            if (mag == sideMag) { poly = sidePoly; ratio = sideRatio; }
+            int unknownHere;
+            if (mag == sideMag) { poly = sidePoly; ratio = sideRatio; unknownHere = sideUnknown; }
             else
             {
                 poly = BuildDetour(a, b, windowStart, windowEnd, offset, opt, out string refusal);
@@ -388,9 +444,17 @@ public static class RouteShift
                 if (sc.NanSamples > 0)
                 {
                     tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, sc.NanSamples, false,
-                                                 UnknownReason(sc.NanSamples)));
+                                                 UnknownReason(sc.NanSamples)) { FeatureUnknown = sc.FeatureUnknown });
                     continue;
                 }
+                string feat = FeatureRefusal(sc, opt);
+                if (feat.Length > 0)
+                {
+                    tried.Add(new ShiftCandidate(offset, sc.WorstRatio, double.NaN, 0, false, feat)
+                              { FeatureUnknown = sc.FeatureUnknown });
+                    continue;
+                }
+                unknownHere = sc.FeatureUnknown;
                 ratio = sc.WorstRatio;
                 if (double.IsNaN(bestRatio) || ratio < bestRatio) { bestRatio = ratio; bestOffset = offset; }
                 if (ratio > opt.AcceptRatio)
@@ -421,11 +485,12 @@ public static class RouteShift
                 ok = bandMax < opt.Threshold;
             }
             tried.Add(new ShiftCandidate(offset, ratio, bandMax, 0, ok,
-                                         ok ? "" : DeclineReason(ratio, bandMax, opt)));
-            if (double.IsNaN(fbOffset)) { fbOffset = offset; fbRatio = ratio; fbPoly = poly; }
+                                         ok ? "" : DeclineReason(ratio, bandMax, opt))
+                      { FeatureUnknown = unknownHere });
+            if (double.IsNaN(fbOffset)) { fbOffset = offset; fbRatio = ratio; fbPoly = poly; fbUnknown = unknownHere; }
             if (ok)
                 return Shifted(leg, opt, bearing, offset, ratio, bandMax, poly, tried,
-                               bestRatio, bestOffset, "");
+                               bestRatio, bestOffset, "", UnknownNote(unknownHere));
         }
 
         // C2 could not be cleared ANYWHERE on the side C1 chose. Take the brief's own rule - the
@@ -439,21 +504,131 @@ public static class RouteShift
                                   $" below {opt.Threshold:F2} within +/-{opt.MaxMeters:F0} m, so this is the ")
                             + "ROUTE-LINE rule alone and some formation slots may sit on flagged ground";
             return Shifted(leg, opt, bearing, fbOffset, fbRatio, double.NaN, fbPoly, tried,
-                           bestRatio, bestOffset, bandNote);
+                           bestRatio, bestOffset, bandNote, UnknownNote(fbUnknown));
         }
         return NoLine(leg, opt, tried, bestRatio, bestOffset, legLen, windowStart, windowEnd);
     }
 
+    /// <summary>
+    /// RL-20260927-01: the OSM half of acceptance. KNOWN OSM water inside the model set's corridor
+    /// refuses a candidate on every leg (a detour is never driven into a known lake); an UNKNOWN OSM
+    /// tile refuses it only when the leg was flagged FOR WATER (<see cref="RouteShiftOptions.RequireFeaturesKnown"/>).
+    /// </summary>
+    private static string FeatureRefusal(PolyScore sc, RouteShiftOptions opt)
+    {
+        if (sc.WaterHits > 0)
+            return FormattableString.Invariant(
+                $"OSM water on {sc.WaterHits} segment(s) of this line (nearest {sc.WaterClearanceM:F1} m)");
+        if (opt.RequireFeaturesKnown && sc.FeatureUnknown > 0)
+            return FormattableString.Invariant(
+                $"UNSCORABLE: {sc.FeatureUnknown} OSM tile(s) under this line could not be read - unknown is never clear");
+        return "";
+    }
+
+    /// <summary>The note a taken detour carries when OSM water could not be checked on part of it
+    /// (a slope-flagged leg only - a water-flagged leg refuses such a candidate outright).</summary>
+    private static string UnknownNote(int unknownTiles)
+        => unknownTiles > 0
+            ? FormattableString.Invariant(
+                $" - NOTE: OSM water was NOT checked on {unknownTiles} tile(s) of this detour (not readable); the land-cover soil check still was")
+            : "";
+
+    /// <summary>
+    /// ONE END OF THE LATERAL BAND: the leg's parallel line at <paramref name="offsetM"/>, over the
+    /// flagged span widened by <paramref name="spanPadM"/> each side (clipped to the leg). A river
+    /// that crosses the leg at up to 45 degrees off square crosses this line within that pad.
+    /// </summary>
+    public static List<(double Lat, double Lon)> BandEndLine((double Lat, double Lon) a, (double Lat, double Lon) b,
+                                                             (double Start, double End) span, double offsetM,
+                                                             double spanPadM)
+    {
+        double legLen = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
+        double bearing = BearingDegrees(a, b);
+        double s0 = Math.Max(0.0, Math.Min(span.Start, span.End) - spanPadM);
+        double s1 = Math.Min(legLen, Math.Max(span.Start, span.End) + spanPadM);
+        return new List<(double Lat, double Lon)>
+        {
+            OffsetLateral(PointAlong(a, b, s0), bearing, offsetM),
+            OffsetLateral(PointAlong(a, b, s1), bearing, offsetM),
+        };
+    }
+
+    /// <summary>What the river test found at ONE end of the lateral band.</summary>
+    /// <param name="SameWater">water from the SAME feature(s) that flagged the leg (same OSM id, or the
+    /// same OSM name - a river is several ways) lies on the band-end line</param>
+    /// <param name="OtherWater">some OTHER water lies on it (a different pond)</param>
+    /// <param name="Unknown">OSM tiles under it that could not be read</param>
+    /// <param name="Ids">the OSM id(s) of the same water found there, for the report</param>
+    public readonly record struct BandEndProbe(bool SameWater, bool OtherWater, int Unknown, string Ids);
+
+    /// <summary>
+    /// THE RIVER-CROSSING TEST (RL-20260927-01), pure: the SAME water that flags the leg lies on the
+    /// line at BOTH ends of the lateral band (+/- <see cref="RouteShiftOptions.MaxMeters"/>), so it runs
+    /// right across the band - a river, or water wider than the band - and no lateral detour of the
+    /// band's size can clear it.
+    ///
+    /// SAME water, not ANY water - MEASURED, not assumed: on the real osm-water tiles of the Iron Storm
+    /// AO (lane I2 cache, 2026-09-26) the cut-A (e) T14 leg crosses two lakes (OSM 197345448, 197345447)
+    /// and has water at BOTH +/-600 m band ends - the same lake to the east, but a DIFFERENT lake
+    /// (OSM 16373225) to the west. "Any water" called that a river crossing, which is false (lane T14's
+    /// (i) waypoint skirted the chain 1.25 km out) and would send STP looking for a bridge; the full
+    /// search then says what is true - no cleared line within the band. Only KNOWN water counts:
+    /// a band end over an unreadable tile is not wet, so the search runs and refuses the unknown
+    /// candidates itself. Anything that is not a river crossing gets the full lateral search, whose
+    /// "no cleared line" ending is the honest report for the rest.
+    /// </summary>
+    public static bool IsRiverCrossing((double Lat, double Lon) a, (double Lat, double Lon) b,
+                                       (double Start, double End) span, RouteShiftOptions opt,
+                                       Func<IReadOnlyList<(double Lat, double Lon)>, BandEndProbe> probe,
+                                       out string note)
+    {
+        var plus = probe(BandEndLine(a, b, span, +opt.MaxMeters, opt.MaxMeters));
+        var minus = probe(BandEndLine(a, b, span, -opt.MaxMeters, opt.MaxMeters));
+        double brg = BearingDegrees(a, b);
+        string w(BandEndProbe s) => s.SameWater ? "the SAME water (OSM " + s.Ids + ")"
+                                  : s.OtherWater ? "other water only"
+                                  : s.Unknown > 0 ? "unknown" : "dry";
+        note = FormattableString.Invariant(
+            $"band end {opt.MaxMeters:F0} m {SideWordFor(brg, 1)}: {w(plus)}; {opt.MaxMeters:F0} m {SideWordFor(brg, -1)}: {w(minus)}");
+        return plus.SameWater && minus.SameWater;
+    }
+
+    /// <summary>The report-only outcome for a river crossing: nothing searched, the authored line kept.</summary>
+    public static LegShift RiverCrossingShift(LegMetrics leg, RouteShiftOptions opt, string probeNote)
+        => new()
+        {
+            LegIndex = leg.Index,
+            Shifted = false,
+            RiverCrossing = true,
+            FlagWater = true,
+            FlagReason = leg.FlagReason,
+            BaseRatio = leg.Ratio,
+            ShiftedRatio = double.NaN,
+            BandMax = double.NaN,
+            BandSearchedMeters = opt.MaxMeters,
+            Note = FormattableString.Invariant(
+                       $"RIVER CROSSING - the same OSM water lies on the line at BOTH ends of the +/-{opt.MaxMeters:F0} m lateral band ({probeNote}), ")
+                   + "a river or water wider than the band, so no lateral detour can clear it: needs a road/bridge; STP authoring",
+        };
+
     /// <summary>The chosen detour, packaged. <paramref name="extra"/> is empty for an ordinary
-    /// accept and carries the band-not-cleared note for the fallback.</summary>
+    /// accept and carries the band-not-cleared note for the fallback; <paramref name="featureNote"/>
+    /// says when OSM water could not be checked on part of the detour.</summary>
     private static LegShift Shifted(LegMetrics leg, RouteShiftOptions opt, double bearing,
                                     double offset, double ratio, double bandMax,
                                     List<(double Lat, double Lon)> poly, List<ShiftCandidate> tried,
-                                    double bestRatio, double bestOffset, string extra)
+                                    double bestRatio, double bestOffset, string extra,
+                                    string featureNote = "")
     {
         string bandNote = opt.ClearFormationBand && !double.IsNaN(bandMax)
             ? FormattableString.Invariant($", formation band max {bandMax:F3}") : "";
         string side = SideWordFor(bearing, offset);
+        // A leg flagged for WATER says what it went round; the ratio clause stays for every leg the
+        // slope flagged (and is exactly the pre-OSM wording for a slope-only leg).
+        string what = leg.FlagWater
+            ? FormattableString.Invariant($"shifted {Math.Abs(offset):F0} m {side} round the OSM water ({leg.FlagReason})")
+              + (leg.FlagSlope ? FormattableString.Invariant($"; ratio {leg.Ratio:F3} -> {ratio:F3}{bandNote}") : "")
+            : FormattableString.Invariant($"shifted {Math.Abs(offset):F0} m {side}: ratio {leg.Ratio:F3} -> {ratio:F3}{bandNote}");
         return new LegShift
         {
             LegIndex = leg.Index,
@@ -471,8 +646,9 @@ public static class RouteShift
             SideWord = side,
             Tried = tried,
             BandNotCleared = extra.Length > 0,
-            Note = FormattableString.Invariant(
-                $"shifted {Math.Abs(offset):F0} m {side}: ratio {leg.Ratio:F3} -> {ratio:F3}{bandNote}") + extra,
+            FlagReason = leg.FlagReason,
+            FlagWater = leg.FlagWater,
+            Note = what + extra + featureNote,
         };
     }
 
@@ -487,15 +663,26 @@ public static class RouteShift
         string unknownClause = unknown > 0
             ? FormattableString.Invariant(
                 $"; {unknown} candidate(s) were UNSCORABLE - part of the line had no elevation tile") : "";
+        // RL-20260927-01: what the OSM half refused, said as its own clause so a "no cleared line" on a
+        // wet leg names the water (or the unread tiles) rather than only a ratio.
+        int wet = tried.Count(c => c.Refusal.StartsWith("OSM water", StringComparison.Ordinal));
+        int osmUnknown = tried.Count(c => c.Refusal.StartsWith("UNSCORABLE: ", StringComparison.Ordinal)
+                                          && c.Refusal.Contains("OSM tile", StringComparison.Ordinal));
+        string featClause = (wet > 0 ? FormattableString.Invariant($"; {wet} candidate(s) ran into OSM water") : "")
+                          + (osmUnknown > 0
+                              ? FormattableString.Invariant($"; {osmUnknown} candidate(s) crossed OSM tiles that could not be read")
+                              : "");
         string head = FormattableString.Invariant($"NO CLEARED LINE within +/-{opt.MaxMeters:F0} m: ");
         string note = double.IsNaN(bestRatio)
-            ? head + "every candidate was refused on geometry or had no terrain data "
+            ? head + (featClause.Length > 0
+                         ? "every candidate was refused on geometry, on OSM water or for missing data "
+                         : "every candidate was refused on geometry or had no terrain data ")
                    + FormattableString.Invariant(
-                         $"(leg {legLen:F0} m, window at {windowStart:F0}-{windowEnd:F0} m){unknownClause}")
+                         $"(leg {legLen:F0} m, window at {windowStart:F0}-{windowEnd:F0} m){unknownClause}{featClause}")
             : head + FormattableString.Invariant(
                          $"the best candidate ({bestOffset:+0;-0} m) scored {bestRatio:F3}, ")
                    + FormattableString.Invariant(
-                         $"and acceptance needs <= {opt.AcceptRatio:F3}{bandClause}{unknownClause}");
+                         $"and acceptance needs <= {opt.AcceptRatio:F3}{bandClause}{unknownClause}{featClause}");
         return new LegShift
         {
             LegIndex = leg.Index,
@@ -507,6 +694,8 @@ public static class RouteShift
             BestOffsetTried = bestOffset,
             BandSearchedMeters = opt.MaxMeters,
             Tried = tried,
+            FlagReason = leg.FlagReason,
+            FlagWater = leg.FlagWater,
             Note = note,
         };
     }
@@ -531,8 +720,10 @@ public static class RouteShift
         string ratio = double.IsNaN(c.Ratio) ? "-" : c.Ratio.ToString("F3", CultureInfo.InvariantCulture);
         string band = double.IsNaN(c.BandMax)
             ? "" : " band " + c.BandMax.ToString("F3", CultureInfo.InvariantCulture);
+        string osm = c.FeatureUnknown > 0
+            ? " osm-unknown " + c.FeatureUnknown.ToString(CultureInfo.InvariantCulture) : "";
         return FormattableString.Invariant($"{c.OffsetMeters:+0;-0} m ratio {ratio}{band} ")
-             + FormattableString.Invariant($"nan {c.NanSamples} {(c.Accepted ? "ACCEPTED" : c.Refusal)}");
+             + FormattableString.Invariant($"nan {c.NanSamples}{osm} {(c.Accepted ? "ACCEPTED" : c.Refusal)}");
     }
 
     /// <summary>
@@ -561,8 +752,13 @@ public static class RouteShift
     public static string Describe(string taskName, string unitName, LegShift s)
     {
         string inp = Pt(s.In), outp = Pt(s.Out);
+        // The shift itself never moves a vertex; the VERTEX CHECK before it may (RL-20260927-01), and
+        // then this sentence must not claim otherwise for the leg it touched.
+        string promise = s.EndpointMoved
+            ? "STP's vertices are kept in order; an endpoint of this leg was moved off water or a building by the vertex check and is reported separately."
+            : "STP's own vertices are unchanged and in order.";
         return FormattableString.Invariant(
-            $"ROUTE SHIFT: task {taskName} ({unitName}) leg {s.LegIndex} - {s.Note}; inserted {inp} and {outp}. STP's own vertices are unchanged and in order.");
+            $"ROUTE SHIFT: task {taskName} ({unitName}) leg {s.LegIndex} - {s.Note}; inserted {inp} and {outp}. {promise}");
     }
 
     private static string Pt((double Lat, double Lon) p)
