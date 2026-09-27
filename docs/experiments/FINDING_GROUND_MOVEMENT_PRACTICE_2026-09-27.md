@@ -95,9 +95,9 @@ is a planning task per destination.
 
 | stop | mover | task the sim ran | what it met | outcome |
 |---|---|---|---|---|
-| Mojave 1-35 leader (FINDING_EARLY_STOPS 2026-09-13) | platform | entity Move Along Route | sustained 0.70-0.95 rise/run on sand, no nav mesh | stopped; route shift (a lateral line) cured it |
-| Iron Storm -1 pre-warm, T14 | platform | entity Move Along Route | OSM lake edge, deep-water (FINDING_IRONSTORM_T14_STOP) | stopped at 0.5 m from the polygon; silent |
-| Iron Storm -2, T14 | platform | entity Move Along Route | hamlet: route through 2 OSM buildings; every forward arc blocked | stopped 3.2 m from a building; silent |
+| Mojave 1-35 leader (FINDING_EARLY_STOPS 09-13) | platform | entity Move Along Route | 0.70-0.95 rise/run on sand, no nav mesh | stopped; route shift cured it |
+| Iron Storm -1 pre-warm, T14 | platform | entity Move Along Route | OSM lake edge, deep-water (FINDING_IRONSTORM_T14_STOP) | stopped 0.5 m from the polygon; silent |
+| Iron Storm -2, T14 | platform | entity Move Along Route | hamlet: line through 2 OSM buildings, every forward arc blocked | stopped 3.2 m from a building; silent |
 | Iron Storm -2, T02 | platform | entity Move Along Route | 5.3 km of open ground | arrived (nothing to trap it) |
 | Iron Storm -2, T10 | unit, 6 members | unit Move Along Route -> per-vertex planning on the maple nav area | same AO, lakes and forest | arrived |
 
