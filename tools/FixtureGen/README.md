@@ -183,6 +183,33 @@ abstract-graph proof line printed (12 lines); that is an observation, not a scor
 Note: `--negative-controls` builds its NEG copies on the SHIPPED terrain even when `--terrain`
 is given. Validate them WITHOUT `--terrain`, so that each fails only on its intended check.
 
+### The AGGREGATE-LEVEL fixture (2026-09-27; step 1 of docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md)
+
+`IronStorm_Centre_52_Aggregate`: the same donor, frame mode and Iron Storm AOI as `IronStorm_Centre_52_Nav_AG_maple`,
+on the vendor's aggregate model set and the terrain the vendor pairs with it. Both are named by ALIAS and written in
+the vendor's macro form, byte-identical to Road to Kaunas's .scn: `--sms aggregate` =
+`$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms`, `--terrain aggregate` =
+`$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration\MAK Earth Aggregate (online).mtf`. The builder checks both files
+exist on this install and REFUSES the aggregate SMS on any other terrain. No nav data: the aggregate model never plans
+on a nav mesh, and the validator gates 0 navData records on the terrain. Built into `frame_variants/`; NOT deployed
+(the deploy is the sanctioned write, `--out-dir "C:\MAK\vrforces5.2d\userData\scenarios"`):
+```
+python build_fixture.py --profile 5.2 --empty \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 \
+       --out-name IronStorm_Centre_52_Aggregate \
+       --scenario-name "Iron Storm (5.2, FFRTC, AggregateTacticalLevel on MAK Earth Aggregate (online))" \
+       --terrain aggregate --sms aggregate
+python validate_fixture.py --empty-52 frame_variants/IronStorm_Centre_52_Aggregate.scnx \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 --terrain aggregate --sms aggregate   # ALL FIXTURES: OK
+```
+`.scnx` sha256 804e2c393dcf5f4fe4e1c58d7423a343c4e43250cd719d5474e035750c76a0e3 (rebuilds identically). Pair it ONLY
+with `data/unit-type-map-52-aggregate.json`: the runner's `-ModelSet AggregateTacticalLevel` selects both and refuses
+any other pairing at Stage 0. Its negative controls (`--negative-controls DIR` with the same aliases) are built on the
+default AOI: validate them with `--terrain aggregate --sms aggregate` and WITHOUT `--aoi`, and each fails only its
+intended check. How its .scn differs from Road to Kaunas's, and why: docs/experiments/AGGREGATE_PROFILE_OFFLINE_2026-09-27.md
+sec 4.
+
 `validate_fixture.py --empty-52` expects the same default, OPENS the derived SMS, and
 reports its include chain plus every vendor artefact it overrides: for a `.lua` under
 `scripts/`, the script id, the `useAbstractGraphs` value and the run-time proof line; for a

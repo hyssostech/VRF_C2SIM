@@ -66,6 +66,11 @@ if nonblank "${C2SIM_ORDER:-}";    then ORDER="$C2SIM_ORDER";       ORDER_SRC='e
 else ORDER='data/COA-STP1_Order.xml';               ORDER_SRC='built-in default'; fi
 CLIENT_ID='C2SIM'
 TYPEMAP=''
+# THE MODEL SET (the aggregate-level profile, RL-20260927-01). EMPTY = not passed: the runner's
+# own default, EntityLevel, and a default run's runner command line stays byte-identical to every
+# run in the record. AggregateTacticalLevel selects the aggregate type map and the runner REFUSES
+# a fixture that does not load AggregateTacticalLevel.sms - pass --scenario with it.
+MODEL_SET=''
 # THE ORDER'S CLOCK SCALE. 0 = do not set it; the app keeps its own Vrf:DurationScale (1.0).
 # Anything positive is passed through as -DurationScale, which the runner validates, exports as
 # Vrf__DurationScale, echoes in its Stage 0 banner and records in the manifest. Until now there
@@ -107,7 +112,13 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --order PATH              C2SIM order xml                   (default data/COA-STP1_Order.xml,
                             a MOJAVE order; or export C2SIM_ORDER)
   --client-id ID            must equal the init's SystemName  (default C2SIM)
-  --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map)
+  --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map for the model set)
+  --model-set NAME          EntityLevel | AggregateTacticalLevel (default: not passed = EntityLevel).
+                            Passed as -ModelSet; the runner picks the type map, exports
+                            Vrf__ModelSet to the app and REFUSES a fixture/type-map mismatch, so
+                            pair AggregateTacticalLevel with --scenario IronStorm_Centre_52_Aggregate
+                            (deployed). Use THIS, not --env Vrf__ModelSet=...: the runner sets that
+                            key for the app itself and would overwrite an --env value.
   --duration-scale N        Vrf:DurationScale - scales BOTH halves of the ORDER'S CLOCK (the
                             Duration that ends a task and the StartTime delay that holds one
                             back) and NOT movement. 0 (default) = leave the app's own value
@@ -169,6 +180,7 @@ while [ $# -gt 0 ]; do
         --order)                ORDER="$2";    ORDER_SRC='argument --order';       shift 2 ;;
         --client-id)            CLIENT_ID="$2"; shift 2 ;;
         --type-map)             TYPEMAP="$2"; shift 2 ;;
+        --model-set)            MODEL_SET="$2"; shift 2 ;;
         --duration-scale)       DURATION_SCALE="$2"; shift 2 ;;
         --run-secs)             RUN_SECS="$2"; shift 2 ;;
         --watch-secs)           WATCH_SECS="$2"; shift 2 ;;
@@ -364,6 +376,9 @@ case "$ORDER_SRC" in
 esac
 [ -n "$CLIENT_ID" ] && ARGS+=(-ClientId "$CLIENT_ID")
 [ -n "$TYPEMAP" ] && ARGS+=(-TypeMapFile "$TYPEMAP")
+# The model set: passed ONLY when given, so a default run's runner command line is unchanged. The
+# runner validates the name (ValidateSet) and the fixture/type-map pairing at Stage 0.
+[ -n "$MODEL_SET" ] && ARGS+=(-ModelSet "$MODEL_SET")
 # Passed through ONLY when asked for, so a run that does not use it is byte-identical to what it
 # was: -DurationScale 0 is the runner's own "set nothing" default.
 [ "$DURATION_SCALE" != "0" ] && ARGS+=(-DurationScale "$DURATION_SCALE")
@@ -408,6 +423,7 @@ case "$SCENARIO_SRC$INIT_SRC$ORDER_SRC" in
         ;;
 esac
 echo "  type map    : ${TYPEMAP:-(repo default)}"
+echo "  model set   : ${MODEL_SET:-(not passed - the runner default, EntityLevel)}"
 if [ "$DURATION_SCALE" != "0" ]; then
     echo "  order clock : -DurationScale $DURATION_SCALE  (Vrf__DurationScale; scales the Duration that ENDS each task and the StartTime delay that HOLDS one back - NOT movement)"
 else

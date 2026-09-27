@@ -1800,3 +1800,176 @@ function Test-ForcedExitWaitContinue {
     $pv = Resolve-StopVrfPostForce -Forced $Forced -Survivors $Survivors
     return (@($pv.StillExiting).Count -gt 0)
 }
+
+# ---- THE MODEL SET: which SMS a fixture runs, which one a type map was built for -----------
+# The aggregate-level profile (RL-20260927-01; Y-15 in docs/VRF_5.2_DECISION_EVIDENCE.md;
+# docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md step 3). A scenario's model set is fixed by the
+# Simulation-Model-Set-Files line of its .scn and SMS families are never mixed (UG52 13.7 p368);
+# a type map names object types that exist in ONE catalogue. So the runner compares three things
+# before anything is launched: the -ModelSet it was given, the model set the type map declares,
+# and the model set the fixture actually loads. These helpers only READ (a .scnx zip, a .json,
+# an .sms); they start nothing and write nothing.
+$script:RunnerModelSets = @('EntityLevel', 'AggregateTacticalLevel')
+
+# The type map each model set uses when -TypeMapFile is not given. EntityLevel is the file every
+# 5.2 run in the record used; AggregateTacticalLevel is the survey-derived aggregate map.
+function Get-ModelSetTypeMapDefault {
+    param([Parameter(Mandatory)][string]$ModelSet)
+    switch ($ModelSet) {
+        'AggregateTacticalLevel' { return 'data/unit-type-map-52-aggregate.json' }
+        default                  { return 'data/unit-type-map-52.json' }
+    }
+}
+
+# Classify a Simulation-Model-Set-Files string. A vendor SMS is recognised by its FILE NAME, in
+# macro form or not ($(DATA_DIR)\simulationModelSets\X.sms). A derived SMS named by absolute path
+# (C:\C2SIM\vrf-sms\*.sms) is opened and its (include "...") lines followed, depth-capped, until a
+# vendor SMS is reached - the derived abstract-graph SMS includes EntityLevel.sms unchanged.
+# AggregateLevel.sms is the vendor's OTHER aggregate model set (the first-experience example uses
+# it) and is reported as itself: it is neither profile.
+function Get-ModelSetFromSms {
+    param([string]$Sms, [int]$Depth = 0)
+    $out = [ordered]@{ ModelSet = 'Unknown'; Via = '' }
+    if ([string]::IsNullOrWhiteSpace($Sms)) { $out.Via = 'no SMS string'; return $out }
+    $leaf = (($Sms -replace '/', '\') -split '\\')[-1].Trim().ToLowerInvariant()
+    switch ($leaf) {
+        'aggregatetacticallevel.sms' { $out.ModelSet = 'AggregateTacticalLevel'; $out.Via = $leaf; return $out }
+        'entitylevel.sms'            { $out.ModelSet = 'EntityLevel';            $out.Via = $leaf; return $out }
+        'aggregatelevel.sms'         { $out.ModelSet = 'AggregateLevel';         $out.Via = $leaf; return $out }
+    }
+    if ($Depth -ge 4) { $out.Via = 'include depth cap reached at ' + $Sms; return $out }
+    if ($Sms -notmatch '^[A-Za-z]:\\|^\\\\' -or -not (Test-Path -LiteralPath $Sms -PathType Leaf)) {
+        $out.Via = 'not a vendor SMS and not a readable file: ' + $Sms
+        return $out
+    }
+    $text = [System.IO.File]::ReadAllText($Sms)
+    foreach ($m in [regex]::Matches($text, '\(include\s+"([^"]*)"\s*\)')) {
+        $inc = $m.Groups[1].Value
+        $sub = Get-ModelSetFromSms -Sms $inc -Depth ($Depth + 1)
+        if ($sub.ModelSet -ne 'Unknown') {
+            $out.ModelSet = $sub.ModelSet
+            $out.Via = ('{0} includes {1}' -f (Split-Path -Leaf $Sms), $sub.Via)
+            return $out
+        }
+    }
+    $out.Via = ('{0} includes no recognised vendor SMS' -f (Split-Path -Leaf $Sms))
+    return $out
+}
+
+# Read the model set a fixture (.scnx, a zip) loads, from its .scn. Found=$false when there is no
+# file; Readable=$false when it is not a zip with a .scn carrying a Simulation-Model-Set-Files line.
+function Get-ScenarioModelSet {
+    param([Parameter(Mandatory)][string]$ScnxPath)
+    $out = [ordered]@{ Path = $ScnxPath; Found = $false; Readable = $false; Sms = ''; ModelSet = 'Unknown'; Via = '' }
+    if (-not (Test-Path -LiteralPath $ScnxPath -PathType Leaf)) { $out.Via = 'no such file'; return $out }
+    $out.Found = $true
+    $zip = $null
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($ScnxPath)
+        $entry = @($zip.Entries | Where-Object { $_.FullName -like '*.scn' }) | Select-Object -First 1
+        if ($null -eq $entry) { $out.Via = 'no .scn inside the archive'; return $out }
+        $sr = New-Object System.IO.StreamReader($entry.Open())
+        try { $scn = $sr.ReadToEnd() } finally { $sr.Dispose() }
+        $m = [regex]::Match($scn, '\(Simulation-Model-Set-Files\s+"([^"]*)"\s*\)')
+        if (-not $m.Success) { $out.Via = 'the .scn has no Simulation-Model-Set-Files line'; return $out }
+        $out.Readable = $true
+        $out.Sms = $m.Groups[1].Value
+        $c = Get-ModelSetFromSms -Sms $out.Sms
+        $out.ModelSet = $c.ModelSet
+        $out.Via = $c.Via
+    } catch {
+        $out.Via = 'unreadable: ' + $_.Exception.Message
+    } finally {
+        if ($null -ne $zip) { $zip.Dispose() }
+    }
+    return $out
+}
+
+# The model set a type map was built for. 'modelSetKey' (the aggregate map carries it) wins; the
+# entity maps predate that field and say it in prose ("EntityLevel.sms -> base.sms ..."), which is
+# read second. Anything else is Unknown - a probe map that declares nothing.
+function Get-TypeMapModelSet {
+    param([Parameter(Mandatory)][string]$Path)
+    $out = [ordered]@{ Path = $Path; Found = $false; ModelSet = 'Unknown'; Via = '' }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { $out.Via = 'no such file'; return $out }
+    $out.Found = $true
+    try {
+        $j = [System.IO.File]::ReadAllText($Path) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        $out.Via = 'not JSON: ' + $_.Exception.Message
+        return $out
+    }
+    $names = @($j.PSObject.Properties.Name)
+    if ($names -contains 'modelSetKey' -and $script:RunnerModelSets -contains [string]$j.modelSetKey) {
+        $out.ModelSet = [string]$j.modelSetKey
+        $out.Via = 'modelSetKey'
+        return $out
+    }
+    if ($names -contains 'modelSet') {
+        $prose = ([string]$j.modelSet).TrimStart()
+        foreach ($ms in $script:RunnerModelSets) {
+            if ($prose.StartsWith($ms + '.sms', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $out.ModelSet = $ms
+                $out.Via = 'modelSet prose'
+                return $out
+            }
+        }
+    }
+    $out.Via = 'declares no model set (no modelSetKey, no recognised modelSet prose)'
+    return $out
+}
+
+# THE DECISION, pure. Returns Refusals (Stage 0 refuses the run), Warnings and Notes.
+# Rules:
+#  * -ModelSet AggregateTacticalLevel exists only on the 5.2 profile.
+#  * The type map must declare the SAME model set; a map that declares nothing is accepted on
+#    EntityLevel (today's probe maps) and refused on AggregateTacticalLevel.
+#  * The fixture must load the SAME model set. A fixture that cannot be read is today's behaviour
+#    on EntityLevel (noted, not refused); on AggregateTacticalLevel it is REFUSED in a live run
+#    and WARNED about in -DryRun, because an unverifiable pairing is the mismatch this exists for.
+function Test-ModelSetPairing {
+    param(
+        [Parameter(Mandatory)][string]$ModelSet,
+        [Parameter(Mandatory)][bool]$Is52,
+        [Parameter(Mandatory)]$TypeMap,
+        [Parameter(Mandatory)]$Scenario,
+        [bool]$DryRun = $false
+    )
+    $r = [ordered]@{ Refusals = @(); Warnings = @(); Notes = @() }
+    $agg = ($ModelSet -eq 'AggregateTacticalLevel')
+    if ($agg -and -not $Is52) {
+        $r.Refusals += ('-ModelSet AggregateTacticalLevel is a 5.2 profile switch: the aggregate catalogue, its type map and its fixture exist only on VR-Forces 5.2d. Pass -VrfProfile 5.2, or drop -ModelSet.')
+        return $r
+    }
+    if (-not $Is52) { return $r }
+    if (-not $TypeMap.Found) {
+        $r.Refusals += ('the type map {0} does not exist ({1}).' -f $TypeMap.Path, $TypeMap.Via)
+    } elseif ($TypeMap.ModelSet -eq 'Unknown') {
+        if ($agg) {
+            $r.Refusals += ('the type map {0} {1}; an AggregateTacticalLevel run needs a map that declares "modelSetKey": "AggregateTacticalLevel" (data/unit-type-map-52-aggregate.json does).' -f $TypeMap.Path, $TypeMap.Via)
+        } else {
+            $r.Notes += ('type map {0} {1} - accepted on EntityLevel, as before.' -f $TypeMap.Path, $TypeMap.Via)
+        }
+    } elseif ($TypeMap.ModelSet -ne $ModelSet) {
+        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: -ModelSet is {0} but the type map {1} was built for {2} ({3}). Its object types do not exist in the other catalogue. Pass the matching -TypeMapFile, or -ModelSet {2}.' -f $ModelSet, $TypeMap.Path, $TypeMap.ModelSet, $TypeMap.Via)
+    }
+    if (-not $Scenario.Found -or -not $Scenario.Readable) {
+        $why = ('the fixture {0} could not be checked ({1})' -f $Scenario.Path, $Scenario.Via)
+        if ($agg -and -not $DryRun) {
+            $r.Refusals += ($why + '; an AggregateTacticalLevel run is not launched on a fixture whose model set is unverified. Deploy the fixture (tools/FixtureGen/README.md, the sanctioned deploy) or fix -Scenario.')
+        } elseif ($agg) {
+            $r.Warnings += ($why + ' - a LIVE run would be REFUSED here (dry run: reported only).')
+        } else {
+            $r.Notes += ($why + ' - EntityLevel runs are not gated on it (unchanged behaviour).')
+        }
+    } elseif ($Scenario.ModelSet -eq $ModelSet) {
+        $r.Notes += ('fixture {0} loads {1} ({2}) - matches -ModelSet.' -f $Scenario.Path, $Scenario.ModelSet, $Scenario.Via)
+    } elseif ($agg -or $script:RunnerModelSets -contains $Scenario.ModelSet) {
+        $hint = $(if ($script:RunnerModelSets -contains $Scenario.ModelSet) { 'or -ModelSet ' + $Scenario.ModelSet } else { 'it is neither profile' })
+        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: -ModelSet is {0} but the fixture {1} loads {2} (Simulation-Model-Set-Files "{3}"; {4}). The model set is fixed per scenario (UG52 13.7), and the {0} type map names object types that do not exist in the other catalogue. Use a fixture built on the {0} SMS ({5}).' -f $ModelSet, $Scenario.Path, $Scenario.ModelSet, $Scenario.Sms, $Scenario.Via, $hint)
+    } else {
+        $r.Warnings += ('the fixture {0} loads {1} (Simulation-Model-Set-Files "{2}"; {3}), which is neither profile. An EntityLevel run is not refused on it (unchanged behaviour), but its type map was not built for it.' -f $Scenario.Path, $Scenario.ModelSet, $Scenario.Sms, $Scenario.Via)
+    }
+    return $r
+}

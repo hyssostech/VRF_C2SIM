@@ -633,15 +633,44 @@ SMS_52_CUSTOM = r"C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms"
 # same as --no-custom-sms. Anything else is taken as a path to a derived SMS.
 SMS_VENDOR_ALIASES = ("vendor", "shipped", "entitylevel", "none")
 
+# THE AGGREGATE-LEVEL PROFILE (added 2026-09-27; docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md
+# step 1, Y-15, RL-20260927-01). The vendor's aggregate model set and the terrain the vendor
+# pairs with it, spelled EXACTLY as the vendor's own brigade scenario spells them (Road to
+# Kaunas, userData\scenarios\Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\
+# RoadToKaunas.scnx, .scn lines Terrain-Database / Simulation-Model-Set-Files). The model set is
+# a PER-SCENARIO choice and SMS families are never mixed (UG52 13.7 p368); the aggregate terrain
+# carries the OSM water / land-use feature layers the aggregate movement systems query
+# (VRFSIM.Aggregate.feature.model.xml; featureconfig.txt MAK_*_IMPASSABLE_TERRAIN) and NO
+# navigation data - the aggregate model never plans on a nav mesh.
+# Selected by NAME (--sms aggregate / --terrain aggregate) and checked on disk through the macro
+# expansion below; the fixture carries the macro form, never a machine path.
+SMS_52_AGGREGATE = r"$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms"
+TERRAIN_52_AGGREGATE = (r"$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration"
+                        r"\MAK Earth Aggregate (online).mtf")
+SMS_AGGREGATE_ALIASES = ("aggregate", "aggregatetacticallevel", "aggregatetacticallevel.sms")
+TERRAIN_AGGREGATE_ALIASES = ("aggregate", "mak earth aggregate (online)",
+                             "mak earth aggregate (online).mtf")
+# Where the two macros point on THIS install (the shipped-terrain listing of 2026-09-04 and the
+# 5.2d tree). Used ONLY to prove the named vendor files exist before a fixture names them.
+VRF_HOME_52 = r"C:\MAK\vrforces5.2d"
+SHARED_DATA_DIR_52 = r"C:\MAK\SharedData\19\latest"
+
+
+def expand_vendor_macros(s):
+    """$(DATA_DIR) / $(SHARED_DATA_DIR) -> this machine's paths (for an existence check only)."""
+    return (s.replace("$(DATA_DIR)", os.path.join(VRF_HOME_52, "data"))
+             .replace("$(SHARED_DATA_DIR)", SHARED_DATA_DIR_52))
+
 
 def resolve_sms_52(sms, verbose=True):
     """Return the Simulation-Model-Set-Files string a 5.2 fixture should carry.
 
-    sms None           -> SMS_52_CUSTOM when it exists on disk, else SMS_52.
-    sms a vendor alias -> SMS_52, the shipped EntityLevel.sms.
-    anything else      -> returned UNCHANGED, so a fixture built with an explicit
-                          --sms <path> is byte-identical to one built before this
-                          default existed. The caller still checks that it exists.
+    sms None              -> SMS_52_CUSTOM when it exists on disk, else SMS_52.
+    sms a vendor alias    -> SMS_52, the shipped EntityLevel.sms.
+    sms an aggregate alias-> SMS_52_AGGREGATE, the shipped AggregateTacticalLevel.sms.
+    anything else         -> returned UNCHANGED, so a fixture built with an explicit
+                             --sms <path> is byte-identical to one built before this
+                             default existed. The caller still checks that it exists.
     """
     if sms is None:
         if os.path.isfile(SMS_52_CUSTOM):
@@ -653,7 +682,30 @@ def resolve_sms_52(sms, verbose=True):
         return SMS_52
     if sms.strip().lower() in SMS_VENDOR_ALIASES:
         return SMS_52
+    if sms.strip().lower() in SMS_AGGREGATE_ALIASES:
+        return SMS_52_AGGREGATE
     return sms
+
+
+def resolve_terrain_52(terrain):
+    """The Terrain-Database string: None -> TERRAIN_52; an aggregate alias -> the shipped
+    MAK Earth Aggregate (online).mtf in macro form; anything else unchanged (a path)."""
+    if terrain is None:
+        return TERRAIN_52
+    if terrain.strip().lower() in TERRAIN_AGGREGATE_ALIASES:
+        return TERRAIN_52_AGGREGATE
+    return terrain
+
+
+def is_aggregate_sms(sms):
+    return sms == SMS_52_AGGREGATE
+
+
+def count_nav_records(mtf_path):
+    """navData generic records in an .mtf (tools/navdata/make_nav_terrain.py writes one per
+    registered navigation area; the shipped MAK Earth (online).mtf carries 9)."""
+    with open(mtf_path, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read().count("<Type>navData</Type>")
 
 
 # R9 Mojave AOI - data\R9_Mojave_Initialization.xml (58 pts) + _UnitMove_Order.xml (6).
@@ -975,12 +1027,29 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     # so the chosen box is PRINTED below rather than left to be discovered in the .scn.
     aoi_default = aoi is None
     aoi = aoi or R9_AOI
-    terrain = terrain or TERRAIN_52
-    if terrain != TERRAIN_52 and not os.path.isfile(terrain):
+    terrain = resolve_terrain_52(terrain)
+    if terrain == TERRAIN_52_AGGREGATE:
+        if not os.path.isfile(expand_vendor_macros(terrain)):
+            raise SystemExit("the shipped aggregate terrain is not on this machine: %s"
+                             % expand_vendor_macros(terrain))
+    elif terrain != TERRAIN_52 and not os.path.isfile(terrain):
         raise SystemExit("terrain not found: %s" % terrain)
     sms = resolve_sms_52(sms, verbose=verbose)
-    if sms != SMS_52 and not os.path.isfile(sms):
+    if sms == SMS_52_AGGREGATE:
+        if not os.path.isfile(expand_vendor_macros(sms)):
+            raise SystemExit("the shipped AggregateTacticalLevel.sms is not on this machine: %s"
+                             % expand_vendor_macros(sms))
+    elif sms != SMS_52 and not os.path.isfile(sms):
         raise SystemExit("sms not found: %s" % sms)
+    # THE PROFILE PAIRING (aggregate only). The aggregate model set goes with the vendor's
+    # aggregate terrain and nothing else: that terrain carries the feature layers the aggregate
+    # movement systems query, and a navigation-area copy is meaningless to a model that never
+    # plans on a nav mesh. REFUSED rather than warned: a mismatched fixture loads and runs, and
+    # the mismatch would only show up as units moving on the wrong terrain classes.
+    if is_aggregate_sms(sms) and terrain != TERRAIN_52_AGGREGATE:
+        raise SystemExit("--sms aggregate needs --terrain aggregate (%s): the aggregate model set "
+                         "is paired with the vendor's aggregate terrain (Road to Kaunas does the "
+                         "same); got %s" % (TERRAIN_52_AGGREGATE, terrain))
     donor_path = DONORS_52.get(donor, donor)
     if not os.path.isfile(donor_path):
         raise SystemExit("donor .scnx not found: %s" % donor_path)
@@ -1075,9 +1144,13 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
         print("  .oob dropped  = %d simulation objects" % len(dropped_uuids))
         print("  .omp entries  = %d -> %d" % (len(omp_before), len(kept_uuids)))
         print("  terrain       = %s%s" % (terrain, "" if terrain == TERRAIN_52
+                                          else "  (the shipped AGGREGATE terrain - no nav data)"
+                                          if terrain == TERRAIN_52_AGGREGATE
                                           else "  (OVERRIDE - not the shipped terrain)"))
         if sms == SMS_52:
             sms_note = "  (the shipped SMS - no script override)"
+        elif sms == SMS_52_AGGREGATE:
+            sms_note = "  (the shipped AGGREGATE-LEVEL model set - pair with data/unit-type-map-52-aggregate.json)"
         elif sms == SMS_52_CUSTOM:
             sms_note = "  (DEFAULT since G7b - includes EntityLevel.sms, abstract graphs on)"
         else:
@@ -1097,17 +1170,19 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
 
 def build_empty_52_negative_controls(out_name, out_dir, donor="GroundMovement",
                                      frame_mode=None, frame_time=None,
-                                     scenario_name=None, sms=None):
+                                     scenario_name=None, sms=None, terrain=None):
     """Two DELIBERATELY BROKEN copies of the empty fixture, for the validator gate.
 
     (a) _NEG_noframetime : the (frame-time ...) line deleted from the .scn.
     (b) _NEG_strayobject : one real simulation object spliced back into the .oob.
     Both must FAIL validate_fixture.py --empty-52.
+    terrain: None (the shipped terrain - every pre-2026-09-27 caller) unless the SMS is the
+    aggregate one, whose pairing rule needs the aggregate terrain (the caller passes it then).
     """
     good, _rep = build_empty_52(out_name, donor=donor, frame_mode=frame_mode,
                                 frame_time=frame_time, out_dir=out_dir,
                                 scenario_name=scenario_name, verbose=False,
-                                sms=sms)
+                                sms=sms, terrain=terrain)
     donor_path = DONORS_52.get(donor, donor)
     dname = os.path.splitext(os.path.basename(donor_path))[0]
     with zipfile.ZipFile(donor_path) as z:
@@ -1221,15 +1296,19 @@ if __name__ == "__main__":
                     help="--empty only: Terrain-Database / Gui-Terrain-Database to "
                          "write instead of the shipped MAK Earth (online).mtf - e.g. "
                          "the navigation-area copy made by tools/navdata/"
-                         "make_nav_terrain.py (absolute path; must exist).")
+                         "make_nav_terrain.py (absolute path; must exist), or "
+                         "'aggregate' for the shipped MAK Earth Aggregate (online).mtf "
+                         "(written in macro form, as the vendor's Road to Kaunas does).")
     ap.add_argument("--sms", default=None, metavar="SMS",
                     help="--empty only: Simulation-Model-Set-Files to write. DEFAULT "
                          "since 2026-09-14 (G7b) = %s when that file exists - the "
                          "derived SMS that INCLUDES EntityLevel.sms and overrides "
                          "ground-vehicle-move-to.lua with useAbstractGraphs=true. Pass "
                          "'vendor' (same as --no-custom-sms) for the shipped "
-                         "EntityLevel.sms, or another derived SMS by absolute path "
-                         "(must exist)." % SMS_52_CUSTOM)
+                         "EntityLevel.sms, 'aggregate' for the shipped "
+                         "AggregateTacticalLevel.sms (the aggregate-level profile; it "
+                         "REQUIRES --terrain aggregate), or another derived SMS by "
+                         "absolute path (must exist)." % SMS_52_CUSTOM)
     ap.add_argument("--no-custom-sms", action="store_true",
                     help="--empty only: shorthand for --sms vendor. Writes the shipped "
                          "EntityLevel.sms, i.e. the pre-2026-09-14 default - nav-mesh "
@@ -1269,7 +1348,9 @@ if __name__ == "__main__":
             build_empty_52_negative_controls(
                 args.out_name, args.negative_controls, donor=args.donor,
                 frame_mode=args.frame_mode, frame_time=args.frame_time,
-                scenario_name=args.scenario_name, sms=sms_arg)
+                scenario_name=args.scenario_name, sms=sms_arg,
+                terrain=(args.terrain if is_aggregate_sms(resolve_sms_52(sms_arg, verbose=False))
+                         else None))
         sys.exit(0)
 
     if args.profile != "5.0.2":

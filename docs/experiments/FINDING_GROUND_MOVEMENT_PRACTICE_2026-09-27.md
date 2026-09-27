@@ -134,6 +134,10 @@ and lakes, and they do nothing for the next feature class nobody has mapped yet.
    --osm-water stays as the pre-flight report and a route through a lake is an STP/CoaRenderer authoring defect
    to report, not something to hide. First gated run per the plan: one leaf unit on cut A's T14 line (the
    original, no (i)/(j)/(k)); prediction: arrives unless the line crosses water.
+   [CORRECTED 2026-09-27, AGGREGATE_PROFILE_OFFLINE_2026-09-27.md sec 1: the "BDE (11)" templates are Aggregate
+   Containers - no nation has a warfare-model unit above BN, and an EMPTY container's Move Along Route ends at once -
+   so a brigade is a PROXY leaf (battalion-size or smaller). And on main a leaf's water stop gets no C16 report
+   (the watchdog skips an aggregate with no members, sec 6.1 there).]
 2. Entity-level profile (company-and-below COAs, Mojave): a lone platform gets the planning task per STP vertex -
    Move To to each vertex in sequence (facade MoveToLocation exists; the vendor's move_along_route_and_continue
    .lua is the pattern); units keep the unit Move Along Route (they already plan per vertex). Arrival stays on
