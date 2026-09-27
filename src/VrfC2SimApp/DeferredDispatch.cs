@@ -59,6 +59,11 @@ public static class DeferredDispatch
     /// taskee been taskable when the task was ready.</summary>
     public const string ReadinessRelease = "the dispatch released by the taskee-readiness hold";
 
+    /// <summary>Where a lone platform's NEXT Move To is issued (RL-20260927-01) - the tick action a
+    /// vertex's completion enqueues. A throw there would otherwise leave the unit idle at a vertex with
+    /// its task silently in flight, so it gets the same ending as every other deferred dispatch.</summary>
+    public const string VertexChainContinuation = "the vertex-chain continuation";
+
     /// <summary>
     /// The sentence a dispatch that threw on the tick thread reports to C2SIM. The exception TYPE
     /// is in it as well as the message: a MissingMethodException from a stale native deploy (the

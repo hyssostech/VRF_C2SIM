@@ -582,6 +582,30 @@ public class VrfSettings
     // (moveAlongTasks.h: "move to the first vertex, then move successively"). 0 disables.
     public double DropOriginVertexMeters { get; set; } = 100.0;
 
+    // ============== MOVE TO PER VERTEX FOR A LONE GROUND PLATFORM (RL-20260927-01) ==============
+    // docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 0-2 and 5.2; the rule and its
+    // citations are on VertexChainPolicy. A NON-aggregate ground mover whose final route has two or more
+    // points is driven as a CHAIN of Move To tasks - MoveToLocation to vertex 1, the next only when that one
+    // completes - instead of CreateRoute + MoveAlongRoute. Move To PLANS each leg (roads, nav mesh, feature
+    // obstacles) and RECOVERS from a blockage (UG52 23.1-23.2.2); Move Along Route "plans nothing" on a
+    // vertex-to-vertex line (UG52 23.3). UNITS are unchanged: a unit's Move Along Route already plans a path
+    // to each vertex for every member (UG52 30.22/30.24). Patrols, non-ground movers and one-point routes are
+    // unchanged too.
+    //
+    // SHIPS ON - it is the default RL-20260927-01 set. It is written in appsettings.json and the Demo overlay
+    // as well, because a default that changes WHERE UNITS DRIVE must not live in C# only (the route-shift
+    // principle). TURN IT OFF with "Vrf": { "PlatformMoveToPerVertex": false } or Vrf__PlatformMoveToPerVertex=
+    // false in the interface's own environment: every ground mover then gets CreateRoute + MoveAlongRoute
+    // exactly as before 2026-09-27.
+    public bool PlatformMoveToPerVertex { get; set; } = true;
+
+    // The VACUOUS-COMPLETION bar of the chain above, metres (R11, docs/UNIT_MOVEMENT_RESEARCH.md :394-412).
+    // A vertex's Move To that reports success with the unit farther than this from the vertex is logged
+    // VACUOUS; the chain still continues, and a vacuous LAST vertex is not taken as the task's arrival -
+    // arrival evidence and the time rules decide. Why 100 m: VertexChainPolicy.DefaultVertexArrivalRadiusMeters.
+    // 0 or less = no test (every completion is taken as an arrival).
+    public double VertexArrivalRadiusMeters { get; set; } = VertexChainPolicy.DefaultVertexArrivalRadiusMeters;
+
     // R10 subordinate fan-out (docs/UNIT_MOVEMENT_RESEARCH.md sec 4c). When ON, an
     // AGGREGATE'S along-route move is fanned out to its member ENTITIES (each member
     // gets MoveAlongRoute on the same route; the unit-level TASKCMPLT is synthesized

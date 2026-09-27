@@ -47,6 +47,8 @@ public static class RulingsSelfTest
         EchelonAndTraversalRulings(ref failures);
         Console.WriteLine("=== RL-20260926-01: ATTACK advances with fire at will; BREACH is not simulated; no Fire At to a unit ===");
         failures += EngageDoctrineSelfTest.Run();
+        Console.WriteLine("=== RL-20260927-01: a LONE ground platform drives one Move To per route vertex; units keep Move Along Route ===");
+        failures += VertexChainSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

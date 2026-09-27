@@ -232,6 +232,14 @@ determinism only where the vendor put the knob.
   headless probe from the queue (no consumer, no class). Phase 3 prereg carries VRF-8968
   as a competing hypothesis for the 5.0.2 company non-determinism (formation-validity
   race at task time) with its falsifier (stable sub-routes on 5.2 across 2 runs).
+- 2026-09-27 note (appended; the text above is left as written): lone platforms now Move To
+  per STP vertex (RL-20260927-01; FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27); units
+  unchanged. Code: branch feat/movement-moveto-per-vertex - VertexChainPolicy /
+  VertexChainTracker, Vrf:PlatformMoveToPerVertex (default ON; Vrf__PlatformMoveToPerVertex=
+  false gives every mover MoveAlongRoute again). STP's vertices and their order are kept and
+  the planner chooses only the path between two of them - the FINDING's answer (sec 4) to
+  the "hands route choice to the planner" point above. The wording above is rewritten once
+  this is live-proven (PLAN_MOVEMENT_2026-09-27 sec 4).
 
 ## Y-11 Unit Move To -> Maneuver To
 
@@ -246,6 +254,8 @@ determinism only where the vendor put the knob.
   behaviour the vendor just replaced (VRF-9243 unified formation controller).
 - Recommendation UNCHANGED: accept. Only relevant if a destination verb is ever mapped;
   MOVE stays on MoveAlongRoute (Y-10).
+  [2026-09-27 note: for a UNIT only - a lone ground platform is now driven by Move To per
+  vertex (RL-20260927-01; the Y-10 note).]
 
 ## Y-12 Autonomous Actions
 
