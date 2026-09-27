@@ -303,13 +303,28 @@ scores, the pre-warm was registered unscored):
   OVERDUE (L111511), then L158309 "STALL: unit 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE task T14...: no member
   moved more than 50 m in the last 360 SIM s (max 0.0 m); TASKABRT reported." and its TASKABRT (L158311). The 48 IBCT
   platform's console shows move-along beginning at SIM 377.996 and no other distinct line from that object after it (cause NOT claimed).
+  [CORRECTION 2026-09-27: "max 0.0 m" is the 360-SIM-s window figure; the unit had moved ~850 m then stopped - see below.]
   T10: OVERDUE at 478 s (L150099), no terminal report by window end.
 - Clock: SIM/WALL 9.139 then 6.838 (L76679, L193851). Reports: "624 delivered, 0 FAILED" (L269573). Zero fire-at-will /
   FireAt / deferred-engage lines; zero retired lines; zero SUPPRESSED.
 - App log ends with one "fail: C2SIM.C2SIMSDK[0]" line at L269576 (after the report tally; teardown-time; not examined).
 
 Measurement: the fixture loaded its maple area before the order and all five tasks dispatched inside the 120 s window; one
-of the two headline movers (28ID) arrived and the other (48 IBCT) did not move at all and was reported stalled. Design
+of the two headline movers (28ID) arrived and the other (48 IBCT) did not move at all [REFUTED - see CORRECTION
+2026-09-27 below] and was reported stalled. Design
 implication, stated separately: a -2 registration should not carry P6's "48 IBCT displaced > 50 m" at HIGH without first
 reading why the 48 IBCT platform's move-along produced no movement here (UG52 23.3 / its own member console), and the
 step-W gate needs a decision on how a forced-but-still-exiting back end is read.
+
+CORRECTION 2026-09-27 (lane T14; the text above is kept as written). "48 IBCT did not move at all" is WRONG. The
+independent WatchVrf trace (runs/20260927T003120Z_run/watchvrf-trace.csv, POS rows of VRF_UUID:247147e3, the M577A2
+the app bound to 48 IBCT) shows it drove about 850 m along its leg in about 15 wall s after dispatch, then stopped dead
+at 54.026779, 23.317195 (alt 128.8) about 1,575 m short of its destination and stayed there to the last POS row (54
+identical rows). The STALL line's "(max 0.0 m)" is the displacement inside the stall watchdog's 360-SIM-s SLIDING
+window (VrfC2SimService.cs SampleAndJudgeStall, measured against the oldest sample in the ring), not the displacement
+since dispatch. By the letter, P6 for 48 IBCT (> 50 m from its first POS fix after L-DISP) would have been met at
+about 850 m. The implication above is superseded: the question is why it STOPPED, not why it did not move. Answer
+(offline, [V] config chain + geometry): the stop point is 0.5 m outside OSM way 197345448 (natural=water, the lake
+Jezioro Wiersnie), which the vendor land-cover composite resolves to deep-water, acceleration-factor 0.0; the
+change-(e) nudge had been checked dry against CLCplus only. Record: FINDING_IRONSTORM_T14_STOP_2026-09-27.md. The cut-A
+order now routes T14 round the lake (IRONSTORM_CUTA_CHANGES.md change (i)).

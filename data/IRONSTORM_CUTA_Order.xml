@@ -710,6 +710,48 @@
         <PhysicalEntity>
           <MapGraphic>
             <TacticalGraphic>
+              <Line>
+                <Route>
+                  <APP6CSymbol>
+                    <APP6C-SIDC>GFGPOLAGM-----X</APP6C-SIDC>
+                  </APP6CSymbol>
+                  <Name>T14_Waypoint_48_IBCT__CUT_A_I_ROUTE_ROUND_LAKE_SE</Name>
+                  <SISOEntityType>
+                    <DISCategory>0</DISCategory>
+                    <DISCountry>0</DISCountry>
+                    <DISDomain>0</DISDomain>
+                    <DISExtra>0</DISExtra>
+                    <DISKind>0</DISKind>
+                    <DISSpecific>0</DISSpecific>
+                    <DISSubCategory>0</DISSubCategory>
+                  </SISOEntityType>
+                  <UUID>7ff48b93-5a1e-5a9a-813f-8dda1df7e5dd</UUID>
+                  <CurrentState>
+                    <PhysicalState>
+                      <Location>
+                        <GeodeticCoordinate>
+                          <Latitude>54.019388734463774</Latitude>
+                          <Longitude>23.313901568645093</Longitude>
+                        </GeodeticCoordinate>
+                      </Location>
+                      <Location>
+                        <GeodeticCoordinate>
+                          <Latitude>54.014600</Latitude>
+                          <Longitude>23.331500</Longitude>
+                        </GeodeticCoordinate>
+                      </Location>
+                    </PhysicalState>
+                  </CurrentState>
+                </Route>
+              </Line>
+            </TacticalGraphic>
+          </MapGraphic>
+        </PhysicalEntity>
+      </Entity>
+      <Entity>
+        <PhysicalEntity>
+          <MapGraphic>
+            <TacticalGraphic>
               <TaskGraphic>
                 <APP6CSymbol>
                   <APP6C-SIDC>GFTPUS--------X</APP6C-SIDC>
@@ -1669,6 +1711,7 @@
               <Longitude>23.313901568645093</Longitude>
             </GeodeticCoordinate>
           </Location>
+          <MapGraphicID>7ff48b93-5a1e-5a9a-813f-8dda1df7e5dd</MapGraphicID><!--T14_Waypoint ADDED BY CUT A (i)-->
           <MapGraphicID>7351f662-f857-e05a-b533-f9a46e0fb095</MapGraphicID><!--FollowAndSupport_48_IBCT_SLOT1-->
           <Name>T14_48IbctFollowsAndSupports116AbctInAtlanta,ClearingBypassed183SecBdePocketsAndProtectingSesupeCrossingsAndGlocsFromSpf/CommandoAction.</Name>
           <UUID>1075b583-a7b8-45e5-b22b-d09988c9443e</UUID>

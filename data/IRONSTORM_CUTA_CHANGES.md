@@ -10,7 +10,7 @@ DERIVED, not authored. They are produced by
 and reproduce byte for byte:
 
     data/IRONSTORM_CUTA_Initialization.xml             sha256 2000e856cb00314064ab6d40c7f7df64cea098b3466fe70d7614f3d26dc93eec
-    data/IRONSTORM_CUTA_Order.xml                      sha256 3801c71b05c310db8eb26069044c9bfec9585214a228beec61700d31d79fefe8
+    data/IRONSTORM_CUTA_Order.xml                      sha256 5d6bbae4f9126ff362ee7c4e123a3f726919e1c34b4977f1c66fe3184749fc9a
 
 (2026-09-26, twice. First corrected: this line said 1cd89c40bcce5d66...3956636, a stale hash; the record
 does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on main 8cdca96 reports
@@ -18,7 +18,9 @@ does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on
 that is the order BEFORE (f) and (g). Then changes (f) and (g) below were applied, and `--check` on the result
 reports 1ef43198...c79429. Any record that cites 5dbe8b0b describes the pre-(f)/(g) order.
 Then change (h) (T10 reroute, 2026-09-26, lane I1d) was applied; `--check` reports 3801c71b...79fefe8. A record
-citing 1ef43198 describes the pre-(h) order. The hashes are of the CRLF working-tree files `--check` reads.)
+citing 1ef43198 describes the pre-(h) order. Then change (i) (T14 routed round a lake, 2026-09-27, lane T14)
+was applied; `--check` reports 5d6bbae4...49fc9a. A record citing 3801c71b describes the pre-(i) order - the one
+IRONSTORM_CUTA_LIVE-2026-09-27-1's pre-warm ran. The hashes are of the CRLF working-tree files `--check` reads.)
 
 Re-run the script after a re-export (`python tools/scenario/derive_ironstorm_cuta.py`),
 or `--check` to prove the files on disk still match the derivation. The script FAILS
@@ -40,7 +42,7 @@ coordinate is moved, no unit is renamed, no graphic is added or removed. (Since
 block removed the remainder is still byte-identical, because all of those sit inside
 task blocks or the one nudged graphic vertex.) Since 2026-09-26 (h) also ADDS ONE graphic (a two-vertex
 Line/Route, T10's reroute) and one MapGraphicID in T10; that graphic's <Entity> is the only non-task text
-added. Root element, namespace, declaration and CRLF line endings are the
+added. Since 2026-09-27 (i) adds a SECOND such graphic (T14's waypoint) and one MapGraphicID in T14. Root element, namespace, declaration and CRLF line endings are the
 export's.
 
 ### (a) Duration format - connector bug STP-848
@@ -175,6 +177,12 @@ nudge raises rather than ships. No other task references that graphic.
 **1,213 samples with zero water**, and the endpoint itself sampled. The original proposal
 was found with a 25 m stride, which is coarse enough to step over a narrow inlet; a dry
 verdict that depends on the stride is not a verdict.
+
+> **CORRECTION 2026-09-27 (lane T14).** "Verified dry" above was true of CLCplus ONLY. The
+> vendor composite puts OSM inland water ON TOP of CLCplus, and the nudged centreline enters
+> OSM way 197345448 (natural=water, the lake Jezioro Wiersnie) at 834 m - deep-water,
+> acceleration-factor 0.0. In the 2026-09-27 pre-warm 48 IBCT stopped dead 0.5 m outside that
+> polygon at 850 m along. Fixed by change (i).
 
 **BONUS, measured against the generated navigation area:** the nudge also moved T14 off
 the two worst-connected sectors it used to cross - (30,22) ratio 0.7736 and (31,22) ratio
@@ -340,6 +348,70 @@ CHECKS on the derived order:
 
 T02, T14, T01 and T13 are not touched by (h).
 
+### (i) APPLIED 2026-09-27 - T14 routed round the lake Jezioro Wiersnie
+
+**Lane T14, 2026-09-27, from the IRONSTORM_CUTA_LIVE-2026-09-27-1 pre-warm.** Record:
+docs/experiments/FINDING_IRONSTORM_T14_STOP_2026-09-27.md. Not an owner ruling: the lane brief
+said to apply it if the stop's cause was confirmed offline, which it was.
+
+WHY. In the pre-warm (runs/20260927T003120Z_run) 48 IBCT drove 850 m of the (e) leg and stopped
+dead at 54.026779, 23.317195 for the rest of the run, console silent, task never completed. That
+point is 0.5 m outside OSM way 197345448 (natural=water). The vendor chain, all read from the
+installed files: OSM water is the TOP online layer of the land-cover composite
+(`biomes.landcover.coverage.online.xml:58`, sim-enabled by `biome.config.online.xml:13`); natural=water
+without a water= tag takes selectStyle's default -> coverage value 80 -> preset Water -> BM_WATER
+(`layer.OSM.water.LOD14.online.xml`, `presets.xml:36`) -> deeplake (`landCoverDataSurfChar.map:346`)
+-> deep-water (UG52 Table 26) -> acceleration-factor 0.000000 (`ground-tracked.sysdef:813-815`).
+CLCplus under the stop is 53 (herbaceous) and CLCplus water (100) starts 25 m east, which is why
+(e)'s CLCplus-only check read the leg dry.
+
+WHAT. ONE new waypoint, **54.014600 / 23.331500** (south-east of the lake), carried by ONE added
+`Line/Route` graphic `7ff48b93-5a1e-5a9a-813f-8dda1df7e5dd` ("T14_Waypoint_48_IBCT__CUT_A_I_...",
+SIDC `GFGPOLAGM-----X`, uuid5 of a fixed name) with two vertices: 48 IBCT's own init position
+(asserted equal to the init) and the waypoint. T14 references it BEFORE its FollowAndSupport
+graphic `7351f662`, whose vertices are asserted to be [48 IBCT's position, the (e) destination].
+The resolver drops both first vertices (the taskee's own position) and chains nearest-first:
+
+    54.019389, 23.313902 (start) -> 54.014600, 23.331500 -> 54.040348, 23.324206 (UNCHANGED destination)
+
+1,267 m + 2,902 m = 4,169 m (the (e) leg was 2,426 m; +1,743 m). `leg_check.py --dump-resolved`
+resolves T14 to exactly [waypoint, destination].
+
+SEMANTICS - STATED, because it changes. T14 stays FOLSPT: "advance along the task's graphic to its
+end and hold" (`TaskDispatchPolicy.cs:57`). The HOLD POINT is unchanged. The PATH is no longer the
+FollowAndSupport graphic's straight line: it first runs 1.3 km south-east, AWAY from the
+destination, to a waypoint that is not on that graphic. At ~8 m/s the move takes ~520 s against
+the 300 s (scaled) duration, so T14 is expected to go OVERDUE and complete on arrival (the late
+path), as T02 did in the pre-warm.
+
+HOW THE WAYPOINT WAS CHOSEN (scratch lane T14 search). A 20 m grid of single waypoints, both legs
+>= 40 m from water of ANY source (CLCplus water soils, OSM water of every class incl. marsh, 5 m
+lattice), then the maple-area corridor on both legs. The WEST side of the lake was rejected: every
+dry west route either crosses nav sectors (28,21)/(28,22) (0.8485, the sectors (h) avoids) or runs
+head-on down T10's own corridor, where T10's seven members were still crawling at 54.035-54.037 N
+at the end of the pre-warm. Among the east routes the waypoint was refined on a 0.0001 deg grid
+for >= 60 m clearance on both legs at the shortest length.
+
+CHECKS on the derived order (sha256 5d6bbae4...49fc9a):
+- Water, 2 m stride at lateral offsets 0 / +-25 / +-50 m, CLCplus + OSM: **0 of 3,175** (leg 1) and
+  **0 of 7,265** (leg 2) samples wet; clearance to the nearest water 60 m / 61 m.
+- `leg_check.py --step 2 --no-chain --osm-water <z14 osm-water tiles>`: T14 leg 1 1,267 m ratio
+  0.14 ok, leg 2 2,902 m ratio 0.06 ok, no water; the SAME run on the pre-(i) order reports T14
+  "WATER ON THE LINE - 78 of 1214 sample(s) ... deep-water (OSM water z14)". L12 elevation (the
+  finest served here; L13-L15 absent), steepest 10 m window 0.153 up / 0.176 down against the
+  M577A2's max-slope 1.0.
+- `corridor_gate.py --leg` on the maple area log (frame = its runtime config): **PASS**, 10 sectors,
+  0 below 0.9, min 0.9167 at (30,19). `--preset ironstorm-cuta-h` (T02 + T10, unchanged): **PASS**,
+  29 sectors, min 0.9000 at T02's (17,15), as recorded for (h).
+
+**NOT FIXED HERE - T10 (h) leg 2 grazes OSM water.** The same OSM-aware check flags 1 of 639
+centreline samples on T10's leg 2 at 0.76 km (54.02359, 23.31049), and 81 / 102 samples at 25 / 50 m
+to the right of travel (702-880 m along). T10 is a seven-member aggregate that moves in formation, so
+its right-hand members may drive into that water. (h) is an owner selection; re-routing it is the
+owner's call.
+
+T02, T10, T01 and T13 are not touched by (i).
+
 --------------------------------------------------------------------------------
 ## What the cut does at run time
 
@@ -351,7 +423,7 @@ MapGraphic wins over the embedded `Location` (`TaskGeometryResolver.cs:170`), an
 |---|---|---|---|---|
 | T02 | 28ID | 53.992385, 23.211255 | 54.028874, 23.264401 | **5,341 m** |
 | T10 | 1-112 IN | 54.042688, 23.308235 | 54.019389, 23.313902 | **2,617 m** straight; since (h) via 54.029734, 23.305499, 2,729 m |
-| T14 | 48 IBCT | 54.019389, 23.313902 | 54.040348, 23.336445 | **2,757 m** (origin vertex dropped at 0.0 m) |
+| T14 | 48 IBCT | 54.019389, 23.313902 | 54.040348, 23.336445 | **2,757 m** (origin vertex dropped at 0.0 m); since (e) to 54.040348, 23.324206, 2,426 m; since (i) via 54.014600, 23.331500, 4,169 m |
 
 T01 and T13 carry four MapGraphicIDs each, but `HoldInPlace` issues NO VR-Forces task
 (`VrfC2SimService.cs:3018-3031`) and logs that the geometry was not driven, so **their
@@ -394,7 +466,9 @@ level 14):
 | T10 1-112 IN | 2,617 m | 0.072 hard-packed | 0.921 | 0.08 ok | 21 x8, 22 x1, 33 x2, 51 x8, 52 x5, 60 x3 | **0** |
 | T14 48 IBCT | **2,426 m** | **0.044** hard-packed | 0.980 | **0.05 ok** | 21 x4, 22 x2, 31 x3, 33 x1, 40 x1, 51 x4, 52 x2, 53 x1, 60 x7 | **0** |
 
-**0 of 3 legs cross water; 0 flagged for grade; 0 NO VERDICT; terrain 120.6-164.1 m.** No
+**0 of 3 legs cross water; 0 flagged for grade; 0 NO VERDICT; terrain 120.6-164.1 m.**
+(CLCplus water only - see the CORRECTION under (e): OSM water was not read, and the T14 row is
+superseded by (i).) No
 urban class on any leg. The nudge also *improved* T14's grade - the new line is gentler
 (0.044 sustained against 0.096) as well as dry - and shortened it by 331 m.
 
@@ -441,3 +515,7 @@ task's route with no switch to turn it off, which is wrong for `HoldInPlace`
 predecessors - T01 and T13 never move - so the movers were scored in isolation.
 
 **Both are real gaps in the instrument and belong to the pre-flight lane, not here.**
+(Since closed in the tool: MapGraphicID resolution and `--no-chain`. A third gap, found
+2026-09-27: the tool read CLCplus water only and not the OSM inland water the vendor composite
+puts on top of it - the cause of the T14 pre-warm stop. `--osm-water DIR` now reads it; it is
+opt-in, and without it the text output says water is CLCplus-only.)
