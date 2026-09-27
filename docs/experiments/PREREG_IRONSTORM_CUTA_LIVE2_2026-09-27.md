@@ -283,4 +283,69 @@ manifest. ASCII + CRLF throughout.
 
 ## Result (written after the harvest, never from a live read)
 
-(pending)
+Written 2026-09-27 ~03:30Z by lane IS2run (session 5fc25950) from the harvested files of the scored run
+20260927T021020Z_run (main checkout runs\): vrfc2simapp.log (752,596 lines, streamed grep; L = its line numbers),
+reports-captured.log, run-manifest.json, watchvrf-trace.csv (scratch u3\laneIS2\trace_score.py), stopvrf.stdout.log,
+thread-samples.csv, holder.1.stdout.log, runner log runs\launch52\RunScenario-ironstorm-live2-20260927T021001Z.log
+(R = its line numbers). Vendor sim logs were not opened. Launch 02:10Z, order pushed after a 2 s gate, window 2,700 s,
+runner exit 03:01:21Z.
+
+### VERDICT: SCORED. Every HIGH prediction held. Three MEDIUM misses: P3 (per mover), P11b, P20. P20's miss is its NAMED OUTCOME: 48 IBCT stopped on dry ground 290 m from any water, which refutes H1's sufficiency.
+
+| # | Verdict | Evidence |
+|---|---|---|
+| P0 | PASS | (i) R74 "RtiProbe pid=42672 ... PERSISTENT FEDERATION HOLDER"; rtiexec log "Could not create federation MAK-ONE-2025, because it already exists" (creates became joins); L45 "READY - joined the federation". (ii) L217 "4 unit(s) created as EMPTY shells ... 32 platform(s) created in full". (iii) L51 "STALL WATCHDOG: ... on the SIMULATION clock" (once); L28 TASK CLOCK SIMULATION; L989 "... SIMULATION clock; Vrf:DurationScale=0.25"; L22 L-SHIFT-ON (once). (iv) R242 "NAV AREA ACQUIRED after 2s of gate". (v) exe 493a07a8 / dll c86901be / bridge 90272bc9 identical before (01:59Z) and after (03:05Z). READY TO TASK L552 "36 of 36 ... after 13.4 s" (recorded). |
+| P1 | RECORDED | L393 "0 of 36 create altitude(s) came from the TERRAIN QUERY, 36 from the FALLBACK" - as written down in sec 1(f); L395 PLACEMENT RE-CLAMP "32 of 36 object(s) - LAND PLATFORMS ONLY"; L319 the init query "got no reply within 10 s". |
+| P2 | PASS | First L-AREA L738 `NavArea-ground-platform IRONSTORM-CENTRE_maple` before L-ORDER L830; all 45 L-AREA rows name the maple area. R244 placement -> area row 7.2 s, WARM. |
+| P3 | PASS (HIGH); MEDIUM MISS per mover | 27 L-PROOF lines (first L3411). Per mover: all 6 1-112 IN members yes; 28ID and 48 IBCT none (both drove Move Along Route, which plans no path, UG52 23.3). |
+| P4 | PASS | 5 TASKSTRT, one per uuid (L862, L890, L1559, L1573, L1613); T02 L-DISP L1611 after T01 TASKCMPLT L1335; T14 L-DISP L1571 after T13 TASKCMPLT L1329; L844 T10 "start delay 300 s (order says 1200 s ...)" before T10 L-DISP L1557; zero predecessor SKIPs. |
+| P5 | PASS | L1551 (1-112 IN, gap 0.3 m), L1567 (48 IBCT, 0.0 m), L1607 (28ID, 0.0 m) "is ON the terrain"; 0 OFF gate lines; 0 retired lines. The 32 "MEASURED OFF THE TERRAIN" lines are the init re-clamp sweep, not the dispatch gate. |
+| P6 | PASS | Measured since dispatch: T02 28ID 5,173 m (5,340 m from the last pre-dispatch fix); T14 48 IBCT 1,515 m (1,533 m). |
+| P6b | PASS | All six 1-112 IN members 2,543-2,677 m since dispatch. |
+| P6c | RECORDED | L-PLAN only for T10 members (27 "Planned path has N points", 27 "Is destination in nav area?: success"); none for 28ID / 48 IBCT; 0 "not enough (0) points". Net: 28ID 5,340 m to 1.0 m from its destination; 48 IBCT see P20; T10 members end 1.7-51.5 m from the PassagePoint. |
+| P7 | PASS | T01 L866 + L868, T13 L894 + L896; L864 / L892 "armed at 300 s ... it has no destination"; TASKCMPLT L1335 / L1329 "(300 s after dispatch)"; 2 STP-866 Observations in the capture; no L-ROUTE and no OVERDUE for either. |
+| P8 | PASS | L-R3SELF L1359, L1541, L1609, T02 only; T02 passes = 1 + L1361 (route-shift check queued) + L1543 (terrain profile request) = 3; 0 L-FAW, 0 FireAt, 0 deferred-engage. |
+| P9 | PASS | One L-FOLSPT L1569 "rules of engagement as ordered ('ROEHold')"; L-ROUTE L1577; L1575 armed at 300 s, "a destination". |
+| P10 | PASS | L-BARE L1377 / L1509 / L1555 (one per pass); L-ROUTE L1563; L1561 armed at 450 s, "a destination"; no IN PLACE for T10. |
+| P11 | PASS (HIGH and MEDIUM) | T02 path (b): OVERDUE L107399 (325 of 300 s), ARRIVAL EVIDENCE L155255, L155257, TASKCMPLT L155259 "arrived after its task's end time". T10 path (b): OVERDUE L149157 (472 of 450 s), L712007-L712011 TASKCMPLT on arrival. T14 path (d): OVERDUE L107401 (the registered shape: a 300 s armed end inside the 360 s window), then STALL L208413 and one TASKABRT L208415; no TASKCMPLT. One terminal path each. |
+| P11b | MEDIUM MISS | T14 took path (d), stalled, not (b). |
+| P12 | PASS | 0 SUPPRESSED; one terminal report per uuid (4 TASKCMPLT + 1 TASKABRT); 0 `task=(none)`; capture = log (5 / 4 / 1); L752593 "9840 delivered, 0 FAILED". |
+| P13 | RECORDED | T14 STALL L208413 "(max 0.4 m)" in 360 SIM s, sim clock ~1,057 s; since dispatch 1,515 m (trace). OVERDUEs: T02 325 s, T14 325 s, T10 472 s. T02 arrived ~73 wall s after dispatch (trace); T10 reported 331.6 WALL s = 2,403.3 SIM s after dispatch (L712007). |
+| P14 | PASS | 0 L-ENGAGE / FireAt / "Fire Weapon" lines. |
+| P15 | PASS | 0 L-SHIFTED; "no leg flagged" for T10 L1485, T14 L1493, T02 L1533. |
+| P16 | RECORDED | L-DISP SIM stamps: T01 / T13 72.3 s; T10 / T14 / T02 419.9 s. 45 L-RATIO lines, SIM/WALL 6.993-13.917. |
+| P17 | PASS | 0 BACK END LOST; runner exit 4 (not the WS-runaway 6); no .dmp / .callstack.log under C:\MAK\vrforces5.2d written after 02:00Z; VrfC2SimApp exit 0 (manifest); rtiexec 47980, rtiForwarder 50740, rtiAssistant 30240 and holder 42672 up at 03:01:35Z. |
+| P18 | PASS | StopVrf exit 6 (R364; the graceful close was refused and the own back end pid 6980 forced by identity). The registered miss is exit 3 / 5 / 7. Post-run inventory 03:01:35Z: no vrfSim / VrfC2SimApp / WatchVrf / ListenReports. RECORDED beside it: the runner's own post-check (R369-R382) still listed the forced pid 6980, so runner exit 4 "TEARDOWN INCOMPLETE"; thread-samples.csv has 6980 "process gone" at 03:01:24.169Z. |
+| P19 | PASS | L1363 / L1365 "1 vertex(es) dropped" (c8d9cd1a, 51a59f89); L1367 c8d9cd1a "(line, 1 vertices): 1 vertex(es) joined." (no suffix); L1369 51a59f89 "... joined 805 m after the previous graphic's end"; L1371 cc23071f -> PassagePoint_48_IBCT_SLOT0 "(point, 1 vertex): appended as the route's DESTINATION"; 0 resolver warnings for T10; L1563 "(4 pts)". |
+| P19b | PASS | L1337 / L1339 "1 vertex(es) dropped" (7ff48b93, 7351f662); L1341 7ff48b93 joined (no suffix); L1343 7351f662 "joined 2906 m after the previous graphic's end"; 0 warnings for T14; L1577 "(3 pts)". |
+| P20 | MEDIUM MISS - NAMED OUTCOME | Limbs: did NOT halt near 54.02678, 23.31720 (closest 702.5 m) - held; passed the (i) waypoint (closest fix 25.8 m, trace t 89.7) - held; reached within 100 m of its destination - FAILED: it stopped at 54.030807, 23.327063 (alt 133.6, last >5 m step at trace t 114.3, about 43 wall s after dispatch) and stayed there to the last fix (t 2773.6), 1,077 m short, 1,825 m along the 2,902 m leg 2, about 10 m east of the leg's line. The stop is DRY: nearest water of any source (the OSM z14 water raster over the CLCplus chain, 5 m rings) is 290 m away; the steepest 10 m window within +-100 m on the leg heading is 0.065; no other entity came within 400 m. That is the registered named outcome. |
+| P21 | PASS | 0 wet fixes over the 9 objects that moved > 50 m (28ID, 48 IBCT, the 1-112 IN proxy and its 6 members); 0 fixes on absent tiles. |
+
+MEASUREMENTS BEYOND THE PREDICTIONS [V]:
+- Under the T14 stop, CLCplus reads class 31 ("Woodland - broadleaved trees", BM_VEGETATION) at all 81 lattice points
+  within 25 m, and at 262 of 317 within 50 m. The last two fixes before the stop turned from heading -9.5 deg (the leg) to
+  -6.9 deg, then one 3.7 m step. The object's own console at level 4 printed nothing after "Controller ... beginning to
+  process move-along task" (L1635/L1637). This is the same silence as the -1 stop.
+- Across the whole run, the movers drove through needle-leaved woodland (CLCplus 21) for kilometres without stopping:
+  28ID ~3.4 km, 48 IBCT before its stop ~2.2 km, and T10 members 0.7-1.25 km each. Class 31 is rare on every track. T10
+  members crossed 10-80 m of class 31 and kept moving. 48 IBCT's only class-31 samples are at its stop.
+- StopVrf52 printed "forced pid 6980 still exiting after 0 s", although -ForcedExitWaitSec defaults to 60 s and the
+  runner did not pass it. The post-force wait loop (scripts/StopVrf52.ps1:582-584) apparently ended at once while the
+  name-based re-read still listed the pid. This is UNEXPLAINED here [A: no reproduction].
+- T13's resolver warned "RETURNS to the taskee's own start ... TRUNCATED" (L882). T13 is a hold and its geometry is not
+  driven.
+
+Measurement: in one scored run on the maple area, all five tasks dispatched in their registered order and all reports
+were clean. 28ID drove 5.3 km and T10's aggregate drove 2.7 km through both of its new waypoints; both arrived late and
+completed on arrival. No mover's track touched OSM water. 48 IBCT drove the new (i) route past its waypoint, then
+stopped dead on dry ground in broadleaved woodland, 290 m from any water and 1,077 m short of its destination. The
+watchdog reported the stop as a stall and sent a TASKABRT.
+
+Design implication, stated separately: the T14 finding's H1 (OSM deep water) does not explain this stop, so water
+cannot be the whole story of 48 IBCT's two stops. H2 (the vehicle's own obstacle avoidance deadlocking) is the
+registered alternative. The measurements above name one candidate for it: the woodland at the stop (CLCplus 31). On
+this fixture, biome-04 forest is red maples over the whole AO (tools/FixtureGen/README.md:171). The movers crossed
+kilometres of other woodland without stopping, so if trees are the cause, the difference must be in tree density or
+layout at this spot. Tree density per land-cover class was not measured, and the candidate is NOT verified. This run cannot tell whether trees stop a lone M577A2 on Move
+Along Route, or whether the -1 stop was the same mechanism. Iron Storm is not demo-ready while one of its three movers
+stops mid-leg.

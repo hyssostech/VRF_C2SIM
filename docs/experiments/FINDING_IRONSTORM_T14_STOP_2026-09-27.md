@@ -60,5 +60,9 @@ Since fixed by cut-A change (j) (a second T10 waypoint 54.024000, 23.313000; dat
   it was driving, and no other entity was near. What would falsify H1: in the -2 run on the (i) route, 48 IBCT stops
   again on dry ground (>= 50 m from any water of any source) - or, flown on the old leg, it stops somewhere other than
   within ~50 m of 54.02678, 23.31720.
+- FALSIFIER FIRED 2026-09-27 (IRONSTORM_CUTA_LIVE-2026-09-27-2, P20; PREREG_IRONSTORM_CUTA_LIVE2_2026-09-27.md Result):
+  on the (i) route, 48 IBCT passed its waypoint and then stopped dead on DRY ground at 54.030807, 23.327063, 290 m from
+  any water, in CLCplus 31 woodland. H1 is therefore NOT sufficient for 48 IBCT's stops. The cause of this second stop is
+  OPEN, and H2 is not verified.
 - Unexplained: why the last 46 m step turned 32 deg left before stopping (avoidance of the edge ahead is the reading;
   not verified). Assumed: the OSM tiles fetched 2026-09-26 are the ones the sim streamed on 2026-09-27.
