@@ -1,9 +1,10 @@
 # PREREG - IRON STORM CUT A, RUN E1: lone platforms on Move To per vertex, T14 on its ORIGINAL line (one scored run)
 
 STATUS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered 2026-09-27 (the registration commit's own time is the
-stamp; see git log) by lane E1 (session 5fc25950) on branch run/ironstorm-cuta-e1 from main 5e8d6f1, BEFORE the holder,
-the order validation push and the scored run. Nothing in this file has been launched: no push, no holder, no appNumber
-claim - the preparation phase stops here and the seat gives the go-live. Written from the -2 registration
+stamp; see git log) by lane E1 (session 5fc25950) on branch run/ironstorm-cuta-e1 from main 50a7a62 (docs only after
+the build commit 5e8d6f1), BEFORE the holder, the order validation push and the scored run. Nothing in this file has been
+launched: no push, no holder, no appNumber claim - the preparation phase stops here and the seat gives the go-live.
+Written from the -2 registration
 (PREREG_IRONSTORM_CUTA_LIVE2_2026-09-27.md - its settings, sequence and P0-P21, carried where still valid) and the
 seat's E1 brief. Marks: [V] = checked while writing this file; [A] = taken from the record, not re-checked.
 
@@ -222,7 +223,7 @@ the route is unchanged.`), L-CENSUS (:1672), L-CLOCK (:862), L-RATIO (:7018), L-
 ## 3. Sequence and exact command lines - the GO-LIVE (nothing below has been run unless marked PREP)
 
 All from Git Bash at the MAIN checkout F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM, HEAD main
-(5e8d6f1 when this was written). The runner writes its appNumber block into the MAIN checkout's working-tree
+(50a7a62 when this was written; the deployed build is 5e8d6f1, docs only behind it). The runner writes its appNumber block into the MAIN checkout's working-tree
 OPUS_EXECUTION_PLAN.md; that block is carried back to this branch afterwards (the IS1 / IS2 procedure).
 
 A0. PRECONDITIONS: (1) the seat's go-live; (2) no other lane building, running a suite or an agent (the two offline lanes
@@ -422,6 +423,8 @@ PLAN_MOVEMENT_2026-09-27.md row E1; DEMO_READINESS row 16; HANDOFF sec 6 (200 x 
 - That per-vertex Move To is better than one Move To to the destination: for a two-point route they coincide (FINDING sec
   5.2), which is all E1 drives.
 - Anything new about units: T10's code path is -2's.
+- Anything about M2's C# OSM pre-flight (vertex nudges, OSM water / building reports): it is NOT in this build, on purpose
+  (PLAN_MOVEMENT row E1: "M2 merges AFTER E1 on purpose"), so the planner is tested alone.
 - No unit ATTACK or fire at will; no BREACH; CNFPSL as a real passage (held in place); following 116 ABCT (not read); T02
   as an attack (STP-846's fallthrough for RECEIVE).
 - Nothing about vegetation fidelity, the full 23-task order, the aggregate profile (run G1), the demo server
