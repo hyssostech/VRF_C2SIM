@@ -9,7 +9,15 @@ Populated containers (C1): docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md. The s
 |---|---|---|
 | survey_magx.py | walks AggregateTacticalLevel.sms -> AggregateLevelBase.sms -> base.sms, reads every kind-11 .entity and every .magx, resolves each type by the vendor best-match rule (ported from src/VrfC2SimApp/ObjectTypeResolver.cs) and writes the catalogue | --selftest |
 | typemap_check.py | gates data/unit-type-map-52-aggregate.json: schema, uniqueness, resolution in the installed chain, the app's order-time EXPAND trap, and coverage of every unit of data/STP-IRON-STORM-SYNTHETIC_Initialization.xml | --selftest |
-| composition_check.py | gates data/unit-composition-52-aggregate.json (DRAFT): every row resolves to catalogue-SIMULATED units with counts, sub-containers compose, echelons descend, nation, recursion, map keys, cut-A coverage; reports --tree (footprints, rings, flat vs nested), --init-census (the container each Iron Storm unit gets), --twins (what today's materialization would do), --vendor (the sample scenarios' containers, states and plan tasks) | --selftest |
+| composition_check.py | gates data/unit-composition-52-aggregate.json (DRAFT): every row resolves to catalogue-SIMULATED units with counts, sub-containers compose, echelons descend, nation, recursion, map keys, cut-A coverage - per VARIANT ("catalogue" on the shipped chain, "authored" on the derived chain); reports --tree (footprints, rings, flat vs nested), --init-census (the container each Iron Storm unit gets), --twins (what today's materialization would do), --vendor (the sample scenarios' containers, states and plan tasks) | --selftest |
+| authored_units.py | package C2: turns tools/sms/aggregate_authored_design.json into tools/sms/C2SIM_AggregateTacticalLevel.recipe.json (--write), gates it (--check: recipe == regeneration), prints rolled and KEPT-from-donor values (--report), builds the Python-side outputs into a scratch dir (--emit DIR); the deploy is tools/sms/Deploy-C2SimAggregateSms.ps1 | --selftest |
+
+The AUTHORED types (package C2) live only in the DERIVED set C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms
+(tools/sms). typemap_check.py and composition_check.py read it as a second chain (derived -> AggregateTacticalLevel
+-> AggregateLevelBase -> base), by default at that path; `--derived-sms PATH` (or env C2SIM_AGGREGATE_SMS) names
+another deployment. survey_magx.py surveys the shipped chain unless given `--derived-sms`. typemap_check.py gates the map's "authoredRows" on it - each type lands its own UNIT there, none exists on
+the shipped chain, and the set only ADDS (every vendor template, map row and US init-shell / container candidate type
+resolves as on the shipped chain); both validators FAIL when the derived set is not deployed.
 
 ```
 python tools/aggregate/survey_magx.py --out docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md \
@@ -20,6 +28,8 @@ python tools/aggregate/survey_magx.py --selftest          # SURVEY SELFTEST PASS
 python tools/aggregate/typemap_check.py --selftest        # TYPEMAP SELFTEST PASS
 python tools/aggregate/composition_check.py --tree --init-census --twins --vendor   # COMPOSITION GATE PASS
 python tools/aggregate/composition_check.py --selftest     # COMPOSITION SELFTEST PASS
+python tools/aggregate/authored_units.py --check           # RECIPE CHECK PASS
+python tools/aggregate/authored_units.py --selftest        # AUTHORED UNITS SELFTEST PASS
 ```
 
 Why a validator instead of a `--parse-init` run: the app cannot select a type map offline (InitParseCheck.cs plans with

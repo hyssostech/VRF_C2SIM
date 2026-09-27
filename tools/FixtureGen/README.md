@@ -210,6 +210,29 @@ default AOI: validate them with `--terrain aggregate --sms aggregate` and WITHOU
 intended check. How its .scn differs from Road to Kaunas's, and why: docs/experiments/AGGREGATE_PROFILE_OFFLINE_2026-09-27.md
 sec 4.
 
+`IronStorm_Centre_52_Aggregate_C2SIM` (package C2, 2026-09-27): the same fixture on the DERIVED aggregate set that holds
+the authored US unit types, `--sms aggregate-c2sim` = `C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms` (absolute
+path; deploy it first with tools/sms/Deploy-C2SimAggregateSms.ps1). The builder classifies a derived set by the vendor
+SMS its include chain reaches (the runner's rule, RunnerLib.ps1 Get-ModelSetFromSms), so this one is an aggregate set
+and also REQUIRES `--terrain aggregate`. The validator OPENS it: it must include AggregateTacticalLevel.sms, keep the
+HLA validator-string, carry vrfSim.opd, and every authored .entity must parse as kind 11 and shadow no vendor file.
+Built into `frame_variants/`; NOT deployed:
+```
+python build_fixture.py --profile 5.2 --empty \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 \
+       --out-name IronStorm_Centre_52_Aggregate_C2SIM \
+       --scenario-name "Iron Storm (5.2, FFRTC, C2SIM_AggregateTacticalLevel - authored US types - on MAK Earth Aggregate (online))" \
+       --terrain aggregate --sms aggregate-c2sim
+python validate_fixture.py --empty-52 frame_variants/IronStorm_Centre_52_Aggregate_C2SIM.scnx \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 --terrain aggregate --sms aggregate-c2sim   # ALL FIXTURES: OK
+```
+`.scnx` sha256 67dbc5953a8d4af234be861f0965109945fa2dcce105ae45779d831ea33d61ad (rebuilds identically). Negative
+controls (2026-09-27): the builder REFUSES `--sms aggregate-c2sim` without `--terrain aggregate` (exit 1, nothing
+written); this fixture validated with `--sms aggregate`, and IronStorm_Centre_52_Aggregate validated with `--sms
+aggregate-c2sim`, each FAIL on Simulation-Model-Set-Files. Pair it ONLY with the composition's "authored" variant (data/
+unit-composition-52-aggregate.json): on the shipped set the authored types land empty containers.
+
 `validate_fixture.py --empty-52` expects the same default, OPENS the derived SMS, and
 reports its include chain plus every vendor artefact it overrides: for a `.lua` under
 `scripts/`, the script id, the `useAbstractGraphs` value and the run-time proof line; for a

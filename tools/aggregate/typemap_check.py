@@ -28,10 +28,23 @@ Gates (every one exits non-zero on failure):
                rooted at EntityLevel.sms and CreationPolicy=AtOrder would EXPAND it
   coverage     every unit of data/STP-IRON-STORM-SYNTHETIC_Initialization.xml resolves to a
                usable row for the friendly nation and for EACH hostile nation the map carries
+  authored     (package C2, RL-20260927-04) the map's "authoredRows": the AUTHORED US unit types of
+               the derived set C2SIM_AggregateTacticalLevel (tools/sms). They are NOT lookup rows -
+               the app reads "rows" only (UnitTypeMap.Parse), and would parse fidelity AUTHORED as
+               Failed (ParseFidelity) while Lookup ignores fidelity, so an AUTHORED row in "rows"
+               is refused. Gated: schema; one row per design type (tools/sms/aggregate_authored_
+               design.json) with the same type, label, .entity and .magx; on the DEPLOYED derived
+               chain each lands its own warfare-model UNIT and its .magx names it; on the VENDOR chain
+               it does NOT (the wrong-SMS hazard - what it would land is printed); the derived chain
+               resolves every vendor template and every map row exactly as the vendor chain does
+               (the set only ADDS); no EntityLevel twin the app would EXPAND.
 Run with the repo's pinned interpreter:
     python tools/aggregate/typemap_check.py                 # gate the committed map
     python tools/aggregate/typemap_check.py --census-md     # + the per-unit census as markdown
     python tools/aggregate/typemap_check.py --selftest      # port proof + CLEAN/DIRTY controls
+    python tools/aggregate/typemap_check.py --derived-sms <path>   # a derived set other than the default
+The authored gate needs the derived set DEPLOYED (tools/sms/Deploy-C2SimAggregateSms.ps1); it FAILS,
+naming the command, when it is not.
 """
 import collections
 import copy
@@ -56,6 +69,12 @@ ROW_FIELDS = {"id": str, "surveyRow": str, "functionId": str, "echelon": str, "e
               "templateName": str, "fidelity": str, "proxyNote": str}
 OPTIONAL_ROW_FIELDS = {"role": str, "entityFile": str, "magx": str}
 FIDELITIES = ("EXACT", "PROXY", "AUTHORED_PENDING")
+# authoredRows (package C2): not lookup rows - see the module note.
+AUTHORED_FIELDS = {"id": str, "templateName": str, "objectType": str, "entityFile": str, "magx": str, "role": str,
+                   "isAggregate": bool, "fidelity": str, "nationRole": str, "nation": str, "echelonCode": str,
+                   "modelSet": str, "recipeId": str, "proxyNote": str}
+OPTIONAL_AUTHORED_FIELDS = {"servesComposition": list}
+DESIGN = os.path.join(REPO, "tools", "sms", "aggregate_authored_design.json")
 ECHELON_CODES = ("", "NOS", "TEAM", "SQUAD", "SECT", "PLT", "COY", "BN", "RGT", "BDE", "DIV", "CORPS",
                  "ARMY", "AG", "REGION")
 
@@ -257,7 +276,10 @@ def gate_schema(g, m):
         extra = set(r) - set(ROW_FIELDS) - set(OPTIONAL_ROW_FIELDS)
         if extra:
             problems.append("%s: unknown field(s) %s" % (rid, sorted(extra)))
-        if r.get("fidelity") not in FIDELITIES:
+        if r.get("fidelity") == "AUTHORED":
+            problems.append("%s: fidelity AUTHORED belongs in authoredRows - the app parses it as Failed "
+                            "(UnitTypeMap.ParseFidelity) and Lookup ignores fidelity" % rid)
+        elif r.get("fidelity") not in FIDELITIES:
             problems.append("%s: fidelity %r" % (rid, r.get("fidelity")))
         if r.get("nationRole") not in ("friendly", "hostile"):
             problems.append("%s: nationRole %r" % (rid, r.get("nationRole")))
@@ -384,7 +406,143 @@ def gate_coverage(g, m, init_path, friendly="USA"):
     return units, census
 
 
-def run_gates(m, chain, entity_chain, init_path=IRON_STORM_INIT, quiet=False):
+def load_derived(path=None):
+    """The deployed derived chain, or (None, reason)."""
+    path = path or sm.DERIVED_AGGREGATE_SMS
+    try:
+        return sm.Chain(derived_sms=path), path
+    except (IOError, OSError) as e:
+        return None, "%s (%s)" % (path, e)
+
+
+def gate_authored(g, m, chain, derived, entity_chain, design, derived_why=""):
+    """The authoredRows gate (module note). Returns info lines (the wrong-SMS hazard per type)."""
+    arows = m.get("authoredRows")
+    info = []
+    if arows is None:
+        return info
+    rows = m.get("rows") or []
+    nations = m.get("nations") or {}
+    problems = []
+    if not isinstance(arows, list) or not arows:
+        g.check(False, "authored: authoredRows is a non-empty list", repr(arows)[:80])
+        return info
+    for r in arows:
+        rid = r.get("id", "?")
+        for k, typ in AUTHORED_FIELDS.items():
+            if k not in r or not isinstance(r[k], typ):
+                problems.append("%s: field %s missing or not %s" % (rid, k, typ.__name__))
+        for k, typ in OPTIONAL_AUTHORED_FIELDS.items():
+            if k in r and not isinstance(r[k], typ):
+                problems.append("%s: field %s not %s" % (rid, k, typ.__name__))
+        extra = set(r) - set(AUTHORED_FIELDS) - set(OPTIONAL_AUTHORED_FIELDS)
+        if extra:
+            problems.append("%s: unknown field(s) %s" % (rid, sorted(extra)))
+        if r.get("fidelity") != "AUTHORED":
+            problems.append("%s: fidelity %r (authoredRows carry AUTHORED only)" % (rid, r.get("fidelity")))
+        if r.get("role") != "UNIT" or r.get("isAggregate") is not True:
+            problems.append("%s: an authored type is a warfare-model UNIT (role UNIT, isAggregate true)" % rid)
+        if not r.get("proxyNote", "").strip():
+            problems.append("%s: AUTHORED without a note" % rid)
+        if r.get("echelonCode") not in ECHELON_CODES:
+            problems.append("%s: echelonCode %r" % (rid, r.get("echelonCode")))
+        t8, nf = sm.parse_type(r.get("objectType", ""))
+        if t8 is None or nf != 8 or t8[0] != 3 or t8[1] != sm.UNIT_KIND or t8[2] != 1:
+            problems.append("%s: objectType %r is not an 8-field kind-11 LAND unit type" % (rid, r.get("objectType")))
+        elif r.get("nation") not in nations or t8[3] != nations[r["nation"]]:
+            problems.append("%s: DIS country %s is not the nation %s" % (rid, t8[3], r.get("nation")))
+        for field in ("proxyNote", "templateName", "id", "entityFile", "magx"):
+            if any(ord(c) > 126 for c in r.get(field, "")):
+                problems.append("%s: non-ASCII in %s" % (rid, field))
+    g.check(not problems, "authored: every authoredRows row has its fields, types and enums (%d rows)" % len(arows),
+            "; ".join(problems[:6]) + (" ..." if len(problems) > 6 else ""))
+    # uniqueness, and no collision with a lookup row
+    ids = collections.Counter([x.get("id") for x in rows] + [x.get("id") for x in arows])
+    types = collections.Counter(x.get("objectType") for x in arows)
+    row_types = set(x.get("objectType") for x in rows)
+    bad = ([k for k, v in ids.items() if v > 1] + ["type %s twice" % k for k, v in types.items() if v > 1] +
+           ["type %s is also a lookup row's" % x.get("objectType") for x in arows if x.get("objectType") in row_types])
+    g.check(not bad, "authored: ids unique across rows and authoredRows; one row per authored type", str(bad[:6]))
+    # one row per design type, same type / label / files
+    link = []
+    by_recipe = dict((x.get("recipeId"), x) for x in arows)
+    dtypes = design.get("types", []) if design else []
+    for t in dtypes:
+        r = by_recipe.get(t["id"])
+        if r is None:
+            link.append("design type %s has no authoredRows row" % t["id"])
+            continue
+        want = dict(objectType="3:" + t["objectType"], templateName=t["label"], entityFile=t["label"] + ".entity",
+                    magx=t["label"] + ".magx", modelSet=design["name"])
+        for k, v in want.items():
+            if r.get(k) != v:
+                link.append("%s: %s %r, the design says %r" % (r.get("id"), k, r.get(k), v))
+    extra = [x.get("id") for x in arows if x.get("recipeId") not in set(t["id"] for t in dtypes)]
+    link += ["%s names no design type" % e for e in extra]
+    g.check(not link, "authored: one row per design type (tools/sms/aggregate_authored_design.json), same type, "
+                      "label, .entity and .magx", "; ".join(link[:6]))
+    if derived is None:
+        g.check(False, "authored: the derived set is DEPLOYED (the authored types exist only there)",
+                "%s - run tools/sms/Deploy-C2SimAggregateSms.ps1" % derived_why)
+        return info
+    res, hazard, trap, magx_bad = [], [], [], []
+    for r in arows:
+        t8, _ = sm.parse_type(r.get("objectType", ""))
+        if t8 is None:
+            continue
+        t = derived.resolve(t8)
+        if t is None or t.role != "UNIT" or t.sms != derived.order[0][0] or r.get("templateName") not in (t.label, t.name) \
+                or t.file != r.get("entityFile"):
+            res.append("%s %s lands %s (%s, %s)" % (r.get("id"), r.get("objectType"), t.name if t else "nothing",
+                                                    t.role if t else "-", t.sms if t else "-"))
+        ms = [x for x in derived.magx if x["file"] == r.get("magx")]
+        if not ms or any(x["otype"] != t8 or x["name"] != r.get("templateName") for x in ms):
+            magx_bad.append("%s: %s" % (r.get("id"), r.get("magx")))
+        v = chain.resolve(t8)
+        if v is not None and r.get("templateName") in (v.label, v.name):
+            hazard.append("%s: the VENDOR chain already lands %s - not an authored type" % (r.get("id"), v.name))
+        info.append("  [info] wrong-SMS hazard: %-34s on the vendor SMS lands %s (%s)" % (
+            r.get("templateName"), v.name if v else "nothing", v.role if v else "-"))
+        et = entity_chain.resolve(t8)
+        if et is not None and et.subs and all(s8[0] == 3 for s8, _h in et.subs):
+            trap.append("%s: EntityLevel twin '%s' is a PURE higher unit" % (r.get("id"), et.name))
+    g.check(not res, "authored: on the DEPLOYED derived chain every authored type lands its own warfare-model UNIT",
+            "; ".join(res[:6]))
+    g.check(not magx_bad, "authored: every authored .magx maps exactly its type to its element", "; ".join(magx_bad))
+    g.check(not hazard, "authored: no authored type exists on the vendor chain (it needs the derived set)",
+            "; ".join(hazard))
+    g.check(not trap, "authored: no authored type the app's EntityLevel-rooted resolver would EXPAND", "; ".join(trap))
+    moved = []
+    for tm in chain.units():
+        if -1 in tm.otype:
+            continue
+        a, b = chain.resolve(tm.otype), derived.resolve(tm.otype)
+        if (a.name if a else None) != (b.name if b else None):
+            moved.append("%s -> %s" % (tm.name, b.name if b else None))
+    for x in rows:
+        t8, _ = sm.parse_type(x.get("objectType", ""))
+        if t8 is not None:
+            a, b = chain.resolve(t8), derived.resolve(t8)
+            if (a.name if a else None) != (b.name if b else None):
+                moved.append("row %s -> %s" % (x.get("id"), b.name if b else None))
+    # the US init-shell / container candidate space - every US ground type with a headquarters from
+    # company to corps (11:1:225:5..10:0..34:1:0|1), what an init shell or a composition container asks for
+    for t8 in CANDIDATE_TYPES:
+        a, b = chain.resolve(t8), derived.resolve(t8)
+        if (a.name if a else None) != (b.name if b else None):
+            moved.append("candidate %s -> %s" % (":".join(str(v) for v in t8[1:]), b.name if b else None))
+    g.check(not moved, "authored: the derived set only ADDS - every vendor template, every map row and every US "
+                       "init-shell / container candidate type (11:1:225:5..10:0..34:1:0|1) resolves identically "
+                       "on both chains", "; ".join(moved[:6]))
+    return info
+
+
+CANDIDATE_TYPES = [(3, 11, 1, 225, cat, sub, 1, extra)
+                   for cat in range(5, 11) for sub in range(0, 35) for extra in (0, 1)]
+
+
+def run_gates(m, chain, entity_chain, init_path=IRON_STORM_INIT, quiet=False, derived=None, design=None,
+              derived_why=""):
     g = Gate(quiet=quiet)
     gate_schema(g, m)
     if g.bad:
@@ -392,6 +550,7 @@ def run_gates(m, chain, entity_chain, init_path=IRON_STORM_INIT, quiet=False):
     gate_uniqueness(g, m)
     gate_resolution(g, m, chain, entity_chain)
     units, census = gate_coverage(g, m, init_path)
+    g.info = gate_authored(g, m, chain, derived, entity_chain, design, derived_why)
     return g, units, census
 
 
@@ -429,7 +588,7 @@ def census_markdown(units, census):
 # Self-test: the port against the app's known answers, then CLEAN / DIRTY controls
 # ---------------------------------------------------------------------------------------------
 
-def selftest(map_path=DEF_MAP):
+def selftest(map_path=DEF_MAP, derived_path=None):
     g = Gate()
     print("--- 1. the key-logic port reproduces src/VrfC2SimApp/TypeMapSelfTest.cs on the ENTITY map ---")
     em = json.load(open(ENTITY_MAP, encoding="utf-8"))
@@ -454,16 +613,19 @@ def selftest(map_path=DEF_MAP):
     print("--- 2. the CLEAN control: the committed aggregate map passes every gate ---")
     chain = sm.Chain(top_sms="AggregateTacticalLevel")
     entity_chain = sm.Chain(top_sms="EntityLevel")
+    derived, why = load_derived(derived_path)
+    design = json.load(open(DESIGN, encoding="utf-8"))
     m = json.load(open(map_path, encoding="utf-8"))
-    clean, _u, _c = run_gates(m, chain, entity_chain, quiet=True)
+    clean, _u, _c = run_gates(m, chain, entity_chain, quiet=True, derived=derived, design=design, derived_why=why)
     g.check(clean.bad == 0, "CLEAN: %s passes all gates" % os.path.basename(map_path), "; ".join(clean.failures))
 
     print("--- 3. DIRTY controls: each defect must FAIL its own gate ---")
 
-    def dirty(name, mutate, expect):
+    def dirty(name, mutate, expect, no_derived=False):
         d = copy.deepcopy(m)
         mutate(d)
-        res, _u2, _c2 = run_gates(d, chain, entity_chain, quiet=True)
+        res, _u2, _c2 = run_gates(d, chain, entity_chain, quiet=True, derived=None if no_derived else derived,
+                                  design=design, derived_why="(withheld by the control)")
         hit = any(expect in f for f in res.failures)
         g.check(hit, "DIRTY %s -> fails '%s' (%d gate(s) failed)" % (name, expect, res.bad),
                 "failures: %s" % res.failures)
@@ -514,6 +676,63 @@ def selftest(map_path=DEF_MAP):
     dirty("a templateName the type does not land", wrong_template, "lands the template it names")
     dirty("no RUS catch-all", drop_catch_all, "catch-all")
     dirty("an Iron Storm unit with no row", uncovered, "coverage: all")
+
+    # the authored rows (package C2)
+    def authored_in_rows(d):
+        r = copy.deepcopy(d["rows"][0])
+        r.update(id="F-AUTHORED-LOOKUP", functionId="UCIX", fidelity="AUTHORED")
+        d["rows"].append(r)
+
+    def undeployed_type(d):
+        d["authoredRows"][0]["objectType"] = "3:11:1:225:6:3:1:250"
+
+    def authored_no_note(d):
+        d["authoredRows"][0]["proxyNote"] = " "
+
+    def vendor_posing(d):
+        d["authoredRows"][0].update(objectType="3:11:1:225:5:4:0:0", templateName="Mech CO (USA, M2)")
+
+    def design_type_dropped(d):
+        d["authoredRows"].pop()
+
+    def authored_twice(d):
+        d["authoredRows"][1]["objectType"] = d["authoredRows"][0]["objectType"]
+
+    if m.get("authoredRows"):
+        dirty("an AUTHORED row among the lookup rows", authored_in_rows, "belongs in authoredRows")
+        dirty("an authored type the deployed set does not publish", undeployed_type, "DEPLOYED derived chain")
+        dirty("an authored row with no note", authored_no_note, "authored: every authoredRows row")
+        dirty("a vendor catalogue type posing as authored", vendor_posing, "exists on the vendor chain")
+        dirty("a design type with no authored row", design_type_dropped, "one row per design type")
+        dirty("two authored rows with one type", authored_twice, "one row per authored type")
+        dirty("the derived set not deployed", lambda d: None, "is DEPLOYED", no_derived=True)
+
+        class Shadowing(object):
+            # the derived chain with ONE candidate type answered by an authored template - what a loose
+            # authored matchType (11:1:225:6:3:1:-1 instead of the exact type) would do to an init shell
+            def __init__(self, inner, victim, shadow_name):
+                self._inner, self._victim = inner, victim
+                self._shadow = next(t for t in inner.units() if t.name == shadow_name)
+
+            def __getattr__(self, k):
+                return getattr(self._inner, k)
+
+            def resolve(self, t8):
+                return self._shadow if tuple(t8) == self._victim else self._inner.resolve(t8)
+
+        victim = (3, 11, 1, 225, 6, 3, 1, 0)
+        g.check(victim in CANDIDATE_TYPES and victim not in set(tuple(t.otype) for t in chain.units())
+                and all(sm.parse_type(r.get("objectType", ""))[0] != victim for r in m["rows"]),
+                "the shadowing control's victim 11:1:225:6:3:1:0 is a candidate only (no vendor template, no map row)")
+        if derived is not None:
+            res, _u2, _c2 = run_gates(copy.deepcopy(m), chain, entity_chain, quiet=True,
+                                      derived=Shadowing(derived, victim, "Infantry BN (USA, IBCT)"), design=design,
+                                      derived_why="(shadowed by the control)")
+            hit = any("only ADDS" in f and "-- candidate 11:1:225:6:3:1:0 -> Infantry BN" in f for f in res.failures)
+            g.check(hit, "DIRTY an authored template answering the candidate 11:1:225:6:3:1:0 -> fails 'only ADDS' "
+                         "(%d gate(s) failed)" % res.bad, "failures: %s" % res.failures)
+    else:
+        g.check(False, "the committed map carries authoredRows (package C2)")
     print("TYPEMAP SELFTEST %s (%d problem(s))" % ("PASS" if g.bad == 0 else "FAIL", g.bad))
     return 0 if g.bad == 0 else 1
 
@@ -524,15 +743,21 @@ def main(argv=None):
     ap.add_argument("map", nargs="?", default=DEF_MAP)
     ap.add_argument("--init", default=IRON_STORM_INIT)
     ap.add_argument("--census-md", action="store_true", help="print the per-unit census as markdown")
+    ap.add_argument("--derived-sms", default=None, metavar="SMS",
+                    help="the deployed derived set the authoredRows live in (default %s)" % sm.DERIVED_AGGREGATE_SMS)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
-        return selftest(a.map)
+        return selftest(a.map, a.derived_sms)
     print("=== aggregate type-map gate: %s ===" % a.map)
     m = json.load(open(a.map, encoding="utf-8"))
     chain = sm.Chain(top_sms="AggregateTacticalLevel")
     entity_chain = sm.Chain(top_sms="EntityLevel")
-    g, units, census = run_gates(m, chain, entity_chain, a.init)
+    derived, why = load_derived(a.derived_sms)
+    design = json.load(open(DESIGN, encoding="utf-8"))
+    g, units, census = run_gates(m, chain, entity_chain, a.init, derived=derived, design=design, derived_why=why)
+    for line in getattr(g, "info", []) or []:
+        print(line)
     if census and a.census_md:
         sys.stdout.write(census_markdown(units, census).replace("\r\n", "\n"))
     print("TYPEMAP GATE %s (%d problem(s))" % ("PASS" if g.bad == 0 else "FAIL", g.bad))
