@@ -162,8 +162,7 @@ Archived verbatim 2026-09-14 20:30Z, HANDOFF_2026-09-14_ARCHIVE_pm.md: the per-l
   abstract-graph sibling, for G7b) - both present.
 - LICENCE: RENEWED to 2026-10-31 (RUNBOOK 0.5.15; c8730e7 resolves MAKLMGRD_LICENSE_FILE per process). The 2026-09-15 lapse warning is superseded; archived
   verbatim HANDOFF_2026-09-14_ARCHIVE_pm.md sec 5.
-- The deployed interface build is PINNED for the G7 series (exe 2026-09-07 11:06Z). Do not redeploy mid-series; re-pin deliberately after the merges (section
-  2).
+- The deployed interface build is PINNED for the G7 series (exe 2026-09-07 11:06Z). Do not redeploy mid-series; re-pin deliberately after the merges (sec 2).
 
 ## 5. Next steps, in order
 
@@ -198,3 +197,4 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
 - CODE UNIT MERGED a9d738f; live run COMPLETION_CONFIRM-2026-09-26-1 VOID on its P10 (teardown), but the owner ACCEPTED its completion rows
   as live confirmation (n=1); stall abort + attack/breach fallback still OWED (row 26). Then the cold-start units, re-scoped by RL-20260921-08.
+- IRON STORM LIVE1 2026-09-27: STOPPED at its pre-warm gate (StopVrf52 exit 7); scored run NOT launched. See PREREG_IRONSTORM_CUTA_LIVE1 Result.

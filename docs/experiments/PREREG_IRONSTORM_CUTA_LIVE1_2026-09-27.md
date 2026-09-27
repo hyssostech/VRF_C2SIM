@@ -264,4 +264,52 @@ the manifests. ASCII + CRLF throughout.
 
 ## Result (written after the harvest, never from a live read)
 
-(pending)
+Written 2026-09-27 ~00:50Z by lane IS1 (session 5fc25950) from the harvested files of the PRE-WARM run
+20260927T003120Z_run (runs\ in the main checkout): its stopvrf.stdout.log, runner log
+runs\launch52\RunScenario-ironstorm-prewarm-20260927T003119Z.log, run-manifest.json, thread-samples.csv and a streamed
+grep pass over vrfc2simapp.log (269,577 lines). The vendor sim log was not opened.
+
+### VERDICT: STOPPED AT THE STEP-W GATE. The scored run (step E) was NOT launched; NO prediction P0-P19 was scored.
+
+Sec 3 step W: "GATE for E: the runner's StopVrf exit is 0 or 6". The pre-warm's teardown returned StopVrf exit 7 (runner
+log L282-283 "StopVrf: EXIT=7"; runner exit 4 "TEARDOWN INCOMPLETE"). Nothing was adjusted, patched or re-run.
+
+What the exit 7 was, measured [V]: stopvrf.stdout.log - the graceful close was refused ("taskkill /PID 30600 (no /F):
+SUCCESS", then TIMEOUT after 120 s), StopVrf52 forced its own back end by identity ("FORCED - graceful close refused ...
+Stop-Process -Id 30600 -Force ... (within 2 s of the recorded start)"), then "still running after 120s:
+vrfSimHLA1516e(pid 30600). pid 30600 was FORCED; the processes listed are what is left." and "Exit 7". The only process
+listed as left is the forced pid itself. thread-samples.csv: pid 30600 present at 00:39:46.167Z (4,311 MB, 81 threads)
+and "process gone" at 00:39:51.173Z. Post-run inventory 00:39:59Z [V, Win32_Process]: no vrfSim / vrfGui /
+VrfC2SimApp / WatchVrf / ListenReports; rtiexec 47980, rtiForwarder 50740, rtiAssistant 30240, persistent holder 42672
+and the run's Stage 2h holder 49984 up and untouched. scripts/StopVrf52.ps1:563-575 waits at most 15 s for a forced pid
+to vanish before it lists what is left, and :597 prints "other VR-Forces processes are still up" whenever anything is
+listed. Measurement: the forced back end outlived that 15 s wait and was gone within about 20 s. Design implication, stated
+separately: exit 7 as coded does not distinguish "the forced pid is still exiting" from "another VR-Forces process is up";
+the gate that read it is correct as registered, and whether exit 7 should be reclassified is a code question, not a
+verdict of this run. No cause is claimed for the refused graceful close (third refusal in three 2026-09-26/27 runs).
+
+UNSCORED OBSERVATIONS OF THE PRE-WARM (120 s window; recorded because they bear on the next registration; they are not
+scores, the pre-warm was registered unscored):
+- Area: first L-AREA row L762 "... New Primary nav area: | NavArea-ground-platform IRONSTORM-CENTRE_maple" before L788
+  "C2SIM Order received (66359 bytes)."; runner "NAV AREA ACQUIRED after 0s of gate", placement -> area 25.2 s, WARM.
+- Init: L217 census "4 unit(s) created as EMPTY shells ... 32 platform(s) created in full"; L383 "PLACEMENT summary: 0 of
+  36 create altitude(s) came from the TERRAIN QUERY, 36 from the FALLBACK" (a cold init - what the pre-warm is for); L389
+  "READY TO TASK - NOT REACHED within 20 s".
+- Tasks: T01/T13 hold-in-place with the CNFPSL line (L824/L852), TASKCMPLT "(300 s after dispatch)" (L19979/L19985); T10
+  resolver lines L1213/L1215/L1217 = "1 vertex(es) dropped", "(line, 1 vertices): 1 vertex(es) joined", PassagePoint
+  "appended as the route's DESTINATION"; "ROUTE SHIFT - no leg flagged" (L1265); L1299 "CreateRoute 'T10 ... ROUTE' (3
+  pts)". T02: three R3 lines on three passes (L20003/L20705/L21121), CreateRoute (2 pts), OVERDUE at 304 s (L111509), then
+  ARRIVAL EVIDENCE and L168159 TASKCMPLT "arrived after its task's end time". T14: FOLSPT line naming 'ROEHold' (L20481),
+  OVERDUE (L111511), then L158309 "STALL: unit 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE task T14...: no member
+  moved more than 50 m in the last 360 SIM s (max 0.0 m); TASKABRT reported." and its TASKABRT (L158311). The 48 IBCT
+  platform's console shows move-along beginning at SIM 377.996 and no other distinct line from that object after it (cause NOT claimed).
+  T10: OVERDUE at 478 s (L150099), no terminal report by window end.
+- Clock: SIM/WALL 9.139 then 6.838 (L76679, L193851). Reports: "624 delivered, 0 FAILED" (L269573). Zero fire-at-will /
+  FireAt / deferred-engage lines; zero retired lines; zero SUPPRESSED.
+- App log ends with one "fail: C2SIM.C2SIMSDK[0]" line at L269576 (after the report tally; teardown-time; not examined).
+
+Measurement: the fixture loaded its maple area before the order and all five tasks dispatched inside the 120 s window; one
+of the two headline movers (28ID) arrived and the other (48 IBCT) did not move at all and was reported stalled. Design
+implication, stated separately: a -2 registration should not carry P6's "48 IBCT displaced > 50 m" at HIGH without first
+reading why the 48 IBCT platform's move-along produced no movement here (UG52 23.3 / its own member console), and the
+step-W gate needs a decision on how a forced-but-still-exiting back end is read.

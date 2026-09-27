@@ -171,6 +171,10 @@ copy D:\C2SIM-preserve\ironstorm-maple-2026-09-26\.
 SIDE EFFECTS, stated: on that terrain copy the biome-04 forest (the whole Suwalki AO) is red maples only, for
 rendering and simulation alike; and T10 drives a waypoint path (start -> 54.029734, 23.305499 -> PassagePoint),
 not STP's straight leg (data/IRONSTORM_CUTA_CHANGES.md (h)). Run it with the cut-A order at sha256 3801c71b...79fefe8.
+LIVE STATUS 2026-09-27: NOT live-proven. The first registered run (PREREG_IRONSTORM_CUTA_LIVE1_2026-09-27.md) stopped
+at its pre-warm gate and its scored run never launched. The UNSCORED pre-warm (run 20260927T003120Z_run) did load
+`NavArea-ground-platform IRONSTORM-CENTRE_maple` before the order (runner: WARM, 25.2 s from first placement) and the
+abstract-graph proof line printed (12 lines); that is an observation, not a scored proof.
 
 Note: `--negative-controls` builds its NEG copies on the SHIPPED terrain even when `--terrain`
 is given. Validate them WITHOUT `--terrain`, so that each fails only on its intended check.
