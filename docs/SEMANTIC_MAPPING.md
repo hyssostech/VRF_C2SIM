@@ -14,6 +14,8 @@ The port today is a BARE MOVEMENT PROJECTOR: `ExecuteTaskOnTick` (VrfC2SimServic
 ignores the C2SIM `TaskActionCode` and collapses EVERY task to
 SetRulesOfEngagement + SetTarget(no-op) + CreateRoute + MoveAlongRoute. Target: a
 two-layer mapping so each C2SIM verb drives the appropriate VR-Forces task composition.
+[2026-09-27 note: a LONE ground PLATFORM no longer gets CreateRoute + MoveAlongRoute - its route is driven as one
+Move To per vertex (RL-20260927-01; sec 3 MOVE row). UNITS still get CreateRoute + MoveAlongRoute.]
 
 - Layer 1 (C2SIM semantics): parse the ManeuverWarfareTask -> verb + params + affected
   entity + graphics. ALREADY DONE by OrderParser (ActionCode, AffectedEntity, Points,
@@ -92,7 +94,7 @@ degrade). This table is the single source of truth for the mapping.
 
 | C2SIM verb(s)                                   | Intent          | Layer-2 composition (VRF)                                   | Impl |
 |-------------------------------------------------|-----------------|-------------------------------------------------------------|------|
-| MOVE                                            | Move            | CreateRoute + MoveAlongRoute (today's bare path)            | yes  |
+| MOVE                                            | Move            | UNIT: CreateRoute + MoveAlongRoute (the unit task plans a path to each vertex for every member, UG52 30.22/30.24). LONE ground PLATFORM, since 2026-09-27 (RL-20260927-01): one Move To per route vertex - MoveToLocation to vertex 1, the next when the previous completes - so every leg is planned and recovered (UG52 23.1-23.2); no route object. Patrol, non-ground and one-point moves unchanged; Vrf:PlatformMoveToPerVertex=false restores CreateRoute + MoveAlongRoute for every mover. The same form carries the advance of every verb that drives its geometry (ATTACK, BREACH, FOLSPT/FOLASS and the verbs that fall back to bare movement); SCREEN/SCOUT keep PatrolRoute and CNFPSL is held in place | yes (lone platform: 2026-09-27, LIVE-pending) |
 | BREACH                                          | Breach          | advance to the breach graphic / axis end + ONE ObservationReport "the breach action is not simulated ... (STP-865)"; NO DtBreachTask; completes by time (RL-20260926-01) | yes (2026-09-26), LIVE-pending |
 | ATTACK, ATTMN, ATTSPT, DESTRY, FIX, DISRPT, PENTRT | Attack       | UNIT: advance to the objective + rules of engagement fire at will, never a Fire At. PLATFORM: advance, then DtFireAtTargetTask only at a DISTINCT target, else advance only. The owner answered for ATTACK (RL-20260926-01); the other six codes follow it by the seat's reading (they share the ATTACK path; not asked) | yes (2026-09-26), LIVE-pending |
 | FOLSPT, FOLASS                                  | FollowAndSupport | advance along the task's graphic (MapGraphicID) to its end and hold; no engagement; ROE as ordered; completes by time. Coordinator's direction, not decided by the owner (RL-20260926-01 scope line) | yes (2026-09-26), LIVE-pending |

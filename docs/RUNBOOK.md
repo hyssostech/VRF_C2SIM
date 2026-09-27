@@ -2724,6 +2724,30 @@ no Duration and no geometry is malformed and is refused, not held (below).
   (the vendor header says a set on an aggregate applies to the whole aggregate, `vrfRemoteController.h:1436-1438`) -
   the next live run should show member fire events or a member console's ROE after an ATTACK dispatch.
 
+- **GROUND MOVEMENT SINCE 2026-09-27: a LONE PLATFORM drives Move To per vertex, a UNIT keeps Move Along Route**
+  (RL-20260927-01; docs/PLAN_MOVEMENT_2026-09-27.md row M1; basis docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md
+  secs 0-2 and 5.2; `VertexChainPolicy` + `VertexChainTracker`, checked offline by the RL-20260927-01 section of
+  `--rulings-selftest`). A NON-aggregate ground mover whose FINAL route (live start, origin-vertex drop, route-shift
+  waypoints and terrain-profile altitudes all applied) has two or more points gets NO route object: MoveToLocation to
+  vertex 1, and each next vertex only when the previous Move To COMPLETES (the completion re-enters the tick thread
+  before the next one is issued; route-shift waypoints are vertices like any other). Move To plans every leg on roads,
+  the nav mesh and round feature obstacles and recovers from a blockage (UG52 23.1-23.2); Move Along Route, which a lone
+  platform no longer gets, plans nothing between vertices (UG52 23.3). A UNIT keeps CreateRoute + MoveAlongRoute - its
+  unit task already plans a path to each vertex for every member (UG52 30.22/30.24) - and patrols, non-ground movers and
+  one-point routes are unchanged. Arrival evidence, the time rules (RL-20260921-09), the progress watchdog (report +
+  TASKABRT, RL-20260913-03 / RL-20260914-01) and a platform's parked Fire At key on the LAST vertex only; the watchdog's
+  report-only abort does not stop the chain. Lines to look for: start-up "MOVE TO PER VERTEX ON
+  (Vrf:PlatformMoveToPerVertex, RL-20260927-01 ...)" (the off state is said too); dispatch "MOVE TO PER VERTEX for <unit>
+  ... vertex 1 of N"; then per vertex "VERTEX CHAIN <unit> task '<T>': vertex k of N COMPLETED - the unit is D m from it
+  and moved M m since ..." and "vertex k of N issued". A completion farther than `Vrf:VertexArrivalRadiusMeters` (100 m)
+  from its vertex is a WARNING naming it VACUOUS (the R11 trap, docs/UNIT_MOVEMENT_RESEARCH.md :394-412): the chain
+  continues, and a vacuous LAST vertex is not taken as the task's arrival - arrival evidence and the time rules decide.
+  OFF switch: `$env:Vrf__PlatformMoveToPerVertex = "false"` gives every ground mover CreateRoute + MoveAlongRoute as
+  before. NOT YET SEEN LIVE (run E1 of the plan): exactly one "move-to" completion per vertex; Move To planning on the nav
+  area for a lone M577A2; the stop at each intermediate vertex (the remote controller's move-to carries no continue
+  flag, unlike the vendor's move_along_route_and_continue.lua). The runner's report-evidence RPT path maps a marking to
+  its VRF_UUID from route lines, which a chained platform no longer logs; its capture and R1-applog paths still apply.
+
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
   and the STREND predecessor gate. StallClock carries the progress watchdog's no-progress

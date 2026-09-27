@@ -85,6 +85,14 @@ public sealed class VrfC2SimService : BackgroundService
                                                  string MoveTaskUuid, string TaskName);
     private readonly ConcurrentDictionary<string, PendingEngage> _pendingEngage = new();
 
+    // RL-20260927-01: the MOVE TO PER VERTEX chains of lone ground platforms, by unit name
+    // (VertexChainTracker; the rule is VertexChainPolicy). Started at the committed dispatch point
+    // (StartVertexChain), advanced from OnVrfTaskCompleted - which re-enters the tick thread through
+    // _tickActions + DeferredDispatch.Run before the next MoveToLocation is issued - and ended by every
+    // terminal end of the unit's VR-Forces task (a new dispatch, IssueEngage, a vendor failure); a back-end
+    // loss FREEZES them (FreezeAll). Built in the constructor because its vacuous bar is a setting.
+    private readonly VertexChainTracker _vertexChains;
+
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
@@ -455,6 +463,7 @@ public sealed class VrfC2SimService : BackgroundService
 
         var c2 = config.GetSection("C2SIM").Get<C2SIMSDKSettings>() ?? new C2SIMSDKSettings();
         _vrf = config.GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
+        _vertexChains = new VertexChainTracker(_vrf.VertexArrivalRadiusMeters);   // RL-20260927-01
 
         // FidelityTable only: load data/unit-type-map.json now so a bad path/parse is reported
         // BEFORE VR-Forces is started (ExecuteAsync turns _typeMapLoadError into a refuse-to-start).
@@ -742,6 +751,13 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "Every leg will fetch its tiles over HTTP at dispatch time.",
                                 _vrf.PreflightRouteShiftTimeoutSeconds);
         }
+
+        // 0c-ii-b. MOVE TO PER VERTEX FOR A LONE GROUND PLATFORM (RL-20260927-01), said ONCE, at start-up,
+        // like the route shift above - it is the other shipped-ON setting that changes WHERE A UNIT DRIVES
+        // (a planned leg per vertex instead of STP's straight line, UG52 23.1-23.3). Said in BOTH states,
+        // unlike the route shift's banner: a log without the ON line must not be read as "off".
+        _log.LogInformation("{Line}", VertexChainPolicy.StartupLine(_vrf.PlatformMoveToPerVertex,
+                                                                    _vrf.VertexArrivalRadiusMeters));
 
         // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
         // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
@@ -2607,6 +2623,9 @@ public sealed class VrfC2SimService : BackgroundService
             // Case 3: template with platforms -> delete the shell, re-create as the template.
             _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _recreatePending[name] = 0;
+            // RL-20260927-01: the object is about to be DELETED, so a vertex chain on it has nothing left to
+            // drive (a chain is a platform's, and this deletes a shell - belt and braces, it costs a lookup).
+            _vertexChains.Clear(name, out _);
             // m1: this is the ONE legitimate rebind - the shell is about to be deleted and the same
             // requested name re-created as its template, so the second ObjectCreated for it carries
             // the REAL uuid. Announce it; without this the registry refuses the rebind and every map
@@ -4095,8 +4114,9 @@ public sealed class VrfC2SimService : BackgroundService
     /// Runs on the VRF tick thread: the bare-movement body of executeTask
     /// (C2SIMinterface.cpp:2213-2424). Reads the taskee's live location as point 0,
     /// ground-clamps, appends the task's inline route points, applies ROE + the
-    /// (parity no-op) SetTarget, then MoveToLocation (single point) or CreateRoute +
-    /// deferred MoveAlongRoute. terrainRoute: the TerrainProfile-mode re-entry passes the
+    /// (parity no-op) SetTarget, then MoveToLocation (single point), a chain of MoveToLocation, one
+    /// per vertex (a lone ground platform, RL-20260927-01 - StartVertexChain), or CreateRoute +
+    /// deferred MoveAlongRoute (units and everything else). terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
     /// shiftedRoute: the ROUTE SHIFT re-entry passes the route with its inserted waypoints here
     /// (null on the first pass, and on every pass when Vrf:PreflightRouteShift is turned off - it
@@ -4917,8 +4937,28 @@ public sealed class VrfC2SimService : BackgroundService
             }
         }
 
+        // Layer 2: RECONNOITER (SCREEN/SCOUT) PATROLS the route (back and forth) instead of
+        // moving along it once - defer PatrolRoute; every other verb defers MoveAlongRoute.
+        // (Read HERE, above the form decision below, which needs it: a patrol is never a vertex chain.)
+        bool patrol = verb.Intent == TaskIntent.Reconnoiter;
+
+        // WHICH GROUND-MOVE FORM (RL-20260927-01; VertexChainPolicy.FormFor is the whole rule). routeGeo is
+        // FINAL here - the live start, the origin-vertex drop, the route-shift re-entry (its inserted
+        // waypoints are vertices like any other) and the terrain-profile re-entry have all been applied, and
+        // every deferral has already returned - so this is the one place the form can be decided once.
+        //   one point                          -> MoveToLocation (unchanged);
+        //   a LONE ground PLATFORM, 2+ points  -> one Move To per vertex (StartVertexChain): Move To plans
+        //                                         and recovers each leg (UG52 23.1-23.2), where Move Along
+        //                                         Route drives STP's straight line and plans nothing (23.3);
+        //   everything else                    -> CreateRoute + MoveAlongRoute / PatrolRoute (unchanged) -
+        //                                         a UNIT's Move Along Route already plans per vertex for every
+        //                                         member (UG52 30.22/30.24). Vrf:PlatformMoveToPerVertex=false
+        //                                         sends every mover here, as before 2026-09-27.
+        var moveForm = VertexChainPolicy.FormFor(unit.IsAggregate, isGround, patrol, routeGeo.Count,
+                                                 _vrf.PlatformMoveToPerVertex);
+
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
-        if (routeGeo.Count == 1)
+        if (moveForm == GroundMoveForm.SinglePointMoveTo)
         {
             MarkDispatched(task, unit, "move-to", routeGeo[^1], routeGeo);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
@@ -4933,13 +4973,18 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // A LONE GROUND PLATFORM: one Move To per route vertex (RL-20260927-01). No route object; the
+        // chain's own tick-thread continuation issues vertices 2..n, one per completion.
+        if (moveForm == GroundMoveForm.MoveToPerVertex)
+        {
+            StartVertexChain(task, unit, vrfUuid, routeGeo, attackTargetVrf);
+            return;
+        }
+
         // CreateRoute is async; defer the along-route task until the route's ObjectCreated fires
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
         _names.Requested(routeName);   // B3: the route's ObjectCreated is matched by this name
-        // Layer 2: RECONNOITER (SCREEN/SCOUT) PATROLS the route (back and forth) instead of
-        // moving along it once - defer PatrolRoute; every other verb defers MoveAlongRoute.
-        bool patrol = verb.Intent == TaskIntent.Reconnoiter;
         var routeQueue = _pendingRouteTasks.GetOrAdd(routeName, _ => new ConcurrentQueue<PendingRouteTask>());
         if (!routeQueue.IsEmpty)
             _log.LogWarning("Route name '{Route}' already has {N} pending task(s) - duplicate TaskName in " +
@@ -5076,6 +5121,15 @@ public sealed class VrfC2SimService : BackgroundService
         // calls below, the route-created callback for deferred kinds, IssueEngage), because a
         // deferred kind's old task keeps running until then and its late completion must still
         // be swallowed.
+        // RL-20260927-01: A NEW TASK FOR THIS UNIT ENDS A VERTEX CHAIN ANOTHER TASK STARTED. VR-Forces runs
+        // one task at a time, so whatever this dispatch issues replaces the chain's Move To, and the chain
+        // must not answer the next completion with a Move To of the OLD task. (The same task's own chain is
+        // never ended here - StartVertexChain refuses a second start for it before calling this.)
+        if (_vertexChains.ClearIfOtherTask(unit.Name, task.TaskUuid, out var endedChain))
+            _log.LogInformation("Unit {Name}: the MOVE TO PER VERTEX chain of task '{Old}' ends at vertex {K} of {N} - " +
+                                "task '{New}' ({Kind}) is dispatched to the same unit ({Ruling}).", unit.Name,
+                                endedChain.TaskName, endedChain.VertexNumber, endedChain.VertexCount, task.TaskName,
+                                kind, VertexChainPolicy.RulingId);
         double routeLengthM = double.NaN;
         double? startLat = null, startLon = null;
         if (route is { Count: > 0 })
@@ -5236,6 +5290,257 @@ public sealed class VrfC2SimService : BackgroundService
                                           "when it arrives"
                                         : "it has no destination: it completes at this end time");
         }
+    }
+
+    // ============ MOVE TO PER VERTEX FOR A LONE GROUND PLATFORM (RL-20260927-01) ============
+    // The rule and its vendor citations are VertexChainPolicy's and the state machine is
+    // VertexChainTracker's; what lives here is the glue. THREE PLACES, ONE THREAD:
+    //   StartVertexChain            - the committed dispatch point of ExecuteTaskOnTick (tick thread);
+    //   ConsumeVertexChainCompletion - OnVrfTaskCompleted, inside the bridge's Tick (tick thread). It
+    //                                  DECIDES but never issues: an intermediate vertex ENQUEUES
+    //   IssueNextVertex             - on _tickActions under DeferredDispatch.Run, the same re-entry the
+    //                                  route-shift and terrain-profile continuations use, so the next
+    //                                  MoveToLocation leaves from the tick loop's own drain - outside the
+    //                                  vendor's report callback - and a throw ends the task visibly (D1).
+    // An intermediate vertex's completion reaches NOTHING downstream: arrival evidence and the time rules
+    // (RL-20260921-09), the progress watchdog (RL-20260913-03, RL-20260914-01) and a parked Fire At (P0.3)
+    // all key on the LAST vertex, because only the last vertex's completion leaves this code.
+
+    /// <summary>
+    /// TICK THREAD. Dispatch a lone ground platform's FINAL route as a chain of Move To tasks
+    /// (RL-20260927-01). routeGeo[0] is the live start and is never driven to; routeGeo[1..n] are the
+    /// vertices, so a two-point route is exactly ONE Move To. The in-flight record gets the LAST vertex as
+    /// its destination and the whole polyline as its journey (STP-837), so the task is judged exactly as
+    /// the move-along it replaces was.
+    /// </summary>
+    private void StartVertexChain(OrderTask task, CreatedUnit unit, string vrfUuid, List<Geodetic> routeGeo,
+                                  string attackTargetVrf)
+    {
+        // NO DOUBLE START. The route-shift and terrain-profile re-entries reach this point once per dispatch
+        // by construction (each is latched), so what this catches is the SAME task dispatched again while its
+        // chain still runs - a re-pushed order, which the demo posture does. The route path would rebuild the
+        // route from wherever the unit stands and restart it through vertex 1; a chain is neither restarted
+        // nor doubled: the running one is left alone and nothing is re-marked or re-issued.
+        if (_vertexChains.TryGet(unit.Name, out var running) && !running.Frozen
+            && string.Equals(running.TaskUuid, task.TaskUuid ?? "", StringComparison.Ordinal))
+        {
+            _log.LogWarning("Task '{Task}': {Name} is ALREADY driving this task's MOVE TO PER VERTEX chain (vertex {K} " +
+                            "of {N}, {State}) - this re-dispatch of the same task does NOT start a second chain and " +
+                            "issues nothing ({Ruling}).", task.TaskName, unit.Name, running.VertexNumber,
+                            running.VertexCount,
+                            running.Outstanding ? "its Move To outstanding" : "its next Move To being issued",
+                            VertexChainPolicy.RulingId);
+            return;
+        }
+        var origin = new VertexChainTracker.Point(routeGeo[0].LatDeg, routeGeo[0].LonDeg, routeGeo[0].AltMeters);
+        var vertices = new List<VertexChainTracker.Point>(routeGeo.Count - 1);
+        for (int i = 1; i < routeGeo.Count; i++)
+            vertices.Add(new VertexChainTracker.Point(routeGeo[i].LatDeg, routeGeo[i].LonDeg, routeGeo[i].AltMeters));
+
+        // MarkDispatched FIRST, as on every other dispatch path: it records the in-flight task, ends a
+        // chain ANOTHER task left on this unit (ClearIfOtherTask), sends TASKSTRT and arms the end time.
+        MarkDispatched(task, unit, VertexChainPolicy.DispatchKind, routeGeo[^1], routeGeo);
+        var start = _vertexChains.Start(unit.Name, vrfUuid, task.TaskUuid, task.TaskeeUuid, task.TaskName,
+                                        origin, vertices);
+        if (start.Outcome != VertexChainTracker.StartOutcome.Started
+            && start.Outcome != VertexChainTracker.StartOutcome.Replaced)
+            // UNREACHABLE by construction (two or more route points, and the same-task case returned above).
+            // Thrown, not swallowed: the enclosing DeferredDispatch.Run then ends the task loudly (ERROR,
+            // abandon, TASKABRT) instead of leaving it marked dispatched with nothing issued.
+            throw new InvalidOperationException(
+                $"vertex chain for '{task.TaskName}' on {unit.Name} could not start ({start.Outcome}, " +
+                $"{vertices.Count} vertices)");
+        if (start.Outcome == VertexChainTracker.StartOutcome.Replaced)
+            _log.LogInformation("Unit {Name}: the MOVE TO PER VERTEX chain of task '{Old}' (vertex {K} of {N}) is " +
+                                "REPLACED by task '{New}' ({Ruling}).", unit.Name, start.Replaced.TaskName,
+                                start.Replaced.VertexNumber, start.Replaced.VertexCount, task.TaskName,
+                                VertexChainPolicy.RulingId);
+        try
+        {
+            _bridge.MoveToLocation(vrfUuid, new Geodetic
+            {
+                LatDeg = start.First.Lat, LonDeg = start.First.Lon, AltMeters = start.First.Alt,
+            });
+        }
+        catch
+        {
+            // The enclosing DeferredDispatch.Run ends the task (ERROR, abandon, TASKABRT); the chain must not
+            // outlive a Move To that was never sent.
+            _vertexChains.Clear(unit.Name, out _);
+            throw;
+        }
+        // The replacing VR-Forces task is issued: from here on a completion for this unit belongs to THIS
+        // task - drop the arrival-evidence swallow and the watchdog window, exactly as the single-point path
+        // does. Vertices 2..n do NOT do this: they are the same C2SIM task.
+        _arrivalReported.TryRemove(unit.Name, out _);
+        ClearStallState(unit.Name);
+        _log.LogInformation("Task '{Task}': MOVE TO PER VERTEX for {Name} ({Vrf}) - vertex 1 of {N}: MoveToLocation " +
+                            "({Lat:F6},{Lon:F6}); the other {More} vertex(es) are issued one at a time, each when the " +
+                            "previous Move To COMPLETES. No route object is created ({Ruling}: a lone ground platform's " +
+                            "Move To plans and recovers each leg, UG52 23.1-23.2).",
+                            task.TaskName, unit.Name, vrfUuid, vertices.Count, start.First.Lat, start.First.Lon,
+                            vertices.Count - 1, VertexChainPolicy.RulingId);
+        // Layer 2 + P0.3: a platform's Fire At is parked on the MOVE task's uuid and released only by that
+        // task's completion (SynthesizeUnitCompletion) - which a chain reaches at its LAST vertex only.
+        if (attackTargetVrf != null)
+            DeferEngageUntilMoveCompletes(unit, task, vrfUuid, attackTargetVrf);
+    }
+
+    /// <summary>
+    /// TICK THREAD (inside the bridge's Tick, from OnVrfTaskCompleted). Route one VR-Forces completion
+    /// through the unit's vertex chain, if it has one. TRUE = the chain consumed it and OnVrfTaskCompleted
+    /// does NOTHING else - no watchdog reset, no arrival swallow, no completion, no engage. FALSE = the
+    /// existing completion path runs: the unit has no chain, or the chain has just ended on its LAST vertex
+    /// or on a vendor FAILURE.
+    /// </summary>
+    private bool ConsumeVertexChainCompletion(string marking, string vrfTaskType, bool success)
+    {
+        if (!_vertexChains.TryGet(marking, out var chain)) return false;
+        // R11: a completion is only as good as the position that comes with it (UNIT_MOVEMENT_RESEARCH :394).
+        VertexChainTracker.Point? fix = null;
+        if (!string.IsNullOrEmpty(chain.VrfUuid) && _bridge.TryGetEntityGeodetic(chain.VrfUuid, out var g))
+            fix = new VertexChainTracker.Point(g.LatDeg, g.LonDeg, g.AltMeters);
+        var d = _vertexChains.OnCompletion(marking, vrfTaskType, success, fix, _arrivalReported.ContainsKey(marking));
+        string where = DescribeVertexFix(d);
+        double bar = _vertexChains.VertexArrivalRadiusMeters;
+        switch (d.Outcome)
+        {
+            case VertexChainTracker.Outcome.Advance:
+                if (d.Vacuous)
+                    _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} reported COMPLETE, but {Where} - " +
+                                    "a VACUOUS completion (farther than Vrf:VertexArrivalRadiusMeters={R:F0} m from the " +
+                                    "vertex; R11, docs/UNIT_MOVEMENT_RESEARCH.md :394-412). The chain CONTINUES to vertex " +
+                                    "{Next}; the C2SIM outcome is decided on the LAST vertex by arrival evidence and the " +
+                                    "time rules ({Ruling}).",
+                                    marking, d.Chain.TaskName, d.CompletedVertex, d.Chain.VertexCount, where, bar,
+                                    d.NextVertex, VertexChainPolicy.RulingId);
+                else
+                    _log.LogInformation("VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} COMPLETED - {Where}; " +
+                                        "issuing vertex {Next} ({Ruling}).",
+                                        marking, d.Chain.TaskName, d.CompletedVertex, d.Chain.VertexCount, where,
+                                        d.NextVertex, VertexChainPolicy.RulingId);
+                QueueNextVertex(marking, d);
+                return true;
+            case VertexChainTracker.Outcome.FinalVertex:
+                _log.LogInformation("VERTEX CHAIN {Name} task '{Task}': LAST vertex {K} of {N} COMPLETED - {Where}{Vac}. " +
+                                    "The chain ends and this completion goes to the task's own completion rules (arrival " +
+                                    "evidence and start time + Duration, RL-20260921-09; a parked Fire At is released " +
+                                    "there) ({Ruling}).",
+                                    marking, d.Chain.TaskName, d.CompletedVertex, d.Chain.VertexCount, where,
+                                    d.Vacuous ? " (VACUOUS by the vertex bar, but arrival evidence has ALREADY reported " +
+                                                "this task, so the completion goes to its swallow)" : "",
+                                    VertexChainPolicy.RulingId);
+                return false;
+            case VertexChainTracker.Outcome.FinalVacuous:
+                _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': LAST vertex {K} of {N} reported COMPLETE, but {Where} - " +
+                                "VACUOUS (farther than Vrf:VertexArrivalRadiusMeters={R:F0} m; R11). It is NOT taken as " +
+                                "the task's arrival: the task stays in flight, arrival evidence and the time rules decide " +
+                                "its C2SIM outcome (RL-20260921-09), and a unit that never gets there is the progress " +
+                                "watchdog's (RL-20260913-03, RL-20260914-01). The chain has ended; the unit has no Move " +
+                                "To left ({Ruling}).",
+                                marking, d.Chain.TaskName, d.CompletedVertex, d.Chain.VertexCount, where, bar,
+                                VertexChainPolicy.RulingId);
+                return true;
+            case VertexChainTracker.Outcome.Failed:
+                _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} FAILED (VR-Forces success=false - " +
+                                "the Move To planner aborts VISIBLY on a vertex it cannot plan to, ground-vehicle-move-" +
+                                "to.lua :1401-1404); {Where}. The chain ENDS here and the task takes the failure path " +
+                                "(TASKABRT, follow-ons abandoned, no engage) ({Ruling}).",
+                                marking, d.Chain.TaskName, d.CompletedVertex, d.Chain.VertexCount, where,
+                                VertexChainPolicy.RulingId);
+                return false;
+            case VertexChainTracker.Outcome.Stray:
+                _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': a VR-Forces completion ('{Type}', success={Ok}) arrived " +
+                                "while {State} - it is not this chain's Move To and is SWALLOWED; the chain is unchanged " +
+                                "at vertex {K} of {N} ({Ruling}).",
+                                marking, d.Chain.TaskName, vrfTaskType ?? "", success,
+                                !d.Chain.Outstanding ? "the next Move To is still being issued"
+                                : VertexChainPolicy.IsChainMoveToType(vrfTaskType) ? "a Move To is outstanding"
+                                : "a Move To is outstanding and this report is of another task type",
+                                d.Chain.VertexNumber, d.Chain.VertexCount, VertexChainPolicy.RulingId);
+                return true;
+            case VertexChainTracker.Outcome.Retired:
+                _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': a VR-Forces completion ('{Type}', success={Ok}) arrived " +
+                                "for a chain FROZEN by the back-end loss, at vertex {K} of {N} - {Where}. It is NOT the " +
+                                "task's arrival and is SWALLOWED; the chain ends and no further Move To is issued " +
+                                "(nothing is re-tasked after a loss, STP-822) ({Ruling}).",
+                                marking, d.Chain.TaskName, vrfTaskType ?? "", success, d.Chain.VertexNumber,
+                                d.Chain.VertexCount,
+                                d.CompletedVertex == 0 ? "no Move To of the chain was outstanding" : where,
+                                VertexChainPolicy.RulingId);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>The R11 half of every vertex line: how far the unit is from the vertex it just "completed"
+    /// and how far it moved to get there - or that neither could be measured.</summary>
+    private static string DescribeVertexFix(VertexChainTracker.Decision d)
+        => double.IsFinite(d.DistanceMeters)
+            ? FormattableString.Invariant(
+                $"the unit is {d.DistanceMeters:F0} m from it and moved {d.DisplacementMeters:F0} m since ") +
+              (d.DisplacementFrom == 0 ? "dispatch" : "vertex " + d.DisplacementFrom)
+            : "the unit's position could not be read, so neither its distance to the vertex nor its displacement " +
+              "is known";
+
+    /// <summary>
+    /// Re-enter the tick thread for the next vertex (the D1 shape of the route-shift and terrain-profile
+    /// continuations): the MoveToLocation goes out from the tick loop's drain, not from inside the vendor's
+    /// report callback, and a throw ends the chain and the task with an ERROR, an abandon and one TASKABRT.
+    /// </summary>
+    private void QueueNextVertex(string unitName, VertexChainTracker.Decision d)
+    {
+        long generation = d.Chain.Generation;
+        int vertex = d.NextVertex;
+        string taskUuid = d.Chain.TaskUuid, taskeeUuid = d.Chain.TaskeeUuid, taskName = d.Chain.TaskName;
+        _tickActions.Enqueue(() => DeferredDispatch.Run(
+            () => IssueNextVertex(unitName, generation, vertex),
+            taskUuid, taskName, DeferredDispatch.VertexChainContinuation, _sequencer,
+            reason => PushTaskStatus(taskeeUuid, taskUuid, S.TaskStatusCodeType.TASKABRT, reason),
+            ex =>
+            {
+                _vertexChains.Clear(unitName, out _);
+                _log.LogError("Task '{Task}': THE VERTEX-CHAIN CONTINUATION THREW on the VR-Forces tick thread ({Type}: " +
+                              "{Msg}) issuing vertex {K} for {Name} - the unit has no Move To left, so the chain is " +
+                              "ended, the task is abandoned and reported TASKABRT and its STREND successors fail fast " +
+                              "({Ruling}).", taskName, ex.GetType().Name, ex.Message, vertex, unitName,
+                              VertexChainPolicy.RulingId);
+            }));
+    }
+
+    /// <summary>TICK THREAD, from the tick loop's drain. Issue ONE vertex of a chain - only if that chain,
+    /// at that vertex, is still the unit's (TryBeginIssue), and only to the VR-Forces object it started on.</summary>
+    private void IssueNextVertex(string unitName, long generation, int vertex)
+    {
+        if (!_vertexChains.TryBeginIssue(unitName, generation, vertex, out var v, out var chain))
+        {
+            // A chain a back-end loss FROZE between its completion and this turn has no Move To out and will
+            // never issue one: drop it here rather than leave it waiting for a completion that cannot come.
+            if (_vertexChains.TryGet(unitName, out var idle) && idle.Frozen && !idle.Outstanding
+                && idle.Generation == generation)
+                _vertexChains.Clear(unitName, out _);
+            _log.LogInformation("VERTEX CHAIN {Name}: vertex {K} is NOT issued - the chain was ended, replaced or frozen " +
+                                "before its turn came (a newer task, an engage, a failure or a back-end loss) ({Ruling}).",
+                                unitName, vertex, VertexChainPolicy.RulingId);
+            return;
+        }
+        // THE OBJECT MUST STILL BE THE ONE THE CHAIN WAS STARTED ON. A name that no longer resolves, or that
+        // resolves to another VR-Forces object (deleted and re-created), has no Move To of ours to continue.
+        if (!_names.TryGetUuid(unitName, out var uuidNow)
+            || !string.Equals(uuidNow, chain.VrfUuid, StringComparison.Ordinal))
+        {
+            _vertexChains.Clear(unitName, out _);
+            _log.LogWarning("VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} is NOT issued - the VR-Forces object " +
+                            "the chain was started on ({Was}) is no longer this unit's ({Now}); the chain ENDS and the " +
+                            "task is left to its own rules ({Ruling}).", unitName, chain.TaskName, vertex,
+                            chain.VertexCount, chain.VrfUuid, uuidNow ?? "unbound", VertexChainPolicy.RulingId);
+            return;
+        }
+        _bridge.MoveToLocation(chain.VrfUuid, new Geodetic { LatDeg = v.Lat, LonDeg = v.Lon, AltMeters = v.Alt });
+        _log.LogInformation("VERTEX CHAIN {Name} task '{Task}': vertex {K} of {N} issued - MoveToLocation " +
+                            "({Lat:F6},{Lon:F6}) ({Ruling}).", unitName, chain.TaskName, vertex, chain.VertexCount,
+                            v.Lat, v.Lon, VertexChainPolicy.RulingId);
     }
 
     /// <summary>
@@ -5444,6 +5749,14 @@ public sealed class VrfC2SimService : BackgroundService
     /// only (RL-20260926-01): no breach task is ever issued.</summary>
     private void IssueEngage(string unitName, PendingEngage eng)
     {
+        // RL-20260927-01: the Fire At REPLACES whatever Move To a platform's vertex chain still has out (the
+        // engage fallback, or arrival evidence reported before the last vertex) - the chain must not answer
+        // the engage's completion with the next Move To. On the ordinary path the chain ended at its last
+        // vertex already and this finds nothing.
+        if (_vertexChains.Clear(unitName, out var engagedChain))
+            _log.LogInformation("Unit {Name}: the MOVE TO PER VERTEX chain of task '{Task}' ends at vertex {K} of {N} - " +
+                                "the {Kind} replaces its Move To ({Ruling}).", unitName, engagedChain.TaskName,
+                                engagedChain.VertexNumber, engagedChain.VertexCount, eng.Kind, VertexChainPolicy.RulingId);
         _inFlight.RecordDispatch(unitName,
             new InFlightTracker.InFlight(eng.MoveTaskUuid, eng.TaskName, eng.Kind, DateTime.UtcNow));
         _tickActions.Enqueue(() =>
@@ -7168,6 +7481,15 @@ public sealed class VrfC2SimService : BackgroundService
                                why + " (its unit had finished early and the task was waiting for its end time)");
                 _sequencer.NotifyAbandoned(held.TaskUuid);
             }
+            // RL-20260927-01: every task was just aborted and "NOTHING IS RE-TASKED" on recovery, so no
+            // vertex chain may issue another Move To - not now, and not when the back end answers again. The
+            // chains are FROZEN, not dropped: nothing replaced their outstanding Move Tos, and if the back end
+            // was only hung, a late INTERMEDIATE vertex completion must be swallowed, not taken as the task's.
+            int chainsFrozen = _vertexChains.FreezeAll();
+            if (chainsFrozen > 0)
+                _log.LogWarning("BACK END LOST: {N} MOVE TO PER VERTEX chain(s) FROZEN with their tasks - no further " +
+                                "Move To is issued, and an intermediate vertex that still completes is not reported " +
+                                "as the task's arrival ({Ruling}).", chainsFrozen, VertexChainPolicy.RulingId);
             // NOTHING IS MEASURED ACROSS THE OUTAGE. C16's rings are stamped with positions from
             // before the loss; judged after it they would call every unit stalled - for a reason
             // that is not the taskee's.
@@ -7688,6 +8010,11 @@ public sealed class VrfC2SimService : BackgroundService
         // release, no parked engage (SynthesizeUnitCompletion; --report-selftest covers both).
         bool success = e.Success;
         _log.LogInformation("VRF task complete: {Unit} / {Task} (success={Ok})", marking, e.TaskType, success);
+        // RL-20260927-01: A LONE PLATFORM'S VERTEX CHAIN SEES ITS COMPLETIONS FIRST - before the watchdog reset,
+        // the arrival swallow and the completion below, none of which an INTERMEDIATE vertex may reach: it
+        // issues the next Move To (re-entering the tick thread) and stops here. The LAST vertex and a vendor
+        // FAILURE end the chain and fall through to everything below, unchanged.
+        if (!string.IsNullOrEmpty(marking) && ConsumeVertexChainCompletion(marking, e.TaskType, success)) return;
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).
