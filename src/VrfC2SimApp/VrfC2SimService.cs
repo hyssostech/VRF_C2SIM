@@ -742,7 +742,9 @@ public sealed class VrfC2SimService : BackgroundService
                                 "ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one " +
                                 "vertex, each leg is scored against the streamed terrain and a FLAGGED leg is " +
                                 "detoured laterally - up to +/-{Band:F0} m - onto ground the same sampler scores as " +
-                                "clear. STP's own vertices are never moved, dropped or reordered, and NO TASK IS " +
+                                "clear. The SHIFT never moves, drops or reorders one of STP's vertices; the VERTEX " +
+                                "CHECK before it (RL-20260927-01) moves a vertex that lies in OSM water or on a " +
+                                "building, and reports every move. NO TASK IS " +
                                 "EVER REFUSED: a timeout ({T:F0} s), a throw, a cache with no tiles or no cleared " +
                                 "line all dispatch the AUTHORED line. Turn it off with Vrf:PreflightRouteShift=false " +
                                 "(env Vrf__PreflightRouteShift=false). Tile cache: {Cache} ({N} files{Off}).",
@@ -6100,6 +6102,10 @@ public sealed class VrfC2SimService : BackgroundService
             try
             {
                 string cache = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
+                // RL-20260927-01: the model set's leg rule and the OSM readers. A Vrf:ModelSet that
+                // does not parse falls back to EntityLevel LOUDLY - a wrong rule set must not pass
+                // silently, and a typo must not stop the pre-flight.
+                bool modelSetKnown = Preflight.ModelSetRules.TryParse(_vrf.ModelSet, out var modelSet);
                 var opt = new Preflight.PreflightOptions
                 {
                     CacheDir = cache,
@@ -6114,9 +6120,33 @@ public sealed class VrfC2SimService : BackgroundService
                     ElevationMinLevel = _vrf.PreflightElevationMinLevel,
                     FriendlyNation = _nations.Friendly,
                     OpposingNation = _nations.Opposing,
+                    ModelSet = modelSet,
+                    OsmFeatures = true,
+                    BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
+                    VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
                 };
                 if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
                 _preflight = new Preflight.PreflightService(opt);
+                if (!modelSetKnown)
+                    _log.LogWarning("ROUTE PRE-FLIGHT: Vrf:ModelSet '{Value}' is not EntityLevel or AggregateTacticalLevel " +
+                                    "- the ENTITY-LEVEL rules are applied. If this scenario runs on the aggregate model " +
+                                    "set, every leg below is judged by the wrong rules: fix the setting (RL-20260927-01).",
+                                    _vrf.ModelSet);
+                var osmCensus = Preflight.TileSource.CensusOsmCache(cache);
+                _log.LogInformation("ROUTE PRE-FLIGHT MODEL SET {Set} (Vrf:ModelSet; RL-20260927-01) - {Rule}. OSM features " +
+                                    "read from {Cache}\\osm-water ({Wf} tile file(s), {We} of them 0 bytes = UNKNOWN) and " +
+                                    "\\osm ({Af}, {Ae} 0 bytes){Off}; a missing or empty tile is UNKNOWN, never clear. " +
+                                    "VERTEX CHECK: an authored vertex in OSM water or within {Clr:F0} m of an OSM building " +
+                                    "is moved to the nearest clear ground within {Max:F0} m and REPORTED (kept and " +
+                                    "reported when there is none) - the lateral shift itself still never moves a vertex.",
+                                    opt.ModelSet, _preflight.Rules.Describe(), cache, osmCensus.WaterFiles,
+                                    osmCensus.WaterEmpty, osmCensus.AllFiles, osmCensus.AllEmpty,
+                                    opt.Offline ? " (offline: a tile not cached stays UNKNOWN for the run)" : "",
+                                    opt.BuildingClearanceMeters, opt.VertexNudgeMaxMeters);
+                if (osmCensus.Undecodable > 0)
+                    _log.LogWarning("ROUTE PRE-FLIGHT: {N} cached OSM tile file(s) under {Cache} are not vector tiles (no " +
+                                    "layer/gzip signature) - each reads as UNKNOWN until deleted and re-fetched (SF3).",
+                                    osmCensus.Undecodable, cache);
                 // The old wording here was "Warnings only - no task is ever refused or altered",
                 // which stopped being true the moment the route shift shipped ON (2026-09-20):
                 // the shift ALTERS the line a unit drives. Refusal is still never on the table.
@@ -6265,6 +6295,58 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
+    /// RL-20260927-01: WHAT THE OSM FEATURES SAID ABOUT EACH LEG, whichever reader scored it - OSM water
+    /// under the model set's rule (a WARNING), tiles that could not be read (a WARNING: unknown is not
+    /// clear), and on the aggregate profile the expected-slow land use (INFO). The log half only; the
+    /// callers push the matching reports. <paramref name="defer"/> as in ReportLegTerrainFindings.
+    /// </summary>
+    private void ReportOsmLegFindings(string taskName, string unitName, IReadOnlyList<Preflight.LegMetrics> legs,
+                                      Preflight.PreflightService svc, DeferredLog defer = null)
+    {
+        if (legs == null) return;
+        void Say(Action write) { if (defer == null) write(); else defer.Add(write); }
+        var rules = svc.Rules;
+        foreach (var leg0 in legs)
+        {
+            var leg = leg0;
+            var o = leg.Osm;
+            if (o == null) continue;
+            if (o.Water)
+                Say(() =>
+                _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: OSM WATER {Where} - OSM {Id} ({Kind}), " +
+                                "nearest {D:F1} m, first at ({Lat:F5},{Lon:F5}) {Km:F2} km along, {N} of {Total} sample(s). " +
+                                "Under model set {Set} this FLAGS the leg (RL-20260927-01); the shift's own lines say " +
+                                "what was done about it.",
+                                taskName, unitName, leg.Index,
+                                rules.WaterCorridorMeters > 0
+                                    ? FormattableString.Invariant($"WITHIN {rules.WaterCorridorMeters:F0} m OF THE LINE")
+                                    : "ON THE LINE",
+                                o.WaterId, o.WaterKind, o.WaterMinDistanceM, o.WaterFirst.Lat, o.WaterFirst.Lon,
+                                o.WaterFirstSM / 1000.0, o.WaterSamples, o.Samples, rules.ModelSet));
+            if (o.UnknownTiles > 0)
+                Say(() =>
+                _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: {N} OSM tile(s) under this leg could " +
+                                "NOT be read [{Names}] - OSM water there is UNKNOWN, not clear{Found}. Pre-warm the AO's " +
+                                "osm-water/osm tiles into {Cache} (an ONLINE run writes them, including an explicit " +
+                                "marker for a tile the server has no features in).",
+                                taskName, unitName, leg.Index, o.UnknownTiles, string.Join(", ", o.UnknownTileNames.Take(4)),
+                                o.Water ? " (water WAS found on the readable part)" : "",
+                                svc.Tiles.CacheDirectory));
+            if (rules.ReportSlowTerrain && o.SlowM > 0)
+                Say(() =>
+                _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: EXPECTED SLOW - {Slow:F0} m of " +
+                                    "{Len:F0} m in OSM forest/swamp/municipal land use (speed-factor 0.25 on the aggregate " +
+                                    "model set); reported only.", taskName, unitName, leg.Index, o.SlowM, o.LengthM));
+            if (o.BridgeIds.Count > 0)
+                Say(() =>
+                _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: water on this line is carried by " +
+                                    "OSM road bridge(s) {Ids} - the deck (and, near water, its approach) does not count " +
+                                    "as water{Rest}.", taskName, unitName, leg.Index, string.Join(",", o.BridgeIds),
+                                    o.Water ? "; OTHER water on the leg still flags it" : ", so the bridge crossing STP authored is kept"));
+        }
+    }
+
+    /// <summary>
     /// Score one dispatched route OFF the tick thread and push a C2SIM ObservationReport pair for
     /// each flagged leg. The vertices are copied first: the caller's list belongs to the tick
     /// thread and is not safe to read from a worker.
@@ -6293,6 +6375,11 @@ public sealed class VrfC2SimService : BackgroundService
                 MarkTileCensusStart(svc, censusGen);
                 var limit = svc.LimitFor(template, hostile);
                 var (legs, degenerate) = svc.ScoreRoute(route, limit.LimitRaw);
+                // RL-20260927-01: on the AGGREGATE model set the slope ratio is OFF - the aggregate
+                // model has no max-slope stop - so this reader must not warn about it either. The
+                // grade flag is cleared for the report only; the OSM findings below say what does
+                // stop an aggregate.
+                if (!svc.Rules.UseSlope) legs = legs.Select(l => l with { Flagged = false }).ToList();
                 var scored = new Preflight.TaskPreflight
                 {
                     TaskName = taskName, TaskUuid = task.TaskUuid, UnitName = unitName,
@@ -6325,11 +6412,16 @@ public sealed class VrfC2SimService : BackgroundService
                     _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {N} leg(s) got NO VERDICT - tiles " +
                                         "missing; they are neither flagged nor passed.", taskName, unitName, noVerdict);
                 ReportLegTerrainFindings(taskName, unitName, legs, svc);
+                ReportOsmLegFindings(taskName, unitName, legs, svc);
 
                 // BuildForTask already emits the water finding in place of the grade flag on a
-                // water leg, so this reader needs no second pass.
+                // water leg, so this reader needs no second pass. The OSM findings
+                // (RL-20260927-01) are appended - OSM water is a different source than the land-cover
+                // soil, and a leg can carry either, both or neither.
                 var reports = Preflight.PreflightReports.BuildForTask(scored, svc.Options.Threshold,
                                                                      IsoNow(), NewReportId);
+                reports.AddRange(Preflight.PreflightReports.BuildOsmFindings(taskeeUuid, unitName, taskName, legs,
+                                                                             svc.Rules, IsoNow(), NewReportId));
                 // m6: these are ObservationReports, so a push failure must say so (the default
                 // kind is Position). Neither kind retries - this is about the log being true.
                 foreach (var xml in reports) await PushReportAsync(xml, ReportKind.Observation);
@@ -6518,7 +6610,16 @@ public sealed class VrfC2SimService : BackgroundService
         if (known != 0) return known == 1;
         string dir = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
         int files = -1;
-        if (_vrf.PreflightOffline) files = CountCacheFiles(dir);   // -1 (unreadable) -> let it run
+        if (_vrf.PreflightOffline)
+        {
+            files = CountCacheFiles(dir);   // -1 (unreadable) -> let it run
+            // RL-20260927-01: the OSM tiles the vertex check and the water rule read live in
+            // <cache>\osm-water and \osm. A cache holding ONLY those still has something to score
+            // (the aggregate rule needs no elevation at all), so it is not an empty cache.
+            if (files == 0)
+                files = Math.Max(0, CountCacheFiles(Path.Combine(dir, "osm-water")))
+                      + Math.Max(0, CountCacheFiles(Path.Combine(dir, "osm")));
+        }
         bool can = RouteShiftCanScore(_vrf.PreflightOffline, files);
         if (!can)
             _log.LogWarning("LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN: Vrf:PreflightOffline is TRUE and the tile " +
@@ -6553,6 +6654,76 @@ public sealed class VrfC2SimService : BackgroundService
     /// and in the other modes all ground vertices share one value, so this is never an invented
     /// height.
     /// </summary>
+    /// <summary>
+    /// RL-20260927-01: the route with every vertex the VERTEX CHECK moved put where it moved to - same
+    /// count, same order, same altitudes (a moved vertex keeps its authored altitude; in the default
+    /// TerrainProfile mode the reply re-authors every altitude anyway). Index 0, the unit's own
+    /// position, is never touched.
+    /// </summary>
+    internal static List<Geodetic> ApplyNudges(IReadOnlyList<Geodetic> authored,
+                                               IReadOnlyList<Preflight.VertexNudge> nudges)
+    {
+        var outp = new List<Geodetic>(authored);
+        if (nudges != null)
+            foreach (var n in nudges)
+                if (n.Moved && n.RouteIndex > 0 && n.RouteIndex < outp.Count)
+                    outp[n.RouteIndex] = new Geodetic
+                    {
+                        LatDeg = n.To.Lat,
+                        LonDeg = n.To.Lon,
+                        AltMeters = outp[n.RouteIndex].AltMeters,
+                    };
+        return outp;
+    }
+
+    /// <summary>
+    /// RL-20260927-01: one line per authored vertex the check found BAD (a WARNING - moved, or kept on
+    /// bad ground) or could not VERIFY (a WARNING - its tiles were not readable), and one INFO line per
+    /// task saying how many were checked. Buffered through <paramref name="defer"/> like every other
+    /// line of the worker, so nothing is said about a route the worker did not get to dispatch.
+    /// </summary>
+    private void ReportVertexFindings(string taskName, string unitName, Preflight.PreDispatchOutcome pre,
+                                      Preflight.PreflightService svc, DeferredLog defer)
+    {
+        foreach (var n0 in pre.Vertices)
+        {
+            var n = n0;
+            if (n.Moved)
+                defer.Add(() =>
+                    _log.LogWarning("Task '{Task}' ({Unit}) route vertex {V}: VERTEX MOVED {D:F0} m {Dir} from " +
+                                    "({FLat:F6},{FLon:F6}) to ({TLat:F6},{TLon:F6}) - the authored vertex lies {Why}; the " +
+                                    "new point is the nearest ground {Clear} ({Tried} ring point(s) tried out to {R:F0} m). " +
+                                    "Reported to the C2 side (RL-20260927-01).",
+                                    taskName, unitName, n.RouteIndex, n.DistanceM, n.Compass, n.From.Lat, n.From.Lon,
+                                    n.To.Lat, n.To.Lon, n.Why, n.ClearOf, n.Tried, n.SearchedMeters));
+            else if (n.Unresolved)
+                defer.Add(() =>
+                    _log.LogWarning("Task '{Task}' ({Unit}) route vertex {V}: VERTEX NOT MOVED - the authored vertex " +
+                                    "({FLat:F6},{FLon:F6}) lies {Why}, and no ground {Clear} was found within {R:F0} m " +
+                                    "({Tried} tried: {W} water, {B} building, {S} slope, {U} unknown). Dispatched to the " +
+                                    "authored vertex; reported to the C2 side as an STP authoring defect.",
+                                    taskName, unitName, n.RouteIndex, n.From.Lat, n.From.Lon, n.Why, n.ClearOf,
+                                    n.SearchedMeters, n.Tried, n.RefusedWater, n.RefusedBuilding, n.RefusedSlope,
+                                    n.RefusedUnknown));
+            else if (n.Unverified)
+                defer.Add(() =>
+                    _log.LogWarning("Task '{Task}' ({Unit}) route vertex {V}: VERTEX UNVERIFIED at ({Lat:F6},{Lon:F6}) - " +
+                                    "{Why}. Unknown is not clear and not bad: the vertex is kept as authored.",
+                                    taskName, unitName, n.RouteIndex, n.From.Lat, n.From.Lon, n.Why));
+            else if (n.OnBridge)
+                defer.Add(() =>
+                    _log.LogInformation("Task '{Task}' ({Unit}) route vertex {V}: kept at ({Lat:F6},{Lon:F6}) - {Why}.",
+                                        taskName, unitName, n.RouteIndex, n.From.Lat, n.From.Lon, n.Why));
+        }
+        int checkedN = pre.Vertices.Count;
+        int moved = pre.MovedCount, kept = pre.UnresolvedCount, unverified = pre.UnverifiedCount;
+        defer.Add(() =>
+            _log.LogInformation("Task '{Task}' ({Unit}): VERTEX CHECK ({Set}) - {N} authored vertex(es) checked against " +
+                                "OSM water and buildings: {Moved} moved, {Kept} kept on bad ground, {Unv} unverified, " +
+                                "the rest clear.", taskName, unitName, svc.Rules.ModelSet, checkedN, moved, kept,
+                                unverified));
+    }
+
     internal static List<Geodetic> SpliceShift(IReadOnlyList<Geodetic> authored,
                                                IReadOnlyList<Preflight.LegShift> shifts)
     {
@@ -6645,25 +6816,43 @@ public sealed class VrfC2SimService : BackgroundService
                 {
                     MarkTileCensusStart(svc, censusGen);   // E6
                     var limit = svc.LimitFor(template, hostile);
-                    var outcome = svc.ShiftRoute(route, limit.LimitRaw, opt);
+                    // RL-20260927-01: THE WHOLE PRE-DISPATCH STAGE - the vertex check (a vertex in OSM
+                    // water or on a building is moved to the nearest clear ground, or kept and
+                    // reported), then the lateral shift on the checked route under the model set's
+                    // leg rule.
+                    var pre = svc.PreDispatch(route, limit.LimitRaw, opt);
+                    var outcome = pre.Shift;
+                    ReportVertexFindings(taskName, unitName, pre, svc, pending);
                     // BEFORE the shift rows, and for EVERY leg rather than only the flagged ones:
                     // with Vrf:PreflightWarnings off (still the shipped default) this reader is
                     // the ONLY one that runs, and it used to say nothing at all about a leg it
                     // never flagged - including a leg nothing could be sampled for.
                     int waterLegs = ReportLegTerrainFindings(taskName, unitName, outcome.Legs, svc, pending);
+                    ReportOsmLegFindings(taskName, unitName, outcome.Legs, svc, pending);
                     foreach (var s0 in outcome.Shifts)
                     {
                         var s = s0;   // captured per iteration - the closures outlive the loop
                         if (s.Shifted)
                             pending.Add(() =>
-                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFTED {D:F0} m {Side} - ratio " +
-                                            "{Base:F3} -> {New:F3}{Band}; inserted ({ILat:F6},{ILon:F6}) and " +
-                                            "({OLat:F6},{OLon:F6}). STP's own vertices are unchanged and in order.",
+                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFTED {D:F0} m {Side} - {Why}{Ratio}{Band}; " +
+                                            "inserted ({ILat:F6},{ILon:F6}) and ({OLat:F6},{OLon:F6}). {Promise}",
                                             taskName, unitName, s.LegIndex, Math.Abs(s.OffsetMeters), s.SideWord,
-                                            s.BaseRatio, s.ShiftedRatio,
+                                            s.FlagWater ? "round the OSM water (" + s.FlagReason + ")" : "ratio",
+                                            // A water detour's reason is the water (its FlagReason carries
+                                            // any slope ratio too); a slope detour keeps the ratio clause.
+                                            s.FlagWater ? ""
+                                                : FormattableString.Invariant($" {s.BaseRatio:F3} -> {s.ShiftedRatio:F3}"),
                                             double.IsNaN(s.BandMax) ? "" : FormattableString.Invariant(
                                                 $" (formation band max {s.BandMax:F3})"),
-                                            s.In.Lat, s.In.Lon, s.Out.Lat, s.Out.Lon));
+                                            s.In.Lat, s.In.Lon, s.Out.Lat, s.Out.Lon,
+                                            s.EndpointMoved
+                                                ? "STP's vertices are kept in order; an endpoint of this leg was moved by the vertex check (above)."
+                                                : "STP's own vertices are unchanged and in order."));
+                        else if (s.RiverCrossing)
+                            pending.Add(() =>
+                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
+                                            "dispatched on the line as authored and the C2 side is told it needs STP " +
+                                            "authoring (RL-20260927-01).", taskName, unitName, s.LegIndex, s.Note));
                         else
                             pending.Add(() =>
                                 _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
@@ -6684,22 +6873,27 @@ public sealed class VrfC2SimService : BackgroundService
                             _log.LogInformation("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFT candidates - {Trace}",
                                             taskName, unitName, s.LegIndex, Preflight.RouteShift.DescribeCandidates(s)));
                     }
-                    if (outcome.Changed)
+                    if (pre.Changed)
                     {
-                        shifted = SpliceShift(authored, outcome.Shifts);
+                        // The checked vertices first (a moved vertex keeps its authored altitude - the
+                        // terrain profile re-authors every altitude anyway), then the detours between.
+                        shifted = SpliceShift(ApplyNudges(authored, pre.Vertices), outcome.Shifts);
                         int after = shifted.Count;
+                        int movedN = pre.MovedCount;
                         pending.Add(() =>
-                            _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT applied to {N} of {F} flagged leg(s); " +
-                                            "route {Before} -> {After} vertices.", taskName, unitName,
+                            _log.LogInformation("Task '{Task}' ({Unit}): PRE-DISPATCH applied - {Moved} vertex(es) moved by " +
+                                            "the vertex check; ROUTE SHIFT applied to {N} of {F} flagged leg(s); route " +
+                                            "{Before} -> {After} vertices.", taskName, unitName, movedN,
                                             outcome.ShiftedCount, outcome.Shifts.Count, authored.Count, after));
                     }
                     else if (outcome.Shifts.Count == 0)
                         pending.Add(() =>
                             _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT - no leg flagged; the route is " +
                                             "unchanged.", taskName, unitName));
-                    reports = Preflight.PreflightReports.BuildForShift(taskeeUuid, unitName, taskName,
-                                                                      outcome.Shifts, outcome.Legs,
-                                                                      IsoNow(), NewReportId);
+                    // RL-20260927-01: the vertex rows, the shift rows (BuildForShift, unchanged) and the
+                    // OSM findings, in that order - PreflightReports.BuildForPreDispatch.
+                    reports = Preflight.PreflightReports.BuildForPreDispatch(taskeeUuid, unitName, taskName, pre,
+                                                                            svc.Rules, IsoNow(), NewReportId);
                     // The shift's own rows are per FLAGGED leg, so water on a leg it never
                     // flagged would reach the C2 side nowhere. Appended, not merged: a flagged
                     // water leg gets both its shift row and its water row, and both are true.

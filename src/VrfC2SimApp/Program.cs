@@ -116,6 +116,15 @@ if (args.Length > 0 && args[0] == "--preflight-selftest")
 if (args.Length > 0 && args[0] == "--routeshift-selftest")
     return RouteShiftSelfTest.Run();
 
+// Offline OSM-FEATURE check (RL-20260927-01): the vector-tile reader, the vendor water / building /
+// river / land-use filters, the geometry, the per-model-set leg rule, the vertex nudge, the
+// river-crossing test and the reports - on SYNTHETIC tiles built from real cached features (the T14
+// lake, the two -2 hamlet buildings), the way leg_check.py --selftest does it. Optional 2nd arg = a
+// directory of real osm-water/ and osm/ tiles: the (e) T14 line is then run through the whole
+// pre-dispatch stage on both model sets and the outcome printed. No bridge, no network.
+if (args.Length > 0 && args[0] == "--osm-selftest")
+    return OsmSelfTest.Run(args.Length >= 2 ? args[1] : null, args.Length >= 3 ? args[2] : null);
+
 // Offline BACK-END LIVENESS check (STP-822): a tick loop driven through BackendCount 1 -> 0 -> 1,
 // asserting the TASKABRT / ObservationReport / position-report-suppression / recovery sequence,
 // plus the nav-area evidence gate. `--disabled` re-runs the SAME assertions with
@@ -178,6 +187,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--dispatch-readiness-selftest [--disabled], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport-selftest, " +
+                            "--osm-selftest [real-osm-tile-dir], " +
                             "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");

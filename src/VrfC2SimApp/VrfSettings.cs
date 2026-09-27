@@ -1065,9 +1065,10 @@ public class VrfSettings
     // ============== THE LATERAL ROUTE SHIFT (STP-804/806) ====================================
     // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md. When the pre-flight flags a leg BEFORE
     // dispatch, insert two waypoints that carry the path laterally onto ground the same sampler
-    // scores as clear. STP's own vertices are never moved, dropped or reordered - only the path
-    // BETWEEN them detours - and every shift (and every flagged leg no offset could clear) is
-    // reported to the C2 side as an ObservationReport.
+    // scores as clear. THE SHIFT never moves, drops or reorders one of STP's own vertices - only the
+    // path BETWEEN them detours - and every shift (and every flagged leg no offset could clear) is
+    // reported to the C2 side as an ObservationReport. (Since RL-20260927-01 the VERTEX CHECK that
+    // runs before it CAN move a vertex out of OSM water or off a building - see ModelSet below.)
     //
     // WHY IT EXISTS: the freeze is a property of the LINE. N2d drove the same unit, order and
     // vertices on a line 1.3 km north and completed two legs for the first time in any run
@@ -1139,4 +1140,39 @@ public class VrfSettings
     // AUTHORED line: the feature can change WHICH line is driven, never WHETHER a unit is tasked.
     // A cold tile cache is what costs time here; the demo posture pre-warms it (STP-802).
     public double PreflightRouteShiftTimeoutSeconds { get; set; } = 30.0;
+
+    // ============== OSM FEATURES, THE VERTEX CHECK AND THE MODEL-SET LEG RULE ==================
+    // RL-20260927-01 (the owner's "Go", 2026-09-27; docs/PLAN_MOVEMENT_2026-09-27.md M2). The
+    // pre-dispatch stage above now also reads the OSM tiles the sim itself streams - osm-water (the
+    // VRFSIM Lake layer) and osm (buildings; the aggregate's River lines and land use) - cached in
+    // <PreflightCacheDir>\osm-water and \osm, the layout tools\preflight\leg_check.py --osm-water /
+    // --osm-buildings read. A missing or 0-byte tile is UNKNOWN, never clear.
+    //
+    // WHAT THIS CHANGES (read before quoting "STP's vertices are never moved"): the LATERAL SHIFT
+    // still never moves a vertex, but the VERTEX CHECK that runs before it does - an authored vertex
+    // in OSM water or on a building is moved to the nearest clear ground and REPORTED; with no clear
+    // ground within PreflightVertexNudgeMaxMeters it is kept and reported as an STP authoring defect.
+    // The whole stage still never refuses a task, and PreflightRouteShift=false still turns it off.
+
+    // Which vendor model set the scenario runs on, and so which rule flags a leg:
+    //   "EntityLevel" (default; every scenario loaded so far declares EntityLevel.sms): the slope
+    //       ratio OR OSM water within +/-25 m of the line.
+    //   "AggregateTacticalLevel": slope OFF; OSM water (Lake areas, River lines at MAK_WIDTH 5 m) ON
+    //       the centreline = the unit STOPS (speed-factor 0); forest/municipal land use reported as
+    //       expected slow (0.25), never flagged.
+    // A STRING so a typo cannot stop the host from binding; an unrecognised value falls back to
+    // EntityLevel with a WARNING at the pre-flight's first use. The aggregate-profile lane reads the
+    // same key (Vrf:ModelSet).
+    public string ModelSet { get; set; } = "EntityLevel";
+
+    // A vertex whose nearest OSM building footprint is CLOSER than this is bad ground (and a nudge
+    // target must be at least this far from every footprint). 10 m = tools\preflight\leg_check.py's
+    // --building-clearance default, so both tools flag the same footprints; the -2 T14 stop sat
+    // 3.2 m from one. 0 turns the building half of the check off.
+    public double PreflightBuildingClearanceMeters { get; set; } = 10.0;
+
+    // How far the vertex check may move a bad vertex (ring search, 25 m steps). Beyond it the vertex
+    // is no longer the place STP named, so it is KEPT and reported for STP authoring instead. 300 m
+    // is half the lateral shift's +/-600 m band. 0 = check and report, never move.
+    public double PreflightVertexNudgeMaxMeters { get; set; } = 300.0;
 }

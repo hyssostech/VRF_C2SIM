@@ -250,23 +250,43 @@ public static class PreflightReports
 
     /// <summary>The Marking of a leg the interface detoured.</summary>
     public static string ShiftMarking(string taskName, string unitName, LegShift s)
-        => $"ROUTE SHIFT: task {taskName} ({unitName}) leg {s.LegIndex} - the authored line scored " +
-           $"{F(s.BaseRatio, 3)} against this unit's own limit; the interface detoured it {F(Math.Abs(s.OffsetMeters), 0)} m " +
-           $"{s.SideWord} of the authored line around that window, scoring {F(s.ShiftedRatio, 3)}" +
+        => (s.FlagWater
+              // RL-20260927-01: a leg flagged for OSM water says what it went round; a ratio is not
+              // the reason (and on the aggregate profile there is no ratio at all).
+              ? $"ROUTE SHIFT: task {taskName} ({unitName}) leg {s.LegIndex} - the authored line was flagged " +
+                $"({s.FlagReason}); the interface detoured it {F(Math.Abs(s.OffsetMeters), 0)} m {s.SideWord} of the " +
+                "authored line onto a line clear of OSM water"
+              : $"ROUTE SHIFT: task {taskName} ({unitName}) leg {s.LegIndex} - the authored line scored " +
+                $"{F(s.BaseRatio, 3)} against this unit's own limit; the interface detoured it {F(Math.Abs(s.OffsetMeters), 0)} m " +
+                $"{s.SideWord} of the authored line around that window, scoring {F(s.ShiftedRatio, 3)}") +
            (double.IsNaN(s.BandMax) ? "" : $" (formation band max {F(s.BandMax, 3)})") +
            (s.BandNotCleared
               ? $" - NOTE: no offset on the {s.SideWord} side could also clear the formation band, so this "
                 + "detour is chosen on the route line alone and some formation slots may sit on flagged ground"
               : "") +
-           $". STP's own vertices are unchanged and in order; the detour lies between them.";
+           (s.EndpointMoved
+              ? ". STP's vertices are kept in order - an endpoint of this leg was moved off water or a building " +
+                "and is reported separately; the detour lies between them."
+              : ". STP's own vertices are unchanged and in order; the detour lies between them.");
 
     /// <summary>The Marking of a flagged leg NO offset in the band could clear.</summary>
     public static string NoShiftMarking(string taskName, string unitName, LegShift s)
-        => $"ROUTE SHIFT NOT APPLIED: task {taskName} ({unitName}) leg {s.LegIndex} - the leg scored " +
-           $"{F(s.BaseRatio, 3)} and no cleared line was found within +/-{F(s.BandSearchedMeters, 0)} m" +
-           (double.IsNaN(s.BestRatioTried) ? ""
-              : $" (best candidate {F(s.BestOffsetTried, 0)} m at {F(s.BestRatioTried, 3)})") +
-           ". The task is dispatched on the line as authored.";
+    {
+        if (s.RiverCrossing)
+            return $"ROUTE SHIFT NOT APPLIED - RIVER CROSSING: task {taskName} ({unitName}) leg {s.LegIndex} - " +
+                   $"{s.FlagReason}, and OSM water lies on the line at BOTH ends of the +/-{F(s.BandSearchedMeters, 0)} m " +
+                   "lateral band, so no lateral detour can clear it: this needs a road/bridge crossing - STP " +
+                   "authoring. Nothing was searched; the task is dispatched on the line as authored.";
+        if (s.FlagWater)
+            return $"ROUTE SHIFT NOT APPLIED: task {taskName} ({unitName}) leg {s.LegIndex} - the leg was flagged " +
+                   $"({s.FlagReason}) and no line clear of OSM water was found within +/-{F(s.BandSearchedMeters, 0)} m. " +
+                   "The task is dispatched on the line as authored.";
+        return $"ROUTE SHIFT NOT APPLIED: task {taskName} ({unitName}) leg {s.LegIndex} - the leg scored " +
+               $"{F(s.BaseRatio, 3)} and no cleared line was found within +/-{F(s.BandSearchedMeters, 0)} m" +
+               (double.IsNaN(s.BestRatioTried) ? ""
+                  : $" (best candidate {F(s.BestOffsetTried, 0)} m at {F(s.BestRatioTried, 3)})") +
+               ". The task is dispatched on the line as authored.";
+    }
 
     /// <summary>
     /// One shift outcome -> one bare ReportBody, built exactly like the warning: a
@@ -279,8 +299,12 @@ public static class PreflightReports
                                           string isoDateTime, string reportId)
     {
         string actor = unitUuid ?? "";
-        double lat = shift.Shifted ? shift.In.Lat : leg.WorstLat;
-        double lon = shift.Shifted ? shift.In.Lon : leg.WorstLon;
+        // RL-20260927-01: a leg flagged for WATER is located where the water starts, and carries no
+        // altitude - the slope window's height is not a claim about that point.
+        bool water = shift.FlagWater && leg.Osm != null;
+        double lat = shift.Shifted ? shift.In.Lat : water ? leg.Osm.WaterFirst.Lat : leg.WorstLat;
+        double lon = shift.Shifted ? shift.In.Lon : water ? leg.Osm.WaterFirst.Lon : leg.WorstLon;
+        bool withAltitude = !water && !double.IsNaN(leg.WorstZM);
         var body = new S.ReportBodyType
         {
             FromSender = ZeroUuid,
@@ -306,8 +330,8 @@ public static class PreflightReports
                                     {
                                         Item = new S.GeodeticCoordinateType
                                         {
-                                            AltitudeMSL = Round(leg.WorstZM, 1),
-                                            AltitudeMSLSpecified = true,
+                                            AltitudeMSL = withAltitude ? Round(leg.WorstZM, 1) : 0.0,
+                                            AltitudeMSLSpecified = withAltitude,
                                             Latitude = Round(lat, 6),
                                             Longitude = Round(lon, 6),
                                         }
@@ -413,6 +437,174 @@ public static class PreflightReports
                                 {
                                     ActorReference = actor,
                                     Marking = RouteExtentPolicy.RefusalMarking(unitName, taskName, verdict),
+                                    Name = unitName ?? "",
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            ReportID = reportId,
+            ReportingEntity = actor,
+        };
+        return C2SIMSDK.FromC2SIMObject(body);
+    }
+
+    // ============= RL-20260927-01: THE VERTEX CHECK, OSM WATER AND AGGREGATE SLOW TERRAIN =========
+    // Every one of these is the same Location + Name observation pair as a warning or a shift. A MOVED
+    // vertex changes where a unit drives and a KEPT bad vertex is a place a unit may stop, so neither is
+    // ever silent to the C2 side; an UNVERIFIED vertex (tiles not readable) is logged, not reported -
+    // missing tiles are not evidence about the ground either way.
+
+    /// <summary>The Marking of a checked vertex: what was wrong, what moved, from where to where, why.</summary>
+    public static string VertexMarking(string taskName, string unitName, VertexNudge n)
+        => n.Moved
+            ? $"VERTEX MOVED: task {taskName} ({unitName}) route vertex {n.RouteIndex} - the authored vertex " +
+              $"({F(n.From.Lat, 6)},{F(n.From.Lon, 6)}) lies {n.Why}. The interface moved it {F(n.DistanceM, 0)} m " +
+              $"{n.Compass} to ({F(n.To.Lat, 6)},{F(n.To.Lon, 6)}), the nearest ground {n.ClearOf} (ring search in " +
+              $"{F(n.SearchedMeters, 0)} m; {n.Tried} point(s) tried). Every other vertex is unchanged and in order."
+            : $"VERTEX NOT MOVED: task {taskName} ({unitName}) route vertex {n.RouteIndex} - the authored vertex " +
+              $"({F(n.From.Lat, 6)},{F(n.From.Lon, 6)}) lies {n.Why}, and no ground {n.ClearOf} was found within " +
+              $"{F(n.SearchedMeters, 0)} m ({n.Tried} point(s) tried: {n.RefusedWater} in water, {n.RefusedBuilding} " +
+              $"at a building, {n.RefusedSlope} on flagged slope, {n.RefusedUnknown} unknown). The task is dispatched " +
+              "to the authored vertex - this is an STP authoring defect to fix at the source.";
+
+    /// <summary>One checked vertex -> one ReportBody, located at where the vertex NOW is (the new
+    /// point for a move, the authored one when it was kept).</summary>
+    public static string BuildVertexReport(string unitUuid, string unitName, string taskName, VertexNudge n,
+                                           string isoDateTime, string reportId)
+        => BuildPair(unitUuid, unitName, isoDateTime, reportId, n.Moved ? n.To : n.From, null,
+                     VertexMarking(taskName, unitName, n));
+
+    /// <summary>The Marking of a leg with OSM water on (or, entity level, beside) its line.</summary>
+    public static string OsmWaterMarking(string taskName, string unitName, LegMetrics leg, ModelSetRules rules)
+    {
+        var o = leg.Osm;
+        string where = rules.WaterCorridorMeters > 0
+            ? $"within {F(rules.WaterCorridorMeters, 0)} m of the line"
+            : "ON the line";
+        string what = o.WaterIsRiverLine ? o.WaterKind : $"{o.WaterKind}, {OsmVendor.WaterDescription(o.WaterValue)}";
+        string head = $"ROUTE PRE-FLIGHT - OSM WATER ON THE LINE: task {taskName} ({unitName}) leg {leg.Index} - OSM " +
+                      $"{o.WaterId} ({what}) lies {where}, first at {F(o.WaterFirstSM / 1000.0, 2)} km along " +
+                      $"({o.WaterSamples} of {o.Samples} sample(s)). ";
+        string why = rules.ModelSet == ModelSet.AggregateTacticalLevel
+            ? "It is MAK_WATERWAY: speed-factor 0 in the aggregate movement table (tank-aggregated-movement.sysdef), " +
+              "so an aggregate unit STOPS at its edge."
+            : "The terrain loads it as a VRFSIM Lake feature (MAK_WATERWAY, an obstacle to the ground avoider) and, " +
+              "for deep-water classes, a soil of acceleration-factor 0.000 - a ground vehicle driven onto it STOPS.";
+        return head + why + " This is a pre-flight estimate off the OSM tiles the sim streams, not a vendor verdict; " +
+               "whether the leg was detoured is reported separately.";
+    }
+
+    /// <summary>One leg with OSM water -> one ReportBody, located where the water starts. No altitude.</summary>
+    public static string BuildOsmWaterReport(string unitUuid, string unitName, string taskName, LegMetrics leg,
+                                             ModelSetRules rules, string isoDateTime, string reportId)
+        => BuildPair(unitUuid, unitName, isoDateTime, reportId, leg.Osm.WaterFirst, null,
+                     OsmWaterMarking(taskName, unitName, leg, rules));
+
+    /// <summary>The Marking of an aggregate leg through RESTRICTED_L2 land use (REPORT only).</summary>
+    public static string SlowTerrainMarking(string taskName, string unitName, LegMetrics leg)
+    {
+        var o = leg.Osm;
+        return $"ROUTE PRE-FLIGHT - EXPECTED SLOW (AggregateTacticalLevel): task {taskName} ({unitName}) leg {leg.Index} - " +
+               $"{F(o.SlowM, 0)} m of the {F(o.LengthM, 0)} m centreline lies in OSM land use the aggregate model " +
+               $"slows to speed-factor {F(ModelSetRules.AggregateSlowSpeedFactor, 2)} (forest {F(o.ForestM, 0)} m, " +
+               $"swamp {F(o.SwampM, 0)} m, municipal {F(o.MunicipalM, 0)} m: MAK_TANK_RESTRICTED_L2_TERRAIN). " +
+               "Reported only - nothing is flagged, refused or altered.";
+    }
+
+    public static string BuildSlowTerrainReport(string unitUuid, string unitName, string taskName, LegMetrics leg,
+                                                string isoDateTime, string reportId)
+        => BuildPair(unitUuid, unitName, isoDateTime, reportId, leg.Start, null,
+                     SlowTerrainMarking(taskName, unitName, leg));
+
+    /// <summary>
+    /// THE PRE-DISPATCH EMISSION POLICY (RL-20260927-01), pure. In order: one report per vertex the
+    /// check MOVED or had to KEEP on bad ground (none for a clear or unverified one); one per leg the
+    /// shift acted on or declined (BuildForShift, unchanged); one per leg with OSM water under the
+    /// model set's rule; on the aggregate profile, one per leg with RESTRICTED_L2 land use. A flagged
+    /// wet leg gets both its shift row and its water row - both are true, as with CLCplus water.
+    /// </summary>
+    public static List<string> BuildForPreDispatch(string unitUuid, string unitName, string taskName,
+                                                   PreDispatchOutcome o, ModelSetRules rules,
+                                                   string isoDateTime, Func<string> newReportId)
+    {
+        var outp = new List<string>();
+        if (o == null) return outp;
+        foreach (var n in o.Vertices)
+            if (n.Moved || n.Unresolved)
+                outp.Add(BuildVertexReport(unitUuid, unitName, taskName, n, isoDateTime, newReportId()));
+        outp.AddRange(BuildForShift(unitUuid, unitName, taskName, o.Shift.Shifts, o.Shift.Legs,
+                                    isoDateTime, newReportId));
+        outp.AddRange(BuildOsmFindings(unitUuid, unitName, taskName, o.Shift.Legs, rules, isoDateTime, newReportId));
+        return outp;
+    }
+
+    /// <summary>The OSM leg findings on their own (both readers use them): water under the model set's
+    /// rule, and - aggregate only - expected-slow land use.</summary>
+    public static List<string> BuildOsmFindings(string unitUuid, string unitName, string taskName,
+                                                IReadOnlyList<LegMetrics> legs, ModelSetRules rules,
+                                                string isoDateTime, Func<string> newReportId)
+    {
+        var outp = new List<string>();
+        if (legs == null) return outp;
+        foreach (var leg in legs)
+        {
+            if (leg.Osm == null) continue;
+            if (leg.Osm.Water)
+                outp.Add(BuildOsmWaterReport(unitUuid, unitName, taskName, leg, rules, isoDateTime, newReportId()));
+            if (rules.ReportSlowTerrain && leg.Osm.SlowM > 0)
+                outp.Add(BuildSlowTerrainReport(unitUuid, unitName, taskName, leg, isoDateTime, newReportId()));
+        }
+        return outp;
+    }
+
+    /// <summary>The Location + Name pair every pre-flight finding is, built once for the new findings.
+    /// The older builders above are left exactly as they were: their bodies are pinned byte for byte
+    /// against leg_check.py's emitter.</summary>
+    private static string BuildPair(string unitUuid, string unitName, string isoDateTime, string reportId,
+                                    (double Lat, double Lon) where, double? altitudeMsl, string marking)
+    {
+        string actor = unitUuid ?? "";
+        var body = new S.ReportBodyType
+        {
+            FromSender = ZeroUuid,
+            ToReceiver = ZeroUuid,
+            ReportContent = new[]
+            {
+                new S.ReportContentType
+                {
+                    Item = new S.ObservationReportContentType
+                    {
+                        TimeOfObservation = new S.TimeInstantType
+                        {
+                            Item = new S.DateTimeType { IsoDateTime = isoDateTime }
+                        },
+                        Observation = new[]
+                        {
+                            new S.ObservationType
+                            {
+                                Item = new S.LocationObservationType
+                                {
+                                    ActorReference = actor,
+                                    Location = new S.LocationType
+                                    {
+                                        Item = new S.GeodeticCoordinateType
+                                        {
+                                            AltitudeMSL = altitudeMsl.HasValue ? Round(altitudeMsl.Value, 1) : 0.0,
+                                            AltitudeMSLSpecified = altitudeMsl.HasValue,
+                                            Latitude = Round(where.Lat, 6),
+                                            Longitude = Round(where.Lon, 6),
+                                        }
+                                    }
+                                }
+                            },
+                            new S.ObservationType
+                            {
+                                Item = new S.NameObservationType
+                                {
+                                    ActorReference = actor,
+                                    Marking = marking,
                                     Name = unitName ?? "",
                                 }
                             },
