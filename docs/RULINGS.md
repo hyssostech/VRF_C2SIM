@@ -2,7 +2,7 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260925-01, RL-20260926-01). -08, 0914-02: archive (cap), 2026-09-26.
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260926-01, RL-20260927-01). Archived (cap): -08, 0914-02 on 09-26; 0925-01 on 09-27.
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
@@ -56,28 +56,6 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
   pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
 
-RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's labels in one P981 record (23:18:21Z), no typed note
-  Q1 (as put, P968 AskUserQuestion; echoed in the P981 tool_result, type=user): "PLAN gate for the next code unit [...] In short: every task with a Duration
-    ends at dispatch + Duration; an early arrival is held and reported at that end time; a unit still travelling at end time is reported complete when it
-    arrives, and that arrival is no longer suppressed; a stuck unit gets the abort already ruled; follow-ons wait for a late predecessor instead of being
-    skipped 60 s after its end time, and get their full Duration from their own start; tasks with no destination end at Duration; effect ignored. Re-clamp:
-    placement stays, the dispatch gate stops holding/abandoning, the tally is fixed, and the dispatch-time setLocation is dropped. Do you approve this scope?"
-    Options (the seat's labels): Approve as written (Recommended) / Approve, but keep the dispatch-time setLocation / Changes needed.
-  A (owner SELECTION of the seat's label, 2026-09-25): "Approve as written (Recommended)"
-  Q2 (as put, P968): "Follow-on tasks of a unit reported STUCK (TASKABRT): today the stall abort is report-only and the Duration timer released the follow-ons
-    anyway; after this unit nothing would. What should happen to them?" Options (the seat's labels): Abandon them with their own aborts (Recommended) / Keep
-    waiting for a late arrival / Release them to start.
-  A (owner SELECTION of the seat's label, 2026-09-25): "Abandon them with their own aborts (Recommended)"
-  Q3 (as put, P968): "Stall detection ships OFF. With the timer no longer ending an unarrived mover, a stuck unit with detection off never gets a terminal
-    report and its follow-ons sit until the backstop. Calibration on file: 3/3 freezes caught, 0/6 false alarms; the C16 watchdog passed live. Default?"
-    Options (the seat's labels): ON in the demo profile (Recommended) / ON everywhere / Leave OFF.
-  A (owner SELECTION of the seat's label, 2026-09-25): "ON in the demo profile (Recommended)"
-  Q4 (as put, P968): "An attack or breach whose movement arrives AFTER its Duration: the task is reported complete on arrival. Should the parked engage (the
-    action at the objective) still be issued at that point?" Options (the seat's labels): Issue it (Recommended) / Drop it.
-  A (owner SELECTION of the seat's label, 2026-09-25): "Issue it (Recommended)"
-  supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
-  pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).
-
 RL-20260926-01 | 2026-09-26 | status VERBATIM - P3272: 2 SELECTIONS + 1 TYPED; P3645: 1 SELECTION; P3694, P3775: 1 TYPED each
   Q1 (as put, P3271 AskUserQuestion; echoed in the P3272 tool_result, type=user): "ATTACK: an attack is an operation ending on the objective, not a single
     fire task; STP always sends the performer as target plus the objective graphic ('the target is the objective' - your ruling). VR-Forces has no
@@ -118,3 +96,18 @@ RL-20260926-01 | 2026-09-26 | status VERBATIM - P3272: 2 SELECTIONS + 1 TYPED; P
     advance-and-hold is the coordinator's direction (no owner record, not in A1-A6). CNFPSL is held in place for now (A6 narrows A5); Jira STP-866.
   supervisor reading: extended to the ATTACK family (ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT) because they share the ATTACK path; not asked
   pointer: feat/engage-doctrine + fix/engage-followup (TaskDispatchPolicy.ForEngage); SEMANTIC_MAPPING sec 3; RUNBOOK sec 11; STP-865, STP-866.
+
+RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
+  Q (as put, P5321 - the seat's decision brief, requested by the owner at P5314 (last-prompt record) "Restate the proposed approach given the facts above";
+    its closing block): "Decisions: (a) This sequence: entity-level fix and run first, aggregate profile behind it. (b) Move To per vertex for lone
+    platforms, reversing the 2026-09-07 withdrawal. (c) The pre-flight port with per-profile rules. On your go, this becomes the plan document and the
+    first registered run is drafted." The brief's body (P5321) is the approach: one pre-flight for both profiles (STP vertices and legs checked against the
+    OSM water and buildings the sim reads; bad vertices nudged and reported; wet legs detoured or reported; rivers reported as STP authoring defects);
+    lone platforms driven by Move To per STP vertex, units unchanged; the aggregate-level profile for Iron Storm per PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06;
+    hand waypoints (i)(j)(k) and the corridor launch bar retired once live-proven. Between Q and A (P5327-P5337) the seat answered "What's the thinking
+    about when aggregate level and entity level are used" - explanation only, no new question.
+  A (owner, P5338): "Go"
+  supervisor reading: "Go" approves (a), (b), (c) and the sequence as put. It leaves RL-20260921-09, RL-20260913-03 and RL-20260914-01 as they are (the brief
+    kept them) and does NOT decide the hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types), which the aggregate lane puts back to him.
+  pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
+    feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.

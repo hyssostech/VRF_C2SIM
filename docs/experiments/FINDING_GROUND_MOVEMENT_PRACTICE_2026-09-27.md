@@ -206,3 +206,6 @@ all; it needs a bridge, i.e. a road crossing, which is what the vendor's road pl
 per vertex for lone platforms at entity level (reverses the 2026-09-07 withdrawal on the new evidence). (c) Whether
 Y-10's wording is amended to "entity-level MOVE mapping: unit -> Move Along Route; lone platform -> Move To per
 vertex" once 5.2 is live-proven.
+STATUS 2026-09-27: RULED - RL-20260927-01 ("Go" on the decision brief: sequence entity-level fix and run first, then the
+aggregate profile; Move To per vertex for lone platforms; the pre-flight port with per-profile rules). Plan and lanes:
+docs/PLAN_MOVEMENT_2026-09-27.md. (c) above was not in the brief: Y-10 gets a dated note, not a rewrite, until live-proven.

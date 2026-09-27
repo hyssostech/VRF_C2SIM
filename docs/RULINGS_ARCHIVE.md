@@ -5,10 +5,11 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02.
+#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl, same line rule (RL-20260925-01; moved here 2026-09-27, unchanged, to make room for RL-20260927-01).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -333,3 +334,25 @@ RL-20260914-02 | 2026-09-14 | status VERBATIM
     terms. Enemies may happen to be in there. Not what vrf wants? 4 given by the end time"
   supervisor reading: item 4 answers a question about HOLD-type tasks. The message contains no word about MOVE tasks.
   pointer: TASK_VOCABULARY_ASSESSMENT 7.1 (R1-R4); RUNBOOK 11. Read with RL-20260921-05 and -08. R5/R6: see the archive.
+RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's labels in one P981 record (23:18:21Z), no typed note
+  Q1 (as put, P968 AskUserQuestion; echoed in the P981 tool_result, type=user): "PLAN gate for the next code unit [...] In short: every task with a Duration
+    ends at dispatch + Duration; an early arrival is held and reported at that end time; a unit still travelling at end time is reported complete when it
+    arrives, and that arrival is no longer suppressed; a stuck unit gets the abort already ruled; follow-ons wait for a late predecessor instead of being
+    skipped 60 s after its end time, and get their full Duration from their own start; tasks with no destination end at Duration; effect ignored. Re-clamp:
+    placement stays, the dispatch gate stops holding/abandoning, the tally is fixed, and the dispatch-time setLocation is dropped. Do you approve this scope?"
+    Options (the seat's labels): Approve as written (Recommended) / Approve, but keep the dispatch-time setLocation / Changes needed.
+  A (owner SELECTION of the seat's label, 2026-09-25): "Approve as written (Recommended)"
+  Q2 (as put, P968): "Follow-on tasks of a unit reported STUCK (TASKABRT): today the stall abort is report-only and the Duration timer released the follow-ons
+    anyway; after this unit nothing would. What should happen to them?" Options (the seat's labels): Abandon them with their own aborts (Recommended) / Keep
+    waiting for a late arrival / Release them to start.
+  A (owner SELECTION of the seat's label, 2026-09-25): "Abandon them with their own aborts (Recommended)"
+  Q3 (as put, P968): "Stall detection ships OFF. With the timer no longer ending an unarrived mover, a stuck unit with detection off never gets a terminal
+    report and its follow-ons sit until the backstop. Calibration on file: 3/3 freezes caught, 0/6 false alarms; the C16 watchdog passed live. Default?"
+    Options (the seat's labels): ON in the demo profile (Recommended) / ON everywhere / Leave OFF.
+  A (owner SELECTION of the seat's label, 2026-09-25): "ON in the demo profile (Recommended)"
+  Q4 (as put, P968): "An attack or breach whose movement arrives AFTER its Duration: the task is reported complete on arrival. Should the parked engage (the
+    action at the objective) still be issued at that point?" Options (the seat's labels): Issue it (Recommended) / Drop it.
+  A (owner SELECTION of the seat's label, 2026-09-25): "Issue it (Recommended)"
+  supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
+  pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).
+
