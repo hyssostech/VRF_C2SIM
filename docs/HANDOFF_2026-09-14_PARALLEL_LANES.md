@@ -197,4 +197,4 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
 - CODE UNIT MERGED a9d738f; live run COMPLETION_CONFIRM-2026-09-26-1 VOID on its P10 (teardown), but the owner ACCEPTED its completion rows
   as live confirmation (n=1); stall abort + attack/breach fallback still OWED (row 26). Then the cold-start units, re-scoped by RL-20260921-08.
-- IRON STORM 2026-09-27: -1 STOPPED at pre-warm gate. -2 SCORED, HIGH all held; T14 stalled on DRY woodland (H1 insufficient). PREREG_..._LIVE2 Result.
+- IRON STORM 2026-09-27: -2 SCORED, T14 stuck on Move Along Route. E1 SCORED, HIGH all held: T14 on Move To ARRIVED (6.9 m), no stall. PREREG_..._E1 Result.
