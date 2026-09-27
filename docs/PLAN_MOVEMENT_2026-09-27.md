@@ -30,7 +30,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | id | what | branch | lane | status 2026-09-27 |
 |---|---|---|---|---|
 | M1 | Move To per STP vertex for lone platforms; setting Vrf:PlatformMoveToPerVertex (default ON); chain on task completion; vacuous completions logged | feat/movement-moveto-per-vertex | executor (Opus) | MERGED 2026-09-27 (47da73e). Follow-ups M1b: runner report-evidence and the offline analysis tools still key on "MoveAlongRoute issued" lines; a native "continue" flag for intermediate vertices |
-| M2 | C# pre-flight port of the OSM water + building readers; vertex nudge + report; per-profile leg rules keyed on Vrf:ModelSet; river report | feat/preflight-osm-features | executor (Opus) | RUNNING |
+| M2 | C# pre-flight port of the OSM water + building readers; vertex nudge + report; per-profile leg rules keyed on Vrf:ModelSet; river report (same water at both band ends, not just any water); drivable road bridges count as dry | feat/preflight-osm-features | executor (Opus) | DONE 2026-09-27 (6bc0493 + c37290e, rebased on 5e8d6f1); merge AFTER E1. Findings on the real tiles: T14's destination was dry before and after (e) - the lake is on the LEG; both T14 lines flag for water and end in NO CLEARED LINE (every offset up to 175 m hits the lake chain), so the authored line is dispatched WITH a report on either model set. G1 must warm the OSM tile sets with an ONLINE interface run first (0-byte tiles from the python fetcher read as UNKNOWN) |
 | A1 | Aggregate profile prep: .magx survey, data/unit-type-map-52-aggregate.json, fixture IronStorm_Centre_52_Aggregate (not deployed), Vrf:ModelSet switch, G1 draft checklist | feat/aggregate-profile | executor (Opus) | MERGED 2026-09-27 (3e5ab14) |
 | D1 | A memberless simulated aggregate counts as ONE position for arrival evidence and the stall watchdog, decided by Vrf:ModelSet (UnitPositionPolicy); EntityLevel unchanged | fix/aggregate-leaf-position | M1 executor, resumed | MERGED 2026-09-27 (b817609). Open (owner's call at G1): a vacuous VENDOR completion of an aggregate's route task still sends TASKCMPLT - the vertex-distance guard could withhold it |
 | M1b | Runner report-evidence anchors a chained platform on its LAST vertex; tools/analysis/applog_chain.py is the one parser for the per-vertex lines | with D1 | M1 executor | MERGED 2026-09-27 (b817609) |
@@ -57,7 +57,10 @@ status changes here the same turn they happen; a phase that closes collapses to 
   MISS = T14 stalls >= 60 sim s with no OSM feature within ~10 m ahead -> the frame is wrong; STOP and ask.
   Also recorded: the planner's path shape (does it skirt the lake/hamlet), vacuous-completion warnings, per-vertex log lines.
 - G1: the pre-flight detours the wet leg and the brigade arrives; OR it reports "no cleared line" and the unit stops AT the
-  lake edge with a report. MISS = a silent stop, or a stop with no water within ~50 m.
+  lake edge with a report. MISS = a silent stop, or a stop with no water within ~50 m. M2's offline reading of the (e)
+  line says branch 2: "VERTEX CHECK ... 0 moved", "OSM WATER ON THE LINE" (lake 197345448 from ~0.84 km), "EXPECTED SLOW",
+  "NO ROUTE SHIFT - NO CLEARED LINE ... 14 candidate(s) ran into OSM water", 3 ObservationReports, then a stop near
+  54.0268, 23.3172. A RIVER CROSSING report on that leg, any vertex moved, or the unit crossing the lake would indict M2.
 
 ## 4. What stays, what retires
 
