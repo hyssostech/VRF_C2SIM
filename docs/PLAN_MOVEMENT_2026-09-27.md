@@ -47,6 +47,8 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | Q1a | RL-20260927-05: when the STREND gate's window expires, an unfinished predecessor WITH a destination counts as OVERDUE and the gate extends to the backstop (closes the >60 s clock-step race); holds unchanged; no-Duration mover unchanged | fix/gate-late-predecessor | timer executor, resumed | RUNNING; merges after E2-2 has run on the registered build |
 | D2 | RL-20260927-06: automatic model-set choice by the highest echelon among the TASKED units (order performers), not the init: above BN -> AggregateTacticalLevel only (refuse EntityLevel with a clear message); BN-and-below -> EntityLevel by default, overridable to aggregate by Vrf:ModelSet / runner -ModelSet. Builds on A1's -ModelSet and Test-ModelSetPairing; the fixture and type map follow the choice | - | after C1/C2 | NEXT |
 
+| C1b | Integration named by C2: the composition resolver reads the variant field, defaults to catalogue, and REFUSES the authored variant unless the run fixture is on the derived SMS C2SIM_AggregateTacticalLevel; D2 selector picks the _C2SIM fixture whenever the authored variant is in use; type-map authoredRows read as fidelity AUTHORED | fix/composition-variant-guard | small lane after E2-2 | NEXT |
+| G1b | First live use of the derived SMS + authored variant: 48 IBCT = HQ + 3 Infantry BN + CAV + FA + BEB + BSB on cut A T14 line; predicts the set loads, the 7 authored types create and move, symbols render (C2 sec 9 not-claimed list) | run/ironstorm-agg-g1b | after G1 | QUEUED - PREREG |
 ## 2. Order and gates
 
 | step | gate | note |
