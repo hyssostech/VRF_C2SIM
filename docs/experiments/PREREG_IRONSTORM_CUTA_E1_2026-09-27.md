@@ -214,11 +214,17 @@ A0. PRECONDITIONS: (1) the seat's go-live; (2) no other lane building, running a
     is byte-identical to the registered one - data/IRONSTORM_CUTA_E1_Order.xml of the main checkout once the seat has
     merged this branch, or else this worktree's absolute path - sha256 7d5b4034...ddb9a either way; (4) the deployed build is
     still b984945 (exe 97e29285..., dll 4fbb4702...) and `git diff --stat b984945..main -- src` is EMPTY. If main's src has
-    moved on, NOTHING is rebuilt: the registered build is what runs, and the difference is recorded.
+    moved on, NOTHING is rebuilt: the registered build is what runs, and the difference is recorded. If the DEPLOYED
+    hashes differ (another lane rebuilt the main checkout's output folders), STOP before D: the BINARY line above no
+    longer describes what would run, and the seat decides between a rebuild of b984945 (a new hash, re-registered) and
+    a new registration.
 A.  Read-only checks, re-run immediately before E: DOTNET_ENVIRONMENT empty; 0 Vrf__ variables; processes - rtiexec 47980,
     rtiForwarder 50740 and rtiAssistant 30240 up and never touched; no RtiProbe (before D), vrfNavGenerator, build, vrfSim,
     vrfGui, VrfC2SimApp, WatchVrf or ListenReports; REST 200 on 18080; exe / dll / appsettings / bridge / fixture / order /
-    init hashes as registered; `derive_ironstorm_cuta.py --check` exit 0 with three CHECK lines; the marker read.
+    init hashes as registered; `derive_ironstorm_cuta.py --check` exit 0 with three CHECK lines; the maple area as at
+    registration [V prep: C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE_maple,
+    4,764 files, 287,120,328 B, newest 2026-09-26T23:05:00Z; its .navRuntimeConfig sha256 40b46032...8cddfb]; the
+    marker read.
 B.  No build (done in the preparation, above).
 C.  Order validation (no federate, no appNumber):
     - C1 `VrfC2SimApp.exe --parse-order <E1 order>` [PREP V, exit 0]: "Tasks: 5"; durations 1200000 ms x 4 and 1800000 ms
