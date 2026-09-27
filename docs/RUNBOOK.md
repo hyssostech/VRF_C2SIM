@@ -2751,8 +2751,8 @@ no Duration and no geometry is malformed and is refused, not held (below).
   before. SEEN LIVE in E1 (2026-09-27, 1-vertex chains; docs/experiments/PREREG_IRONSTORM_CUTA_E1_2026-09-27.md Result):
   one "VRF task complete: <unit> / move-to (success=True)" per lone platform, and the planner on a lone M577A2's own
   console - its destination failed "Is destination in nav area?", so the vendor first printed the feature planner's
-  "Planned path has 1 parts." and then nav-planned that part ("Planned path has 24 points."). NOT YET SEEN LIVE: the
-  stop at each intermediate vertex (the remote controller's move-to carries no continue flag, unlike the vendor's
+  "Planned path has 1 parts." and then nav-planned that part ("Planned path has 24 points."). SEEN LIVE ONCE, in E2-2
+  (below): the stop at an intermediate vertex (the remote controller's move-to carries no continue flag, unlike the vendor's
   move_along_route_and_continue.lua), and the runner's report-evidence gate for a chained platform (it runs only under
   -StopWhenComplete, which E1 did not pass). That gate maps a chained platform to its VRF_UUID from the "MOVE TO PER
   VERTEX for <unit> (VRF_UUID:...)" line and anchors it on its LAST task-complete record, not vertex 1's (M1b;
@@ -2763,7 +2763,18 @@ no Duration and no geometry is malformed and is refused, not held (below).
   1(l)): the mapping works, the LAST-completion ANCHOR does not engage on a live trace - its TSK rows carry the TRUNCATED
   DIS marking ('48_IBCT/28'), which Resolve-MarkingKey does not map to the init name (exact or '<name>~<tag>' only), so
   every taskee is satisfied 'via C2SIM-capture' instead; suite 9b passes because it uses one untruncated name throughout.
-  E2 itself STOPPED before any lone-platform dispatch, so both NOT YET SEEN LIVE items above are still not seen.
+  E2 itself STOPPED before any lone-platform dispatch; E2-2 saw both items (next paragraph).
+  SEEN LIVE 2026-09-27 in E2-2 (run 20260927T231937Z, docs/experiments/PREREG_IRONSTORM_CUTA_E2-2_2026-09-27.md Result;
+  n = 1): 48 IBCT's 2-vertex chain logged "vertex 1 of 2 COMPLETED - the unit is 1 m from it ...", "vertex 2 of 2 issued"
+  and "LAST vertex 2 of 2 COMPLETED - the unit is 7 m from it ...", one "move-to (success=True)" per vertex. At the
+  intermediate vertex the vehicle STOPS: the next Move To's first tick finds "Is Vehicle Stopped?" true, plans (~3 SIM s)
+  and turns to the route heading at 3 m/s before driving on - a stop of a few SIM s, under the trace's ~2 s sampling. The
+  report-evidence gate mapped both chained platforms from their "MOVE TO PER VERTEX for" lines; the anchor stayed empty
+  (the truncated TSK markings above) and every taskee was satisfied via C2SIM-capture. Registration trap on the cut-A
+  order: T13 and T14 also log a TaskGeometryResolver WARNING on every resolver pass, "the MapGraphicID geometry and the
+  embedded Location on this task END ... m apart (more than 1000 m) ... the MapGraphicID was used" (STP's embedded
+  Location; the route is the MapGraphicID's). It is not one of the L-RESOLVE warnings, and E1's and -2's Results missed it;
+  a prediction of "zero resolver warnings" must say which lines it means.
 
 - **A MEMBERLESS AGGREGATE ON THE AGGREGATE MODEL SET IS ONE POSITION** (D1 of docs/PLAN_MOVEMENT_2026-09-27.md,
   RL-20260927-01; `UnitPositionPolicy`, checked offline by the D1 section of `--rulings-selftest`). Arrival evidence and
@@ -2893,6 +2904,11 @@ no Duration and no geometry is malformed and is refused, not held (below).
   WALL s between two samples of the task clock, ~4 s at E2's 14x - lets the gate see end + 60 before the walk sees the
   end time: a hold's successor is then skipped although the hold completed on time, and a LATE MOVER's successor is
   skipped although the mover then arrives (the ONE anchor section's FINDING t4).
+  SEEN LIVE 2026-09-27 in E2-2 (floor 600 s; PREREG_IRONSTORM_CUTA_E2-2_2026-09-27.md Result P31-P32): the order again met
+  a scenario clock at 4.6 s; both CNFPSL holds reported "322 s of a 300 s Duration served" and their successors dispatched
+  0.75 / 0.94 WALL s later on the SAME clock sample - successor stamp minus hold stamp = 321.7 SIM s, the served figure
+  within its rounding - so the timer counted from the dispatch sample; no SKIP. The residual's precondition was met
+  halfway: the task clock stepped more than 30 SIM s between two timed walks at the movers' end time (331 of 300 served).
 - **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
   per order names how many task-clock seconds after receipt the deepest chain reaches its last
   dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.
