@@ -645,7 +645,11 @@ forced pid to exit; if the ONLY survivor at that deadline is the forced pid itse
 start time, `Resolve-StopVrfPostForce` in RunnerLib) the code is still 6, with the log line "forced
 pid N still exiting after S s" - exit 7 is reserved for a genuinely OTHER VR-Forces process
 (IRONSTORM_CUTA_LIVE-2026-09-27-1: the old fixed 15 s wait reported the still-exiting forced
-pid 30600 as exit 7). Offline stand-in exercise (a renamed PING.EXE with no window): pair matched
+pid 30600 as exit 7). "Exited" is judged by the same `Get-Process -Name` listing the verdict and
+the runner's inventory read (RunnerLib `Test-ForcedExitWaitContinue`), never `Get-Process -Id`,
+which calls a terminated process gone while `-Name` still lists it (IRONSTORM_CUTA_LIVE-2026-09-27-2:
+"still exiting after 0 s", then runner exit 4). On StopVrf exit 6 the runner gives the forced pid
+the same bounded wait (60 s) before its post-teardown inventory. Offline stand-in exercise (a renamed PING.EXE with no window): pair matched
 -> FORCED, exit 6; start time off by 1 h (a reused pid) -> "NOT forced", exit 3; own back end plus
 a second back-end image that is not ours -> ours FORCED, the other survives, exit 7.
 

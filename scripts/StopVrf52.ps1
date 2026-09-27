@@ -87,6 +87,10 @@
 #       with the explicit line "forced pid N still exiting after S s". Stop-Process has already
 #       terminated it; a multi-GB back end can take tens of seconds to unmap (2026-09-27: pid
 #       30600, 4.3 GB, gone ~5-20 s after a 15 s wait, which was then misreported as exit 7).
+#       "Leave the process table" is judged by the SAME name listing (Get-Process -Name) the
+#       verdict reads, never Get-Process -Id: the -Id probe calls a terminated process gone at
+#       once (IRONSTORM_CUTA_LIVE-2026-09-27-2: "still exiting after 0 s"; RunnerLib
+#       Test-ForcedExitWaitContinue).
 #   7 = FORCED the run's OWN back end, but ANOTHER VR-Forces process is still up (a front end, a
 #       launcher, or a back end that is not this run's - including the forced pid number reused
 #       by a later process, or a survivor whose start time cannot be read). Something WAS killed,
@@ -578,21 +582,34 @@ if ($ForceOwnBackendPid -gt 0) {
     if ($forced.Count -gt 0) {
         # A force-stopped multi-GB back end can take tens of seconds to leave the process table
         # (2026-09-27: pid 30600, 4.3 GB, still listed after the old fixed 15 s wait -> false exit 7).
+        # ONE PROBE (IRONSTORM_CUTA_LIVE-2026-09-27-2): the wait reads the SAME name listing the
+        # verdict below reads (Get-Procs = Get-Process -Name). The old `Get-Process -Id` probe
+        # reports a terminated process as gone at once while -Name still lists it (RunnerLib,
+        # Test-ForcedExitWaitContinue), so the wait ended after 0 s with pid 6980 still listed.
+        $listSurvivors = {
+            $out = @()
+            foreach ($n in @($procFrontend, $procBackend, $procLauncher)) {
+                foreach ($p in @(Get-Procs $n)) {
+                    $pst = try { $p.StartTime.ToUniversalTime() } catch { $null }
+                    $out += [pscustomobject]@{ Name = $p.ProcessName; Pid = $p.Id; StartUtc = $pst }
+                }
+            }
+            return $out
+        }
         $forceStarted  = Get-Date
         $forceDeadline = $forceStarted.AddSeconds($ForcedExitWaitSec)
-        while ((Get-Date) -lt $forceDeadline -and @($forced | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -gt 0) {
+        $survivors = @(& $listSurvivors)
+        while ($true) {
+            # A failed classification ends the wait; the verdict below then reads its own failure.
+            $keepWaiting = try {
+                Test-ForcedExitWaitContinue -Now (Get-Date) -Deadline $forceDeadline -Forced $forcedRec -Survivors $survivors
+            } catch { $false }
+            if (-not $keepWaiting) { break }
             Start-Sleep -Seconds 1
+            $survivors = @(& $listSurvivors)
         }
         $waited = [int][math]::Round(((Get-Date) - $forceStarted).TotalSeconds)
-        $left = @()
-        $survivors = @()
-        foreach ($n in @($procFrontend, $procBackend, $procLauncher)) {
-            foreach ($p in @(Get-Procs $n)) {
-                $left += ('{0}(pid {1})' -f $p.ProcessName, $p.Id)
-                $pst = try { $p.StartTime.ToUniversalTime() } catch { $null }
-                $survivors += [pscustomobject]@{ Name = $p.ProcessName; Pid = $p.Id; StartUtc = $pst }
-            }
-        }
+        $left = @($survivors | ForEach-Object { '{0}(pid {1})' -f $_.Name, $_.Pid })
         $rtiLeft = @()
         foreach ($n in $rtiNames) { foreach ($p in @(Get-Procs $n)) { $rtiLeft += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) } }
         if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }

@@ -3685,6 +3685,10 @@ $BackendPid          = $null
 # identity StopVrf52 must match before it may force a back end whose graceful close was refused.
 $BackendStartUtc     = $null
 $FrontendPid         = $null
+# StopVrf's exit code, read by the post-teardown inventory: on 6 (own back end FORCED) the
+# inventory first waits, by the same name listing, for the forced pid to leave (IRONSTORM_CUTA_LIVE-2026-09-27-2).
+$StopVrfExitCode     = $null
+$RunnerForcedExitWaitSec = 60
 $SavedPath           = $env:PATH
 $SavedLicense        = $env:MAKLMGRD_LICENSE_FILE
 $SavedVrfAppNumber   = $env:Vrf__ApplicationNumber
@@ -5530,6 +5534,7 @@ finally {
                 -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped; no OTHER VR-Forces process up - the forced pid may still be exiting at the -ForcedExitWaitSec deadline, logged "still exiting"); 7 FORCED the own back end but ANOTHER VR-Forces process is still up. rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
                         else { 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.' })
         if (-not $DryRun) {
+            $StopVrfExitCode = $r.ExitCode
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
                 7 { $teardownOk = $false; Add-Flag 'FAIL' ('StopVrf exited 7: FORCED - the graceful close was REFUSED, this run''s own back end (pid {0}, started {1:o}) was force-stopped, and ANOTHER VR-Forces process is STILL UP (see stopvrf.stdout.log). A leftover instance HARD-BLOCKS the next launch; a force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0).' -f $BackendPid, $BackendStartUtc) }
@@ -5646,6 +5651,46 @@ finally {
 
     # 5. Post-teardown inventory: what is left, and confirm RTI survived.
     if (-not $DryRun) {
+        # StopVrf exit 6 may end with the forced back end STILL EXITING (terminated, but its kernel
+        # object not yet freed, so Get-Process -Name still lists it). IRONSTORM_CUTA_LIVE-2026-09-27-2:
+        # the inventory below listed forced pid 6980 and the run exited 4 "TEARDOWN INCOMPLETE"; the
+        # pid left ~3 s later. Give it the same bounded wait StopVrf52 gives it, by the SAME probe
+        # (the name listing this inventory reads) and the SAME identity rule (RunnerLib
+        # Test-ForcedExitWaitContinue -> Resolve-StopVrfPostForce). Only exit 6, only this run's
+        # own pid + start time; anything else is listed below exactly as before.
+        if ($StopVrfExitCode -eq 6 -and $BackendPid -and $null -ne $BackendStartUtc) {
+            $fwForced = @([pscustomobject]@{ Pid = [int]$BackendPid; StartUtc = $BackendStartUtc })
+            $fwList = {
+                $out = @()
+                foreach ($n in @($ProcLauncher, $ProcBackend, $ProcFrontend)) {
+                    foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) {
+                        $pst = try { $p.StartTime.ToUniversalTime() } catch { $null }
+                        $out += [pscustomobject]@{ Name = $p.Name; Pid = $p.Id; StartUtc = $pst }
+                    }
+                }
+                return $out
+            }
+            $fwStart    = Get-Date
+            $fwDeadline = $fwStart.AddSeconds($RunnerForcedExitWaitSec)
+            $fwSurv     = @(& $fwList)
+            $fwWasListed = $false
+            while ($true) {
+                $fwMore = try { Test-ForcedExitWaitContinue -Now (Get-Date) -Deadline $fwDeadline -Forced $fwForced -Survivors $fwSurv } catch { $false }
+                if (-not $fwMore) { break }
+                $fwWasListed = $true
+                Start-Sleep -Seconds 1
+                $fwSurv = @(& $fwList)
+            }
+            $fwWaited = [int][math]::Round(((Get-Date) - $fwStart).TotalSeconds)
+            if ($fwWasListed) {
+                $fwStill = @(try { @((Resolve-StopVrfPostForce -Forced $fwForced -Survivors $fwSurv).StillExiting) } catch { '(classification failed)' })
+                if ($fwStill.Count -eq 0) {
+                    Say-Ok ('the forced back end pid {0} (StopVrf exit 6) left the process list {1} s into the runner''s post-force wait' -f $BackendPid, $fwWaited)
+                } else {
+                    Say-Warn ('the forced back end pid {0} (StopVrf exit 6) was STILL LISTED after the runner''s {1} s post-force wait: {2}' -f $BackendPid, $fwWaited, ($fwStill -join ', '))
+                }
+            }
+        }
         $left = @()
         foreach ($n in @($ProcLauncher, $ProcBackend, $ProcFrontend)) {
             foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) {

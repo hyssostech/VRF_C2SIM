@@ -2497,6 +2497,76 @@ Check '10g StopVrf52 takes the verdict from Resolve-StopVrfPostForce and waits -
 Check '10g StopVrf52 header documents the still-exiting case under exit 6 and keeps 7 for OTHER processes' (
     $sv52Text -match '(?m)^#\s+6 = [\s\S]{0,900}still exiting' -and $sv52Text -match '7 = FORCED')
 
+Write-Host '=== 10g2. post-force wait: ONE probe for "still exiting" (Test-ForcedExitWaitContinue, RunnerLib) ==='
+# IRONSTORM_CUTA_LIVE-2026-09-27-2 (run 20260927T021020Z_run): StopVrf52 forced pid 6980 and printed
+# "forced pid 6980 still exiting after 0 s" - its wait loop probed `Get-Process -Id` (GetProcessById,
+# which on .NET 7+ says "not running" as soon as the process HAS EXITED) while the verdict and the
+# runner's inventory list by `Get-Process -Name` (the kernel process list, which keeps a terminated
+# process until its object is freed). The runner then still listed 6980 and exited 4 "TEARDOWN
+# INCOMPLETE"; the pid left ~3 s later. The wait now asks the name listing, by the identity rule.
+$hasFwc = [bool](Get-Command Test-ForcedExitWaitContinue -ErrorAction SilentlyContinue)
+Check '10g2 Test-ForcedExitWaitContinue lives in RunnerLib (pure: clock, deadline and listing are passed in)' $hasFwc
+$fw0  = [datetime]::SpecifyKind([datetime]'2026-09-27T02:10:34.0030206', [System.DateTimeKind]::Utc)
+$fwT0 = [datetime]'2026-09-27T03:00:00'
+$fwForced = @([pscustomobject]@{ Pid = 6980; StartUtc = $fw0 })
+function FwCont {
+    param($now, $surv, $forced = $fwForced)
+    if (-not $hasFwc) { return $null }
+    return Test-ForcedExitWaitContinue -Now $now -Deadline $fwT0.AddSeconds(60) -Forced $forced -Survivors $surv
+}
+$fwListed = @(PfSurv 'vrfSimHLA1516e' 6980 $fw0)
+Check '10g2 THE 2026-09-27-2 CASE: forced 6980 still in the NAME listing (same pid + start) before the deadline -> keep waiting' (
+    $hasFwc -and (FwCont $fwT0 $fwListed) -eq $true)
+Check '10g2 the deadline ends the wait even while the forced pid is still listed' ($hasFwc -and (FwCont $fwT0.AddSeconds(60) $fwListed) -eq $false)
+Check '10g2 the forced pid gone from the name listing -> stop waiting' ($hasFwc -and (FwCont $fwT0 @()) -eq $false)
+Check '10g2 the forced pid REUSED by a later process (start differs) is not waited for (the verdict says 7)' (
+    $hasFwc -and (FwCont $fwT0 @(PfSurv 'vrfSimHLA1516e' 6980 $fw0.AddHours(1))) -eq $false)
+Check '10g2 another VR-Forces process up but the forced one gone -> stop waiting (nothing to wait FOR)' (
+    $hasFwc -and (FwCont $fwT0 @(PfSurv 'vrfGui' 11111 $fw0)) -eq $false)
+Check '10g2 forced pid still listed PLUS another process -> keep waiting for the forced one' (
+    $hasFwc -and (FwCont $fwT0 @((PfSurv 'vrfSimHLA1516e' 6980 $fw0), (PfSurv 'vrfGui' 11111 $fw0))) -eq $true)
+Check '10g2 nothing forced -> no wait' ($hasFwc -and (FwCont $fwT0 $fwListed @()) -eq $false)
+# The loop itself, fed with fake probe results on a fake clock (1 s per poll, as both call sites do):
+# the name listing shows 6980 for the first 3 polls, then not. Driven by the new rule, the wait lasts
+# 3 s and ends with nothing listed; driven by the OLD rule (an -Id probe that already reads "gone"),
+# it ends at 0 s with 6980 still in the listing the verdict reads - exactly the logged defect.
+function FwSimulate {
+    param([scriptblock]$Rule, [int]$ListedPolls, [int]$WaitSec = 60)
+    $t = 0
+    while ($true) {
+        $surv = if ($t -lt $ListedPolls) { $fwListed } else { @() }
+        if (-not (& $Rule ($fwT0.AddSeconds($t)) $fwT0.AddSeconds($WaitSec) $surv)) { break }
+        $t++
+    }
+    return [pscustomobject]@{ Waited = $t; ListedAtEnd = [bool]($t -lt $ListedPolls) }
+}
+$fwNewRule = { param($now, $dl, $surv) if (-not $hasFwc) { return $false }; Test-ForcedExitWaitContinue -Now $now -Deadline $dl -Forced $fwForced -Survivors $surv }
+$fwOldRule = { param($now, $dl, $surv) ($now -lt $dl) -and $false }  # the -Id probe: already "not running" after Stop-Process
+$fwNew = FwSimulate $fwNewRule 3
+$fwOld = FwSimulate $fwOldRule 3
+Check '10g2 fake-probe loop, new rule: waits while the name listing shows the forced pid, ends when it leaves (3 s, nothing listed)' (
+    $hasFwc -and $fwNew.Waited -eq 3 -and -not $fwNew.ListedAtEnd) ('waited=' + $fwNew.Waited + ' listedAtEnd=' + $fwNew.ListedAtEnd)
+Check '10g2 fake-probe loop, OLD rule reproduces the log: 0 s, forced pid still listed' ($fwOld.Waited -eq 0 -and $fwOld.ListedAtEnd)
+$fwCap = FwSimulate $fwNewRule 500 60
+Check '10g2 fake-probe loop, new rule: a pid that never leaves is bounded by the deadline (60 s), then the verdict reads it' (
+    $hasFwc -and $fwCap.Waited -eq 60 -and $fwCap.ListedAtEnd) ('waited=' + $fwCap.Waited)
+# The call sites. StopVrf52: no -Id probe left in the post-force wait, the rule is called on the
+# SAME $survivors the verdict classifies, and that listing is Get-Procs (the -Name listing).
+$fwSvBlock = [regex]::Match($sv52Code, '\$forceStarted\s*=\s*Get-Date[\s\S]*?Resolve-StopVrfPostForce -Forced').Value
+Check '10g2 StopVrf52: the post-force wait calls Test-ForcedExitWaitContinue on $forcedRec + $survivors and never Get-Process -Id' (
+    $fwSvBlock -ne '' -and $fwSvBlock -match 'Test-ForcedExitWaitContinue -Now \(Get-Date\) -Deadline \$forceDeadline -Forced \$forcedRec -Survivors \$survivors' -and
+    $fwSvBlock -notmatch 'Get-Process -Id')
+Check '10g2 StopVrf52: the survivor listing the wait and the verdict read is Get-Procs (Get-Process -Name)' (
+    $sv52Code -match '\$listSurvivors = \{[\s\S]{0,400}Get-Procs \$n' -and $sv52Code -match 'function Get-Procs \{[^\r\n]*Get-Process -Name')
+# The runner: StopVrf's exit code is kept, and on 6 the inventory first waits by the same rule on
+# the same -Name listing, for THIS run's pid + start time only, before it can declare leftovers.
+$fwRn = [regex]::Match($rnText, '(?s)if \(\$StopVrfExitCode -eq 6 -and \$BackendPid -and \$null -ne \$BackendStartUtc\) \{.*?\$Manifest\.preflight\.postRunVrf').Value
+Check '10g2 runner: records StopVrf''s exit code and initialises it before the try (StrictMode)' (
+    $rnText -match '\$StopVrfExitCode = \$r\.ExitCode' -and $rnText -match '(?m)^\$StopVrfExitCode\s+=\s+\$null' -and $rnText -match '(?m)^\$RunnerForcedExitWaitSec\s*=\s*60\b')
+Check '10g2 runner: on exit 6 the post-teardown inventory waits via Test-ForcedExitWaitContinue on the -Name listing BEFORE listing leftovers' (
+    $fwRn -ne '' -and $fwRn -match 'Test-ForcedExitWaitContinue -Now \(Get-Date\) -Deadline \$fwDeadline -Forced \$fwForced' -and
+    $fwRn -match 'Get-Process -Name \$n' -and $fwRn -notmatch 'Get-Process -Id' -and $fwRn -match 'Pid = \[int\]\$BackendPid; StartUtc = \$BackendStartUtc')
+
 Write-Host '=== 10e. STP-844 LaunchVrf52 precheck: GUI-on only, advisory only, no StrictMode leak ==='
 Check '10e the precheck is gated on a front end actually being launched (-NoGui raises no dialog)' (
     $lv52Text -match 'if \(-not \$NoGui\) \{[\s\S]{0,4000}vrfGui TEARDOWN PROMPTS ARE ON')
