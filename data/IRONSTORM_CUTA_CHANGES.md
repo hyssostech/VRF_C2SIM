@@ -11,6 +11,8 @@ and reproduce byte for byte:
 
     data/IRONSTORM_CUTA_Initialization.xml             sha256 2000e856cb00314064ab6d40c7f7df64cea098b3466fe70d7614f3d26dc93eec
     data/IRONSTORM_CUTA_Order.xml                      sha256 7a9861372f07702fc136f91f63b8bf971650fcc91c20aa62803d73cfd869f5c7
+    data/IRONSTORM_CUTA_E1_Order.xml                   sha256 7d5b4034eef0ecf0f33946c6f30b60aaff35e640a86b6b16c9c24f02cb3ddb9a
+                                                       (the VARIANT "--without i" for run E1 - section "E1" below)
 
 (2026-09-26, twice. First corrected: this line said 1cd89c40bcce5d66...3956636, a stale hash; the record
 does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on main 8cdca96 reports
@@ -470,6 +472,47 @@ T02 (OSM water, checked here for the first time): **dry** - 0 wet samples at 0 /
 100-150 m right of travel near 2.34 km along (10 samples wet at +150 m). Not changed.
 
 T02, T14, T01 and T13 are not touched by (j).
+
+### E1 - 2026-09-27: the VARIANT without change (i), `data/IRONSTORM_CUTA_E1_Order.xml`
+
+**Run E1 (docs/PLAN_MOVEMENT_2026-09-27.md row E1; ruling RL-20260927-01), lane E1.** Written by
+`derive_ironstorm_cuta.py --without i`; sha256 **7d5b4034eef0ecf0f33946c6f30b60aaff35e640a86b6b16c9c24f02cb3ddb9a**
+(74,959 B, the CRLF working-tree file `--check` reads). The init is unchanged (2000e856...). This is a second
+ORDER FILE beside the ruled one, not an edit of it: `IRONSTORM_CUTA_Order.xml` still carries (a)-(j).
+
+PURPOSE. Since RL-20260927-01 a lone ground platform is driven by Move To per STP vertex, and Move To PLANS each
+leg - roads, the nav mesh, round feature obstacles - and recovers from a blockage (UG52 23.1-23.2), where the
+Move Along Route T14 used to get planned nothing (UG52 23.3). Change (i) is a hand-placed waypoint that did the
+planner's job. E1 takes it away on purpose: **the PLANNER, not a hand waypoint, must take T14 round the lake.**
+T14's original line still enters OSM way 197345448 (Jezioro Wiersnie, deep-water) - that is the point of the run,
+not a defect of the variant.
+
+WHAT. (a)-(h) and (j) exactly as above; (i) LEFT OUT. T14 names only its FollowAndSupport graphic 7351f662 again:
+
+    54.019389, 23.313902 (start) -> 54.040348, 23.324206 (the (e) destination), 2,426 m
+
+**T14's DESTINATION KEEPS CHANGE (e)** - the 799 m west nudge out of the lake (RL-20260921-01) stays. A
+Move To cannot end in water either: the planner's only endpoint adjustment is onto a road shoulder, never out of
+water, and a vertex it cannot plan to aborts the task (FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27 sec 5.2,
+ground-vehicle-move-to.lua :423-460, :1401-1404). T10 keeps (h) and (j): it is a unit, whose Move Along Route
+already plans per vertex for every member (UG52 30.22), and its route is not what E1 varies. Change (k) (T14 round
+the hamlet it stopped in on the (i) route, branch fix/ironstorm-t14-hamlet) is unmerged and is not in this
+derivation; `--without` refuses every letter except `i`.
+
+CHECKS (2026-09-27, lane E1):
+- The script derives BOTH orders on every run, gates both, and proves the E1 order is the ruled order minus
+  exactly (i)'s graphic `<Entity>` and its one MapGraphicID line (`git diff --no-index`: 43 deletions, 0
+  insertions). It ASSERTS the original line: T14 names only 7351f662, whose vertices are [48 IBCT's init
+  position, the (e) destination], and 7ff48b93 is nowhere in the file. `--check` verifies the init and both orders.
+- `VrfC2SimApp --parse-order` (build b984945): 5 tasks, T14 `mapGraphic: 7351f662-...` only, durations 4 x 1,200,000
+  ms and 1 x 1,800,000 ms (T10), T02 / T14 start after T01 / T13, no warning.
+- `leg_check.py --step 2 --no-chain --no-starts --osm-water <z14 osm-water tiles>`: T14 leg 1, 2,426 m, **"WATER ON
+  THE LINE - 78 of 1214 sample(s) classify as deep-water (OSM water z14 ...), first at 0.83 km along (54.02659,
+  23.31744)"**, ratio 0.05 (not flagged for grade - so the lateral route shift, which flags on grade, will not
+  touch it). T02 and T10 as under (j): dry, ok. `--dump-resolved`: T14 resolves to [54.040348, 23.324206] alone.
+
+NOT CLAIMED HERE: that the planner clears the lake. That is what E1 observes
+(docs/experiments/PREREG_IRONSTORM_CUTA_E1_2026-09-27.md).
 
 --------------------------------------------------------------------------------
 ## What the cut does at run time

@@ -2,6 +2,8 @@
 
 - `derive_ironstorm_cuta.py` - derives cut A (`data/IRONSTORM_CUTA_*`) from the Iron Storm narrative-1 export.
   `--check` proves the committed files still match the derivation. Change list: `data/IRONSTORM_CUTA_CHANGES.md`.
+  `--without i` writes the one registered variant, `data/IRONSTORM_CUTA_E1_Order.xml` (change (i) left out, for
+  run E1); every other letter is refused, and `--check` verifies both order files.
 
 ## Where the Iron Storm narrative-1 export came from
 
