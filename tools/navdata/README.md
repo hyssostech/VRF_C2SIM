@@ -159,3 +159,6 @@ CORRIDOR PASS with T10 rerouted (change (h); corridor_gate --preset ironstorm-cu
 tools\navdata\out\MAK Earth (online) + IronStormCentre_maple_nav.mtf (sha256 17af705b...2d5e) names C:\C2SIM\vrf-nav\shadow_is04_maple
 and area C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE_maple (runtime config 40b46032...ddfb).
 Side effect: on that copy biome-04 forest places red maples only. Fixture IronStorm_Centre_52_Nav_AG_maple (tools/FixtureGen/README.md).
+Since 2026-09-27 use `--preset ironstorm-cuta-j`: every driven leg of the current cut-A order (T14 via (i), T10 via
+(h) + (j)); PASS on the maple area, 33 sectors, min 0.9000. `ironstorm-cuta-h` is kept as the (h) record (its T14 row
+is the pre-(i) straight leg).

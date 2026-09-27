@@ -17,8 +17,9 @@ OUTPUTS (tracked)
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
 (change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
-and ONE AffectedEntity added (changes (f) and (g), owner directions), exactly TWO graphics are
-added (change (h), an owner selection: T10's reroute; change (i), T14's lake-edge waypoint),
+and ONE AffectedEntity added (changes (f) and (g), owner directions), exactly THREE graphics are
+added (change (h), an owner selection: T10's reroute; change (i), T14's lake-edge waypoint;
+change (j), T10's second waypoint off a pond),
 none is removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
 preserved byte for byte. See data/IRONSTORM_CUTA_CHANGES.md for the rationale
 and the consequences.
@@ -114,6 +115,16 @@ and the consequences.
       start -> waypoint -> 54.040348 / 23.324206, 4,169 m (was 2,426 m). >= 60 m from water of
       any source on both legs; maple-area corridor PASS (CHANGES.md (i)). See apply_t14_waypoint.
 
+  (j) T10's (h) LEG 2 IS KEPT OFF AN OSM POND. 2026-09-27, lane T10. (h)'s second leg runs down the
+      east edge of an OSM natural=water pond (deep-water, the (i) chain): 1 centreline sample at
+      54.02359 / 23.31049 and 81 / 102 samples at 25 / 50 m right of travel - and 1-112 IN moves
+      as a 6-7 member formation. ONE more waypoint, 54.024000 / 23.313000 (east of the pond),
+      carried by ONE added Line/Route graphic (51a59f89...; vertices = 1-112 IN's init position,
+      asserted, then the waypoint) referenced by T10 after (h) and before the (b) PassagePoint:
+      start -> 54.029734 / 23.305499 -> 54.024000 / 23.313000 -> PassagePoint (UNCHANGED),
+      2,775 m (was 2,729 m). >= 110 m from water of any source on all three legs, >= 164 m from
+      sectors (28,21)/(28,22); maple-area corridor PASS (CHANGES.md (j)). See apply_t10_waypoint.
+
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
     python tools/scenario/derive_ironstorm_cuta.py --check         # verify, write nothing
@@ -125,6 +136,7 @@ it prints the SHA-256 of every input and output so a derivation can be audited l
 
 import argparse
 import hashlib
+import math
 import os
 import re
 import sys
@@ -455,6 +467,89 @@ def apply_t14_waypoint(text, log, init_text):
 
 
 # ---------------------------------------------------------------------------
+# (j) T10's (h) LEG 2 KEPT OFF A POND. 2026-09-27, lane T10 (found by lane T14's OSM-aware check).
+#
+# WHY. (h)'s second leg, waypoint 54.029734 / 23.305499 -> PassagePoint_48_IBCT_SLOT0, runs down
+# the east edge of an OSM natural=water pond (coverage value 80 -> deep-water, the chain (i)
+# documents): 1 centreline sample at 54.02359 / 23.31049, and 81 / 102 samples at 25 / 50 m right
+# of travel (702-880 m along). 1-112 IN is a six-to-seven member aggregate moving in formation,
+# so its right-hand members would drive into it. (h) was checked dry on CLCplus only.
+#
+# HOW, the (h)/(i) pattern: ONE more waypoint, east of the pond, on ONE added Line/Route graphic
+# whose vertices are 1-112 IN's own init position (asserted) and the waypoint, referenced by T10
+# AFTER the (h) reroute and BEFORE the (b) PassagePoint. The resolver drops both lines' first
+# vertex (the taskee's own position) and chains nearest-first from the taskee: the (h) waypoint
+# is nearer, so the route is start -> (h) WP -> (j) WP -> PassagePoint (asserted below from the
+# distances, since the order of the MapGraphicIDs does not decide it). Leg 1 and the destination
+# are UNCHANGED.
+# ---------------------------------------------------------------------------
+T10WP_WAYPOINT = ('54.024000', '23.313000')
+# uuid5(NAMESPACE_URL, 'urn:c2sim-vrf:IRONSTORM_CUTA:(j):T10-leg2-waypoint:2026-09-27')
+T10WP_GRAPHIC = '51a59f89-799e-5ed0-8c05-1e63b01e8069'
+T10WP_NAME = 'T10_Waypoint_1-112_IN__CUT_A_J_KEEP_LEG_2_OFF_POND'
+
+
+def _dist_m(a, b):
+    """Equirectangular metres between two (lat, lon) string/float pairs - ample for ordering
+    points 0.5-3 km apart."""
+    la1, lo1, la2, lo2 = (float(a[0]), float(a[1]), float(b[0]), float(b[1]))
+    k = math.cos(math.radians((la1 + la2) / 2.0))
+    return math.hypot((lo2 - lo1) * 111320.0 * k, (la2 - la1) * 111320.0)
+
+
+def apply_t10_waypoint(text, log, init_text):
+    """(j) Add T10's second waypoint graphic right after the (h) reroute graphic's <Entity> and
+    reference it from T10, after the (h) reference and before the (b) destination. Every
+    anchor is asserted, and so is the chaining order the resolver will derive."""
+    if T10WP_GRAPHIC in text:
+        raise AssertionError('(j) the waypoint graphic %s is already present' % T10WP_GRAPHIC)
+    pos = unit_init_position(init_text, REROUTE_UNIT)
+    if pos != REROUTE_START:
+        raise AssertionError('(j) 1-112 IN init position is %r, expected %r' % (pos, REROUTE_START))
+    # the (h) graphic must be there and still be [start, (h) waypoint]
+    g = text.find('<UUID>%s</UUID>' % REROUTE_GRAPHIC)
+    if g < 0 or text.count('<UUID>%s</UUID>' % REROUTE_GRAPHIC) != 1:
+        raise AssertionError('(j) expected the (h) reroute graphic exactly once - apply (h) first')
+    blk = text[g:text.find('</Route>', g)]
+    verts = re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>', blk)
+    if verts != [REROUTE_START, REROUTE_WAYPOINT]:
+        raise AssertionError('(j) the (h) graphic vertices are %r, expected [start, (h) waypoint]'
+                             % (verts,))
+    # nearest-first chaining must put the (h) waypoint first: start -> (h) -> (j) -> destination
+    if not _dist_m(REROUTE_START, REROUTE_WAYPOINT) < _dist_m(REROUTE_START, T10WP_WAYPOINT):
+        raise AssertionError('(j) the (j) waypoint is nearer the start than the (h) one; the '
+                             'resolver would chain it first')
+    close = '      </Entity>' + EOL
+    end = text.find(close, g)
+    if end < 0:
+        raise AssertionError('(j) no </Entity> after the (h) reroute graphic')
+    end += len(close)
+    text = (text[:end] + route_entity(T10WP_NAME, T10WP_GRAPHIC, REROUTE_START, T10WP_WAYPOINT)
+            + text[end:])
+    # T10's block: (h) reference, then (j), then the (b) destination
+    ref_h = ('%s<MapGraphicID>%s</MapGraphicID><!--T10_Reroute ADDED BY CUT A (h)-->%s'
+             % (INDENT, REROUTE_GRAPHIC, EOL))
+    ref_b = (INDENT + '<MapGraphicID>%s</MapGraphicID><!--PassagePoint_48_IBCT_SLOT0 ADDED BY CUT A-->'
+             % REROUTE_DEST_GRAPHIC)
+    t10 = text.find('<UUID>%s</UUID>' % REROUTE_TASK)
+    blk_start = text.rfind('<Task>', 0, t10)
+    at_h = text.find(ref_h, blk_start, t10)
+    at_b = text.find(ref_b, blk_start, t10)
+    if (t10 < 0 or at_h < 0 or at_b < 0 or text.count(ref_h) != 1 or text.count(ref_b) != 1
+            or at_h + len(ref_h) != at_b):
+        raise AssertionError('(j) T10 does not carry the (h) reference immediately before the (b) '
+                             'destination, exactly once')
+    line = ('%s<MapGraphicID>%s</MapGraphicID><!--T10_Waypoint ADDED BY CUT A (j)-->%s'
+            % (INDENT, T10WP_GRAPHIC, EOL))
+    text = text[:at_b] + line + text[at_b:]
+    log('  (j) T10 waypoint: + Route graphic %s [%s,%s -> %s,%s] referenced after (h), before the '
+        '(b) destination (keeps (h) leg 2 off an OSM pond; destination unchanged)'
+        % (T10WP_GRAPHIC[:8], REROUTE_START[0], REROUTE_START[1],
+           T10WP_WAYPOINT[0], T10WP_WAYPOINT[1]))
+    return text
+
+
+# ---------------------------------------------------------------------------
 # (a) the duration rewrite - a pure function, self-tested below
 # ---------------------------------------------------------------------------
 C2SIM_DURATION = re.compile(
@@ -630,7 +725,7 @@ def write(path, text):
 
 # ---------------------------------------------------------------------------
 def derive_order(src_text, log, init_text=None):
-    """Apply (a), (b), (c), (e), (f), (g), (h) and (i) to the order text. Returns the derived text."""
+    """Apply (a), (b), (c), (e), (f), (g), (h), (i) and (j) to the order text. Returns the derived text."""
     blocks = TASK_BLOCK.findall(src_text)
     log('order carries %d <Task> blocks' % len(blocks))
     if len(blocks) != src_text.count('<Task>'):
@@ -728,6 +823,9 @@ def derive_order(src_text, log, init_text=None):
 
     # (i) T14's waypoint round the lake (after (e) put the destination on the graphic).
     text = apply_t14_waypoint(text, log, init_text)
+
+    # (j) T10's second waypoint, keeping (h) leg 2 off the pond (after (h) added its graphic).
+    text = apply_t10_waypoint(text, log, init_text)
 
     # (a) last, so it covers the whole derived document including nothing new (the
     # inserted lines carry no duration).
@@ -863,6 +961,58 @@ def selftest():
             print('  MISMATCH %-46s accepted a document it must refuse' % label)
         except AssertionError:
             print('  ok       refused: %s' % label)
+
+    print('apply_t10_waypoint (j):')
+    order_j = apply_reroute(order, lambda m: None, init_ok)
+    rj = apply_t10_waypoint(order_j, lambda m: None, init_ok)
+    check('(j) graphic added once', rj.count('<UUID>%s</UUID>' % T10WP_GRAPHIC), 1)
+    check('(j) T10 names (h), then (j), then the destination',
+          0 < rj.index('<MapGraphicID>%s' % REROUTE_GRAPHIC)
+          < rj.index('<MapGraphicID>%s' % T10WP_GRAPHIC)
+          < rj.index('<MapGraphicID>%s' % REROUTE_DEST_GRAPHIC), True)
+    check('(j) graphic entity right after the (h) entity',
+          rj.index('<UUID>%s</UUID>' % REROUTE_GRAPHIC) < rj.index('<UUID>%s</UUID>' % T10WP_GRAPHIC),
+          True)
+    check('(j) the added line is [1-112 IN start, (j) waypoint]',
+          re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>',
+                     rj[rj.index('<UUID>%s</UUID>' % T10WP_GRAPHIC):]),
+          [REROUTE_START, T10WP_WAYPOINT])
+    check('(j) chains after (h): (h) waypoint nearer the start',
+          _dist_m(REROUTE_START, REROUTE_WAYPOINT) < _dist_m(REROUTE_START, T10WP_WAYPOINT), True)
+    check('(j) _dist_m sanity: (h) leg 1 is ~1,453 m',
+          abs(_dist_m(REROUTE_START, REROUTE_WAYPOINT) - 1453) < 5, True)
+    # the (h) graphic with a moved waypoint (a re-derivation that changed (h) under (j))
+    moved_h = order_j.replace('<Latitude>%s</Latitude>' % REROUTE_WAYPOINT[0],
+                              '<Latitude>54.0</Latitude>')
+    # a (b) reference not directly after (h): some other graphic reference in between
+    wedged = order_j.replace(
+        '<!--T10_Reroute ADDED BY CUT A (h)-->' + EOL,
+        '<!--T10_Reroute ADDED BY CUT A (h)-->' + EOL + INDENT + '<MapGraphicID>x</MapGraphicID>' + EOL)
+    for label, o, i in (('1-112 IN moved in the init', order_j,
+                         init_ok.replace(REROUTE_START[0], '54.0')),
+                        ('already applied', rj, init_ok),
+                        ('(h) not applied', order, init_ok),
+                        ('(h) waypoint moved', moved_h, init_ok),
+                        ('T10 lacks the (b) reference',
+                         order_j.replace('SLOT0 ADDED BY CUT A', 'SLOT0 x'), init_ok),
+                        ('(h) not immediately before (b)', wedged, init_ok)):
+        try:
+            apply_t10_waypoint(o, lambda m: None, i)
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused: %s' % label)
+    # a (j) waypoint nearer the start than (h)'s would be chained FIRST by the resolver
+    saved = T10WP_WAYPOINT
+    globals()['T10WP_WAYPOINT'] = ('54.040000', '23.308000')
+    try:
+        apply_t10_waypoint(order_j, lambda m: None, init_ok)
+        ok = False
+        print('  MISMATCH %-46s accepted a document it must refuse' % '(j) nearer than (h)')
+    except AssertionError:
+        print('  ok       refused: (j) waypoint nearer the start than (h)')
+    finally:
+        globals()['T10WP_WAYPOINT'] = saved
 
     print('gate (proven on a DIRTY control first, per the ASCII rule):')
     good = ('<?xml version="1.0" encoding="utf-8"?>\r\n<MessageBody xmlns="%s">\r\n'

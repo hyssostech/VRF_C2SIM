@@ -173,6 +173,8 @@ rendering and simulation alike; and T10 drives a waypoint path (start -> 54.0297
 not STP's straight leg (data/IRONSTORM_CUTA_CHANGES.md (h)). Run it with the cut-A order at sha256 3801c71b...79fefe8.
 SINCE 2026-09-27 change (i) (T14 routed round a lake via 54.014600, 23.331500) the cut-A order is sha256
 5d6bbae4...49fc9a; the area and this fixture are unchanged (T14's new legs cross only sectors >= 0.9167).
+SINCE 2026-09-27 change (j) (T10 also via 54.024000, 23.313000, off an OSM pond) the cut-A order is sha256
+7a986137...69f5c7; the area and this fixture are unchanged (corridor_gate --preset ironstorm-cuta-j PASS, min 0.9000).
 LIVE STATUS 2026-09-27: NOT live-proven. The first registered run (PREREG_IRONSTORM_CUTA_LIVE1_2026-09-27.md) stopped
 at its pre-warm gate and its scored run never launched. The UNSCORED pre-warm (run 20260927T003120Z_run) did load
 `NavArea-ground-platform IRONSTORM-CENTRE_maple` before the order (runner: WARM, 25.2 s from first placement) and the

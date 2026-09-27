@@ -9,7 +9,8 @@ gate asks the load-bearing question: does every sector a leg actually drives thr
 (ironstorm\\cuta\\sector_map.py, paired.py; record part3b.md / part4.md) by lane I1, 2026-09-26.
 
     python corridor_gate.py <gen.log> [--runtime-config <area>.navRuntimeConfig]
-                            [--preset ironstorm-cuta] [--leg LABEL LAT,LON LAT,LON ...]
+                            [--preset ironstorm-cuta|ironstorm-cuta-h|ironstorm-cuta-j]
+                            [--leg LABEL LAT,LON LAT,LON ...]
                             [--step 2] [--gate 0.9] [--json]
     python corridor_gate.py --selftest-gen1 <gen-1 console log of 2026-09-20>
 
@@ -78,6 +79,22 @@ PRESETS = {
          (54.019388734463774, 23.313901568645093)),
         ("T14 48 IBCT (nudged)", (54.019388734463774, 23.313901568645093),
          (54.040348, 23.324206)),
+    ],
+    # cut A after changes (i) (2026-09-27, T14 round the lake Jezioro Wiersnie via 54.0146,
+    # 23.3315) and (j) (2026-09-27, T10's (h) leg 2 split at 54.024, 23.313 to keep it off an OSM
+    # pond): every driven leg of the current derived order (derive_ironstorm_cuta.py T14WP_*,
+    # T10WP_*). T02 is unchanged.
+    "ironstorm-cuta-j": [
+        ("T02 28ID", (53.99238486824088, 23.211255470526073),
+         (54.028873887648274, 23.264400661185014)),
+        ("T10 1-112 IN (h) leg 1", (54.04268819191243, 23.30823457011959),
+         (54.029734, 23.305499)),
+        ("T10 1-112 IN (j) leg 2", (54.029734, 23.305499), (54.024000, 23.313000)),
+        ("T10 1-112 IN (j) leg 3", (54.024000, 23.313000),
+         (54.019388734463774, 23.313901568645093)),
+        ("T14 48 IBCT (i) leg 1", (54.019388734463774, 23.313901568645093),
+         (54.014600, 23.331500)),
+        ("T14 48 IBCT (i) leg 2", (54.014600, 23.331500), (54.040348, 23.324206)),
     ],
 }
 

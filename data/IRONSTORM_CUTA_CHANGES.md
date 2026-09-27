@@ -10,7 +10,7 @@ DERIVED, not authored. They are produced by
 and reproduce byte for byte:
 
     data/IRONSTORM_CUTA_Initialization.xml             sha256 2000e856cb00314064ab6d40c7f7df64cea098b3466fe70d7614f3d26dc93eec
-    data/IRONSTORM_CUTA_Order.xml                      sha256 5d6bbae4f9126ff362ee7c4e123a3f726919e1c34b4977f1c66fe3184749fc9a
+    data/IRONSTORM_CUTA_Order.xml                      sha256 7a9861372f07702fc136f91f63b8bf971650fcc91c20aa62803d73cfd869f5c7
 
 (2026-09-26, twice. First corrected: this line said 1cd89c40bcce5d66...3956636, a stale hash; the record
 does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on main 8cdca96 reports
@@ -20,7 +20,9 @@ reports 1ef43198...c79429. Any record that cites 5dbe8b0b describes the pre-(f)/
 Then change (h) (T10 reroute, 2026-09-26, lane I1d) was applied; `--check` reports 3801c71b...79fefe8. A record
 citing 1ef43198 describes the pre-(h) order. Then change (i) (T14 routed round a lake, 2026-09-27, lane T14)
 was applied; `--check` reports 5d6bbae4...49fc9a. A record citing 3801c71b describes the pre-(i) order - the one
-IRONSTORM_CUTA_LIVE-2026-09-27-1's pre-warm ran. The hashes are of the CRLF working-tree files `--check` reads.)
+IRONSTORM_CUTA_LIVE-2026-09-27-1's pre-warm ran. Then change (j) (T10's (h) leg 2 kept off an OSM pond,
+2026-09-27, lane T10) was applied; `--check` reports 7a986137...69f5c7. A record citing 5d6bbae4 describes
+the pre-(j) order. The hashes are of the CRLF working-tree files `--check` reads.)
 
 Re-run the script after a re-export (`python tools/scenario/derive_ironstorm_cuta.py`),
 or `--check` to prove the files on disk still match the derivation. The script FAILS
@@ -42,7 +44,8 @@ coordinate is moved, no unit is renamed, no graphic is added or removed. (Since
 block removed the remainder is still byte-identical, because all of those sit inside
 task blocks or the one nudged graphic vertex.) Since 2026-09-26 (h) also ADDS ONE graphic (a two-vertex
 Line/Route, T10's reroute) and one MapGraphicID in T10; that graphic's <Entity> is the only non-task text
-added. Since 2026-09-27 (i) adds a SECOND such graphic (T14's waypoint) and one MapGraphicID in T14. Root element, namespace, declaration and CRLF line endings are the
+added. Since 2026-09-27 (i) adds a SECOND such graphic (T14's waypoint) and one MapGraphicID in T14, and (j)
+a THIRD (T10's second waypoint) and a second added MapGraphicID in T10. Root element, namespace, declaration and CRLF line endings are the
 export's.
 
 ### (a) Duration format - connector bug STP-848
@@ -408,9 +411,65 @@ CHECKS on the derived order (sha256 5d6bbae4...49fc9a):
 centreline samples on T10's leg 2 at 0.76 km (54.02359, 23.31049), and 81 / 102 samples at 25 / 50 m
 to the right of travel (702-880 m along). T10 is a seven-member aggregate that moves in formation, so
 its right-hand members may drive into that water. (h) is an owner selection; re-routing it is the
-owner's call.
+owner's call. **Since fixed by (j) below** (a waypoint added; (h)'s own waypoint is unchanged).
 
 T02, T10, T01 and T13 are not touched by (i).
+
+### (j) APPLIED 2026-09-27 - T10's (h) leg 2 kept off an OSM pond
+
+**Lane T10, 2026-09-27, from lane T14's OSM-aware check (the (i) note above).** Not an owner ruling:
+the lane brief said to keep T10 dry with margin without moving its destination unless unavoidable.
+It was avoidable; the destination and (h)'s waypoint are unchanged.
+
+WHY. (h) leg 2 (54.029734 / 23.305499 -> PassagePoint_48_IBCT_SLOT0) runs down the east edge of an
+OSM natural=water pond (value 80 -> deep-water, the chain under (i)): 1 of 639 centreline samples at
+54.02359 / 23.31049, and 81 / 102 samples at 25 / 50 m RIGHT of travel (702-880 m along). 1-112 IN
+is a six-to-seven member aggregate moving in formation, so its right-hand members would reach it.
+
+WHAT. ONE more waypoint, **54.024000 / 23.313000** (east of the pond), carried by ONE added
+`Line/Route` graphic `51a59f89-799e-5ed0-8c05-1e63b01e8069` ("T10_Waypoint_1-112_IN__CUT_A_J_...",
+SIDC `GFGPOLAGM-----X`, uuid5 of a fixed name) with two vertices: 1-112 IN's own init position
+(asserted) and the waypoint. T10 references it AFTER the (h) graphic and immediately BEFORE the (b)
+PassagePoint (asserted adjacent). The resolver drops both lines' first vertex (the taskee's own
+position) and chains nearest-first from the taskee; the (h) waypoint (1,453 m away) is nearer than
+the (j) one (2,104 m), which the derivation asserts, so T10 drives
+
+    54.042688, 23.308235 (start) -> 54.029734, 23.305499 -> 54.024000, 23.313000 -> 54.019389, 23.313902 (UNCHANGED)
+
+1,453 m + 805 m + 517 m = 2,775 m (the (h) route was 2,729 m; +46 m). `leg_check.py --dump-resolved`
+resolves T10 to exactly [(h) waypoint, (j) waypoint, PassagePoint].
+
+HOW THE WAYPOINT WAS CHOSEN (scratch lane T10). With (h)'s leg 1 kept, a 20 m grid of single extra
+waypoints whose two new legs are >= 60 m from water of ANY source (CLCplus water soils and muck,
+OSM water of every class; 5 m lattice) and >= 100 m from sectors (28,21)/(28,22), then the maple
+corridor on all three legs (785 candidates; the 30 shortest all PASS). The shortest had only 60 m;
+a 0.0001 deg refinement east of the pond traded +40 m of path for >= 150 m of clearance. The
+alternative - moving (h)'s waypoint west of the pond, one waypoint - was 3,045 m (+316 m) and
+would have rewritten the owner-selected (h).
+
+CHECKS on the derived order (sha256 7a986137...69f5c7):
+- Water, 2 m stride at lateral offsets 0 / +-25 / +-50 m, CLCplus + OSM: **0 of 3,635** (leg 1),
+  **0 of 2,015** (leg 2), **0 of 1,295** (leg 3) samples wet; nearest water of any source 110 m /
+  155 m / 150 m.
+- `leg_check.py --step 2 --no-chain --osm-water <z14 osm-water tiles>`: T10 leg 1 1,451 m ratio
+  0.11, leg 2 804 m ratio 0.01, leg 3 516 m ratio 0.08, all ok, no water (the same run on the
+  pre-(j) order reports T10 leg 2 "WATER ON THE LINE - 1 of 639"). L12 steepest 10 m window
+  0.113 up / 0.101 down (leg 1), 0.012 (leg 2), 0.073 / 0.042 (leg 3), against 0.921 derated.
+- `corridor_gate.py --preset ironstorm-cuta-j` (NEW: T02, T10's three legs, T14's two (i) legs)
+  on the maple area log (frame = its runtime config): **PASS**, 33 sectors, 0 below 0.9, min
+  0.9000 at T02's (17,15) (unchanged). T10 leg 1 worst 0.9649, leg 2 0.9200 at (28,20), leg 3
+  0.9565; T14 legs 0.9259 / 0.9167. The new legs stay >= 164 m from (28,21)/(28,22).
+- T14 (c): T10's new legs are >= 521 m from T14's (i) leg 1 except where both meet at the
+  PassagePoint (T14's start, T10's end - by design since (b)), and >= 1,022 m from T14's leg 2,
+  across the lake. T10 now arrives heading 173 deg; T14 leaves heading 115 deg, so the two rays
+  from the PassagePoint are 122 deg apart (not head-on); 200 m out they are 349 m apart. Both
+  start at 5.0 min (scale 0.25); T14 has left the PassagePoint long before T10's ~2.8 km arrive.
+
+T02 (OSM water, checked here for the first time): **dry** - 0 wet samples at 0 / +-25 / +-50 m
+(and +-75 / +-100 m) over its 5,341 m; the nearest OSM water is a river (value 82, deep-water)
+100-150 m right of travel near 2.34 km along (10 samples wet at +150 m). Not changed.
+
+T02, T14, T01 and T13 are not touched by (j).
 
 --------------------------------------------------------------------------------
 ## What the cut does at run time
@@ -422,7 +481,7 @@ MapGraphic wins over the embedded `Location` (`TaskGeometryResolver.cs:170`), an
 | task | taskee | from | to | driven |
 |---|---|---|---|---|
 | T02 | 28ID | 53.992385, 23.211255 | 54.028874, 23.264401 | **5,341 m** |
-| T10 | 1-112 IN | 54.042688, 23.308235 | 54.019389, 23.313902 | **2,617 m** straight; since (h) via 54.029734, 23.305499, 2,729 m |
+| T10 | 1-112 IN | 54.042688, 23.308235 | 54.019389, 23.313902 | **2,617 m** straight; since (h) via 54.029734, 23.305499, 2,729 m; since (j) also via 54.024000, 23.313000, 2,775 m |
 | T14 | 48 IBCT | 54.019389, 23.313902 | 54.040348, 23.336445 | **2,757 m** (origin vertex dropped at 0.0 m); since (e) to 54.040348, 23.324206, 2,426 m; since (i) via 54.014600, 23.331500, 4,169 m |
 
 T01 and T13 carry four MapGraphicIDs each, but `HoldInPlace` issues NO VR-Forces task
