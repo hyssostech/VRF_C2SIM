@@ -142,6 +142,36 @@ JST:YuccaPalm=HoneyMesquiteShortSpring` (edited biome file sha256 ae5ddb26...647
 vrfNavGenerator run -> area `NavArea-ground-platform MojaveAO20_jst`; `make_nav_terrain.py`
 -> `MAK Earth (online) + MojaveAO20_jst_nav.mtf` (sha256 985592b7...ef03). On that terrain the
 Desert Succulent Shrub and Joshua Tree biomes place mesquite, not yucca palms / Joshua trees.
+`IronStorm_Centre_52_Nav_AG_maple` (2026-09-26, lane I1d): the Iron Storm cut-A fixture on the
+IRONSTORM-CENTRE nav area generated on the RED-MAPLE terrain, whose cut-A corridor (T02, T10 after
+cut-A change (h), T14) PASSES the 0.9 gate (`corridor_gate.py --preset ironstorm-cuta-h`, min 0.9000).
+Built into scratch, validated, deployed with `--out-dir "C:\MAK\vrforces5.2d\userData\scenarios"`
+(one new file there, byte-identical to the scratch build), copied into `frame_variants/`:
+```
+python build_fixture.py --profile 5.2 --empty \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 \
+       --out-name IronStorm_Centre_52_Nav_AG_maple \
+       --scenario-name "Iron Storm CUT A (5.2, FFRTC, IRONSTORM-CENTRE_maple nav area, abstract-graph SMS)" \
+       --terrain "<repo>\tools\navdata\out\MAK Earth (online) + IronStormCentre_maple_nav.mtf" \
+       --sms "C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms" --out-dir <dir>
+python validate_fixture.py --empty-52 <dir>\IronStorm_Centre_52_Nav_AG_maple.scnx \
+       --aoi 53.939723,54.119385,23.108483,23.414360,150 --terrain "<same .mtf>" \
+       --sms "C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms"          # ALL FIXTURES: OK
+```
+`.scnx` sha256 57465c3545e884f0c32d283e945f35ce6694233cc17a0bc14116dd4aa44a0e32 (rebuilds identically; the
+validator needs the SAME `--aoi`, else it reads the Suwalki extent against the Mojave default and fails).
+Terrain copy `MAK Earth (online) + IronStormCentre_maple_nav.mtf` (sha256 17af705b...2d5e, navData records 9 -> 10)
+= `make_nav_terrain.py --terrain "...\+ IS04_maple.mtf" --runtime-config "C:\C2SIM\vrf-nav\navData\MAK Earth
+(online)\NavArea-ground-platform IRONSTORM-CENTRE_maple.navRuntimeConfig"` (runtime config sha256 40b46032...ddfb);
+its .earth is `C:\C2SIM\vrf-nav\shadow_is04_maple\...` (make_tree_control.py shadow `--defs
+biome.definitions.bioregions.xml --swap 04:AmericanSycamoreFullSpring=RedMapleSpring --swap
+04:WhiteOakSpring=RedMapleSpring`). Record: docs/experiments/PREREG_IRONSTORM_TREES_2026-09-26.md; preserved
+copy D:\C2SIM-preserve\ironstorm-maple-2026-09-26\.
+SIDE EFFECTS, stated: on that terrain copy the biome-04 forest (the whole Suwalki AO) is red maples only, for
+rendering and simulation alike; and T10 drives a waypoint path (start -> 54.029734, 23.305499 -> PassagePoint),
+not STP's straight leg (data/IRONSTORM_CUTA_CHANGES.md (h)). Run it with the cut-A order at sha256 3801c71b...79fefe8.
+
 Note: `--negative-controls` builds its NEG copies on the SHIPPED terrain even when `--terrain`
 is given. Validate them WITHOUT `--terrain`, so that each fails only on its intended check.
 

@@ -148,3 +148,14 @@ same 7 sectors (T02 3, T10 4; worst 0.8182 at (28,21)). NOT registered (owner: "
 C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE, log
 C:\C2SIM\vrf-nav\work\log\gen-IRONSTORM-CENTRE-2026-09-26.log. Record:
 docs/experiments/PREREG_IRONSTORM_NAV_REGEN_2026-09-26.md.
+
+IRONSTORM-CENTRE tree levers, full area, 2026-09-26 (lanes I1b/I1c): biome 04 (bioregions.xml :147-149) with
+Sycamore/White Oak -> RedMapleSpring: area sub-0.9 280 -> 63, corridor FAIL (28,21) 0.8485, (28,22) 0.8857; no trees:
+69, corridor FAIL (17,15) 0.8958, (28,21) 0.8621. (28,21) (water 0.34) fails in every run. Nothing registered. Boxes
+do NOT reproduce sectors near 0.9 (+/- 0.047). Record: docs/experiments/PREREG_IRONSTORM_TREES_2026-09-26.md.
+
+REGISTERED 2026-09-26 (lane I1d): IRONSTORM-CENTRE_maple (red-maple terrain) - area gate FAIL (63 sectors, lakes), cut-A
+CORRIDOR PASS with T10 rerouted (change (h); corridor_gate --preset ironstorm-cuta-h, min 0.9000). Terrain copy
+tools\navdata\out\MAK Earth (online) + IronStormCentre_maple_nav.mtf (sha256 17af705b...2d5e) names C:\C2SIM\vrf-nav\shadow_is04_maple
+and area C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE_maple (runtime config 40b46032...ddfb).
+Side effect: on that copy biome-04 forest places red maples only. Fixture IronStorm_Centre_52_Nav_AG_maple (tools/FixtureGen/README.md).

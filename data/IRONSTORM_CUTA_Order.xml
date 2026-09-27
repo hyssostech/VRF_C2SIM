@@ -519,6 +519,48 @@
           <MapGraphic>
             <TacticalGraphic>
               <Line>
+                <Route>
+                  <APP6CSymbol>
+                    <APP6C-SIDC>GFGPOLAGM-----X</APP6C-SIDC>
+                  </APP6CSymbol>
+                  <Name>T10_Reroute_1-112_IN__CUT_A_H_ROUTE_AROUND_SECTORS_28_21_28_22</Name>
+                  <SISOEntityType>
+                    <DISCategory>0</DISCategory>
+                    <DISCountry>0</DISCountry>
+                    <DISDomain>0</DISDomain>
+                    <DISExtra>0</DISExtra>
+                    <DISKind>0</DISKind>
+                    <DISSpecific>0</DISSpecific>
+                    <DISSubCategory>0</DISSubCategory>
+                  </SISOEntityType>
+                  <UUID>c8d9cd1a-b808-5b8d-97be-7beb98393a62</UUID>
+                  <CurrentState>
+                    <PhysicalState>
+                      <Location>
+                        <GeodeticCoordinate>
+                          <Latitude>54.04268819191243</Latitude>
+                          <Longitude>23.30823457011959</Longitude>
+                        </GeodeticCoordinate>
+                      </Location>
+                      <Location>
+                        <GeodeticCoordinate>
+                          <Latitude>54.029734</Latitude>
+                          <Longitude>23.305499</Longitude>
+                        </GeodeticCoordinate>
+                      </Location>
+                    </PhysicalState>
+                  </CurrentState>
+                </Route>
+              </Line>
+            </TacticalGraphic>
+          </MapGraphic>
+        </PhysicalEntity>
+      </Entity>
+      <Entity>
+        <PhysicalEntity>
+          <MapGraphic>
+            <TacticalGraphic>
+              <Line>
                 <Boundary>
                   <APP6CSymbol>
                     <APP6C-SIDC>GFMPBCL-------X</APP6C-SIDC>
@@ -1545,6 +1587,7 @@
       </Task>
       <Task>
         <ManeuverWarfareTask>
+          <MapGraphicID>c8d9cd1a-b808-5b8d-97be-7beb98393a62</MapGraphicID><!--T10_Reroute ADDED BY CUT A (h)-->
           <MapGraphicID>cc23071f-aa60-9f52-884c-11505051cc99</MapGraphicID><!--PassagePoint_48_IBCT_SLOT0 ADDED BY CUT A-->
           <Name>T10_1-112InServesAsDivisionReserveOrientedOnCountering12CorReservePenetrationFromTheNortheastOrExploiting1MoiCollapse,PreparedForRapidAirOrGroundMovement.</Name>
           <UUID>9aab7fe6-c7fb-4e74-b586-e11a00fc3eb9</UUID>

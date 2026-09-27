@@ -10,13 +10,15 @@ DERIVED, not authored. They are produced by
 and reproduce byte for byte:
 
     data/IRONSTORM_CUTA_Initialization.xml             sha256 2000e856cb00314064ab6d40c7f7df64cea098b3466fe70d7614f3d26dc93eec
-    data/IRONSTORM_CUTA_Order.xml                      sha256 1ef43198caa192e72f3e0f395700ef04687c64eb00a52986505c404601c79429
+    data/IRONSTORM_CUTA_Order.xml                      sha256 3801c71b05c310db8eb26069044c9bfec9585214a228beec61700d31d79fefe8
 
 (2026-09-26, twice. First corrected: this line said 1cd89c40bcce5d66...3956636, a stale hash; the record
 does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on main 8cdca96 reports
 5dbe8b0b...b980d1, the hash of the committed file and the one PREREG_IRONSTORM_DRIVE_2026-09-21.md:53 cites -
 that is the order BEFORE (f) and (g). Then changes (f) and (g) below were applied, and `--check` on the result
-reports 1ef43198...c79429. Any record that cites 5dbe8b0b describes the pre-(f)/(g) order.)
+reports 1ef43198...c79429. Any record that cites 5dbe8b0b describes the pre-(f)/(g) order.
+Then change (h) (T10 reroute, 2026-09-26, lane I1d) was applied; `--check` reports 3801c71b...79fefe8. A record
+citing 1ef43198 describes the pre-(h) order. The hashes are of the CRLF working-tree files `--check` reads.)
 
 Re-run the script after a re-export (`python tools/scenario/derive_ironstorm_cuta.py`),
 or `--check` to prove the files on disk still match the derivation. The script FAILS
@@ -36,7 +38,9 @@ coordinate is moved, no unit is renamed, no graphic is added or removed. (Since
 2026-09-26 two exceptions to that sentence are on the list: (e) moves one coordinate and
 (f)/(g) alter three `TaskActionCode`s and add one `AffectedEntity`; with every `<Task>`
 block removed the remainder is still byte-identical, because all of those sit inside
-task blocks or the one nudged graphic vertex.) Root element, namespace, declaration and CRLF line endings are the
+task blocks or the one nudged graphic vertex.) Since 2026-09-26 (h) also ADDS ONE graphic (a two-vertex
+Line/Route, T10's reroute) and one MapGraphicID in T10; that graphic's <Entity> is the only non-task text
+added. Root element, namespace, declaration and CRLF line endings are the
 export's.
 
 ### (a) Duration format - connector bug STP-848
@@ -295,6 +299,47 @@ Validated with `lxml` against
 fixed here (that would be authoring), and it is harmless to the cut: that unit is not a
 taskee and `VrfC2SimService.cs:1177-1183` skips it anyway for want of a position.
 
+### (h) APPLIED 2026-09-26 - T10 rerouted round nav sectors (28,21) and (28,22)
+
+**OWNER SELECTION 2026-09-26: "Maples + reroute T10's leg around the two sectors (Recommended)".**
+
+WHY. The owner's bar: every navigation-area sector a driven route crosses must read abstract-graph
+connectivity >= 0.9 (`tools/navdata/corridor_gate.py`). On the IRONSTORM-CENTRE area generated on the
+red-maple terrain (biome 04 Sycamore / White Oak -> RedMapleSpring; area `NavArea-ground-platform
+IRONSTORM-CENTRE_maple`, docs/experiments/PREREG_IRONSTORM_TREES_2026-09-26.md Part 2) T02 and T14 pass,
+and T10's straight leg crosses (28,21) 0.8485 and (28,22) 0.8857 - lake-edge sectors (water 0.34 / 0.22)
+that no tree lever cleared (Parts 2-3). The route goes round them. The interface's lateral route shift
+was NOT used: it fires only on a leg flagged for grade (see (e)), so it cannot target a named sector.
+
+WHAT. ONE new waypoint, 54.029734 / 23.305499, carried by ONE added `Line/Route` graphic
+`c8d9cd1a-b808-5b8d-97be-7beb98393a62` ("T10_Reroute_1-112_IN__CUT_A_H_...", axis-of-advance SIDC
+`GFGPOLAGM-----X`, uuid5 of a fixed name so the derivation stays reproducible) with two vertices: 1-112 IN's
+own init position (asserted equal to the init) and the waypoint. T10 references it BEFORE the (b)
+PassagePoint reference. By the interface's route assembly (TaskGeometryResolver SF9: lines supply the
+path, points the destination, a line vertex within 100 m of the taskee is dropped) T10 drives
+
+    54.042688, 23.308235 (start) -> 54.029734, 23.305499 -> 54.019389, 23.313902 (PassagePoint_48_IBCT_SLOT0)
+
+1,453 m + 1,276 m = 2,729 m (the straight leg was 2,620 m; +109 m). `leg_check.py --dump-resolved` resolves
+T10 to exactly [waypoint, PassagePoint] (its Python port of the same rule); `VrfC2SimApp --parse-order`
+lists both MapGraphicIDs on T10.
+
+HOW THE WAYPOINT WAS CHOSEN. A 10 m grid search over waypoints in columns 27-28 (scratch
+laneI1d search) kept the ones whose two legs cross only sectors >= 0.9 on the maple area and stay >= 100 m
+from (28,21) / (28,22); among those whose worst sector is >= 0.95 the shortest path was taken, then checked
+dry. The waypoint lies in sector (27,21) (ratio 1.000), 166 m clear of the two avoided sectors.
+
+CHECKS on the derived order:
+- corridor_gate `--preset ironstorm-cuta-h` on the maple area log (frame = its runtime config): **PASS**,
+  29 distinct sectors, 0 below 0.9, min 0.9000 at T02's (17,15) (exactly on the bar - T02 is untouched);
+  T10 leg 1 worst 0.9649, leg 2 worst 0.9545. On the vendor-terrain baseline area the same legs still FAIL
+  (5 sectors, all T02/forest) - the reroute is for the maple area only.
+- `leg_check.py --step 2 --no-chain`: T10 leg 1 1,451 m ratio 0.11 ok, leg 2 1,275 m ratio 0.09 ok, **0 water
+  samples** on either; T02 and T14 unchanged (dry, ok).
+- The waypoint and both legs are inside the IRONSTORM-CENTRE area.
+
+T02, T14, T01 and T13 are not touched by (h).
+
 --------------------------------------------------------------------------------
 ## What the cut does at run time
 
@@ -305,7 +350,7 @@ MapGraphic wins over the embedded `Location` (`TaskGeometryResolver.cs:170`), an
 | task | taskee | from | to | driven |
 |---|---|---|---|---|
 | T02 | 28ID | 53.992385, 23.211255 | 54.028874, 23.264401 | **5,341 m** |
-| T10 | 1-112 IN | 54.042688, 23.308235 | 54.019389, 23.313902 | **2,617 m** |
+| T10 | 1-112 IN | 54.042688, 23.308235 | 54.019389, 23.313902 | **2,617 m** straight; since (h) via 54.029734, 23.305499, 2,729 m |
 | T14 | 48 IBCT | 54.019389, 23.313902 | 54.040348, 23.336445 | **2,757 m** (origin vertex dropped at 0.0 m) |
 
 T01 and T13 carry four MapGraphicIDs each, but `HoldInPlace` issues NO VR-Forces task

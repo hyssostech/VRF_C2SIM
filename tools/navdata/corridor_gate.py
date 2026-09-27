@@ -67,6 +67,18 @@ PRESETS = {
         ("T14 48 IBCT (nudged)", (54.019388734463774, 23.313901568645093),
          (54.040348, 23.324206)),
     ],
+    # cut A after change (h) (2026-09-26): T10 drives start -> waypoint -> PassagePoint round
+    # nav sectors (28,21) / (28,22) (tools/scenario/derive_ironstorm_cuta.py REROUTE_*).
+    "ironstorm-cuta-h": [
+        ("T02 28ID", (53.99238486824088, 23.211255470526073),
+         (54.028873887648274, 23.264400661185014)),
+        ("T10 1-112 IN (h) leg 1", (54.04268819191243, 23.30823457011959),
+         (54.029734, 23.305499)),
+        ("T10 1-112 IN (h) leg 2", (54.029734, 23.305499),
+         (54.019388734463774, 23.313901568645093)),
+        ("T14 48 IBCT (nudged)", (54.019388734463774, 23.313901568645093),
+         (54.040348, 23.324206)),
+    ],
 }
 
 # The 2026-09-20 generation-1 corridor table (old-session scratch part4.md, sampled every 2 m,
