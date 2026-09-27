@@ -3826,8 +3826,9 @@ EntityLevel nothing changes - shells and platforms exactly as before - and the s
   `Vrf:CompositionFile` that claims its type-map row id. Sub-containers are FLATTENED to their leaves (D-8). Every
   member is created AGGREGATED (UG52 Table 68 p1470) on ONE centroid-preserving ring round the container (spacing 2 x
   the largest Travel footprint of a company-or-below member; 48 IBCT: 17 members, radius 490 m), each slot through
-  the M2 point test (a wet or built-on slot is moved to the nearest clear ground and said), then attached with
-  AddToOrganization. NOTHING IS DELETED: MaterializeUnit's delete-and-recreate never runs for a container.
+  the M2 point test (a wet or built-on slot is moved to the nearest clear ground and said; with the route-shift
+  pre-flight off or unable to score, the slot is kept and logged UNVERIFIED), then attached with AddToOrganization.
+  NOTHING IS DELETED: MaterializeUnit's delete-and-recreate never runs for a container.
 - THE PUBLICATION GATE: the unit's tasks wait until the container PUBLISHES its members -
   `VrfBridge.PublishedSubordinateCount`, the published sub-aggregates plus entities of its aggregate state. Bound:
   `Vrf:ContainerPopulateTimeoutSeconds` (0 = derived, 85 s at the shipped values); members not created by the last
@@ -3838,7 +3839,8 @@ EntityLevel nothing changes - shells and platforms exactly as before - and the s
   (CreateRoute first, as today; route, reverseDirection false, startAtClosestVertex false - the Road to Kaunas
   plan's values), `PA_Move_To_Location_Direct` to a single point, `PA_Patrol_Route` for a patrol. A member's own
   completions are logged at Debug; the container reports. Arrival evidence and the stall watchdog judge the
-  container's own centroid (D1, unchanged).
+  container's own centroid (D1, unchanged). The opt-in aggregate probes (Vrf:MoveIntoFormation,
+  Vrf:AggregatePlanAndMove, Vrf:AggregateFormation, Vrf:SubordinateFanOut) never apply to a container.
 - D-6: a vendor completion of a container's move with its centroid farther than `Vrf:VertexArrivalRadiusMeters`
   (100 m) from the route end is WITHHELD - `... completed short: <D> m from the route end ...` - and arrival
   evidence and the time rules decide it (RL-20260921-09); a container that never gets there is the watchdog's
