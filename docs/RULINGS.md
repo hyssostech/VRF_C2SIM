@@ -115,7 +115,6 @@ RL-20260927-03 | 2026-09-27 | status VERBATIM - P6030, TYPED, unprompted (restat
   A (owner, P6030): "Another thing that is settled already is that the only units that need to be hydrated are the ones that are actually task. No
     reason to carry the whole tree if just a few units are actually meaningful for the simulation. I still want all units to show on the map on
     initialization though."
-  supervisor reading: C13 restated for C1 - RL-20260906-02 ("There are just 11 taskees. These are the only ones that need to be simulated") and the
-    2026-09-06 order-time design (PREREG_ORDER_TIME_MATERIALIZATION: display at init, configure at order time). For containers: every unit is created
-    at init as an empty container at its authored position (visible); only a unit an order tasks is populated, when the order arrives.
+  supervisor reading: C13 restated for C1 (RL-20260906-02 "just 11 taskees ... the only ones that need to be simulated"; PREREG_ORDER_TIME_MATERIALIZATION:
+    display at init, configure at order time): every unit is an empty container at init, visible at its authored position; only a tasked unit is populated.
   pointer: PLAN_MOVEMENT_2026-09-27 row C1; CreationPolicy=AtOrder (C13) in VrfC2SimService; PREREG_ORDER_TIME_MATERIALIZATION_2026-09-06 sec 2.
