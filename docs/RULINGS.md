@@ -109,5 +109,7 @@ RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
   A (owner, P5338): "Go"
   supervisor reading: "Go" approves (a), (b), (c) and the sequence as put. It leaves RL-20260921-09, RL-20260913-03 and RL-20260914-01 as they are (the brief
     kept them) and does NOT decide the hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types), which the aggregate lane puts back to him.
+    [CORRECTED 2026-09-27, seat's own premise: the aggregate catalogue has RUS 107 / BLR 24 simulated units; "RU 4" counted a label spelling
+    (AGGREGATE_CATALOGUE_2026-09-27; CORRECTIONS_LOG). The decision itself is unchanged and still his.]
   pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
     feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.

@@ -595,3 +595,12 @@ LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
   -> ArmorPlatoon (aggregate, the only branch the 2026-07-22 type fix touched), 15 others ('-' 12,
   'C' 2, 'H' 1) -> the lone-Tank default. So 113 aggregates + 15 entities. 54 units - including all 11
   order performers - share the single spawn coordinate 34.67998497, -116.72479854.
+
+## Aggregate catalogue: "RU 4 vs BLR 31" and "brigade templates exist" (2026-09-27)
+Claimed (seat, 2026-09-27, in FINDING_GROUND_MOVEMENT_PRACTICE sec 6, the decision brief and RL-20260927-01's supervisor
+reading): the vendor's aggregate catalogue has 4 Russian and 31 Belarusian types, and brigade/group templates (BDE 11,
+Group 10) exist for Iron Storm. Why wrong: the counts came from PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06, which counted the
+label spelling "(RU," and did not distinguish simulated units from containers. Evidence (A1 survey, tools/aggregate/
+survey_magx.py; docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md): RUS (DIS 260) 107 simulated units, BLR (246) 24; NO
+nation has a simulated unit at RGT/BDE/DIV/CORPS - those entries are containers, filled by the vendor with battalion and
+company units (Road to Kaunas). The ledger line carries a dated bracketed correction; the decision it describes is unchanged.
