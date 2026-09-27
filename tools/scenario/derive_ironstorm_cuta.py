@@ -17,8 +17,9 @@ OUTPUTS (tracked)
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
 (change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
-and ONE AffectedEntity added (changes (f) and (g), owner directions), exactly ONE graphic is
-added (change (h), an owner selection: T10's reroute), none is removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
+and ONE AffectedEntity added (changes (f) and (g), owner directions), exactly TWO graphics are
+added (change (h), an owner selection: T10's reroute; change (i), T14's lake-edge waypoint),
+none is removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
 preserved byte for byte. See data/IRONSTORM_CUTA_CHANGES.md for the rationale
 and the consequences.
 
@@ -101,6 +102,17 @@ and the consequences.
       taskee) and appends the PassagePoint as the destination: start -> waypoint -> PassagePoint,
       2,729 m. Every route sector reads >= 0.9 on the red-maple nav area and both legs are dry
       (CHANGES.md (h)). See apply_reroute.
+
+  (i) T14 IS ROUTED ROUND THE LAKE Jezioro Wiersnie (OSM way 197345448). 2026-09-27, lane T14.
+      In the 2026-09-27 pre-warm 48 IBCT drove 850 m of its (e)-nudged leg and stopped dead
+      0.5 m outside that OSM water polygon (natural=water -> coverage value 80 -> preset Water
+      -> BM_WATER -> deeplake -> deep-water, acceleration-factor 0.0). (e) was checked dry on
+      CLCplus ONLY; the nudged centreline enters the OSM polygon at 834 m. ONE waypoint,
+      54.014600 / 23.331500 (south-east of the lake), carried by ONE added Line/Route graphic
+      (7ff48b93...; vertices = 48 IBCT's init position, asserted, then the waypoint) referenced by
+      T14 BEFORE its FollowAndSupport graphic, whose destination is unchanged:
+      start -> waypoint -> 54.040348 / 23.324206, 4,169 m (was 2,426 m). >= 60 m from water of
+      any source on both legs; maple-area corridor PASS (CHANGES.md (i)). See apply_t14_waypoint.
 
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
@@ -265,8 +277,13 @@ REROUTE_NAME = 'T10_Reroute_1-112_IN__CUT_A_H_ROUTE_AROUND_SECTORS_28_21_28_22'
 
 
 def reroute_entity():
-    """The one added graphic, in the export's own Line/Route layout (the axis-of-advance
+    """The (h) graphic, in the export's own Line/Route layout (the axis-of-advance
     SIDC the export uses for its routes)."""
+    return route_entity(REROUTE_NAME, REROUTE_GRAPHIC, REROUTE_START, REROUTE_WAYPOINT)
+
+
+def route_entity(name, uuid_, start, waypoint):
+    """One added two-vertex Line/Route graphic (changes (h) and (i))."""
     def loc(lat, lon):
         return ('                      <Location>' + EOL
                 + '                        <GeodeticCoordinate>' + EOL
@@ -283,16 +300,16 @@ def reroute_entity():
             + '                  <APP6CSymbol>' + EOL
             + '                    <APP6C-SIDC>GFGPOLAGM-----X</APP6C-SIDC>' + EOL
             + '                  </APP6CSymbol>' + EOL
-            + '                  <Name>%s</Name>' % REROUTE_NAME + EOL
+            + '                  <Name>%s</Name>' % name + EOL
             + '                  <SISOEntityType>' + EOL
             + ''.join('                    <%s>0</%s>' % (k, k) + EOL for k in (
                 'DISCategory', 'DISCountry', 'DISDomain', 'DISExtra', 'DISKind',
                 'DISSpecific', 'DISSubCategory'))
             + '                  </SISOEntityType>' + EOL
-            + '                  <UUID>%s</UUID>' % REROUTE_GRAPHIC + EOL
+            + '                  <UUID>%s</UUID>' % uuid_ + EOL
             + '                  <CurrentState>' + EOL
             + '                    <PhysicalState>' + EOL
-            + loc(*REROUTE_START) + loc(*REROUTE_WAYPOINT)
+            + loc(*start) + loc(*waypoint)
             + '                    </PhysicalState>' + EOL
             + '                  </CurrentState>' + EOL
             + '                </Route>' + EOL
@@ -342,6 +359,98 @@ def apply_reroute(text, log, init_text):
         'destination (OWNER SELECTION 2026-09-26; avoids nav sectors (28,21) / (28,22))'
         % (REROUTE_GRAPHIC[:8], REROUTE_START[0], REROUTE_START[1],
            REROUTE_WAYPOINT[0], REROUTE_WAYPOINT[1]))
+    return text
+
+
+# ---------------------------------------------------------------------------
+# (i) T14 ROUTED ROUND THE LAKE Jezioro Wiersnie. 2026-09-27, lane T14 (pre-warm finding).
+#
+# WHY. In IRONSTORM_CUTA_LIVE-2026-09-27-1's pre-warm (runs/20260927T003120Z_run) 48 IBCT drove
+# 850 m of the (e)-nudged leg and stopped dead at 54.026779 / 23.317195 for the rest of the run,
+# console silent. That point is 0.5 m outside OSM way 197345448 (natural=water, "Jezioro
+# Wiersnie"), which the vendor's land-cover composite puts on TOP of CLCplus
+# (biomes.landcover.coverage.online.xml:58, sim-enabled by biome.config.online.xml:13):
+# selectStyle() default -> coverage value 80 -> preset Water -> BM_WATER
+# (layer.OSM.water.LOD14.online.xml, presets.xml:36) -> deeplake (landCoverDataSurfChar.map:346)
+# -> deep-water (UG52 Table 26) -> acceleration-factor 0.000000 (ground-tracked.sysdef:813-815).
+# (e) was checked dry against CLCplus ONLY; the nudged centreline enters the OSM polygon at 834 m.
+#
+# HOW, the (h) pattern: ONE waypoint on ONE added Line/Route graphic whose vertices are 48 IBCT's
+# own init position (asserted) and the waypoint, referenced by T14 BEFORE its FollowAndSupport
+# graphic 7351f662. The resolver drops both graphics' first vertex (the taskee's own position)
+# and chains nearest-first: start -> WAYPOINT -> 54.040348 / 23.324206 (the (e) destination,
+# UNCHANGED). The west side of the lake was searched first and rejected: every dry west route
+# either crosses nav sectors (28,21)/(28,22) (0.8485) or runs head-on down T10's own corridor,
+# where T10's seven members were still crawling in the pre-warm.
+#
+# SEMANTICS. T14 stays FOLSPT ("advance along the task's graphic to its end and hold",
+# TaskDispatchPolicy.cs:57). The hold point is unchanged; the PATH is no longer the
+# FollowAndSupport graphic's straight line - it now bends through a waypoint that is not on
+# that graphic.
+# ---------------------------------------------------------------------------
+T14WP_TASK = '1075b583-a7b8-45e5-b22b-d09988c9443e'            # T14
+T14WP_UNIT = 'dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a'            # 48_IBCT/28ID
+T14WP_START = ('54.019388734463774', '23.313901568645093')     # its init position
+T14WP_FOLLOW_GRAPHIC = '7351f662-f857-e05a-b533-f9a46e0fb095'  # FollowAndSupport_48_IBCT_SLOT1
+T14WP_WAYPOINT = ('54.014600', '23.331500')
+# uuid5(NAMESPACE_URL, 'urn:c2sim-vrf:IRONSTORM_CUTA:(i):T14-waypoint:2026-09-27')
+T14WP_GRAPHIC = '7ff48b93-5a1e-5a9a-813f-8dda1df7e5dd'
+T14WP_NAME = 'T14_Waypoint_48_IBCT__CUT_A_I_ROUTE_ROUND_LAKE_SE'
+
+
+def unit_init_position(init_text, unit_uuid):
+    """The (lat, lon) strings of a unit's init <Entity>, asserted to be exactly one pair."""
+    at = init_text.find('<UUID>%s</UUID>' % unit_uuid) if init_text else -1
+    if at < 0:
+        raise AssertionError('unit %s is not in the init' % unit_uuid)
+    ent = init_text.rfind('<Entity>', 0, at)
+    pos = re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>',
+                     init_text[ent:at])
+    if len(pos) != 1:
+        raise AssertionError('unit %s carries %d init position(s)' % (unit_uuid, len(pos)))
+    return pos[0]
+
+
+def apply_t14_waypoint(text, log, init_text):
+    """(i) Add T14's waypoint graphic right after the FollowAndSupport graphic's <Entity> and
+    reference it from T14, before the FollowAndSupport reference. Every anchor is asserted."""
+    if T14WP_GRAPHIC in text:
+        raise AssertionError('(i) the waypoint graphic %s is already present' % T14WP_GRAPHIC)
+    pos = unit_init_position(init_text, T14WP_UNIT)
+    if pos != T14WP_START:
+        raise AssertionError('(i) 48 IBCT init position is %r, expected %r' % (pos, T14WP_START))
+    g = text.find('<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC)
+    if g < 0 or text.count('<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC) != 1:
+        raise AssertionError('(i) expected the FollowAndSupport graphic exactly once')
+    # its first vertex must be the taskee's own position (the resolver drops it) and its last
+    # the (e) destination - otherwise the assembled route is not start -> WP -> destination
+    blk = text[g:text.find('</TaskGraphic>', g)]
+    verts = re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>', blk)
+    if verts != [T14WP_START, NUDGE_TO]:
+        raise AssertionError('(i) FollowAndSupport vertices are %r, expected [start, (e) '
+                             'destination]' % (verts,))
+    close = '      </Entity>' + EOL
+    end = text.find(close, g)
+    if end < 0:
+        raise AssertionError('(i) no </Entity> after the FollowAndSupport graphic')
+    end += len(close)
+    text = (text[:end] + route_entity(T14WP_NAME, T14WP_GRAPHIC, T14WP_START, T14WP_WAYPOINT)
+            + text[end:])
+    ref = (INDENT + '<MapGraphicID>%s</MapGraphicID><!--FollowAndSupport_48_IBCT_SLOT1-->'
+           % T14WP_FOLLOW_GRAPHIC)
+    t14 = text.find('<UUID>%s</UUID>' % T14WP_TASK)
+    blk_start = text.rfind('<Task>', 0, t14)
+    at_ref = text.find(ref, blk_start, t14)
+    if t14 < 0 or at_ref < 0 or text.count(ref) != 1:
+        raise AssertionError('(i) T14 does not carry the FollowAndSupport reference exactly once')
+    line = ('%s<MapGraphicID>%s</MapGraphicID><!--T14_Waypoint ADDED BY CUT A (i)-->%s'
+            % (INDENT, T14WP_GRAPHIC, EOL))
+    text = text[:at_ref] + line + text[at_ref:]
+    log('  (i) T14 waypoint: + Route graphic %s [%s,%s -> %s,%s] referenced before the '
+        'FollowAndSupport graphic (routes round Jezioro Wiersnie, OSM way 197345448; '
+        'destination unchanged)'
+        % (T14WP_GRAPHIC[:8], T14WP_START[0], T14WP_START[1],
+           T14WP_WAYPOINT[0], T14WP_WAYPOINT[1]))
     return text
 
 
@@ -521,7 +630,7 @@ def write(path, text):
 
 # ---------------------------------------------------------------------------
 def derive_order(src_text, log, init_text=None):
-    """Apply (a), (b), (c), (e), (f), (g) and (h) to the order text. Returns the derived text."""
+    """Apply (a), (b), (c), (e), (f), (g), (h) and (i) to the order text. Returns the derived text."""
     blocks = TASK_BLOCK.findall(src_text)
     log('order carries %d <Task> blocks' % len(blocks))
     if len(blocks) != src_text.count('<Task>'):
@@ -616,6 +725,9 @@ def derive_order(src_text, log, init_text=None):
 
     # (h) the T10 reroute (after (b) put the destination reference in T10's block).
     text = apply_reroute(text, log, init_text)
+
+    # (i) T14's waypoint round the lake (after (e) put the destination on the graphic).
+    text = apply_t14_waypoint(text, log, init_text)
 
     # (a) last, so it covers the whole derived document including nothing new (the
     # inserted lines carry no duration).
@@ -713,6 +825,40 @@ def selftest():
                         ('T10 lacks the (b) reference', order.replace('ADDED BY CUT A', 'x'), init_ok)):
         try:
             apply_reroute(o, lambda m: None, i)
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused: %s' % label)
+
+    print('apply_t14_waypoint (i):')
+
+    def vtx(lat, lon):
+        return '<Latitude>%s</Latitude>' % lat + EOL + '<Longitude>%s</Longitude>' % lon + EOL
+    init_i = '<Entity>' + EOL + vtx(*T14WP_START) + '<UUID>%s</UUID>' % T14WP_UNIT + EOL
+    order_i = ('      <Entity>' + EOL + '<TaskGraphic>' + EOL
+               + '<UUID>%s</UUID>' % T14WP_FOLLOW_GRAPHIC + EOL
+               + vtx(*T14WP_START) + vtx(*NUDGE_TO) + '</TaskGraphic>' + EOL
+               + '      </Entity>' + EOL + '<Task>' + EOL
+               + INDENT + '<MapGraphicID>%s</MapGraphicID><!--FollowAndSupport_48_IBCT_SLOT1-->'
+               % T14WP_FOLLOW_GRAPHIC + EOL + '<UUID>%s</UUID>' % T14WP_TASK + EOL)
+    ri = apply_t14_waypoint(order_i, lambda m: None, init_i)
+    check('(i) graphic added once', ri.count('<UUID>%s</UUID>' % T14WP_GRAPHIC), 1)
+    check('(i) T14 names the waypoint BEFORE the FollowAndSupport graphic',
+          0 < ri.index('<MapGraphicID>%s' % T14WP_GRAPHIC)
+          < ri.index('<MapGraphicID>%s' % T14WP_FOLLOW_GRAPHIC), True)
+    check('(i) the added line is [48 IBCT start, waypoint]',
+          re.findall(r'<Latitude>([^<]*)</Latitude>\s*<Longitude>([^<]*)</Longitude>',
+                     ri[ri.index('<UUID>%s</UUID>' % T14WP_GRAPHIC):]),
+          [T14WP_START, T14WP_WAYPOINT])
+    for label, o, i in (('48 IBCT moved in the init', order_i,
+                         init_i.replace(T14WP_START[0], '54.0')),
+                        ('already applied', ri, init_i),
+                        ('destination not the (e) one', order_i.replace(NUDGE_TO[1], '23.3'),
+                         init_i),
+                        ('T14 lacks the FollowAndSupport reference',
+                         order_i.replace('SLOT1-->', 'x-->'), init_i)):
+        try:
+            apply_t14_waypoint(o, lambda m: None, i)
             ok = False
             print('  MISMATCH %-46s accepted a document it must refuse' % label)
         except AssertionError:

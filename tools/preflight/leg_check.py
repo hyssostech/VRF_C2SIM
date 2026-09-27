@@ -126,6 +126,32 @@ FETCH_OK, FETCH_ABSENT, FETCH_FAILED = "ok", "absent", "failed"
 LC_SOURCES = [(59, 14, "CLCplus 10m"), (154, 12, "CA FVEG 15m"), (165, 12, "NLCD 30m"),
               (188, 10, "Copernicus 100m")]
 
+# OSM INLAND WATER - the TOP online layer of the same vendor composite
+# (biomes.landcover.coverage.online.xml:58, above CLCplus at :50). OPT-IN with --osm-water DIR
+# (z14 MVT tiles 14_<x>_<tmsy>.pbf, as tools/navdata/osm_sector_map.py --fetch --fetch-sets
+# osm-water writes them). Without it this tool is blind to OSM-only water: the 2026-09-27 T14
+# pre-warm stop sat 0.5 m outside an OSM natural=water polygon over CLCplus 53, scored dry.
+OSM_WATER_Z = 14
+OSM_WATER_KEY = "osmw"
+OSM_WATER_LAYER_FILE = "layer.OSM.water.LOD14.online.xml"
+
+
+def load_osm_water(tiles_dir):
+    """-> (grids, present tile keys). Raises when the dir holds no z14 tile at all, so an
+    empty or mistyped --osm-water can never read as 'no water anywhere'."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                    "navdata"))
+    from landcover_sector_map import water_grids  # noqa: E402 (tools/navdata, stdlib only)
+    present = set()
+    if os.path.isdir(tiles_dir):
+        for fn in os.listdir(tiles_dir):
+            m = re.match(r"^%d_(\d+)_(\d+)\.pbf$" % OSM_WATER_Z, fn)
+            if m:
+                present.add((int(m.group(1)), int(m.group(2))))
+    if not present:
+        raise ValueError("--osm-water %s holds no z%d .pbf tile" % (tiles_dir, OSM_WATER_Z))
+    return water_grids(tiles_dir), present
+
 # The soils of ground-tracked.sysdef's soil-list that are WATER. deep-water is
 # acceleration-factor 0.000000 / stopping-factor 0.000000 - a dead stop the vendor reports as
 # TaskRunning for ever. A NAME test, not a factor test: a zero factor can also come from a
@@ -619,6 +645,40 @@ class SoilChain(object):
         self._load_surfchar(vrf)
         self._load_factors(vrf)
         self.cache = {}
+        # OSM inland water (opt-in, --osm-water DIR): {(x, tms_y): (area, line)} from
+        # tools/navdata/landcover_sector_map.water_grids, and the set of z14 tiles PRESENT in
+        # DIR (a tile that is absent is unknown ground, counted, never read as dry).
+        self.osm_grids = None
+        self.osm_tiles_present = set()
+        self.osm_unknown = 0
+
+    def attach_osm_water(self, grids, tiles_present):
+        """2026-09-27 (T14 lane): the vendor composite puts OSM inland water ON TOP of CLCplus
+        (biomes.landcover.coverage.online.xml:58; sim-enabled by biome.config.online.xml:13).
+        The T14 pre-warm stop was 0.5 m outside an OSM natural=water polygon over CLCplus 53
+        (herbaceous), which the CLCplus-only chain scored dry."""
+        self.osm_grids = grids
+        self.osm_tiles_present = set(tiles_present)
+        self.cache = {}
+
+    def osm_water_value(self, lat, lon):
+        """-> (value or None, known). value = the vendor coverage value of an OSM water AREA at
+        the point (80 / 81 / 82 / 90 / 200); known False when its z14 tile is not in the dir."""
+        n = 2 ** OSM_WATER_Z
+        x = (lon + 180.0) / 360.0 * n
+        la = math.radians(lat)
+        y = (1.0 - math.log(math.tan(la) + 1.0 / math.cos(la)) / math.pi) / 2.0 * n
+        tx, ty = int(x), int(y)
+        key = (tx, n - 1 - ty)
+        if key not in self.osm_tiles_present:
+            return None, False
+        g = self.osm_grids.get(key)
+        if g is None:
+            return None, True
+        size = len(g[0])
+        c = min(size - 1, int((x - tx) * size))
+        r = min(size - 1, int((y - ty) * size))
+        return g[0][r][c], True
 
     def _load_layers(self, shared):
         base = os.path.join(shared, "TerrainData", "TerrainConfiguration",
@@ -629,6 +689,20 @@ class SoilChain(object):
             txt = open(pfile, encoding="utf-8-sig", errors="replace").read()
             for m in re.finditer(r'<preset\s+name="([^"]+)"[^>]*?soiltype="([^"]+)"', txt):
                 presets[m.group(1)] = m.group(2)
+        # The OSM water layer has no TMS id; its value -> soiltype table is read the same way.
+        ofn = os.path.join(base, OSM_WATER_LAYER_FILE)
+        if os.path.exists(ofn):
+            txt = re.sub(r"<!--.*?-->", "", open(ofn, encoding="utf-8-sig", errors="replace").read(),
+                         flags=re.S)
+            table = {}
+            for m in re.finditer(r"<mapping\s+([^>]*?)/>", txt):
+                attrs = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+                st = attrs.get("soiltype") or presets.get(attrs.get("preset", ""))
+                if "value" in attrs and st:
+                    table[int(attrs["value"])] = (st, attrs.get("desc", ""))
+            if table:
+                self.maps[OSM_WATER_KEY] = table
+                self.sources.append("%s -> %d class rows" % (OSM_WATER_LAYER_FILE, len(table)))
         for ds, _lvl, _lbl in LC_SOURCES:
             fn = None
             for cand in sorted(glob.glob(os.path.join(base, "layer.*.online.xml"))):
@@ -697,6 +771,19 @@ class SoilChain(object):
         out = dict(source="none", value=None, desc="", soiltype="", surfchar="",
                    soil="hard-packed", factor=self.factors.get("hard-packed", 0.98),
                    assumed=True)
+        if self.osm_grids is not None:
+            v, known = self.osm_water_value(lat, lon)
+            if not known:
+                self.osm_unknown += 1
+            elif v is not None and v in self.maps.get(OSM_WATER_KEY, {}):
+                soiltype, desc = self.maps[OSM_WATER_KEY][v]
+                sc = self.surfchar.get(soiltype.upper(), "undefinedsoiltype")
+                sl, assumed = SOIL_BRIDGE.get(sc.lower(), ("hard-packed", True))
+                out = dict(source="OSM water z14", value=v, desc=desc, soiltype=soiltype,
+                           surfchar=sc, soil=sl, factor=self.factors.get(sl, 0.98),
+                           assumed=assumed)
+                self.cache[key] = out
+                return out
         for ds, level, label in LC_SOURCES:
             v = tiles.landcover_value(ds, level, lat, lon)
             if v is None or v == 0:               # 0 = no data in this tileset here
@@ -1725,6 +1812,13 @@ def emit_text(results, args, out=sys.stdout):
               "missing tiles; %d leg(s) had NO ELEVATION AT ANY LEVEL; %d leg(s) cross water.\n"
               % (flagged, sum(len(r["legs"]) for r in results), len(results),
                  args.threshold, args.window, degen, DEF_MIN_LEG, noverdict, blind, wet))
+    if getattr(args, "osm_water", None):
+        out.write("OSM inland water read FIRST from %s (vendor composite order); %d sample "
+                  "point(s) fell on a z14 tile NOT in that dir (unknown, not dry).\n"
+                  % (args.osm_water, getattr(args, "_osm_unknown", 0)))
+    else:
+        out.write("OSM inland water NOT read (no --osm-water): water here is CLCplus-only and "
+                  "an OSM-only lake reads dry.\n")
     # Which DEM produced these numbers. A ratio quoted without its level is un-anchored, and
     # the posting arithmetic is latitude-dependent - so take the AO's OWN latitude from the
     # first task that actually has a route, not from whichever task happens to be first.
@@ -1928,6 +2022,64 @@ SELFTEST_EU = [
 SELFTEST_SLOPES = {"Tank Headquarters Section (USA)": 0.94, "Tank Company (USA)": 0.94,
                    "Tank Platoon (USA)": 0.94, "M1A2_Abrams_MBT": 0.94,
                    "M577A2_Command_Post": 1.0}
+
+
+def selftest_osm_water(soil_real):
+    """--osm-water, offline (no tile is fetched): a synthetic z14 grid with ONE water pixel under
+    the 2026-09-27 T14 stop, over a stub CLCplus that answers 53 (herbaceous) everywhere."""
+    import tempfile
+    print("--- OSM inland water on top of CLCplus (--osm-water; synthetic grid, offline) ---")
+    bad = 0
+
+    class _Stub(object):
+        def landcover_value(self, ds, level, lat, lon):
+            return 53 if ds == 59 else None
+
+    def _chk(label, cond):
+        print("  %-78s %s" % (label, "OK" if cond else "MISMATCH"))
+        return 0 if cond else 1
+
+    lat, lon = 54.026779, 23.317195
+    n = 2 ** OSM_WATER_Z
+    x = (lon + 180.0) / 360.0 * n
+    la = math.radians(lat)
+    y = (1.0 - math.log(math.tan(la) + 1.0 / math.cos(la)) / math.pi) / 2.0 * n
+    key = (int(x), n - 1 - int(y))
+    area = [[None] * 256 for _ in range(256)]
+    area[min(255, int((y - int(y)) * 256))][min(255, int((x - int(x)) * 256))] = 80
+    stub = _Stub()
+
+    s = SoilChain.__new__(SoilChain)
+    s.__dict__.update(soil_real.__dict__)
+    s.cache = {}
+    bad += _chk("the vendor OSM water layer loaded (value 80 -> preset Water -> BM_WATER)",
+                s.maps.get(OSM_WATER_KEY, {}).get(80, ("",))[0].upper() == "BM_WATER")
+    s.osm_grids, s.osm_tiles_present, s.osm_unknown = None, set(), 0
+    got = s.classify(stub, lat, lon)
+    bad += _chk("WITHOUT --osm-water the T14 stop reads CLCplus 53, dry (the blind spot)",
+                got["value"] == 53 and got["soil"] not in WATER_SOILS)
+    s.attach_osm_water({key: (area, [[None] * 256 for _ in range(256)])}, {key})
+    got = s.classify(stub, lat, lon)
+    bad += _chk("WITH it the same point reads OSM water 80 -> deep-water, factor 0",
+                got["source"] == "OSM water z14" and got["soil"] == "deep-water"
+                and got["factor"] == 0.0)
+    got = s.classify(stub, lat + 0.001, lon)
+    bad += _chk("a dry pixel of the same tile falls through to CLCplus",
+                got["value"] == 53 and s.osm_unknown == 0)
+    s.attach_osm_water({}, set())
+    got = s.classify(stub, lat, lon)
+    bad += _chk("a tile NOT in the dir is counted unknown (not silently dry)",
+                s.osm_unknown == 1 and got["value"] == 53)
+    empty = tempfile.mkdtemp()
+    try:
+        load_osm_water(empty)
+        refused = False
+    except ValueError:
+        refused = True
+    finally:
+        os.rmdir(empty)
+    bad += _chk("an --osm-water dir with no z14 tile is REFUSED", refused)
+    return bad
 
 
 def selftest(tiles, soil, sms):
@@ -2307,6 +2459,8 @@ def selftest(tiles, soil, sms):
                 not any((t["action"] or "").upper() in NON_MOVING_ACTIONS
                         for t in parse_order(DEF_ORDER)))
 
+    bad += selftest_osm_water(soil)
+
     assumed = sorted(k for k, (_s, a) in SOIL_BRIDGE.items() if a)
     print("--- ASSUMED rows of the DtSoilType -> DtRoughnessSoilType bridge (%d of %d) ---"
           % (len(assumed), len(SOIL_BRIDGE)))
@@ -2618,6 +2772,9 @@ def main(argv=None):
     ap.add_argument("--shared-data", default=DEF_SHARED)
     ap.add_argument("--cache", default=DEF_CACHE)
     ap.add_argument("--offline", action="store_true", help="cache only; never fetch a tile")
+    ap.add_argument("--osm-water", metavar="DIR",
+                    help="z14 osm-water MVT tiles (14_<x>_<tmsy>.pbf): classify OSM inland water "
+                         "FIRST, as the vendor composite does (default OFF: CLCplus-only water)")
     ap.add_argument("--starts", default=None,
                     help="CSV unit,lat,lon of ACTUAL start positions (DeStack spreads units). "
                          "DEFAULT: %s - which holds MOJAVE positions from the P11 run. A start "
@@ -2698,6 +2855,12 @@ def main(argv=None):
     tiles = Tiles(args.cache, offline=args.offline, nearest=args.elev_nearest,
                   elev_level=args.elev_level, elev_min_level=args.elev_min_level)
     soil = SoilChain(args.shared_data, args.vrf_home)
+    if args.osm_water:
+        try:
+            soil.attach_osm_water(*load_osm_water(args.osm_water))
+        except ValueError as exc:
+            sys.stderr.write("FATAL: %s\n" % exc)
+            return 2
     sms = VendorSms(os.path.join(args.vrf_home, "data", "simulationModelSets", "EntityLevel",
                                  "vrfSim"))
     if not sms.ok:
@@ -2750,6 +2913,7 @@ def main(argv=None):
             args, tiles, soil, sms, tmap, units, sides, tasks, starts,
             only_first=args.first_leg_only, chain=not args.no_chain, graphics=graphics,
             unit_filter=(set(args.units.split(",")) if args.units else None))
+        args._osm_unknown = soil.osm_unknown
         if args.text or not (args.json or args.c2sim_observations or args.vrf_overlay):
             emit_text(results, args)
     if args.json:

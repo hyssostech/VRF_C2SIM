@@ -171,6 +171,8 @@ copy D:\C2SIM-preserve\ironstorm-maple-2026-09-26\.
 SIDE EFFECTS, stated: on that terrain copy the biome-04 forest (the whole Suwalki AO) is red maples only, for
 rendering and simulation alike; and T10 drives a waypoint path (start -> 54.029734, 23.305499 -> PassagePoint),
 not STP's straight leg (data/IRONSTORM_CUTA_CHANGES.md (h)). Run it with the cut-A order at sha256 3801c71b...79fefe8.
+SINCE 2026-09-27 change (i) (T14 routed round a lake via 54.014600, 23.331500) the cut-A order is sha256
+5d6bbae4...49fc9a; the area and this fixture are unchanged (T14's new legs cross only sectors >= 0.9167).
 LIVE STATUS 2026-09-27: NOT live-proven. The first registered run (PREREG_IRONSTORM_CUTA_LIVE1_2026-09-27.md) stopped
 at its pre-warm gate and its scored run never launched. The UNSCORED pre-warm (run 20260927T003120Z_run) did load
 `NavArea-ground-platform IRONSTORM-CENTRE_maple` before the order (runner: WARM, 25.2 s from first placement) and the
