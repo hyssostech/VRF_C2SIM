@@ -1,10 +1,12 @@
 # PREREG - IRON STORM CUT A, RUN E2: the ruled order on Move To per vertex with M2's OSM pre-flight - T14 as a 2-vertex chain through the (i) waypoint (one scored run)
 
-STATUS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered by lane E2 (session 5fc25950; the registration
-commit's own time is the stamp) on branch run/ironstorm-cuta-e2 from main 53215e9, BEFORE any order push, holder
-action or launch. PREPARATION ONLY so far: no C2SIM push, no holder start, no VR-Forces or runner launch (one runner
-DRY RUN, sec 3 E), no appNumber claimed. The quiet period cannot start before the offline design lane C1 has
-reported. Written from E1's registration (PREREG_IRONSTORM_CUTA_E1_2026-09-27.md - its settings, sequence, P0-P27
+STATUS: STOPPED 2026-09-27 (Result at the end): run 20260927T205652Z ran once at the seat's go-live and missed P4
+(HIGH) - the successor gate SKIPPED T02 and T14 before their predecessors' end time was recognised, so neither lone
+platform was dispatched and the frame of RL-20260927-01 was NOT tested; the falsifier P20F did not fire. No re-run under
+this registration; a re-run is IRONSTORM_CUTA_E2-2026-09-27-2 (STOP RULES). Registered by lane E2 (session 5fc25950;
+the registration commit's own time is the stamp) on branch run/ironstorm-cuta-e2 from main 53215e9, BEFORE any order
+push, holder action or launch; everything between this STATUS paragraph and the Result is unchanged since dc2a3a9
+(merged 933a415), when the STATUS read "REGISTERED - LAUNCH PENDING (seat's go-live)". Written from E1's registration (PREREG_IRONSTORM_CUTA_E1_2026-09-27.md - its settings, sequence, P0-P27
 and its scorer, carried where still valid, with its lessons: P19b's "distinct" wording and the unexplained nav-area
 verdict on T14's destination) and the seat's E2 brief. Marks: [V] = checked while writing this file; [A] = taken
 from the record, not re-checked.
@@ -484,4 +486,127 @@ RUNBOOK sec 11 M1 bullet's "NOT YET SEEN LIVE" items E2 settles; Appendix B anno
 
 ## Result (written after the harvest, never from a live read)
 
-(pending - the run has not been launched)
+Written 2026-09-27 ~21:45Z by lane E2 (session 5fc25950) from the harvested files of the scored run 20260927T205652Z_run
+(main checkout runs\): vrfc2simapp.log (492,127 lines; L = its line numbers), reports-captured.log (C = record number and
+arrival stamp, UTC), run-manifest.json, watchvrf-trace.csv, stopvrf.stdout.log (S), the runner log
+runs\launch52\RunScenario-ironstorm-e2-20260927T205651Z.log (R) and the rtiexec log (count-grep only); scratch u3\laneE2:
+e2_score.py, harvest.py, sim_profile.py, replay_evidence.ps1. Vendor sim logs were not opened. Registration rows are
+cited by ID and by their line in this file (reg. L389-L427). GO-LIVE, as sec 3 wrote it [V]: A0/A (golive_checks.ps1)
+20:55:43Z 0 checks FAILED (main 933a415, src = 0849334, exe d12ca223 / dll 37e2adee, cache manifest 682bdea4, holder
+45600 with 325 min left, marker 5185); `derive_ironstorm_cuta.py --check` exit 0, three CHECK lines; C3 20:56:02Z -
+PushInit exit 0 ("QUERYINIT : 40 Units"), PushOrder exit 0, one "ORDER (69670 chars)" echo carrying 5 tasks, 5 Durations
+and CNFPSL/ATTACK/CRESRV/CNFPSL/FOLSPT; D - holder 45600 reused (R78 "a PERSISTENT FEDERATION HOLDER"); E - dry run
+20:56:42Z exit 0 with sec 5's layout exactly, then THE RUN once, launched 20:56:51Z; the ORDER reached the bus 20:59:23.493Z
+(R256); the window closed EARLY at 21:06:09Z, 375.8 s of the 2700 s cap (R274); runner exit 0 at 21:08:51Z; F - post-run
+inventory 21:09:15Z: only rtiAssistant 30240, rtiexec 47980, rtiForwarder 50740, RtiProbe 45600 and the run's Stage 2h
+holder RtiProbe 35276 (inside its 900 s hold); exe / dll / appsettings / bridge / fixture / order / init hashes and the
+cache manifest (682bdea4, 479 files) unchanged; marker 5196.
+
+### VERDICT: STOPPED at P4 (HIGH). The STREND successor gate SKIPPED T02 and T14 - TASKABRT "SKIPPED: predecessor ... did not complete within 360s of its dispatch; policy=skip" at 20:59:51.171Z (C187, C188) - 0.8 WALL s before the interface declared those predecessors (the CNFPSL holds T01, T13) complete at their end time (C189, C190, 20:59:51.972Z). Neither lone platform was ever dispatched: NOTHING of RL-20260927-01's frame was tested - no Move To, no vertex chain, no handoff, no leg past the hamlet. The falsifier P20F did not fire (T14 never moved). What the run did show held as registered: T10's unit path, M2's pre-dispatch stage on T10's route (every predicted line and count), the holds, report hygiene, the report-evidence gate's early close, the teardown.
+
+| # | Reg. | Verdict | Evidence |
+|---|---|---|---|
+| P0 | L389 | PASS | (i) R78 holder 45600 "a PERSISTENT FEDERATION HOLDER"; rtiexec count-grep 20:56:40-21:09:30Z: 12 "because it already exists", 6 joins (the Stage 2h holder 35276, the back end "VR-Forces Sim Engine 5.2d", the WatchVrf trace 5404 (R286), the app 28416 (R282), and 29328 / 43308 - the Stage 2c probe and the WatchVrf pre-check), 0 creates; L49 "READY - joined the federation" once. (ii) L221 "4 unit(s) created as EMPTY shells ... 32 platform(s) created in full". (iii) L55 "STALL WATCHDOG: the 360 s no-progress window is measured on the SIMULATION clock" once; L32 TASK CLOCK (R4) SIMULATION; L735 "timing out against the SIMULATION clock; Vrf:DurationScale=0.25"; L22 LATERAL ROUTE SHIFT ON once. (iv) R246 "NAV AREA ACQUIRED after 0s of gate"; no NOT-READY, no exit 3. (v) hashes and the cache manifest identical before (20:55:43Z) and after (21:09:15Z) [V]. RECORDED: L480 READY TO TASK "36 of 36 ... after 7.7 s". |
+| P1 | L390 | RECORDED - the written expectation MISSED | L333 "36 of 36 create altitude(s) came from the TERRAIN QUERY, 0 from the FALLBACK" - the first Iron Storm launch on which the terrain query answered every create (sec 1(f) expected 0 of 36); so no PLACEMENT RE-CLAMP summary line (the re-clamp arms only on a fallback); the order-time materialization L722 "1 of 1 ... TERRAIN QUERY". |
+| P2 | L391 | PASS | First L-AREA L618 (`NavArea-ground-platform IRONSTORM-CENTRE_maple`) before L-ORDER L650; all 164 L-AREA rows name the maple area; R246 "NAV AREA ACQUIRED after 0s of gate"; R248 "first placement ... -> area row: 0s -> WARM file cache". |
+| P3 | L392 | MISS (consequence of P4) | Zero L-PROOF lines on 48 IBCT's or 28ID's console: neither was given a Move To. 46 L-PROOF lines for the six 1-112 IN members (first L2541). |
+| P3b | L393 | MEDIUM MISS (consequence of P4) | No planning line for either lone platform; 45 "Planned path has <N> points." lines for the 1-112 IN members (first L3053). |
+| P4 | L394 | **MISS - THE STOP** | Three SENT TASKSTRT, not five (L678 T01, L706 T13, L837 T10); T02 and T14 never dispatched: L19615 / L19617 "Task 'T14...' / 'T2...' predecessor 37677c40 / f7b52ba4 did not complete within 360s of its dispatch; policy=skip, unit ... is BUSY (task in flight) -> NOT dispatched", L19619 / L19621 SENT TASKABRT "SKIPPED: predecessor ...". The predecessors' own end came after: L21569-L21579 "TIMED COMPLETION: task 'T13...' / 'T1...' reached its END TIME - 315 s of a 300 s Duration served on the simulation clock" and their TASKCMPLT; capture order C187 / C188 TASKABRT 20:59:51.171Z, then C189 / C190 TASKCMPLT 20:59:51.972Z / .973Z. The T10 limb held: L660 "start delay 300 s (order says 1200 s; Vrf:DurationScale=0.25)" before T10's L-DISP L835. CAUSE: below. |
+| P5 | L395 | PASS for T10; T02 / T14 NOT MEASURED | L829 "PLACEMENT RE-CLAMP gate: 1-112_IN/... is ON the terrain - live 130.4 m vs terrain 130.1 m ... (gap 0.3 m)"; 0 OFF gate lines, 0 retired lines. T02 and T14 had no terrain-profile reply (never dispatched), so no gate line was owed by the MISS column. |
+| P6 | L396 | MISS (consequence of P4) | 28ID and 48 IBCT never moved (neither is among the trace's objects that moved > 50 m). |
+| P6b | L397 | PASS | All six 1-112 IN members and the unit moved 2,543-2,669 m from their first fixes (trace). |
+| P6c | L398 | RECORDED | T10 members: 45 L-PLAN lines, 4-37 points; the unit's proxy ended 12.1 m from the PassagePoint at closest (16.0 m final), members 8.8-42.1 m at closest. |
+| P7 | L399 | PASS | T01 L682 + L684, T13 L710 + L712 (one L-CNFPSL + one IN PLACE each); L680 / L708 "end time armed at 300 s ... it has no destination"; exactly one TASKCMPLT each, L21573 (T13) / L21579 (T01) "(300 s after dispatch)"; the capture's two STP-866 observations; no move, no OVERDUE for a hold. |
+| P8 | L400 | MISS (consequence of P4) | No L-R3SELF for T02: it never reached a dispatch pass. ZERO fire-at-will / FireAt / deferred-engage lines. |
+| P9 | L401 | MISS (consequence of P4) | No L-FOLSPT and no L-MOVETO for T14; it never reached a dispatch pass. |
+| P10 | L402 | PASS | L-BARE L755 / L821 / L833 (one per pass); L841 "CreateRoute '...' (4 pts) for 1-112_IN/..."; L847 MoveAlongRoute issued for VRF_UUID:a3dc72e5...; L839 armed at 450 s "it has a destination"; no IN PLACE line for T10. |
+| P11 | L403 | MISS for T02 / T14 (consequence of P4); T10 PASS | T02 and T14 took no path - SKIPPED before dispatch (none of the MISS column's shapes occurred: no second path, no early or end-time TASKCMPLT, no vertex-1 completion). T10 path (b): L148181 "reached its END TIME - 473 s of a 450 s Duration served ... NOT ARRIVED: OVERDUE", L459609 ARRIVAL EVIDENCE "4/6 member(s) within 500 m of the last vertex (nearest 359 m)", L459611, L459613 TASKCMPLT "arrived after its task's end time ... complete on arrival". |
+| P11b | L404 | MEDIUM MISS for T02 / T14 (consequence of P4); T10 (b) as written | As P11. |
+| P12 | L405 | PASS | 0 SUPPRESSED; one terminal report per uuid (T01, T13, T10 TASKCMPLT; T02, T14 TASKABRT); 0 `task=(none)`; capture = log (3 TASKSTRT / 2 TASKABRT / 3 TASKCMPLT; 1,523 records); L492123 "Reports this run: 1523 delivered, 0 FAILED". |
+| P13 | L406 | RECORDED | No L-STALL. T10 OVERDUE at 473 of 450 s (L148181); T10 arrival 252.6 WALL s = 1,519.9 SIM s after dispatch (L459609, the app's own figure). |
+| P14 | L407 | PASS | 0 L-ENGAGE / FireAt / "Fire Weapon" lines. |
+| P16 | L408 | RECORDED | L-DISP SIMULATION stamps: T01 / T13 5.6 s (L676, L704), T10 321.5 s (L835); 5 L-RATIO lines, 8.553 (L64459, sim 519.7 s) down to 1.850 (L465549). |
+| P17 | L409 | PASS | 0 BACK END LOST, 0 "Tick phase ... FAILED"; runner exit 0; no .dmp / .callstack.log under C:\MAK\vrforces5.2d or C:\MAK\logs newer than 20:56Z (names only); R283 "VrfC2SimApp exited with code 0 (clean resign)"; rtiexec 47980, rtiForwarder 50740, rtiAssistant 30240 and holder 45600 untouched (inventory 21:09:15Z). RECORDED: the app log's last line L492126 `fail: C2SIM.C2SIMSDK[0]` "STOMP block reading cancelled" at shutdown, after the tile total. |
+| P18 | L410 | PASS | R292 StopVrf EXIT=6: the graceful close (S24 taskkill without /F) was refused within 120 s (S28-S32 window diagnostic), then S33 "FORCED ... Stop-Process -Id 33060 -Force" by identity. RECORDED: the clean S35 line "VR-Forces 5.2d is down ONLY BECAUSE the run's own back end was FORCED (pid 33060) after its graceful close was refused. Exit 6." - no "still exiting" line (as E1); R297 "no VR-Forces processes remain"; R300 the Stage 2h holder still joined, EXPECTED. |
+| P19 | L411 | PASS | L741 / L743 "1 vertex(es) dropped" (c8d9cd1a, 51a59f89); L745 c8d9cd1a "(line, 1 vertices): 1 vertex(es) joined." (no suffix); L747 51a59f89 "... joined 805 m after the previous graphic's end"; L749 cc23071f -> PassagePoint_48_IBCT_SLOT0 "(point, 1 vertex): appended as the route's DESTINATION"; the same distinct lines on the second pass (L807-L815); 0 resolver warnings for T10; L841 "(4 pts)". |
+| P19b | L412 | MISS (consequence of P4) | Zero resolver lines for T14: it never reached a dispatch pass (none of the MISS column's shapes occurred). |
+| P20 | L413 | MISS (consequence of P4) - NOT A TEST OF THE FRAME | 48 IBCT was never dispatched, so it could not reach its destination. None of the named outcomes (1)-(5) applies; the outcome is a sixth: skipped before dispatch. |
+| P20b | L414 | MISS (consequence of P4) | 28ID was never dispatched. |
+| P20F | L415 | NOT MET - the falsifier did not fire | T14 never moved 5 m, so no stall of any length exists to measure; the frame was neither confirmed nor falsified. |
+| P21 | L416 | PASS | 0 wet fixes over the 7 objects that moved > 50 m (1-112 IN and its six members), 0 fixes on absent tiles (the staged cache, no 0-byte tile). |
+| P22 | L417 | PASS | L24 "MOVE TO PER VERTEX ON (Vrf:PlatformMoveToPerVertex, ...) ... 100 m (Vrf:VertexArrivalRadiusMeters)" once; 0 "MOVE TO PER VERTEX off (" lines; L26 MODEL SET "Vrf:ModelSet='EntityLevel' -> EntityLevel" once at INFO (L25). |
+| P22b | L418 | PASS | 0 TASK JUDGES lines. |
+| P23 | L419 | MISS for T14 / T02 (consequence of P4); T10 PASS | No L-MOVETO at all. T10: one L-ROUTE (L841), one L-MAR (L847), 0 L-MOVETO naming 1-112 IN. |
+| P24 | L420 | MISS (consequence of P4) | 0 L-VRFDONE for 48 IBCT (and 0 TSK rows for '48_IBCT/28' in the trace). RECORDED: 0 L-VRFDONE in the whole log - T10's TASKCMPLT came from arrival evidence (L459609) and the window closed 131 s later (the -StopWhenComplete effect sec Conditions named), before T10's vendor move-along completion (E1: L616701, much later). |
+| P25 | L421 | MISS (consequence of P4) | No VERTEX CHAIN line; ZERO lines of the chain failure family. |
+| P26 | L422 | MISS for the T14 / T02 limbs (consequence of P4); every T10 and start-up limb PASS | (a) L18 "ROUTE PRE-FLIGHT TILE CACHE: ...\preflight-cache - 29 file(s), the SHIPPED FALLBACK ... Vrf:PreflightOffline=False"; L20 "29 cached tile file(s) checked, all carry a valid TIFF/PNG signature". (b) L773 once: "ROUTE PRE-FLIGHT MODEL SET EntityLevel ... osm-water (225 tile file(s), 0 of them 0 bytes = UNKNOWN) and \osm (225, 0 0 bytes) ..."; 0 model-set / not-vector-tile warnings. (c) L793 "Task 'T10...' (1-112_IN/...): VERTEX CHECK (EntityLevel) - 3 authored vertex(es) checked against OSM water and buildings: 0 moved, 0 kept on bad ground, 0 unverified, the rest clear." - the harness's line word for word; 0 VERTEX MOVED / NOT MOVED / UNVERIFIED; no L-VCHECK for T14 or T02 ("another count": 1, not 3). (d) L803 T10 "ROUTE SHIFT - no leg flagged; the route is unchanged."; 0 OSM WATER, could-NOT-be-read, bridge, ROUTE SHIFTED, NO ROUTE SHIFT, PRE-DISPATCH applied and land-cover WATER ON THE LINE lines. (e) L795 T10 "ELEVATION LEVEL ACTUALLY USED - L12 x3 over 3 leg(s)". (f) 0 captured ObservationReports with a "ROUTE PRE-FLIGHT", "ROUTE SHIFT" or "VERTEX (NOT) MOVED" marking; 39 ObservationReports in all, as E1 (37 init type-map proxy + the two STP-866 holds). |
+| P26b | L423 | PASS | L805 census "14 cache HIT(s), 0 HTTP FETCH(es)"; L492125 run total "14 cache HIT(s), 0 HTTP FETCH(es), 0 tile(s) given up on after 3 attempts, 0 undecodable body(ies)"; the cache manifest unchanged after the run (682bdea4, 479 files). 14 hits = T10 alone (the harness's 9 for T10 came after T14 and T02 had loaded the shared tiles). |
+| P27 | L424 | RECORDED | No Move To was issued to a lone platform, so no per-vertex destination altitude and no nav-area verdict exists for T14 or T02; T10's members: 46 "Node Is destination in nav area?: success", 0 failure. Report-evidence 'via': P30. L-VRFDONE types: none (P24). |
+| P28 | L425 | MISS (consequence of P4) | No vertex 1. |
+| P29 | L426 | MEDIUM MISS (consequence of P4) | No handoff. |
+| P30 | L427 | MEDIUM MISS in its mapping limb (consequence of P4); anchor, 'via' and early close as written | Manifest earlyExit.reportEvidence (and the offline replay on this run's files, identical): 28ID and 48 IBCT vrfUuid null - there was no MOVE TO PER VERTEX line to map them from; 1-112 IN vrfUuid a3dc72e5... from the route join; anchor null for all three; each satisfied via C2SIM-capture (a PositionReport after the capture's own first TASKCMPLT); R274 "closing the observation window EARLY at t+376s ... of the 2700s cap" after the 60 s hold (90.8 s). |
+
+THE CAUSE OF P4, with the falsification gate. VERIFIED [V]:
+- The two deadlines count from different origins. The gate's phase 2 counts task-clock seconds from the predecessor's
+  DISPATCH STAMP (TaskSequencer.WaitForStartAsync, `served = clock.Now() - pred.DispatchedAtClock`; the stamp is
+  `_sequencer.NotifyDispatched(task.TaskUuid, TaskClockSeconds)` in MarkDispatched, VrfC2SimService.cs :5270). The end
+  time counts from its FIRST SWEEP: TimedCompletionPolicy.Register stores no clock (LastClock NaN) and Advance's first
+  sighting "anchor only, serve nothing" (TimedCompletionPolicy.cs :130-144, :221-236); the sweep runs on the tick thread
+  at most once a WALL second (MaybeCompleteTimedTasks, TimedCheckSeconds 1.0), on the same axis (TaskClockAxis, advanced
+  by SampleTaskClock at most once a WALL second, :7171-7400).
+- In this run the end-time count started >= 45 SIM s after the gate's stamp. The gate expired at stamp + 360 by
+  20:59:51.171Z (C187); the timed completion fired at 20:59:51.972Z (C189) reporting "315 s of a 300 s Duration served"
+  (L21569); the axis never runs backwards and a sweep adds every positive step, so at C189 the axis stood >= stamp + 360
+  and the count's anchor >= stamp + 45. No other path loses time in Advance (a rollback adds nothing, and no backwards
+  step occurred before L482139) [V: code + log].
+- The first sweep with the holds armed is L735 ("TIMED COMPLETION: 2 task(s) are timing out against the SIMULATION
+  clock"), logged after the order-time MATERIALIZE of 1-112 IN reflected at 20:59:24.199Z (L733), 0.5 WALL s or more after
+  the holds' dispatch at 20:59:23.694Z. The scenario clock ran at 14.3x on average over the 22 WALL s after the order (app
+  stamps: sim 5.6 s at 20:59:23.694Z, 321.5 s at 20:59:45.758Z) and ~7.5x after 20:59:45Z (the trace's CON rows).
+- E1 had the same code (TaskSequencer, TimedCompletionPolicy, SimClockTracker and TaskDispatchPolicy unchanged
+  5e8d6f1..53215e9; M2 touched VrfC2SimService only in its start-up and pre-flight regions) and its anchor lost about 1
+  SIM s: its holds dispatched at sim 634.1, T01's end fired at "312 s ... served" (E1 L1813) and T02 dispatched right
+  after at sim 947.1 = 634.1 + 313.0 (E1 L2059; each stamp is the last 1 Hz sample, so within one sample).
+- E2's order met a scenario whose clock read 5.6 s: the pre-order gate passed at 0 s (R246, R248 WARM) and all 36 creates
+  took the terrain query (P1), where E1 waited 44.4 s at sim ~634.
+INFERRED [A], not observed: WHY the axis stepped >= 45 SIM s between the dispatch stamp and that first sweep - either the
+first sweep came ~3 WALL s or more after the dispatch (the tick thread busy with the order-time work) at the 14.3x
+average, or the clock ran faster than that in the scenario's first seconds; no sim reading and no timestamp exists for
+L735 to tell the two apart. THE COMPETING HYPOTHESIS for the whole cause - that the gate counted from too early a
+stamp - is refuted by the code: the stamp (NotifyDispatched, :5270) and the arming (Register, a few lines later in the
+same MarkDispatched call) run in one tick-thread call with no task-clock sample between them, so the gate and the timer
+start from the same axis reading and only the timer's first-sweep anchor can move its origin. The other competitor - a
+slow sweep alone - is refuted by the 315: a late sweep still adds every step up to its own reading, so with a normal
+anchor (within one sample) it would have printed 345 or more. FALSIFIER of the inferred half: a sim reading inside
+20:59:23.7-20:59:25Z showing the axis advanced < 45 SIM s before L735 - none is recorded.
+
+Measurement [V]: in one run of the ruled cut-A order on build 53215e9, the interface skipped both lone-platform tasks at
+its STREND gate 0.8 WALL s before it recognised their CNFPSL predecessors' end time, because the end time was counted from
+the timer's first sweep, >= 45 SIM s after the gate's dispatch stamp, against a 60 s margin; T10 ran as in E1, and M2's
+pre-dispatch stage produced, for T10, exactly the lines and counts the harness predicted from the same code on the same
+tiles (0 fetches, the cache unchanged).
+
+Design implication, stated separately [A]: E2 is not evidence for or against RL-20260927-01 - the per-vertex continuation,
+the planner past the -2 hamlet and M2's live effect on T14 remain untested. The interface carries a latent race between
+two clocks that should be one: an order that lands in a scenario's first seconds (a warm machine makes the pre-order
+gate pass at once) can skip every STREND successor of a CNFPSL hold. The seat's options (not taken here - a registered
+run is never patched): count the end time from the dispatch stamp (Register taking the axis reading), or gate a
+successor on the predecessor's own end-time signal rather than an independent margin; a re-run is -2 under a new
+registration.
+
+UNEXPLAINED OR OPEN:
+- Which of the two inferred mechanisms produced the >= 45 SIM s step (above).
+- The 26.9 s offset between the app's SIMULATION stamp at T10's dispatch (321.5 s) and the trace's CON clock at the same
+  wall instant (348.4 s): the app's stamp is its last 1 Hz sample (VrfC2SimService.cs :5165-5170), so a lag of up to one
+  sample is expected; 26.9 s at ~7.5-14x is two to four samples. E1 showed ~16 s. Not needed for the verdict.
+- The P1 expectation missed (36 of 36 from the terrain query): the first such Iron Storm launch; it made the start-up
+  fast, which is part of why the order met a young scenario clock (above).
+
+Adversarial review: the one claim in this Result is the cause of P4. Its strongest competitor - an early gate stamp - is
+refuted by the code (stamp and arming in one tick-thread call), and a slow sweep alone by the logged numbers (315 against
+360, 0.8 WALL s apart, C187 against C189); what stays inferred is only why the anchor step was so large, and it is
+marked [A] with its falsifier. The verdict itself does not depend on the cause: P4's letter ("any SKIP = STOP") is met by L19619 / L19621
+whatever produced them. Every T02 / T14 row is scored as a consequence of P4, not as independent evidence against the
+frame, and P20F is recorded as NOT MET because nothing moved - the run neither confirms nor refutes RL-20260927-01.
+The M1b finding of sec 1(l) (the anchor cannot engage on live, truncated trace markings) was not exercised further here:
+with no chain line, the platforms were not even mapped.
