@@ -1059,6 +1059,24 @@ public static class OsmSelfTest
             Console.WriteLine($"     {reports.Count} report(s); tiles: {svc.Tiles.CacheHits} cache hit(s), {svc.Tiles.Fetched} fetched");
             Check(svc.Tiles.Fetched == 0, $"{set}: the real-tile run fetched nothing (offline)");
         }
+
+        // COST, on the worst ground the cache holds: a ~28 km diagonal across the whole lake district,
+        // the OSM half only (the 30 s route-shift budget has to hold a leg like this, and a nudge search).
+        var d0 = (53.975, 23.11);
+        var d1 = (54.165, 23.40);
+        foreach (var rules in new[] { ModelSetRules.Entity, ModelSetRules.Aggregate })
+        {
+            using var ts = new TileSource(rasterDir, offline: true, osmCacheDir: osmDir);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var leg = OsmQuery.Leg(ts.OsmProvider, d0, d1, rules, 8.0);
+            long legMs = sw.ElapsedMilliseconds;
+            sw.Restart();
+            var poly = OsmQuery.Polyline(ts.OsmProvider, new[] { d0, d1 }, rules, 8.0);
+            long polyMs = sw.ElapsedMilliseconds;
+            Console.WriteLine($"   COST {rules.ModelSet}: {leg.LengthM / 1000.0:F1} km diagonal - Leg {legMs} ms (water={leg.Water}, " +
+                              $"{leg.WaterSamples} wet sample(s), unknown tiles {leg.UnknownTiles}, slow {leg.SlowM:F0} m); " +
+                              $"Polyline {polyMs} ms ({poly.WetSegments} wet segment(s))");
+        }
     }
 
     // ================================================================= helpers
