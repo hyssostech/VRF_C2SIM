@@ -49,6 +49,8 @@ public static class RulingsSelfTest
         failures += EngageDoctrineSelfTest.Run();
         Console.WriteLine("=== RL-20260927-01: a LONE ground platform drives one Move To per route vertex; units keep Move Along Route ===");
         failures += VertexChainSelfTest.Run();
+        Console.WriteLine("=== RL-20260927-01 D1: a MEMBERLESS aggregate on the aggregate model set is ONE position for the task judges ===");
+        failures += AggregateLeafSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

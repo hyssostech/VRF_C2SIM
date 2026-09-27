@@ -93,6 +93,13 @@ public sealed class VrfC2SimService : BackgroundService
     // loss FREEZES them (FreezeAll). Built in the constructor because its vacuous bar is a setting.
     private readonly VertexChainTracker _vertexChains;
 
+    // D1 (RL-20260927-01): WHICH MODEL SET the task judges read positions for - Vrf:ModelSet, read straight
+    // from the configuration (UnitPositionPolicy says why and what the safe default is). TRUE only on
+    // AggregateTacticalLevel, where a MEMBERLESS aggregate is a leaf unit and counts as ONE position.
+    private readonly string _modelSetRaw;
+    private readonly bool _modelSetRecognised;
+    private readonly bool _aggregateModelSet;
+
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
@@ -464,6 +471,11 @@ public sealed class VrfC2SimService : BackgroundService
         var c2 = config.GetSection("C2SIM").Get<C2SIMSDKSettings>() ?? new C2SIMSDKSettings();
         _vrf = config.GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
         _vertexChains = new VertexChainTracker(_vrf.VertexArrivalRadiusMeters);   // RL-20260927-01
+        // D1 (RL-20260927-01): the RAW key, not a VrfSettings property - it reaches main from two lanes
+        // (appsettings + the runner's Vrf__ModelSet; VrfSettings.ModelSet), and reading the configuration
+        // honours it the moment either lands. Absent/unknown = EntityLevel = the pre-D1 behaviour.
+        _modelSetRaw = config.GetSection("Vrf")["ModelSet"];
+        _modelSetRecognised = UnitPositionPolicy.TryParseModelSet(_modelSetRaw, out _aggregateModelSet);
 
         // FidelityTable only: load data/unit-type-map.json now so a bad path/parse is reported
         // BEFORE VR-Forces is started (ExecuteAsync turns _typeMapLoadError into a refuse-to-start).
@@ -758,6 +770,12 @@ public sealed class VrfC2SimService : BackgroundService
         // unlike the route shift's banner: a log without the ON line must not be read as "off".
         _log.LogInformation("{Line}", VertexChainPolicy.StartupLine(_vrf.PlatformMoveToPerVertex,
                                                                     _vrf.VertexArrivalRadiusMeters));
+
+        // 0c-ii-c. D1 (RL-20260927-01): which model set the TASK JUDGES read positions for, and what a
+        // memberless aggregate means under it - said once, in both states, WARNING on an unrecognised value.
+        string modelSetLine = UnitPositionPolicy.StartupLine(_modelSetRaw, _modelSetRecognised, _aggregateModelSet);
+        if (_modelSetRecognised) _log.LogInformation("{Line}", modelSetLine);
+        else _log.LogWarning("{Line}", modelSetLine);
 
         // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
         // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
@@ -6804,7 +6822,13 @@ public sealed class VrfC2SimService : BackgroundService
                                     name, rec.TaskName, lastFromStart, radius, rec.RouteLengthMeters);
                 continue;
             }
-            if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
+            // D1 (RL-20260927-01): a memberless aggregate-level leaf is ONE position (1 of 1); a memberless
+            // ENTITY-level aggregate is still skipped, and said once when it stays memberless.
+            if (!TryReadUnitPositions(name, out var positions, out int total, out var positionSource))
+            {
+                NoteMemberlessSkip(name, rec, positionSource, now);
+                continue;
+            }
             // WHERE EACH MEMBER IS, AND HOW FAR IT HAS COME. The baseline is that member's own
             // dispatch position when we have it; otherwise the taskee's, which is the position the
             // route was built from. A member with neither carries NaN travel and is never counted -
@@ -6866,7 +6890,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 "farthest travel {Far:F0} m of a {Len:F0} m route whose last vertex is {Away:F0} m from " +
                                 "the dispatch position) {Stamp} - reporting completion from the unit's own " +
                                 "evidence (user rulings 2026-09-07 and 2026-09-21; traversal required, STP-837); a later " +
-                                "vendor completion is swallowed.",
+                                "vendor completion is swallowed.{Leaf}",
                                 name, rec.TaskName, d.Within, d.Total, d.RadiusMeters, d.NearestMeters,
                                 d.RequiredTravelMeters, d.LowestMemberBarMeters, _vrf.ArrivalApproachFraction,
                                 d.ApproachRelaxationApplied
@@ -6875,7 +6899,11 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "REFUSED (SF-1: the last vertex is less than half the route's length from "
                                       + "where the taskee was dispatched, so every member kept the ROUTE bar)",
                                 d.FarthestTravelMeters, rec.RouteLengthMeters, lastFromStart,
-                                ClockStamp(rec.DispatchedUtc, now, rec.DispatchedSimSeconds));
+                                ClockStamp(rec.DispatchedUtc, now, rec.DispatchedSimSeconds),
+                                positionSource == UnitPositionSource.AggregateLeaf
+                                    ? " ONE POSITION: an aggregate-level unit with no members, judged on its own reflected " +
+                                      "centre point (D1, RL-20260927-01)."
+                                    : "");
             // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
             // later member completions and the straggler timer are swallowed by the tracker's own
             // Synthesized state instead of emitting a second, empty-uuid TASKCMPLT.
@@ -7290,12 +7318,26 @@ public sealed class VrfC2SimService : BackgroundService
     /// different samples. Returns false when there is nothing to judge this tick - no VRF uuid
     /// yet, or an aggregate whose members have not materialized (a shell) - and the callers then
     /// skip the unit entirely, exactly as MaybeCheckArrivals always has. Tick thread only.
+    /// D1 (RL-20260927-01): a MEMBERLESS aggregate on the AGGREGATE model set is one simulated object
+    /// with no members by construction, and is ONE position - its own reflected centre point (see
+    /// TryReadUnitPositions and UnitPositionPolicy). On the entity model set it is still skipped.
     /// </summary>
     private bool TryReadMemberPositions(string name, out Dictionary<string, (double Lat, double Lon)> positions,
                                         out int total)
+        => TryReadUnitPositions(name, out positions, out total, out _);
+
+    /// <summary>
+    /// TryReadMemberPositions, saying WHERE the sample came from (UnitPositionPolicy.SourceFor): a platform's
+    /// own position, an aggregate's members, a memberless aggregate-level leaf's own position (D1,
+    /// RL-20260927-01) - or nothing yet (a memberless ENTITY-level aggregate: members not reflected, or a
+    /// shell), in which case it returns false exactly as before. Tick thread only.
+    /// </summary>
+    private bool TryReadUnitPositions(string name, out Dictionary<string, (double Lat, double Lon)> positions,
+                                      out int total, out UnitPositionSource source)
     {
         positions = null;
         total = 0;
+        source = UnitPositionSource.NotYetJudgeable;
         if (!_names.TryGetUuid(name, out var vrfUuid)) return false;
         bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
                            && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
@@ -7303,7 +7345,19 @@ public sealed class VrfC2SimService : BackgroundService
         if (isAggregate)
         {
             var members = _bridge.GetAggregateMembers(vrfUuid);
-            if (members is not { Count: > 0 }) return false;   // nothing readable yet (or a shell)
+            source = UnitPositionPolicy.SourceFor(isAggregate: true, members?.Count ?? 0, _aggregateModelSet);
+            if (source == UnitPositionSource.AggregateLeaf)
+            {
+                // D1: ONE position - the unit's own reflected centre point (UG52 27.1.4), the read the R1
+                // position reports make. Keyed by the unit's uuid, like a platform's, so the dispatch
+                // baseline, every later sample and the stall ring all key it the same way. total = 1: a
+                // centre point that cannot be read this tick still counts against arrival, as an
+                // unreadable member does.
+                total = 1;
+                if (_bridge.TryGetEntityGeodetic(vrfUuid, out var own)) positions[vrfUuid] = (own.LatDeg, own.LonDeg);
+                return true;
+            }
+            if (source != UnitPositionSource.Members) return false;   // entity model set: nothing readable yet (or a shell)
             // DE-DUPLICATION (review D1, 2026-09-13). VrfFacade::collectMembers recurses to depth 3
             // WITHOUT de-duplicating, so a member published under two sub-aggregates appears TWICE
             // in this list. The sample below is a DICTIONARY keyed by uuid - the duplicate lands in
@@ -7325,10 +7379,32 @@ public sealed class VrfC2SimService : BackgroundService
         }
         else
         {
+            source = UnitPositionSource.Platform;
             total = 1;
             if (_bridge.TryGetEntityGeodetic(vrfUuid, out var g)) positions[vrfUuid] = (g.LatDeg, g.LonDeg);
         }
         return true;
+    }
+
+    // D1 (RL-20260927-01): unit name -> task uuid already named as "memberless on the ENTITY model set,
+    // not judged" - one line per unit-task (UnitPositionPolicy.ShouldWarnMemberless).
+    private readonly ConcurrentDictionary<string, string> _memberlessWarned = new();
+
+    /// <summary>TICK THREAD. D1's diagnostic for the case D1 does NOT change: an entity-level aggregate still
+    /// memberless well after its dispatch is SKIPPED by both judges (members not reflected, or a shell) - said
+    /// once per unit-task, because the same silence on an aggregate-level run means Vrf:ModelSet is unset.</summary>
+    private void NoteMemberlessSkip(string name, InFlightTracker.InFlight rec, UnitPositionSource source, DateTime now)
+    {
+        if (!UnitPositionPolicy.ShouldWarnMemberless(source, (now - rec.DispatchedUtc).TotalSeconds)) return;
+        if (_memberlessWarned.TryGetValue(name, out var said) && said == (rec.TaskUuid ?? "")) return;
+        _memberlessWarned[name] = rec.TaskUuid ?? "";
+        _log.LogWarning("TASK JUDGES: {Name} (task '{Task}') is an aggregate with NO members {S:F0} WALL s after dispatch, " +
+                        "so arrival evidence and the progress watchdog cannot judge it - on the ENTITY model set that is " +
+                        "an empty shell or members that never reflected. If this run is on the AGGREGATE model set, " +
+                        "Vrf:ModelSet is not set to AggregateTacticalLevel (it reads '{Set}'), and every unit's arrival " +
+                        "and stop are silent (D1, RL-20260927-01).", name, rec.TaskName,
+                        (now - rec.DispatchedUtc).TotalSeconds,
+                        string.IsNullOrWhiteSpace(_modelSetRaw) ? "(not set)" : _modelSetRaw.Trim());
     }
 
     // PROGRESS WATCHDOG (C16, REPORT-ONLY; StallPolicy.cs; VrfSettings.Stall*; default OFF).
@@ -7575,13 +7651,17 @@ public sealed class VrfC2SimService : BackgroundService
     /// <summary>TICK THREAD. The stall report for one unit-task: one TASKABRT (report-only) and its
     /// follow-ons abandoned (D2). Shared by MaybeCheckStalls and the engage fallback.</summary>
     private void ReportStall(string name, InFlightTracker.InFlight rec, double window, StallPolicy.Decision d,
-                             string clockLabel = null)
+                             string clockLabel = null, bool onePosition = false)
     {
         _stallReported[name] = rec.TaskUuid ?? "";
         _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
-                            "{Clock} s (max {Max:F1} m); TASKABRT reported.",
+                            "{Clock} s (max {Max:F1} m); TASKABRT reported.{Leaf}",
                             name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
-                            clockLabel ?? (_stallClockMode == 1 ? "SIM" : "wall"), d.MaxMeters);
+                            clockLabel ?? (_stallClockMode == 1 ? "SIM" : "wall"), d.MaxMeters,
+                            onePosition
+                                ? " ONE POSITION: an aggregate-level unit with no members - its own reflected centre " +
+                                  "point did not move (D1, RL-20260927-01)."
+                                : "");
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
@@ -7896,7 +7976,13 @@ public sealed class VrfC2SimService : BackgroundService
             if (_stallReported.TryGetValue(name, out var reportedFor)
                 && reportedFor == (rec.TaskUuid ?? "")) continue;   // already reported for THIS task
             if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
-            if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
+            // D1 (RL-20260927-01): a memberless aggregate-level leaf is sampled as ONE position; a memberless
+            // ENTITY-level aggregate is still skipped (members not reflected yet, or a shell).
+            if (!TryReadUnitPositions(name, out var positions, out int total, out var positionSource))
+            {
+                NoteMemberlessSkip(name, rec, positionSource, now);
+                continue;
+            }
 
             int stage = SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now,
                                             out int ringCount, out var d);
@@ -7906,7 +7992,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (stage == 1) continue;                      // sampled, not judgeable yet
             anyJudgeable = true;   // at least one unit reached the gate - the watchdog is not dormant
             if (!d.Stalled) continue;
-            ReportStall(name, rec, window, d);
+            ReportStall(name, rec, window, d, onePosition: positionSource == UnitPositionSource.AggregateLeaf);
         }
         // SILENT DORMANCY, SAID OUT LOUD - ON THE CONDITION, NOT ON ONE CAUSE (pass-2 review F4b,
         // re-armed by pass-3 review P4). 08146a2 armed this line only when the cadence was already
@@ -7985,6 +8071,8 @@ public sealed class VrfC2SimService : BackgroundService
             if (!live.Contains(key)) _dispatchPositions.TryRemove(key, out _);
         foreach (var key in _arrivalNotClosable.Keys)
             if (!live.Contains(key)) _arrivalNotClosable.TryRemove(key, out _);
+        foreach (var key in _memberlessWarned.Keys)   // D1: one line per unit-task, same lifetime
+            if (!live.Contains(key)) _memberlessWarned.TryRemove(key, out _);
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)

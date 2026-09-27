@@ -2748,6 +2748,21 @@ no Duration and no geometry is malformed and is refused, not held (below).
   flag, unlike the vendor's move_along_route_and_continue.lua). The runner's report-evidence RPT path maps a marking to
   its VRF_UUID from route lines, which a chained platform no longer logs; its capture and R1-applog paths still apply.
 
+- **A MEMBERLESS AGGREGATE ON THE AGGREGATE MODEL SET IS ONE POSITION** (D1 of docs/PLAN_MOVEMENT_2026-09-27.md,
+  RL-20260927-01; `UnitPositionPolicy`, checked offline by the D1 section of `--rulings-selftest`). Arrival evidence and
+  the progress watchdog read an aggregate's MEMBER positions; an aggregate-level unit is one simulated object with no
+  members (UG52 27.1), so it used to be skipped - a stop at a lake silent, an arrival never scored. With
+  `Vrf:ModelSet=AggregateTacticalLevel` (the runner's `-ModelSet` exports `Vrf__ModelSet`) a memberless aggregate is
+  judged on its own reflected centre point, the position the R1 reports send: arrival 1 of 1, one watchdog sample, the
+  dispatch baseline and the stays-put test alike. An aggregate WITH members is judged on its members, as before. The
+  two memberless cases are told apart by the model set, never by elapsed time: on EntityLevel - the default, and what
+  an absent or unrecognised value means - a memberless aggregate is a pseudo-aggregate whose members have not reflected
+  yet, or an empty shell, and it is still NOT judged; one still memberless 60 WALL s after dispatch gets one "TASK
+  JUDGES: ... NO members" warning per task. Lines to look for: start-up "MODEL SET for task judging: Vrf:ModelSet=..."
+  (a WARNING if the value is not recognised); "ONE POSITION: an aggregate-level unit with no members ..." appended to
+  the ARRIVAL EVIDENCE and STALL lines. The watchdog is ON only in the Demo overlay (`Vrf:StallDetection`), so an
+  aggregate run that must report stops sets it.
+
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
   and the STREND predecessor gate. StallClock carries the progress watchdog's no-progress
