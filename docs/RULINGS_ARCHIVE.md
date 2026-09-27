@@ -5,11 +5,12 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01.
+#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01, RL-20260921-05.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl, same line rule (RL-20260925-01; moved here 2026-09-27, unchanged, to make room for RL-20260927-01).
+#   RL-20260921-05 moved here 2026-09-27, unchanged, to make room for RL-20260927-02 (read it with RL-20260921-09, which stays live).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -355,4 +356,25 @@ RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's la
   A (owner SELECTION of the seat's label, 2026-09-25): "Issue it (Recommended)"
   supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
   pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).
+
+RL-20260921-05 | 2026-09-21 | status VERBATIM
+  Q (as put): none - unprompted correction. The seat's immediately preceding messages are L45432 and L45454.
+  A (owner, L45457): "The rulling based on time is for tasks that do not include movement, such as defend in place and
+    similar ones - units that are not expected to reach any other location. That's what you asked. "A unit that moved 60 m
+    of a 5 km leg gets a complete" is a new interpretation. If I agreed with that, I was tricked. All along this project
+    there was an intense focus on examining situations in which units failed to reach their destination, for example because
+    they got stuck in unpassable terrain at some point. The notion that geting stuck midway is a complete is completelly
+    illogical. There is also a ruled nuance - some tasks never report completed, and yet they make it to their
+    destination - there is code (or should be as a result of the ruling) to adopt complete as the outcome even if the sim
+    misses the notificaiton. Arriving late does _not_ imply an abortion - what happens is that follow on tasks are delayed
+    by the slow progress on a leg. [...]" (the message ends mid-sentence, on the word "Also")
+  supervisor reading: read WITH RL-20260921-08 (he calls the movement / non-movement split fuzzy) and, above all, with RL-20260921-09,
+    the TEMPORARY position that now governs completion until the doctrine and vendor research is done. What this entry on its own
+    settles is narrow: a unit stuck midway has not completed, and arriving late is not an abort.
+  pointer: the HANDOFF CLOSED list TASK COMPLETION line; docs\CORRECTIONS_LOG.md F-1; RL-20260921-07 and -08; RL-20260921-04 (archive) for
+    the one question he asked back inside the STP-857 exchange, which nobody has answered.
+  Lane B's pointer, kept as written and not deleted: "NOT RULED here and not to be written as settled either way: movement-then-hold,
+    patrol, follow/escort, successors of a stalled move, any bound on a late mover, watchdog default." SUPERSEDED IN PART 2026-09-21 by
+    RL-20260921-09 (temporary position): patrol, follow/escort and every no-destination task end at their Duration; a never-arriving unit
+    is a STUCK unit (RL-20260914-01).
 

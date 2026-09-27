@@ -2,33 +2,13 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260926-01, RL-20260927-01). Archived (cap): -08, 0914-02 on 09-26; 0925-01 on 09-27.
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260926-01, RL-20260927-01, -02). Archived (cap): -08, 0914-02 on 09-26;
+#   0925-01 and 0921-05 on 09-27.
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
-
-RL-20260921-05 | 2026-09-21 | status VERBATIM
-  Q (as put): none - unprompted correction. The seat's immediately preceding messages are L45432 and L45454.
-  A (owner, L45457): "The rulling based on time is for tasks that do not include movement, such as defend in place and
-    similar ones - units that are not expected to reach any other location. That's what you asked. "A unit that moved 60 m
-    of a 5 km leg gets a complete" is a new interpretation. If I agreed with that, I was tricked. All along this project
-    there was an intense focus on examining situations in which units failed to reach their destination, for example because
-    they got stuck in unpassable terrain at some point. The notion that geting stuck midway is a complete is completelly
-    illogical. There is also a ruled nuance - some tasks never report completed, and yet they make it to their
-    destination - there is code (or should be as a result of the ruling) to adopt complete as the outcome even if the sim
-    misses the notificaiton. Arriving late does _not_ imply an abortion - what happens is that follow on tasks are delayed
-    by the slow progress on a leg. [...]" (the message ends mid-sentence, on the word "Also")
-  supervisor reading: read WITH RL-20260921-08 (he calls the movement / non-movement split fuzzy) and, above all, with RL-20260921-09,
-    the TEMPORARY position that now governs completion until the doctrine and vendor research is done. What this entry on its own
-    settles is narrow: a unit stuck midway has not completed, and arriving late is not an abort.
-  pointer: the HANDOFF CLOSED list TASK COMPLETION line; docs\CORRECTIONS_LOG.md F-1; RL-20260921-07 and -08; RL-20260921-04 (archive) for
-    the one question he asked back inside the STP-857 exchange, which nobody has answered.
-  Lane B's pointer, kept as written and not deleted: "NOT RULED here and not to be written as settled either way: movement-then-hold,
-    patrol, follow/escort, successors of a stalled move, any bound on a late mover, watchdog default." SUPERSEDED IN PART 2026-09-21 by
-    RL-20260921-09 (temporary position): patrol, follow/escort and every no-destination task end at their Duration; a never-arriving unit
-    is a STUCK unit (RL-20260914-01).
 
 RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
   Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
@@ -113,3 +93,19 @@ RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
     (AGGREGATE_CATALOGUE_2026-09-27; CORRECTIONS_LOG). The decision itself is unchanged and still his.]
   pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
     feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.
+
+RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
+  Q (as put, P5695, the seat's A1 report; its "Two decisions for you before G1"): "1. Hostile side: RUS (107 units, branch-correct stand-ins for every
+    hostile function, the vendor's own Baltic choice, and the map's default) or BLR (24, proxies). I recommend RUS. 2. Representation for the first
+    aggregate runs: proxies (company/battalion-sized aggregates; they move, report and carry footprints) now, with populated containers as the later
+    fidelity step; or build the container population first. I recommend proxies now."
+  A (owner, P5906): "1. RUS. 2. Again a discussion Thats been has. Many sessions ago you said that "authoring" was the vendors standard way of dealing
+    with units. I understood you were talking about the composition you just rediscovered. But your surprise makes me think the container thing might
+    be a bit shaky. In any case, if this is real, then going back to populating the containers is what needs to be gone while we still remember it. You
+    have the TO providing the composition, so it seems simpler than arbitrary proxies that will need to be changed later" (line break after "if this")
+  supervisor reading: (1) hostile side RUS. (2) populate the containers NOW, before G1, instead of proxies - conditional on the container model being
+    real, which UG52 72.2.1 p1419 confirms ("aggregate-level simulation objects that are configured to use the aggregate warfare model do not have the
+    configuration options for specifying subordinates. Therefore, AggregateLevelBase.sms has a platform, Aggregate Container"). The TO (STP init) gives
+    corps -> division -> brigade (15 Superior relations, 4 battalions); brigade -> battalion/company composition is NOT in it and must come from the
+    catalogue's configured sub-units or an authored composition table (DESIGN_ORBAT_TO_VRF sec 5 (b)) - the source of that table is not decided here.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows C1, G1; AGGREGATE_CATALOGUE_2026-09-27; DESIGN_ORBAT_TO_VRF_2026-09-06 secs 1, 2, 5.

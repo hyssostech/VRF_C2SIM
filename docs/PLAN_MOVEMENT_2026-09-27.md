@@ -34,7 +34,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | A1 | Aggregate profile prep: .magx survey, data/unit-type-map-52-aggregate.json, fixture IronStorm_Centre_52_Aggregate (not deployed), Vrf:ModelSet switch, G1 draft checklist | feat/aggregate-profile | executor (Opus) | MERGED 2026-09-27 (3e5ab14) |
 | D1 | A memberless simulated aggregate counts as ONE position for arrival evidence and the stall watchdog, decided by Vrf:ModelSet (UnitPositionPolicy); EntityLevel unchanged | fix/aggregate-leaf-position | M1 executor, resumed | MERGED 2026-09-27 (b817609). Open (owner's call at G1): a vacuous VENDOR completion of an aggregate's route task still sends TASKCMPLT - the vertex-distance guard could withhold it |
 | M1b | Runner report-evidence anchors a chained platform on its LAST vertex; tools/analysis/applog_chain.py is the one parser for the per-vertex lines | with D1 | M1 executor | MERGED 2026-09-27 (b817609) |
-| C1 | Populate a container brigade with sub-units at creation (the vendor's shape for BDE/DIV); needed for fidelity, not for movement | - | after G2 | LATER |
+| C1 | Populate the containers (RL-20260927-02: "going back to populating the containers is what needs to be gone while we still remember it"): a brigade/division/corps = an Aggregate Container (UG52 72.2.1 p1419) holding warfare-model units, recursively down to units the catalogue simulates. Composition sources, in order: the STP TO (corps -> division -> brigade: 15 Superior relations; 4 battalions), the catalogue's configured sub-units (few), then an authored composition table per unit type (DESIGN_ORBAT_TO_VRF sec 5 (b); USA armour/mech/infantry stop at CO in the aggregate catalogue, RUS has 38 BNs). Tasking a container = the vendor's higher-unit Move Along Route (MG Table 1); arrival/stall on its sub-units or its own centroid (D1) | feat/aggregate-containers | design lane after E1, then code | NEXT - before G1 |
 | E1 | Registered entity-level run: cut A, T14's ORIGINAL line (derive without (i); (k) stays unmerged), lone platforms on Move To per vertex | run/ironstorm-cuta-e1 | prep lane running; build target = main 3e5ab14 (M1 + D1 + A1). M2 merges AFTER E1 on purpose: its water rule would shift T14's leg before the vendor's planner ever saw it, and E1 exists to test the planner on the authored line | PREP |
 | G1 | Registered aggregate run: one brigade on the same T14 line, no hand waypoints | run/ironstorm-agg-g1 | after M2 + A1 merge, fixture deploy | QUEUED |
 | G2 | Cut A on the aggregate profile; then the full 23-task order in phases | - | after G1 | QUEUED |
@@ -48,7 +48,7 @@ status changes here the same turn they happen; a phase that closes collapses to 
 | Merge M1 -> main; suite; build + deploy the eleven consumers (RUNBOOK sec 9) | - | deploy is the interface's own output dirs, not C:\MAK |
 | E1 | PREREG | prediction below; holder first (the 09-27 holder expired ~08:30Z); appNumbers from the ledger marker (5170) |
 | Merge M2, A1 -> main; suite; deploy | - | fixture deploy = the one sanctioned file under C:\MAK |
-| G1 | PREREG + RULE | RULE (owner): hostile side RUS (107 simulated units, branch-correct, the vendor's Baltic choice; the map's default) or BLR (24; proxies); and the representation for the first arm: company/battalion-sized PROXY aggregates (recommended for G1/G2) vs populated containers (C1). Prerequisites: D1 merged; M2's aggregate water rules; the fixture deploy (one sanctioned file); CreationPolicy=AtInit with ComposeHierarchy=false (materialization deletes and re-creates, and the EntityLevel-rooted resolver can expand an aggregate type onto the empty base abstract); NO --pre-order-gate nav-area (the aggregate model loads no nav data) |
+| G1 | PREREG | RULED 2026-09-27 (RL-20260927-02): hostile side RUS; representation = POPULATED CONTAINERS (C1), not proxies - G1 runs after C1. Prerequisites: C1 merged; D1 merged; M2's aggregate water rules; the fixture deploy (one sanctioned file); CreationPolicy=AtInit with ComposeHierarchy=false (materialization deletes and re-creates, and the EntityLevel-rooted resolver can expand an aggregate type onto the empty base abstract); NO --pre-order-gate nav-area (the aggregate model loads no nav data) |
 | G2, V1 | PREREG each | - |
 
 ## 3. Pre-registered predictions (the falsifiers of the frame)
@@ -71,8 +71,9 @@ status changes here the same turn they happen; a phase that closes collapses to 
 
 ## 5. Open questions
 
-- Hostile-side aggregate mapping (owner's): RUS recommended - see the G1 gate row.
-- Representation at aggregate level (owner's): proxies now, populated containers (C1) for fidelity later - recommended.
+- RULED 2026-09-27 (RL-20260927-02): hostile side RUS; populated containers before G1 (C1). Open inside C1: the source of the
+  brigade -> battalion/company composition where neither the STP TO nor the catalogue gives it (an authored table per unit
+  type is the candidate; its provenance - vendor TO&E in Road to Kaunas, doctrine - is the design lane's to propose).
 - What a Move Along Route does at speed factor 0 (runs forever, fails, or ends), the Disaggregated create of a simulated
   leaf, footprint-overlap slowing, and how often an aggregate's position is published while moving: G1 observes them.
 - Rivers: report only for now; the vendor's road planner per vertex is the candidate if STP's lines keep crossing them.
