@@ -22,7 +22,7 @@ are sent in their XML case (PA_Move_Along_Route), which the vendor's own Lua als
 UG52 36.2.1 p753: ids are lower-cased internally). (f) No Vrf:AggregateNesting: FLAT only (D-8); Nested stays a follow-up.
 (g) No runner Stage 0 pairing of Vrf:CompositionFile; the app validates and logs every row at start-up instead.
 
-STATUS 2026-09-28: C1 merged (5561d90) and the bridge rebuilt with PublishedSubordinateCount (pin 5198ac45, 2094c56) -
+STATUS 2026-09-28: C1 merged (5561d90) and the bridge rebuilt with PublishedSubordinateCount (pin 03226dd0 (pin of 2026-09-28 13:34Z; 5198ac45 until then), 2094c56) -
 deviation (b) is closed. G1 ran (runs/20260928T102541Z_run; merge bee3753): the container mechanism worked live on ONE
 member (48 IBCT's CAV1: published, PA_Move_Along_Route, TASKCMPLT), and 22 of the 23 members were lost to their NAMES.
 VR-Forces returns an aggregate name that overflows its 31-character marking field (DtMaxAggregateMarkingLength, VR-Link
