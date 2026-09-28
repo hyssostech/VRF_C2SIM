@@ -109,8 +109,8 @@ Method lessons (each one cost a false claim or a night):
 
 **State - the live carry-over.** The run-by-run narrative to 2026-09-15 02:45Z is archived verbatim: HANDOFF_2026-09-21_ARCHIVE.md sec 1.
 - BUILD PIN (RUNBOOK sec 9, NEW PIN 2026-09-28 00:44Z, main 9027548): VrfBridge.dll 5198AC4585BF4218 (1,003,008 B) - rebuilt 2026-09-28 with MSVC
-  14.51 v145 for C1's PublishedSubordinateCount (RL-20260927-02..04), RTI headers makRti5.0.1 (4.6.1 is gone). ELEVEN consumers, ONE hash (RtiProbe
-  PENDING); 90272BC9 (09-15), E3F40524 and 99B7B235 are SUPERSEDED. Always -p:BridgeConfig=Release-5.2 and check the OUTPUT TREE, not the exit code.
+  14.51 v145 for C1's PublishedSubordinateCount (RL-20260927-02..04), RTI headers makRti5.0.1 (4.6.1 is gone). ELEVEN 5.2 consumers carry ONE hash;
+  90272BC9 (09-15), E3F40524 and 99B7B235 are SUPERSEDED. Always -p:BridgeConfig=Release-5.2 and check the OUTPUT TREE, not the exit code.
 - NAV PRODUCT RULE (adopted after V7, 21c1430): area cap 20 x 20 km, one tile, connectivity ratio >= 0.9. MojaveCOA is RETIRED for navigation; MojaveAO20 is
   the fixture. The 0.9 bar is a SUPERVISOR's gate and NOT an owner ruling - RL-UNVERIFIED-NAV09 - and it is not reopened here; it stands or falls on its own
   engineering merits.
