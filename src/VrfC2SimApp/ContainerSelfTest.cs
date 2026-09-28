@@ -40,6 +40,11 @@ namespace VrfC2SimApp;
 ///         what MemberPlan sends); the completion markings - the residual that is C1c's; one object per uuid on every
 ///         shipped init; the source guards (every create passes a uuid); the linked VrfBridge.dll CARRIES the uuid
 ///         overloads (else the start is refused)
+///   (p16) M3b - THE ROUTE-NAME BUDGET (the G1-3 Result): the mechanism re-read from the vendor's navigate-to-location.lua
+///         and headers; the 16-character member budget derived; FAIL-FIRST on G1-3's own lines (C1c's 30-character members
+///         give 42-character routes, and the 35 a move-along carries of one IS what the back end printed before 'route does
+///         not exist'); the fix on the same population ('1-112_IN.RIF2'), its uuids unchanged; every table row fits under
+///         the longest shipped designator; the source guards
 /// VARIANTS (C1b): the composition file holds a "catalogue" and an "authored" variant. p1 walks the SELECTED variant
 /// (`--populate-selftest --variant authored`; default = the file's defaultVariant, catalogue) on ITS catalogue - the
 /// installed vendor set for catalogue, the DERIVED set for authored (`--derived-sms PATH`, else env
@@ -106,6 +111,7 @@ public static class ContainerSelfTest
         P13(repo, home, cat, full, selected, derived, derivedSms);
         P14(repo, cat, table);
         P15(repo, cat, table);
+        P16(repo, home, cat, table);
         return Finish();
     }
 
@@ -334,10 +340,17 @@ public static class ContainerSelfTest
             double e = lay.Members.Count == 0 ? 0 : lay.Members.Average(m => (m.LonDeg - Lon) * metersPerDegLon);
             Check(Math.Sqrt(n * n + e * e) < 0.01, $"{kv.Key}: the members' centroid is ON the container point (< 0.01 m)",
                   FormattableString.Invariant($"{Math.Sqrt(n * n + e * e):F6} m"));
-            Check(lay.Members.All(m => m.Name.Length <= PopulatePlanner.MaxNameChars)
+            // M3b: a member reads as its container's by the container's DESIGNATOR ("48_IBCT"), cut to the room its suffix
+            // leaves within 16 - C1c's first-10-characters-of-the-name rule cannot hold at 16 with a 12-character suffix.
+            string desig = VrfNames.Designator(Name);
+            Check(lay.Members.All(m => m.Name.Length <= PopulatePlanner.MaxNameChars && VrfNames.RouteReferenceFits(m.Name))
                   && lay.Members.Select(m => m.Name).Distinct().Count() == lay.Members.Count
-                  && lay.Members.All(m => m.Name.StartsWith(Name.Substring(0, 10), StringComparison.Ordinal)),
-                  $"{kv.Key}: member names are UNIQUE, within {PopulatePlanner.MaxNameChars} chars and read as the container's",
+                  && lay.Members.All(m => m.Name.EndsWith("." + m.Leaf.Suffix, StringComparison.Ordinal)
+                                          && desig.StartsWith(m.Name.Substring(0, m.Name.Length - m.Leaf.Suffix.Length - 1),
+                                                              StringComparison.Ordinal)
+                                          && m.Name.Length - m.Leaf.Suffix.Length - 1 >= 1),
+                  $"{kv.Key}: member names are UNIQUE, within {PopulatePlanner.MaxNameChars} chars (the route reference fits, M3b), " +
+                  $"and read as the container's: '<designator '{desig}', cut>.<suffix>'",
                   string.Join(", ", lay.Members.Take(3).Select(m => m.Name)));
         }
         Check(ibct != null && ibct.Members[0].Leaf.Function == "HQ" && ibct.Members[0].Slot == 0
@@ -1181,9 +1194,11 @@ public static class ContainerSelfTest
                   && VrfNames.AggregateMarkingChars == VrfNames.AggregateMarkingField - 1
                   && VrfNames.EntityMarkingChars == VrfNames.EntityMarkingField - 1
                   && NameRegistry.MarkingTruncationWidth == VrfNames.EntityMarkingChars
-                  && PopulatePlanner.MaxNameChars == VrfNames.AggregateMarkingChars,
+                  && PopulatePlanner.MaxNameChars == VrfNames.PlannedMemberNameChars
+                  && PopulatePlanner.MaxNameChars <= VrfNames.AggregateMarkingChars,
                   "THE FIELD WIDTHS are the vendor's: DtMaxAggregateMarkingLength 31 (an overflowing aggregate name comes back " +
-                  "as its first 30 - the member limit), DtMaxEntityMarkingLength 11 (a platform's, as its first 10)",
+                  "as its first 30 - C1c's member limit, now the ceiling: M3b's route-name budget makes a member at most 16, " +
+                  "p16), DtMaxEntityMarkingLength 11 (a platform's, as its first 10)",
                   $"netStructs.h {agg.Groups[1].Value}/{ent.Groups[1].Value}, aggregateStateRepository.h {sr.Groups[1].Value}");
         }
         // The measured rule on G1's own two boundary cases (both runs): 31 characters came back WHOLE, 32 as the first 30.
@@ -1315,11 +1330,14 @@ public static class ContainerSelfTest
         int seq3 = 0;
         var rc = ReplayCallbacks(pairReg, lc.Members.Select(m => m.Name).ToList(), ref seq3);
         var rd = ReplayCallbacks(pairReg, ld.Members.Select(m => m.Name).ToList(), ref seq3);
-        Check(!lc.Refused && !ld.Refused && lc.Members[0].Name == "ABCDEFGHIJKLMNOPQRSTUVWXYZ.HQ1"
-              && ld.Members[0].Name == "ABCDEFGHIJKLMNOPQRSTUVWX~2.HQ1" && ld.Members[0].NameNote != null
+        // M3b: a member is at most 16 and starts with its container's DESIGNATOR (these two names have no "__" or '/', so
+        // the designator is the whole name), cut to the 12 characters ".HQ1" leaves - the two containers now coincide in
+        // their first 12, and the same deterministic ~k rule separates their HQs.
+        Check(!lc.Refused && !ld.Refused && lc.Members[0].Name == "ABCDEFGHIJKL.HQ1"
+              && ld.Members[0].Name == "ABCDEFGHIJ~2.HQ1" && ld.Members[0].NameNote != null
               && rc.Bound == 1 && rd.Bound == 1,
-              "two CONTAINERS different within 30 but alike in their first 26: the second's HQ takes the ~2 tag - " +
-              "deterministic, said once - and both members bind",
+              "two CONTAINERS different within 30 but alike in their first 12 (the room '.HQ1' leaves in a 16-character " +
+              "member, M3b): the second's HQ takes the ~2 tag - deterministic, said once - and both members bind",
               $"{lc.Members[0].Name} / {ld.Members[0].Name}: {ld.Members[0].NameNote}");
 
         // (f) A SYNTHESIZED SUB-UNIT (VrfC2SimService.MakeChildName, the entity-level EXPAND path) - the same rule.
@@ -1635,6 +1653,135 @@ public static class ContainerSelfTest
               "the LINKED VrfBridge.dll CARRIES CreateEntity(..., String uuid) and CreateAggregate(..., Boolean, String uuid) - a " +
               "bridge rebuilt for C1d (a stale pin would not even compile the app, and the service REFUSES TO START on one)",
               typeof(VrfBridge).Assembly.Location);
+    }
+
+    // ----------------------------------------------------------------------------------------------- (p16) ----
+    // M3b (2026-09-28, the G1-3 Result): THE ROUTE-NAME BUDGET. G1-3's five 1-112 IN members as the run named them (C1c's
+    // 30-character rule; relayed at runs/20260928T190047Z_run/vrfc2simapp.log L9675-L9723) and two of the back end's own
+    // lines about one of them (L9809, L9811 - one of 15 'route does not exist' warnings, 20 of 20 references 'Pathr').
+    private static readonly string[] G13Members =
+    {
+        "1-112_IN/28ID__FRIENDLY_IN.HQ1", "1-112_IN/28ID__FRIENDLY_I.RIF1", "1-112_IN/28ID__FRIENDLY_I.RIF2",
+        "1-112_IN/28ID__FRIENDLY_I.RIF3", "1-112_IN/28ID__FRIENDLY_I.WPN1",
+    };
+    private const string G13Container = "1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE";
+    private const string G13Subtask =
+        "VRF console [3] 1-112_IN/28ID__FRIENDLY_I.RIF2 (VRF_UUID:081d4816-9dbd-5f2f-bb9b-42cbff62b529): ...Subtask 1 name " +
+        "and parameters: Move-Along Route: \"1-112_IN/28ID__FRIENDLY_I.RIF2 Pathr\"";
+    private const string G13Refused =
+        "VRF console [1] 1-112_IN/28ID__FRIENDLY_I.RIF2 (VRF_UUID:081d4816-9dbd-5f2f-bb9b-42cbff62b529): Warning:  " +
+        "DtAggregatedMoveAlongController::setupRoute -- %1 route does not exist. | 1-112_IN/28ID__FRIENDLY_I.RIF2 Pathr";
+
+    private static void P16(string repo, string home, ResolverCatalogue cat, CompositionTable table)
+    {
+        Console.WriteLine("--- (p16) M3b: the route-name budget - a member leaves room for the route the vendor names after it ---");
+        // (a) THE VENDOR'S OWN FILES (read-only): the name the script gives its route, the part size, the blob the
+        //     move-along carries the route in, and the controller's lookup.
+        string lua = SafeRead(Path.Combine(home, "data", "simulationModelSets", "base", "scripts", "navigate-to-location.lua"));
+        string uuidH = SafeRead(Path.Combine(home, "include", "vrfutil", "uuid.h"));
+        string moveH = SafeRead(Path.Combine(home, "include", "vrftasks", "moveAlongTasks.h"));
+        string ctlH = SafeRead(Path.Combine(home, "include", "vrfmodel", "aggregatedMoveAlongController.h"));
+        if (lua.Length == 0 || uuidH.Length == 0 || moveH.Length == 0 || ctlH.Length == 0)
+            Skip("the route-name mechanism re-read from the vendor's navigate-to-location.lua and headers", "not found under " + home);
+        else
+        {
+            Check(lua.Contains("object_name = this:getName() .. \"" + VrfNames.NavigateRouteInfix + "\".. tostring(objectN)")
+                  && Regex.IsMatch(lua, @"MAX_POINTS_PER_ROUTE\s*=\s*100\b"),
+                  "navigate-to-location.lua names each route it plans '<taskee> Path part <n>' (:223), parts of at most 100 " +
+                  "points (:31)");
+            Check(uuidH.Contains("char myData[36];") && uuidH.Contains("is the first char is the type, and the rest is the data")
+                  && moveH.Contains("virtual void setRoute(const DtUUID&);") && ctlH.Contains("Look up the route by name"),
+                  "the move-along carries its route as a DtUUID (moveAlongTasks.h :82) - a 36-byte blob, one type byte and 35 of " +
+                  "data (uuid.h :247-249) - and the aggregated controller looks the route up by it (aggregatedMoveAlongController.h " +
+                  ":70-77)");
+        }
+        // (b) THE BUDGET, derived: 34 (the longest reference carried intact, PREREG_ROUTE_NAME_LENGTH_2026-09-02) - 11 - 2 - 5.
+        Check(VrfNames.NavigateRouteInfix.Length == 11 && VrfNames.PlannedMemberNameChars == 16
+              && VrfNames.PlannedMemberNameChars == VrfNames.UuidReferenceChars - VrfNames.NavigateRouteInfix.Length
+                                                   - VrfNames.NavigateRoutePartDigits - VrfNames.StringUuidSuffixChars
+              && PopulatePlanner.MaxNameChars == VrfNames.PlannedMemberNameChars
+              && VrfNames.UuidReferenceCutChars == VrfNames.UuidReferenceChars + 1,
+              "THE BUDGET: a member is at most 16 = 34 (carried intact) - 11 (' Path part ') - 2 (part digits) - 5 ('_' + a " +
+              "4-digit counter, whose range the vendor documents nowhere)");
+        // (c) FAIL-FIRST, G1-3's OWN LINES: C1c's 30-character names give 42-character routes, and what a move-along carries of
+        //     one is EXACTLY what the back end printed, less the one junk byte that follows the 35.
+        var refused = Regex.Match(G13Refused, @"route does not exist\. \| (.+)$");
+        var sub = Regex.Match(G13Subtask, "Move-Along Route: \"([^\"]+)\"");
+        string printed = refused.Success ? refused.Groups[1].Value : "";
+        string predicted = VrfNames.CarriedReference(VrfNames.NavigateRouteReference(G13Members[2], 1, 8));
+        var c1c = new[] { "HQ1", "RIF1", "RIF2", "RIF3", "WPN1" }.Select(s => VrfNames.ChildName(G13Container, s)).ToList();
+        Check(c1c.SequenceEqual(G13Members) && G13Members.All(m => m.Length == 30 && !VrfNames.RouteReferenceFits(m))
+              && VrfNames.NavigateRouteName(G13Members[2], 1).Length == 42
+              && predicted == "1-112_IN/28ID__FRIENDLY_I.RIF2 Path" && printed.Length == predicted.Length + 1
+              && printed.StartsWith(predicted, StringComparison.Ordinal) && sub.Success && sub.Groups[1].Value == printed,
+              "FAIL-FIRST (G1-3, L9807-L9875): C1c's rule names the five 1-112 IN members at 30 characters, their routes are 42 " +
+              "('<member> Path part 1'), and a move-along carries the first 35 - '1-112_IN/28ID__FRIENDLY_I.RIF2 Path' - which IS " +
+              "what the back end printed ('...Pathr': those 35 and one junk byte) before 'route does not exist'",
+              $"predicted '{predicted}', printed '{printed}'");
+        // (d) THE FIX, the same population: the planner's new names, and their worst-case references carried whole.
+        var bn = CompositionResolver.ExpandRow(table.ById("C-USA-BN-UCI"), table, cat);
+        var lay = PopulatePlanner.Plan(G13Container, 54.0, 23.3, bn.Leaves, 0.0, containerUuid: "8d5b2ba6-73c1-6c55-812c-7c8078ea8c97");
+        var names = lay.Members.Select(m => m.Name).ToList();
+        Check(!lay.Refused
+              && names.SequenceEqual(new[] { "1-112_IN.HQ1", "1-112_IN.RIF1", "1-112_IN.RIF2", "1-112_IN.RIF3", "1-112_IN.WPN1" })
+              && names.All(VrfNames.RouteReferenceFits)
+              && names.All(n => VrfNames.CarriedReference(VrfNames.NavigateRouteReference(n, 99, 9999))
+                                == VrfNames.NavigateRouteReference(n, 99, 9999)),
+              "THE FIX: the same five are '1-112_IN.HQ1' .. '1-112_IN.WPN1' (the container's DESIGNATOR + the suffix) and even " +
+              "'<member> Path part 99_9999' is carried WHOLE", string.Join(", ", names));
+        // (e) THE UUIDS DID NOT MOVE: a member's uuid derives from its container's uuid and its SUFFIX (C1d, RL-20260928-02),
+        //     never from its name - G1-3's container uuid gives the same five member uuids under either name.
+        Check(lay.Members.All(m => m.Uuid.Length > 0
+                                   && m.Uuid == IdentityUuid.Derive("8d5b2ba6-73c1-6c55-812c-7c8078ea8c97", m.Leaf.Suffix))
+              && lay.Members.Select((m, i) => m.Name != G13Members[i]).All(b => b),
+              "identity is untouched: every member's uuid is still IdentityUuid.Derive(<container uuid>, <suffix>) - only the " +
+              "display name changed");
+        // (f) EVERY ROW of the shipped table, under the LONGEST designator any shipped init gives: no refusal, every member fits.
+        string longest = "";
+        foreach (var f in Directory.GetFiles(Path.Combine(repo, "data"), "*Initialization*.xml"))
+        {
+            try
+            {
+                foreach (var u in InitParser.Parse(File.ReadAllText(f)).Units)
+                    if (!string.IsNullOrEmpty(u.Name) && VrfNames.Designator(u.Name).Length > VrfNames.Designator(longest).Length)
+                        longest = u.Name;
+            }
+            catch { /* p14 (g) reports an init that does not parse */ }
+        }
+        int rows = 0, expanded = 0, fit = 0, longestSuffix = 0;
+        string longestSuffixText = "";
+        var bad = new List<string>();
+        foreach (var row in table.Rows)
+        {
+            rows++;
+            var pr = CompositionResolver.ExpandRow(row, table, cat);
+            if (pr.Refused) continue;          // a composition refusal is p4's; this check is about names
+            expanded++;
+            foreach (var l in pr.Leaves)
+                if ((l.Suffix ?? "").Length > longestSuffix)
+                {
+                    longestSuffix = l.Suffix.Length;
+                    longestSuffixText = row.Id + ": " + l.Suffix;
+                }
+            var lr = PopulatePlanner.Plan(longest, 54.0, 23.3, pr.Leaves, 0.0);
+            if (!lr.Refused && lr.Members.All(m => m.Name.Length <= VrfNames.PlannedMemberNameChars && VrfNames.RouteReferenceFits(m.Name)))
+                fit++;
+            else bad.Add(row.Id + (lr.Refused ? " (" + lr.Refusal + ")" : ""));
+        }
+        Check(expanded > 0 && fit == expanded && longestSuffix <= VrfNames.PlannedMemberNameChars - 2,
+              $"every row of the shipped table ({expanded} of {rows} expand) names every member within 16 and a fitting route, " +
+              $"even under the longest designator the shipped inits give ('{VrfNames.Designator(longest)}'); the longest suffix " +
+              $"is {longestSuffix} ({longestSuffixText})", bad.Count == 0 ? "" : string.Join("; ", bad));
+        // (g) THE SOURCE GUARDS: the planner names members by the designator within the budget, and the service's two
+        //     population lines print each short name beside the member's FULL name (and, on IDENTITY, its uuid).
+        string comp = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "ContainerComposition.cs"));
+        string svc = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs"));
+        Check(comp.Contains("VrfNames.UniqueChildName(VrfNames.Designator(containerName), leaves[k].Suffix, candidate =>")
+              && comp.Contains("out int tag, out string why, MaxNameChars);")
+              && comp.Contains("public const int MaxNameChars = VrfNames.PlannedMemberNameChars;")
+              && CountOf(svc, "PopulatePlanner.FullMemberName(name, m.Leaf.Suffix)") == 3,
+              "the planner names a member '<designator, cut>[~k].<suffix>' within 16, and the POPULATE and IDENTITY lines print " +
+              "each short name beside the member's full name");
     }
 
     // ---------------------------------------------------------------------------------------------- helpers ----

@@ -16,6 +16,8 @@ namespace VrfC2SimApp;
 ///   (s8) Y-2 the config-file identity      (s9) C1/C2 ComposeHierarchy          (s10) C4 AggregateFormation OFF
 ///   (s11) DIRTY CONTROLS: each demo pin, re-read with its one key flipped in memory, must FAIL.
 ///   (s12) RL-20260928-03 the planned container move: Vrf:AggregateMovePlanner=Auto everywhere it ships (+ its dirty control).
+///   (s13) M3b (the G1-3 Result) the EXECUTOR REFUSED bar: Vrf:VertexArrivalRadiusMeters 100 everywhere it ships (+ its dirty
+///         control) - 0 would let a planned vertex that moved nothing advance again.
 /// </summary>
 public static class ShippedProfileSelfTest
 {
@@ -163,6 +165,25 @@ public static class ShippedProfileSelfTest
                           .Build().GetSection("Vrf").Get<VrfSettings>();
         Check(ref failures, literal != null && literal.AggregateMovePlanner != "Auto",
               "(s12) DIRTY CONTROL: Vrf:AggregateMovePlanner=Literal layered over the two files makes the pin FAIL - it reads the key");
+
+        // (s13) M3b (2026-09-28, the G1-3 Result) - a PLANNED container's INTERMEDIATE vertex that "succeeds" without moving
+        // the container is the EXECUTOR REFUSING (VertexChainPolicy.IsExecutorRefusal): the vertex FAILS, TASKABRT. It is
+        // measured against Vrf:VertexArrivalRadiusMeters, which a 0 would switch off - so the bar is pinned where it ships.
+        Check(ref failures, compiled.VertexArrivalRadiusMeters == 100.0 && baseCfg["Vrf:VertexArrivalRadiusMeters"] == "100"
+                            && shipped.VertexArrivalRadiusMeters == 100.0 && demo.VertexArrivalRadiusMeters == 100.0
+                            && !rsh.Contains("Vrf__VertexArrivalRadiusMeters", StringComparison.Ordinal)
+                            && VertexChainPolicy.IsExecutorRefusal(1451, 0, demo.VertexArrivalRadiusMeters),
+              "(s13) M3b: the EXECUTOR REFUSED bar ships ON - Vrf:VertexArrivalRadiusMeters 100 in VrfSettings.cs, as an explicit key " +
+              "in appsettings.json and through the Demo overlay (RunScenario.sh exports none), so G1-3's vertex 1 (1451 m from it, " +
+              "moved 0 m, L9979) FAILS as refused instead of advancing",
+              $"compiled {compiled.VertexArrivalRadiusMeters}, base key '{baseCfg["Vrf:VertexArrivalRadiusMeters"]}', demo {demo.VertexArrivalRadiusMeters}");
+        var barOff = new ConfigurationBuilder().AddJsonFile(appSettings, optional: false).AddJsonFile(demoSettings, optional: false)
+                         .AddInMemoryCollection(new Dictionary<string, string> { ["Vrf:VertexArrivalRadiusMeters"] = "0" })
+                         .Build().GetSection("Vrf").Get<VrfSettings>();
+        Check(ref failures, barOff != null && barOff.VertexArrivalRadiusMeters == 0.0
+                            && !VertexChainPolicy.IsExecutorRefusal(1451, 0, barOff.VertexArrivalRadiusMeters),
+              "(s13) DIRTY CONTROL: Vrf:VertexArrivalRadiusMeters=0 layered over the two files switches the refusal OFF - the pin " +
+              "reads the key");
         return failures;
     }
 

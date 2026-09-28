@@ -156,6 +156,14 @@ public static class AggregateMovePolicy
     ///     variables the vendor's own saved navigate-to-location task carries (.oob :109481-109500). query="" is sent
     ///     on purpose: the script lets the old "query" name OVERRIDE obstacleQuery whenever it is not "" (.lua :48-51),
     ///     and an absent value is nil, not "".
+    /// THE DESTINATION REACHES THE SCRIPT - CONFIRMED LIVE 2026-09-28 (G1-3, run 20260928T190047Z, vrfc2simapp.log
+    /// L9681-L9713): every member's level-3 echo reads "navigate-to-location: destination={3448198.452440, 1485421.208769,
+    /// 5138688.441927}" - (54.029734,23.305499) at 0.000 m, the vector the facade sends. navigate-to-location declares it a
+    /// "locationreference" (.xml :34-35); the vendor's FRONT END sends such a variable as an absolute DtRwLocationReference
+    /// tagged "locationreference" (addScriptedSet.oob :21-36), its Lua subtasks as a DtRwVector (PhaseTwo) or a
+    /// DtRwLocationReference (Counterattack) with no tag, and the location-reference converter's upgradeFromVariable turns
+    /// the DtRwVector into the right absolute reference (offline, bridge-spikes/ScriptVarSerializeProbe). What failed in
+    /// G1-3 was the EXECUTOR, not this binding: the route-name budget (VrfNames) and ExecutorRefused (VertexChain), M3b.
     /// </summary>
     public static PlannedVertexTask ForVertex(AggregateMovePlanner p, double lat, double lon, RoadDecision road)
     {
@@ -247,6 +255,29 @@ public static class AggregateMovePolicy
                 $"PLANNED MOVE {container} vertex {vertex} of {vertexCount}: {NavigateScript} FAILED for {failed} of {members} ") +
               "member(s) and succeeded for none - by the vendor's Move (Group) rule (a critical role fails only when no member " +
               "succeeded, roleNode.lua :246-280) the vertex FAILED; the chain ends and no further vertex is issued";
+
+    /// <summary>
+    /// M3b (2026-09-28, the G1-3 Result): the TASKABRT reason for a planned INTERMEDIATE vertex whose success moved nothing
+    /// (<see cref="VertexChainPolicy.IsExecutorRefusal"/>). The vendor reported the vertex done - per member navigate-to-
+    /// location ends SUCCESS once its move-along subtask stops, whatever that subtask's result (navigate-to-location.lua
+    /// :252-259), and Move (Group) succeeds when one member did - so a success that left the container where it was is
+    /// the EXECUTOR refusing the planned route (G1-3: "DtAggregatedMoveAlongController::setupRoute -- %1 route does not
+    /// exist" on 5 of 5 members). <paramref name="members"/> / <paramref name="succeeded"/> are 0 under Move (Group).
+    /// </summary>
+    public static string ExecutorRefusedReason(string container, int vertex, int vertexCount, AggregateMovePlanner p,
+                                               int members, int succeeded, double distanceMeters, double displacementMeters,
+                                               int displacementFrom, double barMeters)
+        => FormattableString.Invariant(
+               $"PLANNED MOVE {container} vertex {vertex} of {vertexCount}: {CompletionTaskType(p)} EXECUTOR REFUSED - moved ") +
+           FormattableString.Invariant($"{displacementMeters:F0} m since ") +
+           (displacementFrom == 0 ? "dispatch" : "vertex " + displacementFrom.ToString(CultureInfo.InvariantCulture)) +
+           FormattableString.Invariant($" and is {distanceMeters:F0} m from the vertex (the vacuous bar is {barMeters:F0} m), ") +
+           (members > 0
+               ? FormattableString.Invariant($"although {succeeded} of {members} member(s) reported success")
+               : "although VR-Forces reported success") +
+           ": navigate-to-location ends SUCCESS once its move-along subtask stops, whatever that subtask's result " +
+           "(navigate-to-location.lua :252-259), so a success that moved nothing is the executor refusing the planned route " +
+           "(G1-3: 'route does not exist', M3b); the vertex FAILED, the chain ends and no further vertex is issued";
 
     // ------------------------------------------------------------------------------------------- the log lines ----
     /// <summary>
