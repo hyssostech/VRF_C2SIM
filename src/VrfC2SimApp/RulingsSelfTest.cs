@@ -57,6 +57,8 @@ public static class RulingsSelfTest
         failures += ModelSetGuardSelfTest.Run();
         Console.WriteLine("=== AUDIT 2026-09-28 fix 1: the overlay-only settlements, pinned where they ship (base disagreements named, not chosen) ===");
         failures += ShippedProfileSelfTest.Run();
+        Console.WriteLine("=== AUDIT 2026-09-28 fix 2: the \"do not\" rules kept only by absence, pinned by source guards ===");
+        failures += DoNotRulesSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
