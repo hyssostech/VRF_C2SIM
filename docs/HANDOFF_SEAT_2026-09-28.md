@@ -32,19 +32,25 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
 - Ledger marker (docs/OPUS_EXECUTION_PLAN.md Appendix B): `*** NEXT FREE: 5270 ***`. 5255 = the holder; 5256-5258
   burned; the G1-3 pre-warm took 5259-5269. G1-4 while 56380 is up: pre-warm 5270-5280, scored 5281-5291, marker 5292.
   After it resigns: a holder claim first (5270-5273), pre-warm 5274-5284, scored 5285-5295, marker 5296.
-- In flight: lane M3b (branch fix/planned-move-destination, brief in this session; managed-only after the redirect):
-  (1) short member DISPLAY names by construction (identity is the uuid) sized so the vendor script's route name
-  "<member> Path part 1" fits the vendor's name cap; (2) a vacuous planned intermediate vertex = FAILURE, not an advance;
-  (3) a crashed back end VOIDS the window (observer count 1 -> 0, a new .dmp/.callstack.log under C:\MAK\logs, the
-  "Error vrfSimHLA1516e.exe" modal) and StopVrf says CRASHED. Its report names the mechanism with citations first.
+- M3b MERGED as 739cce2 (branch fix/planned-move-destination 5ae2193; managed only, pin 03226dd0 stands): (1) member DISPLAY names
+  at most 16 characters (VrfNames.cs, ContainerComposition.cs) so the vendor script's route reference "<member> Path part N_<counter>"
+  fits the 35-byte DtUUID payload (uuid.h :247-249; the 2026-09-02 cut, PREREG_ROUTE_NAME_LENGTH; the vendor's own saves name a
+  script route's uuid "<name>_<counter>"); (2) a vacuous planned intermediate vertex = EXECUTOR REFUSED -> TASKABRT (VertexChain,
+  AggregateMovePlanner; the last vertex still goes to D-6; M1 lone platforms unchanged); (3) a crashed back end VOIDS the window
+  (RunnerLib/RunC2SimScenario: crash record by name+mtime, the modal, the process gone, WatchVrf backends 1->0; StopVrf52 exit 8;
+  the watchdog reads 8). Tests: planned-move 81, populate 199, rulings 615, RunnerTurnaround 777/0/2 in the lane's worktree.
+  NOT YET DEPLOYED: the deployed trees are still fde3ff2 - step 1 of sec 3 is the managed rebuild of the eleven from main 739cce2
+  (RtiProbe's code unchanged; its tree is held by the holder - leave it) and the redeploy of appsettings.json.
+  Unexplained, carried: the back-end crash (callstack unread; the owner's call); vertex 2's "Cound not create route" for two
+  members. Next hypothesis if short names still fail in G1-4: buffer 10 (the vendor's save used 0).
 - The STP session (stp-live-picture-d8, STP-850) holds a PR #1 (fix/stp-850-start-at-max) on this repo: the task-start
   anchor at receipt. Review it here with the record rules; the DEFAULT anchor (Receipt) is the owner's to confirm.
 
 ## 3. Next steps, in order
 
-1. When M3b reports: review, merge (--no-ff), suite, push. If it needed a native change after all: NEW PIN procedure.
-2. Deploy: a managed rebuild of the ten consumers from the merged main (RUNBOOK sec 9, the R4 line is the model);
-   record the line; RtiProbe stays as is while the holder runs.
+1. (DONE by the Fable seat) M3b merged as 739cce2, suite green, pushed.
+2. Deploy: a managed rebuild of the ten consumers from main 739cce2 (RUNBOOK sec 9, the R4 line is the model; an ops
+   agent can run it); verify by the output trees; record the sec 9 line; RtiProbe stays as is while the holder runs.
 3. G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
