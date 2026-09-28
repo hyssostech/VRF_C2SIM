@@ -15,7 +15,8 @@ namespace VrfC2SimApp;
 /// C++ c2simVRFinterface's runtime role:
 ///   C2SIM in : Initialization -> create units/routes/areas in VR-Forces
 ///              Order          -> task units (move/scripted/...)
-///   VRF out  : object-created -> correlate name -> VRF uuid
+///   VRF out  : object-created -> bind by the uuid it was created under (C1d, RL-20260928-02;
+///                                the name rule only as the fallback)
 ///              task-complete  -> C2SIM status report (TASKCMPLT)
 ///              text/position  -> C2SIM position report
 ///
@@ -42,6 +43,9 @@ public sealed class VrfC2SimService : BackgroundService
 
     // C2SIM name <-> VRF uuid correlation, populated on ObjectCreated
     // (parity: onVrfObjectCreated in C2SIMinterface.cpp).
+    // C1d (RL-20260928-02): the binding is made by the UUID each object was created under (NameRegistry.BindCreated);
+    // the name is the interface's own human-readable key for the maps below and the fallback when a uuid came back that
+    // was not requested. G5 of ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this map (_vrfUuidByName then).
     // B3 (2026-09-14): this is a NameRegistry, not a bare dictionary, because VR-Forces may return
     // a created object under a name SHORTER than the one we asked for - a platform's name is a DIS
     // MARKING, and "2/1_AD/25_~PXY" came back as "2/1_AD/25_" (runs/20260914T002716Z_run). The
@@ -121,6 +125,10 @@ public sealed class VrfC2SimService : BackgroundService
     // is logged once (OnVrfObjectCreated).
     private readonly object _memberNameLock = new();
     private readonly ConcurrentDictionary<string, byte> _memberNameLogged = new(StringComparer.Ordinal);
+    // C1d (RL-20260928-02): the population identity summaries already said, and the report markings already said to be
+    // carried by more than one uuid-bound object (once each).
+    private readonly ConcurrentDictionary<string, byte> _identityPopulationSaid = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _ambiguousMarkingSaid = new(StringComparer.Ordinal);
     private DateTime _nextPopulateSweep = DateTime.MinValue;
 
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
@@ -400,6 +408,9 @@ public sealed class VrfC2SimService : BackgroundService
         public bool Done;
         public TaskCompletionSource Ready;                   // THE gate this composition completes (never a later one registered under the same name)
     }
+    // C1d (RL-20260928-02; G5 of ORBAT_LOADING_REQUIREMENTS_2026-09-06 named _childToParent): both maps are keyed by the
+    // REQUESTED names - the interface's own keys, unique by construction - and every lookup comes from OnVrfObjectCreated
+    // with the name the object's UUID was bound to (NameRegistry.BindCreated), never from a returned marking.
     private readonly ConcurrentDictionary<string, PendingComposition> _compositions = new();   // parent name -> composition
     private readonly ConcurrentDictionary<string, string> _childToParent = new();               // child name -> parent name
     private readonly ConcurrentDictionary<string, TaskCompletionSource> _compositionReady = new(); // parent name -> children attached
@@ -620,6 +631,25 @@ public sealed class VrfC2SimService : BackgroundService
         // states; on the aggregate model set every prerequisite is checked HERE and a missing one REFUSES TO START,
         // like the FidelityTable pre-flight above - a run that cannot populate or gate a container must not start.
         if (!ContainerStartupPreflight()) return;
+
+        // 0b-iii. IDENTITY BY UUID (C1d, RL-20260928-02). Every entity and aggregate is created under a uuid through the
+        // bridge's uuid overloads; a VrfBridge.dll without them (a partial deploy) could create nothing - REFUSE TO START.
+        if (!IdentityBridge.Present(_bridge.GetType()))
+        {
+            _log.LogCritical("IDENTITY (C1d, RL-20260928-02) - REFUSING TO START: the loaded VrfBridge.dll has no " +
+                             "CreateEntity/CreateAggregate taking a uuid, so no unit could be created under its uuid and " +
+                             "every create would fail with MissingMethodException. Rebuild the bridge (/t:Rebuild) and ALL " +
+                             "ELEVEN consumers so every bin copy is one hash (docs/RUNBOOK.md sec 9).");
+            _life.StopApplication();
+            return;
+        }
+        _log.LogInformation("IDENTITY (C1d, RL-20260928-02): every entity and aggregate is CREATED UNDER A UUID and BOUND BY " +
+                            "IT - an init unit (and its ~PXY proxy) under its own C2SIM uuid; a container member, a " +
+                            "synthesized sub-unit and a template re-create under an RFC 4122 v5 uuid of '<parent uuid>/" +
+                            "<suffix>' in namespace {Ns} (the same every run). The name is display and the SECONDARY key: " +
+                            "an ObjectCreated whose uuid was not requested binds by name with a WARN, and a completion or " +
+                            "POSITION report - which carries only a marking - is resolved marking -> uuid -> name first.",
+                            IdentityUuid.Namespace);
 
         // 0c. PROGRESS-WATCHDOG PRE-FLIGHT (C16). The window belongs to the CLOCK - 240 WALL
         // seconds or 360 SIM seconds, both calibrated on the 2026-09-13 replay set - so the one
@@ -1533,6 +1563,17 @@ public sealed class VrfC2SimService : BackgroundService
                 unit = unit with { ElevationAgl = "1000.0" };
 
             var plan = UnitTranslator.Plan(unit, typeMapping, _typeMap, _nations);
+            // C1d (RL-20260928-02): the unit is created UNDER ITS OWN C2SIM uuid - the create's startingUUID, which
+            // OnVrfObjectCreated binds it by (UG52 13.2 Table 21: the UUID is the identifier, the name is length-limited
+            // and not unique). A ~PXY proxy below is this same unit's ONE object (UG52 22.1 p490) and keeps it; the
+            // container rule and every rename below keep it too (`with`). A C2SIM uuid that is not a uuid at all (the
+            // schema's UUIDBaseType requires 8-4-4-4-12) is NOT passed - a non-uuid string reaches DtUUID's marking-text
+            // lookup (PREREG_ROUTE_UUID_FIX_2026-09-02) - and that unit can only be bound by name, which is said.
+            plan = plan with { StartingUuid = IdentityUuid.ForC2SimUnit(unit.Uuid) };
+            if (plan.StartingUuid.Length == 0)
+                _log.LogWarning("IDENTITY: unit '{Name}' carries the C2SIM uuid '{Uuid}', which is not the 8-4-4-4-12 form " +
+                                "the C2SIM schema requires (UUIDBaseType) - it is NOT passed to VR-Forces, and this unit " +
+                                "can only be bound by name (C1d).", unit.Name, unit.Uuid);
 
             // FidelityTable: a row that is AUTHORED_PENDING (a declared coverage gap) or a key that
             // matched nothing FAILS LOUDLY and the unit is NOT created. Emitting anything here would
@@ -2266,6 +2307,9 @@ public sealed class VrfC2SimService : BackgroundService
         // whole batch was known could otherwise be attributed to the only candidate visible at that
         // instant. Two loops cost nothing and make the registry complete before the first create.
         foreach (var p in plans) _names.Requested(p.Name);
+        // C1d (RL-20260928-02): and every UUID, in the same pass - the object is bound by the uuid it is created under
+        // (OnVrfObjectCreated -> NameRegistry.BindCreated), the name being the fallback and the secondary key.
+        foreach (var p in plans) RequestIdentity(p);
         WarnOnPrefixedNames();
         foreach (var p in plans)
         {
@@ -2274,13 +2318,41 @@ public sealed class VrfC2SimService : BackgroundService
                 // C1: the state comes from the plan (CreationStates.For) - DISAGGREGATED for every aggregate as before,
                 // including every Aggregate Container; AGGREGATED only for a container's warfare-model member (UG52
                 // Table 68 p1470; design sec 8 item 1). No EntityLevel plan asks for Aggregated.
+                // C1d: the plan's StartingUuid is the vendor's startingUUID (vrfRemoteController.h 5.2 :1282-1306),
+                // passed BARE; every other argument is exactly the pre-C1d call's.
                 if (p.IsAggregate)
                     _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
-                                            CreationStates.For(p), p.CreateSubordinates);
+                                            CreationStates.For(p), p.CreateSubordinates, p.StartingUuid);
                 else
-                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
+                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name, p.StartingUuid);
             });
         }
+    }
+
+    // C1d: names already said to be requested WITHOUT a uuid (once each).
+    private readonly ConcurrentDictionary<string, byte> _identityNoUuidSaid = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// C1d (RL-20260928-02): register the uuid a plan's object is CREATED under, before its create is issued. A plan with
+    /// no uuid (an init unit whose C2SIM uuid is not a uuid - said at planning) can only be bound by name; a uuid already
+    /// requested for ANOTHER name is an ERROR - VR-Forces regenerates a uuid that exists (ifCreateVrfObject.h:105), so the
+    /// second object would bind by name.
+    /// </summary>
+    private void RequestIdentity(CreationPlan p)
+    {
+        if (string.IsNullOrEmpty(p.Name)) return;
+        if (string.IsNullOrEmpty(p.StartingUuid))
+        {
+            if (_identityNoUuidSaid.TryAdd(p.Name, 0))
+                _log.LogWarning("IDENTITY: '{Name}' is requested WITHOUT a uuid - VR-Forces generates one and the object can " +
+                                "only be bound by name (C1d, RL-20260928-02).", p.Name);
+            return;
+        }
+        string other = _names.RequestedUuid(p.Name, p.StartingUuid);
+        if (other != null)
+            _log.LogError("IDENTITY: uuid {Uuid} is requested for '{Name}' but is already requested for '{Other}' - VR-Forces " +
+                          "regenerates a uuid that exists (ifCreateVrfObject.h:105), so '{Name}' will bind by name. Two " +
+                          "objects under one uuid is a defect (C1d, RL-20260928-02).", p.StartingUuid, p.Name, other, p.Name);
     }
 
     // Pairs already reported by WarnOnPrefixedNames, so each is said ONCE however many batches run.
@@ -2608,18 +2680,28 @@ public sealed class VrfC2SimService : BackgroundService
 
             var childNames = new List<string>();
             var childIndices = new List<int>();
+            var childUuids = new List<string>();   // C1d: "name = uuid (hashed name)", said once below
             int n = 0;
             foreach (var s in unitSubs)          // DECLARED order - no reordering (vendor composition)
             {
                 n++;
                 string handle = string.IsNullOrEmpty(s.FunctionHandle) ? "SUB" : s.FunctionHandle;
                 string childName = MakeChildName(plan.Name, handle, n, toCreate.Select(p => p.Name));
+                // C1d (RL-20260928-02): created under a DERIVED uuid - RFC 4122 v5 of "<parent uuid>/<handle><n>" (the
+                // parent's C2SIM uuid, or its own derived one a level down) - deterministic across runs; none when the
+                // parent has none.
+                string childSuffix = handle + n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                string childUuid = IdentityUuid.Derive(plan.StartingUuid, childSuffix);
+                childUuids.Add(childUuid.Length > 0
+                    ? $"{childName} = {childUuid} ({IdentityUuid.DerivationName(plan.StartingUuid, childSuffix)})"
+                    : $"{childName} = (none - the parent has no uuid)");
                 var ot = s.ObjectType;
                 var childType = new EntityTypeSpec {
                     Kind = ot[1], Domain = ot[2], Country = ot[3], Category = ot[4],
                     Subcategory = ot[5], Specific = ot[6], Extra = ot[7] };
                 var childPlan = new CreationPlan(true, childType, plan.Force, plan.HeadingDeg,
-                                                 childName, plan.Pos, null) { CreateSubordinates = true };
+                                                 childName, plan.Pos, null)
+                                { CreateSubordinates = true, StartingUuid = childUuid };
                 // A synthesized sub-unit is born ON ITS LEAF'S COORDINATE and is composed into it by
                 // AddToOrganization below, so it is a COMPOSED CHILD in exactly the sense the
                 // de-stack must not touch (CompositionPlan): its place is the leaf's formation's,
@@ -2651,6 +2733,10 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogInformation("ComposeHierarchy: EXPAND coarse leaf {Parent} ({Tmpl}, depth {Depth}) -> {N} doctrinal " +
                                 "sub-units (declared order) [{Kids}] + empty shell; compose via AddToOrganization.",
                                 plan.Name, template.Name, depth, childNames.Count, string.Join(", ", childNames));
+            _log.LogInformation("IDENTITY: EXPAND {Parent} ({ParentUuid}): {N} sub-unit uuid(s) DERIVED - RFC 4122 v5 in " +
+                                "namespace {Ns} of '<parent uuid>/<suffix>', the same every run (C1d, RL-20260928-02): [{Kids}].",
+                                plan.Name, plan.StartingUuid.Length > 0 ? plan.StartingUuid : "no uuid", childUuids.Count,
+                                IdentityUuid.Namespace, string.Join("; ", childUuids));
         }
     }
 
@@ -2800,6 +2886,18 @@ public sealed class VrfC2SimService : BackgroundService
                 return;
             }
             // Case 3: template with platforms -> delete the shell, re-create as the template.
+            // C1d (RL-20260928-02): the re-created object is created under its OWN derived uuid, RFC 4122 v5 of
+            // "<unit uuid>/recreate" - not the deleted shell's: a reused uuid could read the deleted shell's lingering
+            // reflection as the new object's (the N13 release is a readability poll on that uuid), and the vendor
+            // regenerates a uuid that still exists (ifCreateVrfObject.h:105). The announced rebind below lets it move
+            // the name off the shell.
+            string recreateUuid = IdentityUuid.Derive(plan.StartingUuid, IdentityUuid.RecreateSuffix);
+            toCreate[0] = toCreate[0] with { StartingUuid = recreateUuid };
+            _log.LogInformation("IDENTITY: '{Name}' is re-created as its template under the DERIVED uuid {Uuid} ({Hashed}; " +
+                                "namespace {Ns}) - not the deleted shell's {Shell} (C1d, RL-20260928-02).", name,
+                                recreateUuid.Length > 0 ? recreateUuid : "(none - the unit has no uuid)",
+                                IdentityUuid.DerivationName(plan.StartingUuid, IdentityUuid.RecreateSuffix),
+                                IdentityUuid.Namespace, shellUuid);
             _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _recreatePending[name] = 0;
             // RL-20260927-01: the object is about to be DELETED, so a vertex chain on it has nothing left to
@@ -3059,10 +3157,13 @@ public sealed class VrfC2SimService : BackgroundService
             // own - and each is checked against every name this run requested at the 30 characters VR-Forces keeps of an
             // aggregate's name (NameRegistry.KeyConflict). Every member name is at most 30 characters, so VR-Forces
             // returns it EXACTLY: no prefix scan runs for a member, and the "MORE THAN ONE name" guard cannot fire for one.
+            // C1d (RL-20260928-02): and each member gets the uuid it is created under, derived from the container's own
+            // (its C2SIM uuid) and the member's suffix - said once, below, with the population.
             lock (_memberNameLock)
             {
                 layout = PopulatePlanner.Plan(name, d.Plan.Pos.LatDeg, d.Plan.Pos.LonDeg, plan.Leaves, _vrf.DeStackRotationDeg,
-                                              c => _names.KeyConflict(c, truncatable: true));
+                                              containerUuid: d.Plan.StartingUuid,
+                                              conflictOf: c => _names.KeyConflict(c, truncatable: true));
                 if (layout.Refused) refusal = layout.Refusal;
                 else foreach (var m in layout.Members) _names.Requested(m.Name);
             }
@@ -3094,6 +3195,13 @@ public sealed class VrfC2SimService : BackgroundService
             "NOTHING IS DELETED. Members: [" +
             string.Join(", ", layout.Members.Select(m => $"{m.Name} ({m.Leaf.TemplateName})")) + "].";
         _log.LogInformation("{Line}", populateLine);
+        // C1d (RL-20260928-02): THE MEMBER UUIDS, ONCE, AT PLAN TIME - what each member is created under and bound by.
+        _log.LogInformation("IDENTITY: POPULATE {Name} ({ContainerUuid}): {N} member uuid(s) DERIVED - RFC 4122 v5 in " +
+                            "namespace {Ns} of '<container uuid>/<suffix>', the same every run (C1d, RL-20260928-02): [{Members}].",
+                            name, d.Plan.StartingUuid.Length > 0 ? d.Plan.StartingUuid : "no uuid", layout.Members.Count,
+                            IdentityUuid.Namespace,
+                            string.Join("; ", layout.Members.Select(m => m.Uuid.Length > 0
+                                ? $"{m.Name} = {m.Uuid} ({m.UuidName})" : $"{m.Name} = (none - the container has no uuid)")));
         // C1c: say which members took a ~k tag (none in the shipped compositions - it takes two containers alike in their
         // first 26-29 characters, or a name another object of this run already holds).
         foreach (var m in layout.Members.Where(m => m.NameNote != null))
@@ -3641,6 +3749,16 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("{Line}", DispatchReadiness.NotReadyToTaskLine(
                 bound, planned, string.Join(", ", missing) + (bound + missing.Count < planned ? ", ..." : ""),
                 waited));
+        // C1d (RL-20260928-02): HOW the initialization's objects were bound - by the uuid each was created under, or by
+        // the name rule (VR-Forces regenerated or ignored the uuid). WARN when any was not bound by uuid.
+        {
+            var identity = _names.IdentityCensus(_initPlannedNames.Keys);
+            string line = IdentityLines.Summary(identity.ByUuid, planned, identity.ByName, identity.Unbound,
+                                                "the initialization's own objects, at " + DispatchReadiness.ReadyToTaskPrefix
+                                                + (settled ? "" : " - NOT REACHED"));
+            if (identity.ByUuid == planned) _log.LogInformation("{Line}", line);
+            else _log.LogWarning("{Line}", line);
+        }
         DrainHeldMaterializations();
     }
 
@@ -6583,15 +6701,34 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnVrfObjectCreated(object sender, ObjectCreatedEventArgs e)
     {
         _lastObjectCreatedUtc = DateTime.UtcNow;   // keeps composition deadlines from firing mid-batch
+        // C1d (RL-20260928-02 - owner: "This field is supposed to carry the uuid not the human name"): IDENTITY IS THE
+        // UUID. Every entity and aggregate was created UNDER a uuid we chose (EnqueueCreates: its C2SIM uuid, or a derived
+        // one), so a callback carrying one of them is bound to THAT requested name exactly - no prefix scan, whatever
+        // marking came back (UG52 13.2 Table 21: the name is length-limited and not unique). Only a uuid we did not request
+        // (VR-Forces regenerates one that exists, ifCreateVrfObject.h:105; or an object never given one - a task route or
+        // waypoint, a graphic) falls through to the name rule below, the pre-C1d path; for an object we DID give a uuid
+        // that fallback is said at WARN. Every map below stays keyed by the REQUESTED name - the interface's own
+        // human-readable key, unique by construction - and is now reached through the uuid.
         // parity: onVrfObjectCreated correlates the requested name to its VRF uuid.
         // B3: the callback's name may be the DIS-marking TRUNCATION of the name we asked for
         // ("2/1_AD/25_" for "2/1_AD/25_~PXY"). Resolve it ONCE here and use the resolved `name`
         // for the whole callback - every map below (_compositions, _childToParent, _recreatePending,
         // _reattachToParentVrfUuid, _pendingAltitude, _c2SimUuidByName, _pendingRouteTasks) is keyed
         // by the name we REQUESTED, so a truncated callback used to miss all of them silently.
-        var bind = _names.Bind(e.Name, e.Uuid);
+        var bind = _names.BindCreated(e.Name, e.Uuid);
         string name = bind.Name;
-        if (bind.Truncated)
+        if (bind.ByUuid && !bind.RefusedRebind)
+        {
+            _log.LogInformation("{Line}", IdentityLines.CreatedAs(name, NameRegistry.BareUuid(e.Uuid), e.Name));
+            if (bind.DisplacedUuid.Length > 0)
+                _log.LogWarning("IDENTITY: '{Name}' had been bound by the NAME RULE to {Displaced}, an object whose marking " +
+                                "matched it - its own uuid {Uuid} has now arrived and REPLACES that reading; {Displaced} is " +
+                                "left unattributed (C1d).", name, bind.DisplacedUuid, e.Uuid, bind.DisplacedUuid);
+        }
+        else if (bind.FallbackWarn)
+            _log.LogWarning("{Line}", IdentityLines.NotRequested(NameRegistry.BareUuid(e.Uuid) is { Length: > 0 } bare
+                                                                     ? bare : e.Uuid ?? "", e.Name));
+        if (bind.Truncated && !bind.ByUuid)
             _log.LogWarning("VRF returned created object '{Returned}' for the name we requested, '{Requested}' " +
                             "({Uuid}) - a name that overflows its DIS marking field (11 characters for a platform, 31 for " +
                             "an aggregate) comes back as its first {Entity} or {Aggregate} (VrfNames). Correlating it to " +
@@ -6661,22 +6798,31 @@ public sealed class VrfC2SimService : BackgroundService
         {
             // C1c: ONCE PER MEMBER, the name we asked for against the name VR-Forces returned. A member name is at most
             // 30 characters (VrfNames), inside the 31-character aggregate marking field, so the two are EQUAL; anything
-            // else is said at WARN.
+            // else is said at WARN. C1d: the line says how the member was BOUND - by its uuid (the identity), or by the
+            // name rule (the fallback) - since the name is now only the secondary key.
             if (_memberNameLogged.TryAdd(name, 0))
             {
+                string how = bind.ByUuid ? "bound by its uuid (C1d)" : "bound by the name registry, NOT by its uuid (C1d)";
                 if (string.Equals(e.Name, name, StringComparison.Ordinal))
                     _log.LogInformation("POPULATE {Container}: member '{Requested}' ({N} chars) came back as EXACTLY that name " +
-                                        "({Uuid}) - at most {W} characters, it fits the aggregate marking and is bound by " +
-                                        "exact match (C1c).", memberOfContainer, name, name.Length, e.Uuid,
-                                        VrfNames.AggregateMarkingChars);
+                                        "({Uuid}) - at most {W} characters, it fits the aggregate marking (C1c); {How}.",
+                                        memberOfContainer, name, name.Length, e.Uuid, VrfNames.AggregateMarkingChars, how);
                 else
                     _log.LogWarning("POPULATE {Container}: member '{Requested}' ({N} chars) came back as '{Returned}' ({M} " +
-                                    "chars, {Uuid}) - NOT the name we asked for; it was correlated through the registry's " +
-                                    "prefix rule (C1c: a member name should never be cut).",
-                                    memberOfContainer, name, name.Length, e.Name, (e.Name ?? "").Length, e.Uuid);
+                                    "chars, {Uuid}) - NOT the name we asked for (C1c: a member name should never be cut); " +
+                                    "{How}.", memberOfContainer, name, name.Length, e.Name, (e.Name ?? "").Length, e.Uuid, how);
             }
             foreach (var ev in _containers.OnMemberCreated(name, e.Uuid, DateTime.UtcNow, _containerBridge))
                 LogPopulateEvent(ev);
+            // C1d: ONCE PER POPULATION, when every planned member has its ObjectCreated - how many were bound by uuid.
+            var popMembers = _containers.MembersOf(memberOfContainer);
+            if (popMembers.Count > 0 && popMembers.All(m => !string.IsNullOrEmpty(m.Uuid))
+                && _identityPopulationSaid.TryAdd(memberOfContainer, 0))
+            {
+                var census = _names.IdentityCensus(popMembers.Select(m => m.Name));
+                _log.LogInformation("{Line}", IdentityLines.Summary(census.ByUuid, popMembers.Count, census.ByName,
+                                                                    census.Unbound, "the members of " + memberOfContainer));
+            }
         }
 
         // ORDER-TIME MATERIALIZATION case 3 (C13): a shell that was deleted and re-created as its
@@ -6832,6 +6978,9 @@ public sealed class VrfC2SimService : BackgroundService
     /// TASK_EXPANSION_PLAN "uuid-resolution blocker" (SEMANTIC_MAPPING.md sec 2b). Returns
     /// false if the entity was not created by our clientId at init (e.g. an out-of-scope
     /// OPFOR target) or has not yet been confirmed created by VR-Forces.
+    /// C1d (RL-20260928-02): TASK ROUTING THROUGH THE UUID. The name in the middle is the interface's own key for the
+    /// unit (unique by construction), and the VRF uuid it yields is the one the unit's ObjectCreated was BOUND BY - the
+    /// uuid it was created under (its C2SIM uuid) unless VR-Forces regenerated it, which was said at WARN.
     /// </summary>
     private bool TryResolveVrfUuid(string c2SimUuid, out string vrfUuid)
     {
@@ -9104,13 +9253,31 @@ public sealed class VrfC2SimService : BackgroundService
             if (!live.Contains(key)) _memberlessWarned.TryRemove(key, out _);
     }
 
+    /// <summary>
+    /// C1d (RL-20260928-02): the name a REPORT's marking stands for - a task completion's or a POSITION text report's, both
+    /// of which carry only the marking VR-Forces holds. Marking -> uuid -> requested name first
+    /// (NameRegistry.ResolveMarking: the markings recorded at ObjectCreated for the objects bound by uuid), then the name
+    /// rule. A marking two DIFFERENT uuid-bound objects share cannot be attributed by uuid - the report carries none - and
+    /// is said ONCE at WARN with the name rule's answer; C1c's unique-within-30 names are what keep that from happening.
+    /// </summary>
+    private string ResolveReportMarking(string marking, string what)
+    {
+        var r = _names.ResolveMarking(marking);
+        if (r.Via == NameRegistry.MarkingVia.AmbiguousUuid && _ambiguousMarkingSaid.TryAdd(marking ?? "", 0))
+            _log.LogWarning("{Line}", IdentityLines.AmbiguousMarking(marking, r.Candidates, r.Name, what));
+        return r.Name;
+    }
+
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
     {
         // B3: the callback carries the marking the SIM holds, which for a platform is the TRUNCATED
         // one - resolve it to the name we requested before any map is touched, or the completion is
         // unattributable ("Task-complete for 'X' but no C2SIM uuid known - no report sent"). A
         // fan-out MEMBER name was never requested, so it passes through unchanged.
-        string marking = _names.Resolve(e.UnitMarking ?? "");
+        // C1d (RL-20260928-02): the completion carries ONLY that marking (VrfFacade.cpp reportTrampoline), so it is
+        // resolved marking -> uuid -> requested name FIRST, from the markings recorded at ObjectCreated for the objects
+        // bound by uuid (exact, however the marking was cut), and only then by the name rule.
+        string marking = ResolveReportMarking(e.UnitMarking ?? "", "task-completion");
         // DID THE TASK SUCCEED? The vendor's report carries success() - "success being false
         // indicates that the task has failed and is no longer being processed"
         // (vrforces5.2d/include/vrftasks/taskCompleteReport.h:84-90), and the vendor DEFAULTS it
@@ -9337,7 +9504,8 @@ public sealed class VrfC2SimService : BackgroundService
         // emits one report here. Non-POSITION text is ignored, as in the C++.)
         if (!TryParsePosition(e.Text, out var objectName, out double lat, out double lon))
             return;
-        objectName = _names.Resolve(objectName);   // B3: the Lua line carries the sim's (truncated) marking
+        // B3: the Lua line carries the sim's (truncated) marking. C1d: resolved through the uuid first, as a completion is.
+        objectName = ResolveReportMarking(objectName, "POSITION text report");
         if (!_c2SimUuidByName.TryGetValue(objectName, out var uuid))
         {
             // Not one of our units (e.g. an aggregate subordinate) - the C++ returns here too.

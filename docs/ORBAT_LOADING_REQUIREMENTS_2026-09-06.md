@@ -10,7 +10,11 @@ gaps re-graded against the anchors (vendor sample + installed UG52 + the determi
   completed 3/3: addToOrganization resolves the formation. Do not add a reorganize.
 - G4 (client formation-validity wait) - REFUTED. VRF-8977: the app waits; V moved with no client
   wait. Do not add one.
-- G5 (name-only correlation) - REVERSED 2026-09-28 (RL-20260928-02): name-keyed correlation IS the gap and the FIX below (startingUUID) is package C1d. The refutation as written on 2026-09-06 follows: NOT A GAP; a SETTLED rule re-discovered. PREREG_ROUTE_UUID_FIX
+- REVERSED 2026-09-28 by RL-20260928-02 (owner: "This field is supposed to carry the uuid not the human name"):
+  G5 WAS A GAP - correlation was keyed on the NAME, which UG52 13.2 Table 21 documents as length-limited and not
+  unique (run G1 lost 22 of 23 members to it). The "addressed by the real VRF_UUID" half below stands; "OPTIONAL
+  simplification" does not. Built as C1d (fix/identity-by-uuid; RUNBOOK sec 11i). The bullet is kept as the record.
+- G5 (name-only correlation) - NOT A GAP; a SETTLED rule re-discovered. PREREG_ROUTE_UUID_FIX
   (2026-09-02) + VrfC2SimService.cs:1908-1916: never pass a NAME as a DtUUID (rwUUID.h 35-char
   blob); address by the real VRF_UUID from ObjectCreated - which the code does (name = in-app map
   KEY only; all VRF calls use the real uuid, :1375). The audit conflated the vendor's import-rename
@@ -79,6 +83,8 @@ G5 C2SIM UUID DROPPED; CORRELATION IS NAME-ONLY. CreateAggregate passes DtUUID::
    (vrfRemoteController.h:1276,1305) and we already preserve it for AREAS (CreateControlArea
    VrfFacade.cpp:730-734). FIX: pass the C2SIM UUID as startingUUID on CreateEntity/CreateAggregate;
    re-key correlation (_vrfUuidByName, _childToParent, task routing, report attribution) on UUID.
+   BUILT 2026-09-28 as C1d under RL-20260928-02 (fix/identity-by-uuid; see the REVERSED note at the top): members and
+   synthesized sub-units get a derived uuid (RFC 4122 v5 of "<parent uuid>/<suffix>"); RUNBOOK sec 11i.
 G6 (reworded per refuter) UNMAPPED TYPE NOT REJECTED IN RealTemplates. NOT the "Ground_Aggregate"
    claim (that is GoldenParity-only, UnitTranslator.cs:222) - the real issue: RealTemplates SILENTLY
    substitutes a default (Tank, UnitTranslator.cs:95/101) for an unmapped type instead of the

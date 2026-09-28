@@ -34,6 +34,16 @@ unique within 30 before the request (NameRegistry.KeyConflict, a deterministic ~
 waypoints and graphics register whole; `--populate-selftest` p14 replays G1's three populations - 23 of 23 bound, where
 the 34-character names reproduce G1's 1 of 23. Offline only; RUNBOOK sec 11i.
 
+STATUS 2026-09-28 (C1d, RL-20260928-02 - owner: "This field is supposed to carry the uuid not the human name"): object
+identity is the UUID (UG52 13.2 Table 21 p362-363), not the name; C1c's 30-character names stay as the SECONDARY key (what
+keeps report markings apart). Built offline on fix/identity-by-uuid: every container is created under its own C2SIM uuid
+and every member under the RFC 4122 v5 uuid of '<container uuid>/<suffix>' (PopulatePlanner.Plan, said once at plan
+time), through new VrfFacade/VrfBridge create overloads, and every ObjectCreated is bound by that uuid
+(NameRegistry.BindCreated); the publication gate (PublishedSubordinateCount) and the PA_* scripted tasks already address
+the container by uuid - unchanged. `--populate-selftest` p15 replays G1's 23 members with their OLD 34-character names:
+by uuid 23 of 23 bind, by name alone 1 of 23. Needs a native rebuild + all eleven consumers; that VR-Forces returns the
+requested uuid for an aggregate (as it does for a control area) is owed to G1-2. RUNBOOK sec 11i (IDENTITY BY UUID).
+
 ## 1. The five questions
 
 (1) ONLY A CONTAINER HOLDS SUBORDINATES. UG52 72.2.1 p1419: "the aggregate-level simulation objects that are configured

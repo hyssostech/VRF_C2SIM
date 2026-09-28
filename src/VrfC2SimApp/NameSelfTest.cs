@@ -268,9 +268,211 @@ public static class NameSelfTest
         Check(ref failures, reg.CreatedUuids().Count == 2,
               "CreatedUuids is DISTINCT (the truncated unit's two names are one object)");
 
+        failures += IdentityChecks();
+
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// C1d (2026-09-28, RL-20260928-02): IDENTITY BY UUID. (b) the derived uuid - an independent oracle (Python's
+    /// uuid.uuid5 values, pinned), determinism, format; (c) the fallback when VR-Forces returns a uuid we did not request
+    /// - WARN + the name rule - and the three log-line shapes the G1-2 registration greps; (d) a report's marking resolved
+    /// marking -> uuid -> name, for a cut marking and for two objects whose markings coincide at 30 (the residual that is
+    /// C1c's job); plus the binding rules around it (a name-rule reading displaced, a uuid binding never re-pointed by a
+    /// name, the announced template re-create, the census).
+    /// </summary>
+    private static int IdentityChecks()
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("=== C1d: identity by uuid (RL-20260928-02) ===");
+
+        // (b) THE DERIVED UUID. An INDEPENDENT oracle first: Python 3.12's uuid.uuid5, run 2026-09-28, gives these.
+        Check(ref failures, IdentityUuid.V5("6ba7b810-9dad-11d1-80b4-00c04fd430c8", "python.org")
+                            == "886313e1-3b8a-5372-9b90-0c9aee199e5d",
+              "(b) RFC 4122 v5 matches the reference: uuid5(NAMESPACE_DNS, 'python.org') = 886313e1-3b8a-5372-9b90-0c9aee199e5d");
+        Check(ref failures, IdentityUuid.V5(IdentityUuid.RfcUrlNamespace, IdentityUuid.NamespaceSource) == IdentityUuid.Namespace
+                            && IdentityUuid.Namespace == "485b28e7-1cc7-534b-b6a6-9beddf07a1b1",
+              "(b) the interface namespace 485b28e7-1cc7-534b-b6a6-9beddf07a1b1 IS uuid5(NAMESPACE_URL, its source URL) - " +
+              "anyone can re-derive it, and it is pinned (changing it changes every derived uuid)");
+        const string ibct = "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a";   // 48 IBCT's C2SIM uuid (IRONSTORM_CUTA init)
+        const string div28 = "200d3a3f-8f36-4951-9459-c748527896ba";  // 28ID's
+        const string in112 = "8d5b2ba6-73c1-6c55-812c-7c8078ea8c97";  // 1-112 IN's
+        Check(ref failures, IdentityUuid.Derive(ibct, "HQ1") == "d003da2c-d813-5e00-ae78-3fbfbfe7dd71"
+                            && IdentityUuid.Derive(ibct, "CAV1") == "46c65670-fcf0-5fe2-b0da-3e90b753db71"
+                            && IdentityUuid.Derive(div28, "HQ1") == "c8d5c7b5-89b5-5584-9ae9-ec2e5a958ff4"
+                            && IdentityUuid.Derive(in112, IdentityUuid.RecreateSuffix) == "aef29587-8a62-52c6-a09a-bd30457bd384",
+              "(b) derived uuids equal Python's uuid5(namespace, '<parent>/<suffix>') for G1's containers (48 IBCT HQ1 and " +
+              "CAV1, 28ID HQ1, 1-112 IN recreate)");
+        string d1 = IdentityUuid.Derive(ibct, "INF1RIF1");
+        Check(ref failures, d1 == IdentityUuid.Derive(ibct, "INF1RIF1")
+                            && d1 == IdentityUuid.Derive("VRF_UUID:" + ibct.ToUpperInvariant(), "INF1RIF1")
+                            && d1 == IdentityUuid.Derive("{" + ibct + "}", "INF1RIF1"),
+              "(b) DETERMINISTIC: the same parent and suffix give the same uuid every time, whatever the parent's spelling " +
+              "(case, VRF_UUID: prefix, braces)");
+        Check(ref failures, d1 != IdentityUuid.Derive(ibct, "INF1RIF2") && d1 != IdentityUuid.Derive(div28, "INF1RIF1")
+                            && IdentityUuid.Derive(ibct, "INF1RIF1") != IdentityUuid.Derive(ibct, "inf1rif1"),
+              "(b) a different suffix or a different parent gives a different uuid (the suffix is case-sensitive)");
+        Check(ref failures, System.Text.RegularExpressions.Regex.IsMatch(d1,
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                            && IdentityUuid.VersionOf(d1) == '5' && IdentityUuid.IsRfc4122Variant(d1),
+              $"(b) FORMAT: lower-case 8-4-4-4-12, version nibble 5, variant 10xx ('{d1}')");
+        Check(ref failures, IdentityUuid.Derive("", "HQ1") == "" && IdentityUuid.Derive("not-a-uuid", "HQ1") == ""
+                            && IdentityUuid.Derive(ibct, "") == "",
+              "(b) no parent uuid (or no suffix) -> no derived uuid, never a guess");
+        Check(ref failures, IdentityUuid.ForC2SimUnit(ibct.ToUpperInvariant()) == ibct && IdentityUuid.ForC2SimUnit("  " + ibct) == ibct
+                            && IdentityUuid.ForC2SimUnit("1-112_IN") == "" && IdentityUuid.ForC2SimUnit(null) == "",
+              "(b) an init unit is created under its OWN C2SIM uuid, canonical lower-case; a C2SIM 'uuid' that is not one " +
+              "(the schema's UUIDBaseType) is not passed at all");
+
+        // (c) THE FALLBACK: a uuid we did NOT request.
+        var fb = new NameRegistry();
+        const string unitA = "2/1_AD/25_~PXY";
+        const string askedA = "11111111-2222-4333-8444-555555555555", gotA = "99999999-8888-4777-8666-555555555555";
+        fb.Requested(unitA);
+        Check(ref failures, fb.RequestedUuid(unitA, askedA) == null && fb.HasRequestedUuid(unitA),
+              "(c) the uuid a unit is created under is registered with its requested name");
+        var regenerated = fb.BindCreated("2/1_AD/25_", "VRF_UUID:" + gotA);
+        Check(ref failures, !regenerated.ByUuid && regenerated.Name == unitA && regenerated.Truncated && regenerated.FallbackWarn
+                            && fb.TryGetUuid(unitA, out var fbu) && fbu == "VRF_UUID:" + gotA && !fb.IsBoundByUuid(unitA),
+              "(c) VR-Forces REGENERATED the uuid: the callback falls through to the NAME rule (its cut marking resolves to " +
+              "the unit) and the caller is told to WARN; the binding is the name rule's, not the uuid's");
+        Check(ref failures, IdentityLines.NotRequested(gotA, "2/1_AD/25_")
+                            == "IDENTITY: VR-Forces returned uuid 99999999-8888-4777-8666-555555555555 for marking '2/1_AD/25_', " +
+                               "not one we requested - bound by name (NameRegistry)",
+              "(c) the WARN line, exactly: IDENTITY: VR-Forces returned uuid <x> for marking '<m>', not one we requested - " +
+              "bound by name (NameRegistry)");
+        const string route = "T14 ROUTE";
+        fb.RequestedWhole(route);
+        var routeBind = fb.BindCreated(route, "VRF_UUID:0badc0de-0000-4000-8000-000000000001");
+        Check(ref failures, !routeBind.ByUuid && routeBind.Name == route && !routeBind.FallbackWarn,
+              "(c) an object NEVER given a uuid (a task route) binds by name SILENTLY, as it always has - no WARN");
+        var stranger = fb.BindCreated("M1A2 37", "VRF_UUID:0badc0de-0000-4000-8000-000000000002");
+        Check(ref failures, !stranger.ByUuid && stranger.FallbackWarn,
+              "(c) a callback neither the uuid nor the name rule can attribute is said at WARN too");
+        Check(ref failures, fb.RequestedUuid("ANOTHER_UNIT", askedA) == unitA,
+              "(c) one uuid requested for two names is REFUSED for the second (the first stands; the caller logs ERROR - " +
+              "VR-Forces would regenerate it)");
+
+        // THE BINDING BY UUID, and the INFO line.
+        var ok = new NameRegistry();
+        const string contLong = "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE";   // 50 chars: comes back cut at 30
+        ok.Requested(contLong);
+        ok.RequestedUuid(contLong, ibct);
+        var okBind = ok.BindCreated(VrfNames.Key(contLong), "VRF_UUID:" + ibct);
+        Check(ref failures, okBind.ByUuid && !okBind.FallbackWarn && okBind.Name == contLong && okBind.Truncated
+                            && !okBind.Ambiguous && ok.IsBoundByUuid(contLong)
+                            && ok.TryGetUuid(contLong, out var ou) && ou == "VRF_UUID:" + ibct
+                            && ok.TryGetName("VRF_UUID:" + ibct, out var on) && on == contLong,
+              "a callback carrying the REQUESTED uuid binds THAT name exactly, whatever marking came back (here cut to 30) - " +
+              "no prefix scan, both maps written");
+        Check(ref failures, IdentityLines.CreatedAs(contLong, ibct, VrfNames.Key(contLong))
+                            == "IDENTITY: '48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE' created as uuid " +
+                               "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a (requested) marking '48_IBCT/28ID__FRIENDLY_INFANTR'",
+              "the INFO line, exactly: IDENTITY: '<requested name>' created as uuid <uuid> (requested) marking '<returned>'");
+        Check(ref failures, IdentityLines.Summary(36, 36, 0, 0, "x") == "IDENTITY: 36 of 36 objects bound by uuid, 0 by name (x; RL-20260928-02)"
+                            && IdentityLines.Summary(35, 36, 1, 0, "x") == "IDENTITY: 35 of 36 objects bound by uuid, 1 by name (x; RL-20260928-02)"
+                            && IdentityLines.Summary(34, 36, 1, 1, "x") == "IDENTITY: 34 of 36 objects bound by uuid, 1 by name, 1 not bound (x; RL-20260928-02)",
+              "the SUMMARY line, exactly: IDENTITY: N of M objects bound by uuid, K by name[, U not bound] (<scope>; RL-20260928-02)");
+
+        // (d) A REPORT'S MARKING: marking -> uuid -> requested name, first.
+        var cut = ok.ResolveMarking(VrfNames.Key(contLong));
+        Check(ref failures, cut.Name == contLong && cut.Via == NameRegistry.MarkingVia.Uuid && ok.Resolve(VrfNames.Key(contLong)) == contLong,
+              "(d) a completion carrying the CUT 30-character marking resolves to the uuid-bound unit, exactly (Via Uuid)");
+        // Two objects whose markings coincide at 30 - G1's own shape (the 34-character member names, C1c's fail-first).
+        var twin = new NameRegistry();
+        const string m1 = "48_IBCT/28ID__FRIENDLY_IN.INF1RIF1", m2 = "48_IBCT/28ID__FRIENDLY_IN.INF1RIF2";
+        string u1 = IdentityUuid.Derive(ibct, "INF1RIF1"), u2 = IdentityUuid.Derive(ibct, "INF1RIF2");
+        foreach (var (n, u) in new[] { (m1, u1), (m2, u2) }) { twin.Requested(n); twin.RequestedUuid(n, u); }
+        var t1 = twin.BindCreated(VrfNames.ReturnedAggregateName(m1), "VRF_UUID:" + u1);
+        var t2 = twin.BindCreated(VrfNames.ReturnedAggregateName(m2), "VRF_UUID:" + u2);
+        Check(ref failures, VrfNames.ReturnedAggregateName(m1) == VrfNames.ReturnedAggregateName(m2)
+                            && t1.ByUuid && t2.ByUuid && t1.Name == m1 && t2.Name == m2 && !t1.Ambiguous && !t2.Ambiguous
+                            && twin.TryGetUuid(m1, out var tu1) && tu1 == "VRF_UUID:" + u1
+                            && twin.TryGetUuid(m2, out var tu2) && tu2 == "VRF_UUID:" + u2,
+              "(d) two members whose markings COINCIDE at 30 ('" + VrfNames.ReturnedAggregateName(m1) + "') are BOTH bound by " +
+              "uuid, each to its own name - the create path no longer needs the names apart");
+        var shared = twin.ResolveMarking(VrfNames.ReturnedAggregateName(m1));
+        Check(ref failures, shared.Via == NameRegistry.MarkingVia.AmbiguousUuid && shared.Candidates.Count == 2
+                            && shared.Candidates.Contains(m1) && shared.Candidates.Contains(m2)
+                            && shared.Name == VrfNames.ReturnedAggregateName(m1),
+              "(d) THE RESIDUAL, stated: a COMPLETION carrying that shared marking cannot be told apart - it carries no uuid - " +
+              "so it is reported AmbiguousUuid naming both, and the name rule refuses to guess (the raw marking comes back, " +
+              "and the service sends no report for it). Keeping markings apart at request time is C1c's job");
+        var single = new NameRegistry();
+        single.Requested(m1); single.RequestedUuid(m1, u1);
+        single.BindCreated(VrfNames.ReturnedAggregateName(m1), "VRF_UUID:" + u1);
+        Check(ref failures, single.ResolveMarking(VrfNames.ReturnedAggregateName(m1)) is { Via: NameRegistry.MarkingVia.Uuid } r1
+                            && r1.Name == m1,
+              "(d) the same cut marking carried by ONE uuid-bound object resolves to it exactly");
+        // A marking a uuid-bound and a NAME-bound object share is SEEN as shared (every ObjectCreated's marking is recorded).
+        var mixed = new NameRegistry();
+        mixed.Requested(m1); mixed.RequestedUuid(m1, u1);
+        mixed.Requested(VrfNames.ReturnedAggregateName(m1));   // a unit named exactly the cut marking, bound by name
+        mixed.BindCreated(VrfNames.ReturnedAggregateName(m1), "VRF_UUID:0badc0de-0000-4000-8000-000000000003");
+        mixed.BindCreated(VrfNames.ReturnedAggregateName(m1), "VRF_UUID:" + u1);
+        var mix = mixed.ResolveMarking(VrfNames.ReturnedAggregateName(m1));
+        Check(ref failures, mix.Via == NameRegistry.MarkingVia.AmbiguousUuid && mix.Name == VrfNames.ReturnedAggregateName(m1),
+              "(d) a marking a uuid-bound object shares with a name-bound one is ambiguous too - and the name rule's exact " +
+              "match answers, as before C1d");
+        var plain = new NameRegistry();
+        plain.Requested(unitA);
+        plain.Bind("2/1_AD/25_", "VRF_UUID:plain");
+        Check(ref failures, plain.ResolveMarking("2/1_AD/25_") is { Via: NameRegistry.MarkingVia.Name } pr && pr.Name == unitA,
+              "(d) with no uuid binding at all the pre-C1d rule answers, unchanged");
+
+        // THE BINDING RULES AROUND IT.
+        var disp = new NameRegistry();
+        const string unitN = "1-112_IN/28ID__FRIENDLY_INFANT", askedN = "22222222-3333-4444-8555-666666666666";
+        disp.Requested(unitN); disp.RequestedUuid(unitN, askedN);
+        disp.BindCreated(unitN, "VRF_UUID:0badc0de-0000-4000-8000-000000000004");   // an unrequested object, exact name
+        var own = disp.BindCreated(unitN, "VRF_UUID:" + askedN);
+        Check(ref failures, own.ByUuid && own.DisplacedUuid == "VRF_UUID:0badc0de-0000-4000-8000-000000000004"
+                            && disp.TryGetUuid(unitN, out var du) && du == "VRF_UUID:" + askedN
+                            && !disp.TryGetName("VRF_UUID:0badc0de-0000-4000-8000-000000000004", out _)
+                            && disp.CreatedUuids().Contains("VRF_UUID:0badc0de-0000-4000-8000-000000000004"),
+              "a NAME-rule reading of a requested name is DISPLACED when its own uuid arrives (the uuid is certain); the " +
+              "displaced object is unattributed but still deleted on stop");
+        var intruder = disp.BindCreated(unitN, "VRF_UUID:0badc0de-0000-4000-8000-000000000005");
+        Check(ref failures, !intruder.ByUuid && intruder.RefusedRebind && intruder.FallbackWarn
+                            && disp.TryGetUuid(unitN, out var du2) && du2 == "VRF_UUID:" + askedN,
+              "a uuid binding is NEVER re-pointed by a name-rule callback (refused, WARN + the existing ERROR)");
+        // MaterializeUnit case 3: the shell deleted, the unit re-created as its template under a DERIVED uuid.
+        var rc = new NameRegistry();
+        string recreated = IdentityUuid.Derive(askedN, IdentityUuid.RecreateSuffix);
+        rc.Requested(unitN); rc.RequestedUuid(unitN, askedN);
+        rc.BindCreated(unitN, "VRF_UUID:" + askedN);
+        var unannounced = rc.BindCreated(unitN, "VRF_UUID:" + askedN.Replace('2', '7'));
+        rc.ExpectRebind(unitN);
+        rc.RequestedUuid(unitN, recreated);
+        var remade = rc.BindCreated(unitN, "VRF_UUID:" + recreated);
+        Check(ref failures, unannounced.RefusedRebind && remade.ByUuid && !remade.RefusedRebind
+                            && rc.TryGetUuid(unitN, out var ru2) && ru2 == "VRF_UUID:" + recreated
+                            && rc.ResolveMarking(unitN) is { Via: NameRegistry.MarkingVia.Uuid } rr && rr.Name == unitN,
+              "the ANNOUNCED template re-create (MaterializeUnit case 3) moves the name to its derived uuid; the shell and " +
+              "the template carry one marking and it still resolves to the one unit");
+        var rc2 = new NameRegistry();
+        rc2.Requested(unitN); rc2.RequestedUuid(unitN, askedN);
+        rc2.BindCreated(unitN, "VRF_UUID:0badc0de-0000-4000-8000-000000000007");   // the shell: its uuid regenerated, by name
+        rc2.ExpectRebind(unitN);
+        rc2.RequestedUuid(unitN, recreated);
+        var remade2 = rc2.BindCreated(unitN, "VRF_UUID:" + recreated);
+        var after2 = rc2.Bind(unitN, "VRF_UUID:0badc0de-0000-4000-8000-000000000008");
+        Check(ref failures, remade2.ByUuid && remade2.DisplacedUuid.Length == 0 && !remade2.RefusedRebind
+                            && after2.RefusedRebind && rc2.TryGetUuid(unitN, out var ru3) && ru3 == "VRF_UUID:" + recreated,
+              "... and when the SHELL had been bound by the name rule, the announced re-create still just moves the name (no " +
+              "'displaced' reading) and CONSUMES the one-shot allowance - the next unannounced rebind is refused");
+        var census = new NameRegistry();
+        foreach (var (n, u) in new[] { ("A_UNIT", askedA), ("B_UNIT", askedN) }) { census.Requested(n); census.RequestedUuid(n, u); }
+        census.Requested("C_UNIT");
+        census.BindCreated("A_UNIT", "VRF_UUID:" + askedA);
+        census.BindCreated("B_UNIT", "VRF_UUID:0badc0de-0000-4000-8000-000000000006");   // regenerated: by name
+        var c = census.IdentityCensus(new[] { "A_UNIT", "B_UNIT", "C_UNIT" });
+        Check(ref failures, c.ByUuid == 1 && c.ByName == 1 && c.Unbound == 1,
+              $"the census counts by uuid / by name / not bound (1 / 1 / 1; saw {c.ByUuid} / {c.ByName} / {c.Unbound})");
+        return failures;
     }
 
     private static void Check(ref int failures, bool ok, string label)

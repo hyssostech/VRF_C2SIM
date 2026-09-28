@@ -560,10 +560,30 @@ public:
     void CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
                       Force force, double headingDeg, const std::string& name);
 
+    // C1d (RL-20260928-02): the same create UNDER A UUID the caller chose - the vendor's startingUUID
+    // (vrfRemoteController.h 5.2 :1282-1293: fcn, usr, type, geocentricPosition, force, heading,
+    // uniqueName, label, addr, groundClamp, startingUUID, globalId). uuid is the BARE 8-4-4-4-12 form the
+    // tactical graphics already pass (CreateControlArea); empty -> DtUUID::nullUUID(), the vendor default,
+    // so CreateEntity(..., name, "") is exactly CreateEntity(..., name). Every other argument keeps the
+    // value the 5-argument overload leaves defaulted (label nullString, DtSimSendToAll, groundClamp true).
+    // "If the UUID exists will be regenerated on creation" (vrfmsgs/ifCreateVrfObject.h:105).
+    void CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
+                      Force force, double headingDeg, const std::string& name,
+                      const std::string& uuid);
+
     void CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
                          Force force, double headingDeg, const std::string& name,
                          AggregateState state = AggregateState::Disaggregated,
                          bool createSubordinates = true);
+
+    // C1d (RL-20260928-02): as above, with the vendor's startingUUID (vrfRemoteController.h 5.2
+    // :1295-1306: fcn, usr, type, geocentricPosition, force, heading, uniqueName, label, addr,
+    // initialAggregateState, startingUUID, createSubordinates) in place of the DtUUID::nullUUID() the
+    // 7-argument overload passes; empty uuid -> nullUUID, i.e. exactly that overload.
+    void CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
+                         Force force, double headingDeg, const std::string& name,
+                         AggregateState state, bool createSubordinates,
+                         const std::string& uuid);
 
     // uuid (V3): the VRF UUID to assign the created control point; empty -> nullUUID,
     // which is the pre-V3 behaviour and what every existing caller gets. The vendor's

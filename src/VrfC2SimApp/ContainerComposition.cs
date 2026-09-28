@@ -674,9 +674,13 @@ public static class CompositionResolver
 }
 
 /// <summary>One planned member of a population: its unique name and its slot on the ring. NameNote is null for the
-/// plain "container.suffix" name and says why otherwise (C1c: the ~k tag that kept it unique within 30).</summary>
+/// plain "container.suffix" name and says why otherwise (C1c: the ~k tag that kept it unique within 30). Uuid (C1d,
+/// RL-20260928-02) is the uuid it is CREATED under - the RFC 4122 v5 uuid of "&lt;container uuid&gt;/&lt;suffix&gt;"
+/// (IdentityUuid.Derive), deterministic across runs; "" when the plan was given no container uuid. UuidName is the
+/// name that was hashed, for the one line that states it.</summary>
 public sealed record PopulateMember(int Slot, string Name, PopulateLeaf Leaf, double NorthMeters, double EastMeters,
-                                    double LatDeg, double LonDeg, double BearingDeg, string NameNote = null);
+                                    double LatDeg, double LonDeg, double BearingDeg, string NameNote = null,
+                                    string Uuid = "", string UuidName = "");
 
 /// <summary>The ring a flat population is born on.</summary>
 public sealed record PopulateLayout(IReadOnlyList<PopulateMember> Members, double SpacingMeters, double RadiusMeters,
@@ -721,10 +725,14 @@ public static class PopulatePlanner
     /// at most 30 characters, unique among the members, not the container's own 30-character marking, and cleared by
     /// <paramref name="conflictOf"/>; a candidate that is not takes the first free ~k tag (k = 2 .. 99), deterministic
     /// for the same run state, and the population is REFUSED (NAME COLLISION) only when none is free.
+    /// C1d (RL-20260928-02): <paramref name="containerUuid"/> is the uuid the container was created under (its C2SIM
+    /// uuid); each member gets the uuid it will be created under, IdentityUuid.Derive(container uuid, leaf suffix) - a
+    /// suffix repeated within one population (two table entries of one function) is made unique by its slot,
+    /// "&lt;suffix&gt;@&lt;slot&gt;", so every member of a population has its own uuid. None when the uuid is empty.
     /// </summary>
     public static PopulateLayout Plan(string containerName, double anchorLat, double anchorLon,
                                       IReadOnlyList<PopulateLeaf> leaves, double rotationDeg,
-                                      Func<string, string> conflictOf = null)
+                                      Func<string, string> conflictOf = null, string containerUuid = null)
     {
         if (leaves == null || leaves.Count == 0)
             return new PopulateLayout(Array.Empty<PopulateMember>(), 0.0, 0.0, 0.0, "no leaf to place");
@@ -742,9 +750,17 @@ public static class PopulatePlanner
         double metersPerDegLon = MetersPerDegLat * Math.Max(Math.Cos(anchorLat * Math.PI / 180.0), 0.01);
         var members = new List<PopulateMember>(leaves.Count);
         var names = new HashSet<string>(StringComparer.Ordinal);
+        var uuidSuffixes = new HashSet<string>(StringComparer.Ordinal);
         string containerKey = VrfNames.Key(containerName);
         for (int k = 0; k < leaves.Count; k++)
         {
+            string uuidSuffix = leaves[k].Suffix ?? "";
+            if (!uuidSuffixes.Add(uuidSuffix))
+            {
+                uuidSuffix = uuidSuffix + "@" + (k + 1).ToString(CultureInfo.InvariantCulture);
+                uuidSuffixes.Add(uuidSuffix);
+            }
+            string memberUuid = IdentityUuid.Derive(containerUuid, uuidSuffix);
             var (north, east) = DeStacker.EqualBearingOffset(k, leaves.Count, radius, rotationDeg);
             string name = VrfNames.UniqueChildName(containerName, leaves[k].Suffix, candidate =>
                 names.Contains(candidate) ? "is another member's name"
@@ -762,7 +778,9 @@ public static class PopulatePlanner
             members.Add(new PopulateMember(k, name, leaves[k], north, east,
                                            anchorLat + north / MetersPerDegLat, anchorLon + east / metersPerDegLon,
                                            radius > 0.0 ? bearing : 0.0,
-                                           tag > 1 ? $"tag {VrfNames.Tag(tag)}: the plain name {why}" : null));
+                                           tag > 1 ? $"tag {VrfNames.Tag(tag)}: the plain name {why}" : null,
+                                           memberUuid,
+                                           memberUuid.Length > 0 ? IdentityUuid.DerivationName(containerUuid, uuidSuffix) : ""));
         }
         return new PopulateLayout(members, spacing, radius, reach, null);
     }

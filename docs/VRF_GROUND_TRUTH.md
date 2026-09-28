@@ -950,6 +950,12 @@ Primary source read in full: `C:\MAK\vrforces5.0.2\include\vrfcontrol\vrfRemoteC
   optionally accept a caller-chosen `startingUUID`; if omitted a UUID is generated and
   returned via the create callback. "Use this UUID to create object (if specified). If
   the UUID exists it will be regenerated on creation" (ifCreateVrfObject.h:105).
+  THE IDENTIFIERS (UG52 13.2 Table 21 p362-363): UUID - unique, persists from exercise to
+  exercise; Name - user-set, LENGTH-LIMITED (entities 11, units 31), does NOT have to be
+  unique; Label - user-controlled, no length limit, not unique. So identity is the UUID,
+  never the name (RL-20260928-02): since C1d the interface creates every entity and
+  aggregate under a chosen startingUUID and binds its ObjectCreated by it (RUNBOOK sec 11i).
+  "Marking-text based" above is one KIND of DtUUID (vrfutil/uuid.h:77-84), not the rule.
 - Two API tiers exist: convenience methods (`createEntity`, `createAggregate`,
   `moveAlongRoute`, `setAltitude`, ...) that fill a fixed subset of fields, and the
   generic message builders (`sendVrfObjectCreateMsg`, `sendSetDataMsg`, `sendTaskMsg`,

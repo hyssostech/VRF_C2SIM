@@ -35,7 +35,13 @@ public readonly record struct CreationPlan(
     // subordinate simulation objects") - a warfare-model member of a populated Aggregate Container on the aggregate
     // model set, as the vendor saves 335 of 335 of them. Default false = DISAGGREGATED, which is what every aggregate
     // was created as before C1 (VrfC2SimService.EnqueueCreates) and still is on EntityLevel - byte-identical.
-    bool CreateAggregated = false);
+    bool CreateAggregated = false,
+    // C1d (RL-20260928-02): the uuid VR-Forces creates this object UNDER - the create's startingUUID
+    // (vrfRemoteController.h 5.2 :1282-1306), bare and lower-case (IdentityUuid): an init unit's own C2SIM uuid (a ~PXY
+    // proxy is that unit's one object), a DERIVED uuid for a container member, a synthesized sub-unit or a template
+    // re-create. EnqueueCreates registers it and OnVrfObjectCreated binds the object by it. "" = none (the vendor
+    // generates one, the pre-C1d create): UnitTranslator never sets it - the service does, from the unit.
+    string StartingUuid = "");
 
 /// <summary>C1: the aggregate state a plan is created in - the ONE place EnqueueCreates reads it from.</summary>
 public static class CreationStates

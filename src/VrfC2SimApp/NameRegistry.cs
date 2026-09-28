@@ -91,6 +91,20 @@ namespace VrfC2SimApp;
 /// reports, console rows - carry). The reverse map holds the RESOLVED name, because that is the
 /// name a log line or a lookup in another map needs.
 ///
+/// C1d (2026-09-28, RL-20260928-02 - owner: "This field is supposed to carry the uuid not the human name"): IDENTITY IS
+/// THE UUID, AND EVERYTHING ABOVE IS NOW THE FALLBACK. VR-Forces documents the UUID as the identifier ("Unique", "Persists
+/// from exercise to exercise") and the Name as length-limited and NOT unique (UG52 13.2 Table 21 p362-363), and every
+/// entity and aggregate is now created under a uuid the interface chose (<see cref="IdentityUuid"/>; the create's
+/// startingUUID). <see cref="RequestedUuid"/> registers that uuid with the requested name before the create is issued;
+/// <see cref="BindCreated"/> - what OnVrfObjectCreated calls - binds an ObjectCreated whose uuid is one of them to THAT
+/// name EXACTLY (<see cref="TryBindByUuid"/>: no prefix scan, whatever marking came back), and only a uuid we did not
+/// request falls through to the name rule (<see cref="Bind"/>; VR-Forces regenerates a uuid that already exists,
+/// ifCreateVrfObject.h:105). A uuid binding is CERTAIN and displaces a name-rule guess; a name-rule binding never
+/// displaces a uuid binding (the rebind refusal above). The marking VR-Forces returned is recorded per uuid, and a
+/// completion or POSITION report - which carries ONLY a marking - is resolved marking -> uuid -> requested name FIRST
+/// (<see cref="ResolveMarking"/>), then by the name rule. C1c's unique-within-30 planning stays as the SECONDARY key: it
+/// is what keeps two objects' markings apart, and a marking two uuid-bound objects share cannot be attributed by uuid.
+///
 /// Thread-safety: concurrent maps throughout. <see cref="Requested"/> runs on the init/order
 /// thread strictly before the create is enqueued; <see cref="Bind"/> and the readers run on the
 /// tick thread and on SDK event threads.
@@ -131,13 +145,37 @@ public sealed class NameRegistry
     /// this is the uuid that was kept. The caller must log an ERROR - the newcomer is an object we
     /// cannot attribute, and silently re-pointing the name at it would make R1 report the wrong
     /// object's position for a live unit and ExecuteTaskOnTick task it.</param>
+    /// <param name="ByUuid">C1d: bound through the uuid it was created under (<see cref="TryBindByUuid"/>) - exact,
+    /// whatever marking came back. False = the name rule decided.</param>
+    /// <param name="DisplacedUuid">C1d: EMPTY in the ordinary case. The uuid a NAME-rule guess had bound to this
+    /// requested name before its own uuid arrived; the uuid binding replaced it, and the caller says so.</param>
+    /// <param name="FallbackWarn">C1d: the uuid was not one we requested, and the object is one we DID request a uuid
+    /// for (VR-Forces regenerated or ignored it) or one the name rule could not attribute - the caller WARNs
+    /// (<see cref="IdentityLines.NotRequested"/>). False for an object never given a uuid (a task route or waypoint,
+    /// a graphic), which the name rule binds by design.</param>
     public readonly record struct BindResult(string Name, string ReturnedName, bool Truncated, bool Ambiguous,
-                                             IReadOnlyList<string> PrefixedCandidates, string PriorUuid)
+                                             IReadOnlyList<string> PrefixedCandidates, string PriorUuid,
+                                             bool ByUuid = false, string DisplacedUuid = "", bool FallbackWarn = false)
     {
         /// <summary>The bind was REFUSED to protect an existing binding; <see cref="PriorUuid"/>
         /// is the uuid that still owns <see cref="Name"/>. Nothing was written.</summary>
         public bool RefusedRebind => !string.IsNullOrEmpty(PriorUuid);
     }
+
+    /// <summary>C1d: how <see cref="ResolveMarking"/> resolved a marking.</summary>
+    public enum MarkingVia
+    {
+        /// <summary>The marking was recorded for objects bound by uuid, all of them ONE requested name: exact.</summary>
+        Uuid,
+        /// <summary>No uuid-bound object carries it: the name rule answered (<see cref="Resolve"/>'s pre-C1d rule).</summary>
+        Name,
+        /// <summary>Two or more DIFFERENT uuid-bound objects carry it: a marking cannot tell them apart, and the name
+        /// rule answered. The residual C1c's unique-within-30 names prevent for every name the interface requests.</summary>
+        AmbiguousUuid,
+    }
+
+    /// <summary>C1d: a resolved marking - the name, how it was found, and (ambiguous only) the objects that carry it.</summary>
+    public readonly record struct MarkingResolution(string Name, MarkingVia Via, IReadOnlyList<string> Candidates);
 
     private readonly ConcurrentDictionary<string, byte> _requested = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _uuidByName = new(StringComparer.Ordinal);
@@ -147,6 +185,18 @@ public sealed class NameRegistry
     private readonly ConcurrentDictionary<string, byte> _rebindAllowed = new(StringComparer.Ordinal);
     // C1c: requested names VR-Forces returns WHOLE (routes, waypoints, control areas, line/point graphics).
     private readonly ConcurrentDictionary<string, byte> _whole = new(StringComparer.Ordinal);
+    // C1d: the uuid each entity/aggregate was REQUESTED under (canonical, bare) <-> its requested name.
+    private readonly ConcurrentDictionary<string, string> _nameByRequestedUuid = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _requestedUuidByName = new(StringComparer.Ordinal);
+    // C1d: requested names whose CURRENT binding came through their uuid (certain), not the name rule (a reading).
+    private readonly ConcurrentDictionary<string, byte> _boundByUuid = new(StringComparer.Ordinal);
+    // C1d: the marking VR-Forces returned at ObjectCreated -> the VRF uuids (as the callback carried them) of every object
+    // of ours that carries it, however it was bound - so a marking two objects share is SEEN to be shared; and the VRF
+    // uuids whose binding came through the uuid they were created under.
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _uuidsByMarking = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _uuidBoundUuids = new(StringComparer.Ordinal);
+    // C1d: objects of ours a uuid binding DISPLACED from a name-rule reading - unattributed, but still deleted on stop.
+    private readonly ConcurrentDictionary<string, byte> _displacedUuids = new(StringComparer.Ordinal);
 
     /// <summary>Register a name we are ASKING VR-Forces to create (unit, route, waypoint). Call it
     /// before the create is enqueued - the callback can arrive as soon as the create is sent.</summary>
@@ -277,8 +327,46 @@ public sealed class NameRegistry
     /// supplied one is its unique truncation, else the supplied name unchanged. Pure lookup - it
     /// binds nothing. Safe to call from any callback that carries a marking (completions, POSITION
     /// text reports, console rows).
+    /// C1d: the marking is looked up among the objects bound BY UUID first (<see cref="ResolveMarking"/>), so every
+    /// caller - including one that never heard of C1d - gets the uuid-exact answer when there is one.
     /// </summary>
-    public string Resolve(string returned)
+    public string Resolve(string returned) => ResolveMarking(returned).Name;
+
+    /// <summary>
+    /// C1d - A MARKING, RESOLVED THROUGH THE UUID FIRST. A completion or a POSITION text report carries only the marking
+    /// VR-Forces holds for the object (VrfFacade.cpp reportTrampoline: transmitter().markingText()). When that marking was
+    /// recorded at ObjectCreated for objects bound by uuid and they are all ONE requested name, that name is the answer,
+    /// exactly - however the marking was cut. Otherwise the pre-C1d name rule answers (<see cref="Resolve"/>'s exact match,
+    /// settled correlation and prefix scan); when two DIFFERENT uuid-bound objects carry the marking the result says
+    /// <see cref="MarkingVia.AmbiguousUuid"/> and names them, so the caller can say it - a marking alone cannot tell them
+    /// apart, which is exactly the collision C1c's unique-within-30 names prevent at request time.
+    /// </summary>
+    public MarkingResolution ResolveMarking(string marking)
+    {
+        if (string.IsNullOrEmpty(marking)) return new MarkingResolution(marking, MarkingVia.Name, Array.Empty<string>());
+        // Only a marking at least one UUID-BOUND object carries is answered here; with none, the pre-C1d rule answers
+        // exactly as it did before (a run, or a test, with no uuid binding is unchanged).
+        if (_uuidsByMarking.TryGetValue(marking, out var carriers) && carriers.Keys.Any(u => _uuidBoundUuids.ContainsKey(u)))
+        {
+            var names = carriers.Keys
+                .Select(u => _nameByUuid.TryGetValue(u, out var n) && !string.IsNullOrEmpty(n) ? n : null)
+                .Where(n => n != null).Distinct(StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            if (names.Count == 1) return new MarkingResolution(names[0], MarkingVia.Uuid, Array.Empty<string>());
+            if (names.Count > 1) return new MarkingResolution(ResolveByName(marking), MarkingVia.AmbiguousUuid, names);
+        }
+        return new MarkingResolution(ResolveByName(marking), MarkingVia.Name, Array.Empty<string>());
+    }
+
+    /// <summary>C1d: record that the object <paramref name="vrfUuid"/> came back carrying <paramref name="marking"/>.</summary>
+    private void RecordMarking(string marking, string vrfUuid)
+    {
+        if (string.IsNullOrEmpty(marking) || string.IsNullOrEmpty(vrfUuid)) return;
+        _uuidsByMarking.GetOrAdd(marking, _ => new ConcurrentDictionary<string, byte>(StringComparer.Ordinal))
+                       .TryAdd(vrfUuid, 0);
+    }
+
+    /// <summary>The pre-C1d rule: exact requested name, then a settled correlation, then the prefix scan.</summary>
+    private string ResolveByName(string returned)
     {
         if (string.IsNullOrEmpty(returned)) return returned;
         if (_requested.ContainsKey(returned)) return returned;                  // the ordinary case
@@ -409,8 +497,121 @@ public sealed class NameRegistry
             if (!string.IsNullOrEmpty(resolved)) _uuidByName[resolved] = uuid;
             if (truncated) _uuidByName[returnedName] = uuid;
             if (!string.IsNullOrEmpty(resolved)) _nameByUuid[uuid] = resolved;
+            // C1d: this binding is the name rule's - a reading, not the certainty a uuid binding is - and the marking it
+            // came back under is recorded like a uuid-bound object's, so a marking two objects share is seen as shared.
+            if (!string.IsNullOrEmpty(resolved)) _boundByUuid.TryRemove(resolved, out _);
+            RecordMarking(returnedName, uuid);
         }
         return new BindResult(resolved, returnedName, truncated, ambiguous, collisions, priorUuid);
+    }
+
+    // ================================ C1d - IDENTITY BY UUID (RL-20260928-02) ================================
+
+    /// <summary>The canonical bare uuid of a callback's "VRF_UUID:&lt;uuid&gt;" (or of a bare one); "" when it is not a
+    /// uuid (a marking-text DtUUID).</summary>
+    public static string BareUuid(string vrfUuid) => IdentityUuid.Normalize(vrfUuid) ?? "";
+
+    /// <summary>
+    /// C1d: register the uuid <paramref name="name"/> is being CREATED under (the create's startingUUID), before the create
+    /// is issued - its ObjectCreated can arrive as soon as the create is sent. Returns null, or the OTHER requested name
+    /// that uuid is already registered for: two objects asked under one uuid is a defect (VR-Forces regenerates the
+    /// second, ifCreateVrfObject.h:105, which then binds by name) - the first registration stands and the caller says so.
+    /// The same name registered again under a NEW uuid (a unit re-created as its template) moves the name to it.
+    /// </summary>
+    public string RequestedUuid(string name, string uuid)
+    {
+        string bare = IdentityUuid.Normalize(uuid);
+        if (string.IsNullOrEmpty(name) || bare == null) return null;
+        string owner = _nameByRequestedUuid.GetOrAdd(bare, name);
+        if (!string.Equals(owner, name, StringComparison.Ordinal)) return owner;
+        _requestedUuidByName[name] = bare;
+        return null;
+    }
+
+    /// <summary>C1d: the uuid <paramref name="name"/> was last requested under (canonical), or false.</summary>
+    public bool TryGetRequestedUuid(string name, out string uuid)
+    {
+        uuid = "";
+        return !string.IsNullOrEmpty(name) && _requestedUuidByName.TryGetValue(name, out uuid) && !string.IsNullOrEmpty(uuid);
+    }
+
+    /// <summary>C1d: was <paramref name="name"/> requested under a uuid?</summary>
+    public bool HasRequestedUuid(string name) => TryGetRequestedUuid(name, out _);
+
+    /// <summary>C1d: is <paramref name="name"/>'s CURRENT binding the one its own uuid made (not the name rule's)?</summary>
+    public bool IsBoundByUuid(string name)
+        => !string.IsNullOrEmpty(name) && _boundByUuid.ContainsKey(name) && _uuidByName.ContainsKey(name);
+
+    /// <summary>
+    /// C1d - THE UUID BINDING. When the callback's uuid is one we requested, bind THAT requested name to it EXACTLY - no
+    /// prefix scan, whatever marking came back - and record the marking against the uuid for the report paths. False (and
+    /// nothing written) when the uuid is not one we requested. A name the NAME RULE bound earlier (a reading: an
+    /// unrequested object's cut marking exactly equal to this name) is DISPLACED - the uuid is certain. A name already
+    /// bound BY UUID to another object moves only when a re-create was announced (<see cref="ExpectRebind"/>), as a name
+    /// binding does; otherwise the bind is refused like the name rule's (m1).
+    /// </summary>
+    public bool TryBindByUuid(string returnedName, string vrfUuid, out BindResult result)
+    {
+        result = default;
+        string bare = BareUuid(vrfUuid);
+        if (bare.Length == 0 || !_nameByRequestedUuid.TryGetValue(bare, out var name) || string.IsNullOrEmpty(name))
+            return false;
+        bool truncated = !string.IsNullOrEmpty(returnedName) && !string.Equals(returnedName, name, StringComparison.Ordinal);
+        string priorUuid = "", displaced = "";
+        if (_uuidByName.TryGetValue(name, out var prior) && !string.IsNullOrEmpty(prior)
+            && !string.Equals(prior, vrfUuid, StringComparison.Ordinal))
+        {
+            // An ANNOUNCED re-create (the shell deleted, the unit re-created as its template) moves the name however it
+            // was bound, and consumes the one-shot allowance; otherwise a name-rule reading is replaced (the uuid is
+            // certain) and a uuid binding is refused.
+            bool announced = _rebindAllowed.TryRemove(name, out _);
+            if (!announced && !_boundByUuid.ContainsKey(name)) displaced = prior;
+            else if (!announced) priorUuid = prior;
+        }
+        if (priorUuid.Length == 0)
+        {
+            if (displaced.Length > 0)
+            {
+                _nameByUuid.TryRemove(new KeyValuePair<string, string>(displaced, name));
+                _displacedUuids.TryAdd(displaced, 0);
+            }
+            _uuidByName[name] = vrfUuid;
+            _nameByUuid[vrfUuid] = name;
+            _boundByUuid[name] = 0;
+            _uuidBoundUuids.TryAdd(vrfUuid, 0);
+            RecordMarking(returnedName, vrfUuid);
+        }
+        result = new BindResult(name, returnedName, truncated, false, Array.Empty<string>(), priorUuid,
+                                ByUuid: true, DisplacedUuid: displaced);
+        return true;
+    }
+
+    /// <summary>
+    /// C1d - THE ObjectCreated BINDING, what OnVrfObjectCreated calls: the uuid first (<see cref="TryBindByUuid"/>), the
+    /// name rule (<see cref="Bind"/>) only for a uuid we did not request - with <see cref="BindResult.FallbackWarn"/> set
+    /// when that object is one we DID request a uuid for (VR-Forces regenerated or ignored it) or one the name rule
+    /// cannot attribute; an object never given a uuid (a task route or waypoint, a graphic) binds by name silently, as
+    /// it always has.
+    /// </summary>
+    public BindResult BindCreated(string returnedName, string vrfUuid)
+    {
+        if (TryBindByUuid(returnedName, vrfUuid, out var byUuid)) return byUuid;
+        var b = Bind(returnedName, vrfUuid);
+        bool notable = b.Ambiguous || b.RefusedRebind || !IsRequested(b.Name) || HasRequestedUuid(b.Name);
+        return b with { FallbackWarn = notable };
+    }
+
+    /// <summary>C1d: how many of <paramref name="names"/> are bound by their uuid, by the name rule, and not at all.</summary>
+    public (int ByUuid, int ByName, int Unbound) IdentityCensus(IEnumerable<string> names)
+    {
+        int byUuid = 0, byName = 0, unbound = 0;
+        foreach (var n in names ?? Array.Empty<string>())
+        {
+            if (!TryGetUuid(n, out _)) unbound++;
+            else if (IsBoundByUuid(n)) byUuid++;
+            else byName++;
+        }
+        return (byUuid, byName, unbound);
     }
 
     /// <summary>The VRF uuid bound to a name (requested or as-returned).</summary>
@@ -433,7 +634,9 @@ public sealed class NameRegistry
     public bool TryAddName(string uuid, string name)
         => !string.IsNullOrEmpty(uuid) && _nameByUuid.TryAdd(uuid, name ?? "");
 
-    /// <summary>Every distinct uuid this run bound - what the stop path deletes.</summary>
+    /// <summary>Every distinct uuid this run bound - what the stop path deletes. C1d: with the objects a uuid binding
+    /// displaced from a name-rule reading, which are ours and unattributed.</summary>
     public List<string> CreatedUuids()
-        => _uuidByName.Values.Where(v => !string.IsNullOrEmpty(v)).Distinct(StringComparer.Ordinal).ToList();
+        => _uuidByName.Values.Concat(_displacedUuids.Keys).Where(v => !string.IsNullOrEmpty(v))
+                      .Distinct(StringComparer.Ordinal).ToList();
 }

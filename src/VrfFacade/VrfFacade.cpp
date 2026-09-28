@@ -943,6 +943,43 @@ void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
         DtString::nullString(), DtSimSendToAll, st, DtUUID::nullUUID(), createSubordinates);
 }
 
+// C1d (RL-20260928-02) - IDENTITY BY UUID. The two overloads below are the ones above with the vendor's
+// startingUUID filled in: the object is created UNDER the caller's uuid, which OnVrfObjectCreated then
+// binds it by (UG52 13.2 Table 21 p362-363: the UUID is unique and persists; the name is length-limited and
+// not unique). The uuid string is converted exactly as CreateWaypoint/CreateRoute/CreateControlArea do -
+// empty -> DtUUID::nullUUID() (the vendor default, so the call is then byte-for-byte the old overload's),
+// else DtUUID(uuid.c_str()) on the BARE 8-4-4-4-12 form (never a name: a non-uuid string reaches DtUUID's
+// marking-text lookup, vrfutil/uuid.h:77-84, PREREG_ROUTE_UUID_FIX_2026-09-02). Every other argument is the
+// value the old overload passes or leaves defaulted.
+void VrfFacade::CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
+                             Force force, double headingDeg, const std::string& name,
+                             const std::string& uuid) {
+    // vrfRemoteController.h 5.2 :1282-1293: fcn, usr, type, geocentricPosition, force, heading,
+    // uniqueName, label = nullString, addr = DtSimSendToAll, groundClamp = true, startingUUID,
+    // globalId = nullString (left defaulted).
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
+    p_->controller->createEntity(objectCreatedTrampoline, this,
+        toDtType(type), toGeocentric(pos), toDtForce(force),
+        (DtReal)(headingDeg / kDegRadFactor), DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, true, startingUuid);
+}
+
+void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
+                                Force force, double headingDeg, const std::string& name,
+                                AggregateState state, bool createSubordinates,
+                                const std::string& uuid) {
+    // vrfRemoteController.h 5.2 :1295-1306: fcn, usr, type, geocentricPosition, force, heading,
+    // uniqueName, label = nullString, addr = DtSimSendToAll, initialAggregateState, startingUUID,
+    // createSubordinates - the 7-argument overload's call with startingUUID in place of nullUUID().
+    DtAggregateState st = (state == AggregateState::Aggregated)
+                              ? DtAggregated : DtDisaggregated;
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
+    p_->controller->createAggregate(objectCreatedTrampoline, this,
+        toDtType(type), toGeocentric(pos), toDtForce(force),
+        (DtReal)(headingDeg / kDegRadFactor), DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, st, startingUuid, createSubordinates);
+}
+
 void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name,
                                const std::string& uuid) {
     // Vendor signature (vrfRemoteController.h:999-1007): fcn, usr, geocentricPosition,
