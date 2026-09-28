@@ -642,3 +642,15 @@ README limits callback names to 10) and ORBAT_LOADING_REQUIREMENTS_2026-09-06 G5
 correlation on UUID), whose refutation ("OPTIONAL simplification") this entry reverses. C1c stays merged as the secondary (marking)
 key; package C1d makes the uuid primary. The seat approved the lane's frame without grepping the record for name/uuid - the same
 failure as 2026-09-27 (memory feedback-read-ledger-before-asking), now applied to lane designs, not only to questions.
+
+## "Road-snapping" presented as a movement option for aggregates (2026-09-28)
+Claimed (seat, the RS1 research brief and the G1-2 report to the owner): the remedy for T14's stop at the -2 hamlet is either the
+aggregate pre-flight adding vertices round the buildings or "snapping aggregate routes to the road network".
+Corrected (owner: "The option never came up. You said ages ago that off road was the standard mode for most vehicles"): the record
+settled it on 2026-09-03 - VRF_5.2_DECISION_EVIDENCE Y-13 (the 5.2 flip to Ignore Roads for tracked and wheels-off-road systems;
+Prefer Roads is what vendor scenarios set for civilians; sending it is "against the grain") and Y-11 (cohesive off-road unit movement
+is the vendor's direction) - and on 2026-09-13 the seat itself told the owner "Prefer Roads keeps a role only as the ten-minute
+confirming test of the cause claim; it is not the answer to routing". The road option was the seat's invention in a brief, not a
+candidate from the record; the research lane was told to drop it and the CLOSED list carries the settlement. The pre-flight
+candidate (buildings as obstacles for the aggregate profile, a formation-wide corridor, added vertices) is the one the owner asked
+about on 2026-09-27 (P5116) and stays.
