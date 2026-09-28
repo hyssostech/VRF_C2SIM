@@ -158,14 +158,25 @@
     silently. See docs/RUNBOOK.md "5.2 profile".
 
 .PARAMETER ModelSet
-    5.2 ONLY. 'EntityLevel' (default - every run in the record, unchanged) or
-    'AggregateTacticalLevel' (the aggregate-level profile, RL-20260927-01). Selects the type
-    map (data/unit-type-map-52-aggregate.json unless -TypeMapFile is given) and exports
-    Vrf__ModelSet to the app. Stage 0 reads the fixture's .scn (Simulation-Model-Set-Files) and
-    the type map's declared model set and REFUSES a mismatch; on AggregateTacticalLevel a fixture
-    that cannot be read is refused too (warned in -DryRun). Fixture:
-    tools/FixtureGen/frame_variants/IronStorm_Centre_52_Aggregate.scnx (-Scenario
-    IronStorm_Centre_52_Aggregate once deployed).
+    5.2 ONLY. 'Auto' (the DEFAULT, package D2, RL-20260927-06), 'EntityLevel' or
+    'AggregateTacticalLevel' (the aggregate-level profile, RL-20260927-01).
+    Auto reads the ORDER's tasked units (the PerformingEntity of every Task) and each one's
+    Unit/EchelonCode in the INIT - never the init's untasked units - and takes the HIGHEST:
+    above BN -> AggregateTacticalLevel, and ONLY that; BN and below -> EntityLevel. NOS, NKN,
+    air/naval, unknown and missing echelons count below BN and are named. An explicit value
+    overrides Auto, except that EntityLevel on an order tasking a unit above BN is REFUSED
+    ("above battalion is aggregate-only"); AggregateTacticalLevel on a BN-and-below order is
+    allowed (the override up). Stage 0 prints the choice and every tasked unit with its echelon,
+    and the manifest records them (inputs.modelSet.selection). The chosen model set selects the
+    type map (data/unit-type-map-52-aggregate.json unless -TypeMapFile is given) and is exported
+    to the app as Vrf__ModelSet. Stage 0 reads the fixture's .scn (Simulation-Model-Set-Files)
+    and the type map's declared model set and REFUSES a mismatch; on AggregateTacticalLevel a
+    fixture that cannot be read is refused too (warned in -DryRun). The fixture is NEVER picked
+    for you: -Scenario names it, and Stage 0 validates it (a Mojave order on the Iron Storm
+    fixture is the cross-AO mix of STP-823). Fixtures: tools/FixtureGen/frame_variants/
+    IronStorm_Centre_52_Aggregate.scnx (shipped SMS) and IronStorm_Centre_52_Aggregate_C2SIM.scnx
+    (the derived SMS), -Scenario <name> once deployed. The 5.0.2 profile has no aggregate model
+    set: there Auto is EntityLevel and nothing is read (its output is the regression control).
 
     THE RTI CONNECTION MODE IS NOT A KNOB (2026-09-04). UG52 5.5.1 p190: "You cannot use
     the MAK RTI in lightweight mode with VR-Forces". Every lightweight 5.2 run reflected
@@ -174,6 +185,20 @@
     VR-Forces-level interface address is SEPARATE, TUNABLE and NOT part of that repair -
     see -DeviceAddress, which run 3857 falsified observer-side and which now defaults to
     passing nothing at all.
+
+.PARAMETER CompositionVariant
+    5.2, AggregateTacticalLevel ONLY. Which composition of Vrf:CompositionFile
+    (data/unit-composition-52-aggregate.json) populates a tasked container. EMPTY (default) = the
+    variant the app would use on its own: an inherited Vrf__CompositionVariant, else
+    appsettings.json Vrf:CompositionVariant, else the file's defaultVariant ("catalogue").
+    "authored" = the doctrinal composition with the authored US unit types of package C2. Each
+    variant names the SMS it needs, and Stage 0 REFUSES a fixture on the other one: "authored" only
+    on the derived set C2SIM_AggregateTacticalLevel.sms (its types land EMPTY containers on the
+    shipped set), "catalogue" only on the shipped set (one variable per run; the app itself would
+    run it on either). Exported to the app as Vrf__CompositionVariant on every aggregate run, with
+    Vrf__CatalogueSms = the fixture's own SMS when that is a derived set (C1b's guard needs both,
+    plus Vrf__Scenario, which every 5.2 run exports). Refused on EntityLevel, where the app reads
+    no composition.
 
 .PARAMETER NoGui
     5.2 only: launch the back end without vrfGui. Default OFF - the GUI is the one channel
@@ -448,14 +473,27 @@ param(
 
     # THE MODEL SET - the aggregate-level profile (RL-20260927-01; the standing rule is Y-15 in
     # docs/VRF_5.2_DECISION_EVIDENCE.md; docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md step 3).
-    # 'EntityLevel' (DEFAULT) = every run in the record, unchanged. 'AggregateTacticalLevel' = the
-    # vendor's aggregate model set: it selects the type map (default above) and is exported to the
-    # app as Vrf__ModelSet - the key the pre-flight lane uses for its rule set. The fixture must
-    # load the SAME model set: Stage 0 reads the scenario's .scnx and REFUSES a fixture/type-map
-    # mismatch (the aggregate fixture is tools/FixtureGen/frame_variants/
-    # IronStorm_Centre_52_Aggregate.scnx, deployed by the sanctioned fixture write). 5.2 only.
-    [ValidateSet('EntityLevel','AggregateTacticalLevel')]
-    [string] $ModelSet = 'EntityLevel',
+    # 'Auto' (DEFAULT since D2, RL-20260927-06) = CHOSEN at Stage 0 from the ORDER: the highest
+    # echelon among the TASKED units (each performer's init Unit/EchelonCode) - above BN ->
+    # AggregateTacticalLevel only, BN and below -> EntityLevel (RunnerLib Select-ModelSetByEchelon).
+    # An order that tasks only BN-and-below units therefore runs EntityLevel exactly as before.
+    # 'EntityLevel' / 'AggregateTacticalLevel' = an explicit choice that overrides Auto, except that
+    # EntityLevel is REFUSED for an order above BN. 'AggregateTacticalLevel' = the vendor's
+    # aggregate model set: it selects the type map (default above) and is exported to the app as
+    # Vrf__ModelSet - the key the pre-flight lane uses for its rule set. The fixture must load the
+    # SAME model set: Stage 0 reads the scenario's .scnx and REFUSES a fixture/type-map mismatch
+    # (the aggregate fixture is tools/FixtureGen/frame_variants/IronStorm_Centre_52_Aggregate.scnx,
+    # deployed by the sanctioned fixture write). 5.2 only: on 5.0.2 Auto is EntityLevel, unread.
+    [ValidateSet('Auto','EntityLevel','AggregateTacticalLevel')]
+    [string] $ModelSet = 'Auto',
+
+    # THE COMPOSITION VARIANT (D2 with package C2, RL-20260927-04). 5.2 + AggregateTacticalLevel only.
+    # EMPTY (default) = the variant the app would use on its own (inherited env, appsettings.json,
+    # else the defaultVariant of Vrf:CompositionFile, "catalogue"). Stage 0 checks the fixture's SMS
+    # against the SMS the variant declares and REFUSES a mismatch either way; the variant is exported
+    # to the app as Vrf__CompositionVariant on every aggregate run. Not a ValidateSet: the variants
+    # are the composition file's, and an unknown name is refused there.
+    [string] $CompositionVariant = '',
 
     # THE ORDER'S CLOCK SCALE (Vrf:DurationScale). 0 (the default) = DO NOT SET IT: the app uses
     # whatever the deployed appsettings.json pins (1.0, the order as written). Anything positive
@@ -961,12 +999,16 @@ $ConnConfigFromAppDataDir = ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAp
 $ConnConfigSha       = $null
 $ConnConfigVendorSha = $null
 $ConnConfigMatch     = $null
-# The type map follows -ModelSet unless -TypeMapFile names one (Get-ModelSetTypeMapDefault; the
+# The type map follows the model set unless -TypeMapFile names one (Get-ModelSetTypeMapDefault; the
 # EntityLevel default is the same file as before). Its existence is checked at Stage 0 - this line
 # used to append to $bad here, BEFORE Stage 0 creates it, so under StrictMode a missing
 # -TypeMapFile died on an unset variable instead of being reported (moved 2026-09-27).
-$ModelSetPassed = $PSBoundParameters.ContainsKey('ModelSet')
-$TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { Get-ModelSetTypeMapDefault -ModelSet $ModelSet })
+# D2 (RL-20260927-06): the model set is now CHOSEN in Stage 0 from the order's tasked units, so the
+# type map is set THERE, right after the choice; $ModelSet then holds the CHOSEN value and
+# $ModelSetRequested what was asked for ('Auto' unless -ModelSet was typed; the selector's Source
+# says 'argument -ModelSet' for a typed value, which is what $ModelSetPassed used to answer).
+$ModelSetRequested = $ModelSet
+$TypeMapFile52     = ''
 # The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
 # EMPTY by default and therefore NOT PASSED anywhere: run 3857 falsified it observer-side
 # (an observer with no device address still reflected 54-56 entities off the rtiexec sim), so
@@ -2271,7 +2313,34 @@ if ($DurationScaleOn) {
         $bad += ('-DurationScale must be 0 (leave the app''s own value alone) or a finite number in 0.001..1000 (got {0}). It scales BOTH halves of the order''s clock - the Duration that ends a task and the StartTime delay that holds one back - and NOT movement. A non-positive scale is not an instruction to complete everything at once: the app refuses it, logs an ERROR and uses 1.0, so a run given one would be a FULL-LENGTH run carrying a compressed run''s manifest.' -f $DurationScale)
     }
 }
-# THE MODEL SET (RL-20260927-01; Y-15). The fixture, the type map and -ModelSet must name ONE
+# THE MODEL SET, CHOSEN (D2; RL-20260927-06 - "consider the echelon threshold just for the units
+# actually tasked [...] Higher echelons can only be run at aggregate level because of vrf
+# limitations"). Select-ModelSetByEchelon (RunnerLib) is the rule and is pure; this block reads the
+# two files and hands their text over. Auto (the default): the highest echelon among the ORDER's
+# performers decides - above BN -> AggregateTacticalLevel only, BN and below -> EntityLevel. An
+# explicit -ModelSet overrides it, except EntityLevel on an order above BN, which is REFUSED here.
+# 5.2 ONLY: on 5.0.2 nothing is read and Auto is EntityLevel (that profile has no aggregate model
+# set, and its output is the regression control). A missing -Init/-Order file is refused below with
+# the other file checks; the selector then only reports what it could not read.
+$msOrderText = ''
+$msInitText  = ''
+if ($Is52) {
+    if (Test-Path -LiteralPath $Order -PathType Leaf) { try { $msOrderText = Get-Content -LiteralPath $Order -Raw -Encoding UTF8 } catch { $msOrderText = '' } }
+    if (Test-Path -LiteralPath $Init  -PathType Leaf) { try { $msInitText  = Get-Content -LiteralPath $Init  -Raw -Encoding UTF8 } catch { $msInitText  = '' } }
+}
+$ModelSetSelection = Select-ModelSetByEchelon -Requested $ModelSetRequested -Is52 $Is52 `
+                        -OrderText $msOrderText -InitText $msInitText `
+                        -OrderLabel ('the order ' + (Split-Path -Leaf $Order)) -InitLabel ('the init ' + (Split-Path -Leaf $Init))
+$ModelSet = $ModelSetSelection.Choice
+foreach ($x in @($ModelSetSelection.Refusals)) { $bad += $x }
+# How the choice was made, in the words Stage 0, the pairing messages and the manifest all use.
+$ModelSetChoiceLabel = $(if ($ModelSetSelection.Applied -and $ModelSetSelection.Source -eq 'auto') { 'auto: ' + $ModelSetSelection.Reason + ', RL-20260927-06' } else { '' })
+$ModelSetSourceText  = $(if (-not $ModelSetSelection.Applied) { $ModelSetSelection.Source }
+                         elseif ($ModelSetSelection.Source -eq 'auto') { 'auto (RL-20260927-06): ' + $ModelSetSelection.Reason }
+                         else { 'argument -ModelSet (auto would choose ' + $ModelSetSelection.Auto + ')' })
+# THE TYPE MAP FOLLOWS THE CHOSEN MODEL SET unless -TypeMapFile names one.
+$TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { Get-ModelSetTypeMapDefault -ModelSet $ModelSet })
+# THE MODEL SET (RL-20260927-01; Y-15). The fixture, the type map and the model set must name ONE
 # model set: the SMS is fixed per scenario (UG52 13.7 p368) and a type map's object types exist in
 # one catalogue only. Test-ModelSetPairing (RunnerLib) is the rule; this block only gathers its
 # inputs. The fixture is found exactly where LaunchVrf52 will look for it (its $scenarioAbs rule).
@@ -2286,17 +2355,29 @@ $ScenarioScnxPath = Join-Path $VrfRoot ('userData\scenarios\{0}.scnx' -f $Scenar
 $ModelSetTypeMap  = Get-TypeMapModelSet -Path $TypeMapPath52
 $ModelSetScenario = Get-ScenarioModelSet -ScnxPath $ScenarioScnxPath
 $ModelSetVerdict  = Test-ModelSetPairing -ModelSet $ModelSet -Is52 $Is52 -TypeMap $ModelSetTypeMap `
-                                         -Scenario $ModelSetScenario -DryRun ([bool]$DryRun)
+                                         -Scenario $ModelSetScenario -DryRun ([bool]$DryRun) `
+                                         -ChoiceLabel $ModelSetChoiceLabel -AggregateOnly ([bool]$ModelSetSelection.AboveBattalion)
 foreach ($x in @($ModelSetVerdict.Refusals)) { $bad += $x }
 # Printed HERE, inside Stage 0, so the facts are on screen even when some OTHER check refuses the
 # run. 5.2 only: the 5.0.2 profile's output stays byte-for-byte what it was (a -ModelSet on 5.0.2
 # is a refusal above, printed with the others).
 if ($Is52) {
-    Say ('  model set   : {0} <- {1}; exported to the app as Vrf__ModelSet' -f $ModelSet, $(if ($ModelSetPassed) { 'argument -ModelSet' } else { 'default' }))
+    Say ('  model set   : {0} <- {1}; exported to the app as Vrf__ModelSet' -f $ModelSet, $ModelSetSourceText)
+    # THE CHOICE'S INPUTS (D2): every tasked unit, with the echelon the rule read for it.
+    Say ('  tasked      : {0} unit(s) named by the PerformingEntity of {1} task(s) in {2}; echelons = Unit/EchelonCode in {3}' -f `
+         @($ModelSetSelection.Tasked).Count, $ModelSetSelection.TaskCount, (Split-Path -Leaf $Order), (Split-Path -Leaf $Init))
+    foreach ($t in @($ModelSetSelection.Tasked)) {
+        Say ('                  {0,-6} {1}  {2}  ({3} task(s)){4}' -f $(if ($t.EchelonCode) { $t.EchelonCode } else { '-' }), $t.Name, $t.Uuid, $t.Tasks,
+             $(if ($t.Note) { ' - ' + $t.Note } else { '' }))
+    }
+    Say ('                rule: the highest TASKED echelon above BN -> AggregateTacticalLevel only; BN and below -> EntityLevel,')
+    Say ('                      which -ModelSet AggregateTacticalLevel may lift (RL-20260927-06; RunnerLib Select-ModelSetByEchelon)')
     Say ('  type map    : {0} - declares {1} ({2})' -f $TypeMapFile52, $ModelSetTypeMap.ModelSet, $ModelSetTypeMap.Via)
     Say ('  fixture SMS : {0} -> {1} ({2})' -f $(if ($ModelSetScenario.Readable) { $ModelSetScenario.Sms } else { '(not read)' }), $ModelSetScenario.ModelSet, $ModelSetScenario.Via)
-    foreach ($x in @($ModelSetVerdict.Warnings)) { Add-Flag 'WARN' ('MODEL SET: ' + $x) }
-    foreach ($x in @($ModelSetVerdict.Notes))    { Say ('                ' + $x) }
+    foreach ($x in @($ModelSetSelection.Warnings)) { Add-Flag 'WARN' ('MODEL SET: ' + $x) }
+    foreach ($x in @($ModelSetVerdict.Warnings))   { Add-Flag 'WARN' ('MODEL SET: ' + $x) }
+    foreach ($x in @($ModelSetSelection.Notes))    { Say ('                ' + $x) }
+    foreach ($x in @($ModelSetVerdict.Notes))      { Say ('                ' + $x) }
 }
 # Stage 8b WS runaway abort (RUNBOOK 0.5.11 item 17 extension). 0 = off; anything positive is a
 # COUNT of confirmed SampleThreads.ps1 alerts, so there is no upper window to bound it against.
@@ -2505,6 +2586,64 @@ if (Test-Path -LiteralPath $appSettings -PathType Leaf) {
         if ($cfg.PSObject.Properties.Name -contains 'Vrf' -and
             $cfg.Vrf.PSObject.Properties.Name -contains 'ClientId') { $appClientId = [string]$cfg.Vrf.ClientId }
     } catch { Say-Warn ('could not parse {0}: {1}' -f $appSettings, $_.Exception.Message) }
+}
+# THE COMPOSITION VARIANT AND THE CATALOGUE SMS (D2 with package C2, RL-20260927-04) - on the
+# AGGREGATE model set only (on EntityLevel the app reads none of these keys, VrfSettings.cs C1 block).
+# The variant's declared SMS must be the fixture's (Test-CompositionVariantPairing, RunnerLib): the
+# authored US types exist only in the derived set and land EMPTY containers on the shipped one
+# (AGGREGATE_AUTHORED_UNITS_2026-09-27 sec 7). The composition file is the one the app will read:
+# env Vrf__CompositionFile > appsettings.json Vrf:CompositionFile > the C# default, resolved like the
+# type map (a relative path from here, else from the repo root - the app walks up to the same file).
+# Vrf:CatalogueSms "Must be the SMS the fixture loads" (VrfSettings.cs): on a derived fixture the
+# runner exports it; on the shipped one it exports nothing and refuses a predicted non-shipped value.
+$CompositionFileEnv  = [Environment]::GetEnvironmentVariable('Vrf__CompositionFile')
+$CompositionFileJson = $(if ($null -ne $cfgApp -and $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+                             $cfgApp.Vrf.PSObject.Properties.Name -contains 'CompositionFile') { [string]$cfgApp.Vrf.CompositionFile } else { '' })
+$CompositionFile       = 'data/unit-composition-52-aggregate.json'
+$CompositionFileSource = 'the C# default (CompositionTable.DefaultFile)'
+if ($CompositionFileEnv)      { $CompositionFile = $CompositionFileEnv;  $CompositionFileSource = 'env Vrf__CompositionFile' }
+elseif ($CompositionFileJson) { $CompositionFile = $CompositionFileJson; $CompositionFileSource = 'appsettings.json Vrf:CompositionFile' }
+$CompositionFilePath = $CompositionFile
+if (-not [System.IO.Path]::IsPathRooted($CompositionFilePath) -and -not (Test-Path -LiteralPath $CompositionFilePath -PathType Leaf)) {
+    $CompositionFilePath = Join-Path $RepoRoot $CompositionFile
+}
+# The variant the app would use on its own (C1b, VrfSettings.cs CompositionVariant): env > appsettings.json
+# > blank = the file's defaultVariant. -CompositionVariant beats all of them; either way the runner then
+# exports what it validated, so the app runs the variant Stage 0 checked.
+$CompositionVariantEnv  = [Environment]::GetEnvironmentVariable('Vrf__CompositionVariant')
+$CompositionVariantJson = $(if ($null -ne $cfgApp -and $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+                                $cfgApp.Vrf.PSObject.Properties.Name -contains 'CompositionVariant') { [string]$cfgApp.Vrf.CompositionVariant } else { '' })
+$CompositionVariantPassed    = -not [string]::IsNullOrWhiteSpace($CompositionVariant)
+$CompositionVariantAsked     = $(if ($CompositionVariantPassed) { $CompositionVariant } elseif ($CompositionVariantEnv) { $CompositionVariantEnv } else { $CompositionVariantJson })
+$CompositionVariantAskedFrom = $(if ($CompositionVariantPassed) { 'argument -CompositionVariant' } elseif ($CompositionVariantEnv) { 'INHERITED env Vrf__CompositionVariant' } elseif ($CompositionVariantJson) { 'appsettings.json Vrf:CompositionVariant' } else { '' })
+$CatalogueSmsEnv  = [Environment]::GetEnvironmentVariable('Vrf__CatalogueSms')
+$CatalogueSmsJson = $(if ($null -ne $cfgApp -and $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+                          $cfgApp.Vrf.PSObject.Properties.Name -contains 'CatalogueSms') { [string]$cfgApp.Vrf.CatalogueSms } else { '' })
+$CatalogueSmsPredicted       = $(if ($CatalogueSmsEnv) { $CatalogueSmsEnv } else { $CatalogueSmsJson })
+$CatalogueSmsPredictedSource = $(if ($CatalogueSmsEnv) { 'INHERITED env Vrf__CatalogueSms' } elseif ($CatalogueSmsJson) { 'appsettings.json Vrf:CatalogueSms' } else { 'the default "" (the model set''s own SMS)' })
+$CompositionInfo = [ordered]@{ Path = $CompositionFilePath; Found = $false; Parsed = $false; Error = 'not read (the model set is not AggregateTacticalLevel)'; DefaultVariant = ''; Variants = [ordered]@{} }
+if ($Is52 -and $ModelSet -eq 'AggregateTacticalLevel') { $CompositionInfo = Get-CompositionVariants -Path $CompositionFilePath }
+if (-not $Is52 -and $CompositionVariantPassed) {
+    $bad += '-CompositionVariant is a 5.2 profile switch (the aggregate model set exists only on VR-Forces 5.2d). Pass -VrfProfile 5.2, or drop -CompositionVariant.'
+}
+$CompositionVerdict = Test-CompositionVariantPairing -ModelSet $ModelSet -Variant $CompositionVariantAsked `
+                        -VariantPassed $CompositionVariantPassed -VariantSource $CompositionVariantAskedFrom `
+                        -Composition $CompositionInfo -Scenario $ModelSetScenario `
+                        -PredictedCatalogueSms $CatalogueSmsPredicted -PredictedCatalogueSmsSource $CatalogueSmsPredictedSource
+if ($Is52) { foreach ($x in @($CompositionVerdict.Refusals)) { $bad += $x } }
+# Printed only when it applies, so an EntityLevel run's Stage 0 is exactly what it was.
+if ($Is52 -and $CompositionVerdict.Applied) {
+    Say ('  composition : variant "{0}" <- {1}; exported to the app as Vrf__CompositionVariant' -f `
+         $CompositionVerdict.Variant, $CompositionVerdict.Source)
+    Say ('                composition file {0} <- {1}' -f $CompositionFile, $CompositionFileSource)
+    Say ('                the variant needs {0} (fixture {1}); the fixture loads {2}' -f `
+         $(if ($CompositionVerdict.ExpectedSms) { $CompositionVerdict.ExpectedSms } else { '(unknown)' }),
+         $(if ($CompositionVerdict.ExpectedFixture) { $CompositionVerdict.ExpectedFixture } else { '(unknown)' }),
+         $(if ($ModelSetScenario.Readable) { $ModelSetScenario.Sms } else { '(not read)' }))
+    Say ('  catalogue   : {0}' -f $(if ($CompositionVerdict.CatalogueSms) { 'Vrf__CatalogueSms=' + $CompositionVerdict.CatalogueSms + ' (the fixture''s own derived SMS)' }
+                                    else { 'not exported - the app keeps ' + $CatalogueSmsPredictedSource + $(if ($CatalogueSmsPredicted) { ' = ' + $CatalogueSmsPredicted } else { '' }) }))
+    foreach ($x in @($CompositionVerdict.Warnings)) { Add-Flag 'WARN' ('COMPOSITION: ' + $x) }
+    foreach ($x in @($CompositionVerdict.Notes))    { Say ('                ' + $x) }
 }
 # SF-R4 (cold-start review of 2df59ba). Vrf__ClientId HAD THE SAME HOLE AS THE ORDER CLOCK, AND
 # A WORSE ONE: it was exported below and restored NOWHERE in this file, so it leaked out of a
@@ -2857,7 +2996,7 @@ $Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
 # THE MODEL SET and the two facts Stage 0 checked it against (RL-20260927-01).
 $Manifest.inputs.modelSet = [ordered]@{
     modelSet          = $ModelSet
-    source            = $(if ($ModelSetPassed) { 'argument -ModelSet' } else { 'default' })
+    source            = $ModelSetSelection.Source
     exportedToApp     = [bool]$Is52
     typeMapDeclares   = $ModelSetTypeMap.ModelSet
     typeMapVia        = $ModelSetTypeMap.Via
@@ -2865,7 +3004,50 @@ $Manifest.inputs.modelSet = [ordered]@{
     fixtureSms        = $ModelSetScenario.Sms
     fixtureModelSet   = $ModelSetScenario.ModelSet
     fixtureVia        = $ModelSetScenario.Via
-    warnings          = @($ModelSetVerdict.Warnings)
+    warnings          = @(@($ModelSetSelection.Warnings) + @($ModelSetVerdict.Warnings))
+}
+# D2 (RL-20260927-06): HOW it was chosen - the tasked units and their echelons - and the composition
+# pairing. 5.2 only, so a 5.0.2 manifest keeps exactly the shape it had.
+if ($Is52) {
+    $Manifest.inputs.modelSet['requested'] = $ModelSetRequested
+    $Manifest.inputs.modelSet['scenarioExported'] = $ScenarioScnxPath
+    $Manifest.inputs.modelSet['selection'] = [ordered]@{
+        rule                = 'RL-20260927-06: the highest echelon among the TASKED units (the order''s PerformingEntity values; echelon = the init''s Unit/EchelonCode) decides. Above BN -> AggregateTacticalLevel ONLY (an explicit EntityLevel is refused); BN and below -> EntityLevel, which an explicit AggregateTacticalLevel may lift. NOS/NKN/air-naval/not-schema/missing echelons and performers that are not Units count below BN and are named. Ladder: TEAM<SQUAD<SECT<PLT<COY(G)<BN/BNG/BATGRP<RGT<BDE(GRP)<DIV<CORPS<ARMY<AG<REGION.'
+        requested           = $ModelSetSelection.Requested
+        auto                = $ModelSetSelection.Auto
+        choice              = $ModelSetSelection.Choice
+        source              = $ModelSetSelection.Source
+        reason              = $ModelSetSelection.Reason
+        highestEchelon      = $ModelSetSelection.Highest
+        aboveBattalion      = [bool]$ModelSetSelection.AboveBattalion
+        aboveBattalionUnits = @($ModelSetSelection.AboveBattalionUnits)
+        order               = $Order
+        orderParsed         = [bool]$ModelSetSelection.OrderParsed
+        taskCount           = $ModelSetSelection.TaskCount
+        init                = $Init
+        initParsed          = [bool]$ModelSetSelection.InitParsed
+        tasked              = @($ModelSetSelection.Tasked | ForEach-Object {
+                                  [ordered]@{ uuid = $_.Uuid; name = $_.Name; echelonCode = $_.EchelonCode; canonical = $_.Canonical
+                                              rank = $_.Rank; status = $_.Status; tasks = $_.Tasks; note = $_.Note
+                                              sidcAffiliation = $_.Affiliation; sidcEchelon = $_.SidcEchelon } })
+        refusals            = @($ModelSetSelection.Refusals)
+        notes               = @($ModelSetSelection.Notes)
+    }
+    $Manifest.inputs.modelSet['composition'] = $(if ($CompositionVerdict.Applied) { [ordered]@{
+        variant         = $CompositionVerdict.Variant
+        source          = $CompositionVerdict.Source
+        file            = $CompositionFile
+        fileSource      = $CompositionFileSource
+        filePath        = $CompositionFilePath
+        variantSms      = $CompositionVerdict.ExpectedSms
+        variantFixture  = $CompositionVerdict.ExpectedFixture
+        fixtureSmsKind  = $CompositionVerdict.FixtureSmsKind
+        pairs           = $CompositionVerdict.Matches
+        catalogueSms    = $(if ($CompositionVerdict.CatalogueSms) { $CompositionVerdict.CatalogueSms } else { $null })
+        catalogueSmsKept= $(if ($CompositionVerdict.CatalogueSms) { $null } else { $CatalogueSmsPredictedSource })
+        warnings        = @($CompositionVerdict.Warnings)
+        notes           = @($CompositionVerdict.Notes)
+    } } else { $null })
 }
 $Manifest.inputs.federation    = $Federation
 # THE PROFILE, in the evidence. A trace can only be compared with another trace from the
@@ -3728,6 +3910,10 @@ if ($Is52) {
     Say ('                Vrf__ConnectionConfigFile={0}{1}' -f $ConnConfigFile, $(if ($ConnConfigFromAppDataDir) { '  (from the RELOCATED -VrfAppDataDir tree - the one the sim reads)' } else { '  (vendor appData)' }))
     Say ('                Vrf__TypeMapFile={0}' -f $TypeMapFile52)
     Say ('                Vrf__ModelSet={0}' -f $ModelSet)
+    Say ('                Vrf__Scenario={0}  (the .scnx Stage 0 read; the app''s composition guard reads its SMS, C1b)' -f $ScenarioScnxPath)
+    # Aggregate runs only (D2).
+    if ($CompositionVerdict.Applied -and $CompositionVerdict.Variant) { Say ('                Vrf__CompositionVariant={0}' -f $CompositionVerdict.Variant) }
+    if ($CompositionVerdict.CatalogueSms) { Say ('                Vrf__CatalogueSms={0}' -f $CompositionVerdict.CatalogueSms) }
     Say ('                Vrf__DeviceAddress={0}' -f $(if ($DeviceAddressPassed) { $DeviceAddress52 } else { '(NOT SET - -DeviceAddress is empty; the app keeps VrfFacade''s 127.0.0.1)' }))
     Say ('  RTI         : rtiexec mode on {0}, rid {1}' -f $RtiDir, (Split-Path -Leaf $RidFile))
     Say ('                Stage 2r ensures a headless rtiexec is LISTENING on TCP 4001 before anything joins; it is never killed and outlives the run.')
@@ -3791,6 +3977,15 @@ if ($Is52) {
     # every 5.2 run, EntityLevel included, so what the app was told is in the evidence; the value
     # EntityLevel is the default the key already has, so an entity-level run behaves as before.
     $AppEnv52['Vrf__ModelSet']            = $ModelSet
+    # C1b (e9006ae): THE SCENARIO THE BACK END LOADS - the .scnx Stage 0 read - for the app's composition-variant
+    # guard, which reads that fixture's Simulation-Model-Set-Files line the way Get-ScenarioModelSet does. Every
+    # 5.2 run, like Vrf__ModelSet; on EntityLevel the app reads no composition, so it changes nothing there.
+    $AppEnv52['Vrf__Scenario']            = $ScenarioScnxPath
+    # D2: on the AGGREGATE model set the app is also told the composition variant Stage 0 validated
+    # against the fixture, and - on a derived fixture - the SMS to resolve that composition against
+    # (Vrf:CatalogueSms, "Must be the SMS the fixture loads"). Never set on EntityLevel.
+    if ($CompositionVerdict.Applied -and $CompositionVerdict.Variant) { $AppEnv52['Vrf__CompositionVariant'] = $CompositionVerdict.Variant }
+    if ($CompositionVerdict.CatalogueSms) { $AppEnv52['Vrf__CatalogueSms'] = $CompositionVerdict.CatalogueSms }
     # The interface address is an OVERRIDE only. With -DeviceAddress empty (the default) no
     # Vrf__DeviceAddress is set at all and the app keeps VrfFacade's own 127.0.0.1 - the
     # runner asserts nothing it has not tested. Setting it binds Vrf:DeviceAddress in

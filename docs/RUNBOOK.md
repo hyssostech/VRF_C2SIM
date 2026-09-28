@@ -908,7 +908,8 @@ AGGREGATE DERIVED SMS (package C2): `IronStorm_Centre_52_Aggregate_C2SIM` names
 `C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms` (the AUTHORED US unit types); build it with
 `tools\sms\Deploy-C2SimAggregateSms.ps1` the same way (`-WhatIf` first; tools/sms/README.md). On the
 shipped aggregate SMS those types land EMPTY containers: the composition's "authored" variant runs
-only with that fixture (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7).
+only with that fixture (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7); the runner
+refuses any other pairing at Stage 0 (sec 11j).
 
 ### 0.5.14 LAUNCHING A RUN - the wrapper, the markers, exit 127, the 64-bit rule (2026-09-14)
 
@@ -3909,19 +3910,19 @@ and never as lookup rows) start ONLY when the fixture is on the derived set AND 
 is that same `.sms`. The fixture's SMS is read the way the runner's Stage 0 reads it (`scripts/RunnerLib.ps1`
 `Get-ScenarioModelSet`: the archive's first `.scn`, its `Simulation-Model-Set-Files` line); `Vrf:Scenario` says WHICH
 scenario (the runner's `-Scenario` value, resolved under `userData\scenarios` like the runner does, or a rooted `.scnx`
-path), because the runner exports no setting that tells the derived set from the shipped one (`Vrf__ModelSet` is the
-family). Unset or unreadable = UNKNOWN = refused. On a fixture on the shipped set the start is refused, never degraded:
+path), because `Vrf__ModelSet` names only the family, not the derived set or the shipped one. Unset or unreadable =
+UNKNOWN = refused. On a fixture on the shipped set the start is refused, never degraded:
 `COMPOSITION VARIANT authored needs the derived SMS C2SIM_AggregateTacticalLevel (...), but the fixture <scnx> loads`
 `$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms: there the authored types land EMPTY generic containers ...`.
 Start-up: `COMPOSITION VARIANT <name> (<source>; RL-20260927-04): ... SMS: ... Catalogue: ...` and, for authored
-content, one `TYPE MAP Authored: <id> -> <template> (<type>) ... lands ...` line per authored type. The
-catalogue variant needs no derived set (the derived set only adds types) and runs on either fixture. To run the authored
-variant (G1b) - the fixture deployed per `tools/FixtureGen/README.md`, and until the runner exports `Vrf__Scenario`
-itself (a runner follow-up):
+content, one `TYPE MAP Authored: <id> -> <template> (<type>) ... lands ...` line per authored type. The app runs the
+catalogue variant on either fixture (the derived set only adds types); THE RUNNER DOES NOT (sec 11j: one variable per
+run). To run the authored variant (G1b) - the fixture deployed per `tools/FixtureGen/README.md` - the RUNNER now sets
+all three keys itself (D2, sec 11j: `Vrf__Scenario` on every 5.2 run; `Vrf__CompositionVariant`, and
+`Vrf__CatalogueSms` = the fixture's own derived SMS, once Stage 0 has checked the pairing); the `--env` stopgap written
+here before D2 is no longer needed, and an `--env` value for those keys is overwritten by the runner:
 ```
-scripts/RunScenario.sh --model-set AggregateTacticalLevel --scenario IronStorm_Centre_52_Aggregate_C2SIM \
-  --env Vrf__CompositionVariant=authored --env Vrf__Scenario=IronStorm_Centre_52_Aggregate_C2SIM \
-  --env 'Vrf__CatalogueSms=C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms' ...
+scripts/RunScenario.sh --scenario IronStorm_Centre_52_Aggregate_C2SIM --composition-variant authored ...
 ```
 Offline: `VrfC2SimApp --populate-selftest` walks the catalogue variant on the vendor set (the authored rows SKIPPED, with
 the reason) and pins the guard both ways; `--populate-selftest --variant authored` walks the authored variant on the
@@ -3943,6 +3944,57 @@ at the attach, and the route origin moves with it; a route whose last vertex is 
 that origin can NOT close on ARRIVAL EVIDENCE (SF-1), only on the vendor completion (D-6 hands it on within 100 m); and
 `Can't create data of type pa_move_along_route. No creator found.` prints once, raw, as the scripted task is issued -
 benign, like the same line for other scripted types (E2-2 printed it for two).
+
+### 11j. WHICH MODEL SET A RUN USES - CHOSEN FROM THE ORDER'S TASKED UNITS (D2, RL-20260927-06, 2026-09-27)
+
+Ruling RL-20260927-06 (docs/RULINGS.md; the dated Y-15 note in docs/VRF_5.2_DECISION_EVIDENCE.md), plan row D2. The
+runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-ModelSetByEchelon` in
+`scripts/RunnerLib.ps1`, tested offline in `tests/RunnerTurnaround.Tests.ps1` sec 8z. OFFLINE-PROVEN ONLY.
+
+- THE RULE. The TASKED units are the order's PerformingEntity values, never the init's other units. A unit's
+  echelon is its init `Unit/EchelonCode`. The HIGHEST decides: above BN -> `AggregateTacticalLevel`, and only
+  that; BN and below -> `EntityLevel`. Ladder (JC3IEDM 3.1 UnitTypeSizeCode, APP-6 position-12 order): TEAM <
+  SQUAD < SECT < PLT < COY (= COYG) < BN (= BNG, BATGRP) < RGT < BDE (= BDEGRP) < DIV < CORPS < ARMY < AG < REGION.
+  NOS, NKN, an air or naval code, a code outside the schema, a missing code, a performer that is not a Unit or
+  not in the init: counted BELOW BN and named. An EntityLevel choice made with one of them tasked is a WARN.
+- THE SWITCH. `-ModelSet Auto` (the default) applies the rule. `-ModelSet AggregateTacticalLevel` lifts a
+  BN-and-below order (said as `OVERRIDE UP`). `-ModelSet EntityLevel` on an order above BN is REFUSED:
+  `ABOVE BATTALION IS AGGREGATE-ONLY: -ModelSet EntityLevel was passed, but <order> tasks <units>`. Wrapper:
+  `--model-set auto|EntityLevel|AggregateTacticalLevel`, passed only when given.
+- WHAT FOLLOWS THE CHOICE: the type map (unless -TypeMapFile), `Vrf__ModelSet`, and on the aggregate model set
+  the composition variant. THE FIXTURE DOES NOT: -Scenario names it and Stage 0 VALIDATES it. The runner never
+  picks one - the aggregate fixtures are Iron Storm's, and a Mojave order on them is the cross-AO mix of STP-823.
+  `Vrf__Scenario` = the `.scnx` Stage 0 read goes to the app on every 5.2 run (the input of C1b's guard above).
+- THE COMPOSITION VARIANT (aggregate runs only). `-CompositionVariant` (wrapper `--composition-variant`); not given
+  = what the app would use on its own (an inherited `Vrf__CompositionVariant`, else appsettings.json, else the
+  file's `defaultVariant`, catalogue). The variant's declared SMS must be the fixture's: `authored` only on
+  `IronStorm_Centre_52_Aggregate_C2SIM` (the derived set), `catalogue` only on `IronStorm_Centre_52_Aggregate`
+  (the shipped set) - either mismatch is `COMPOSITION VARIANT/FIXTURE MISMATCH`, with the fixture to use. Exported
+  as `Vrf__CompositionVariant`; on a derived fixture also `Vrf__CatalogueSms` = the fixture's own SMS, as C1b's
+  guard requires. A non-default variant is WARNED: only the app's own `COMPOSITION VARIANT <name>` line proves it
+  ran (an app built before C1b reads the file variant-blind).
+- LINES TO LOOK FOR (Stage 0): `model set : <set> <- auto (RL-20260927-06): highest TASKED echelon <E> (<unit>)
+  is ABOVE BN - aggregate-only` (or `is BN or below - EntityLevel by default`); `tasked : N unit(s) ...`, then one
+  line per unit (code, name, UUID, task count); `composition : variant "<v>" <- ...`; `catalogue : ...`.
+  Manifest: `inputs.modelSet.selection` (every tasked unit and its echelon), `inputs.modelSet.composition`.
+- OLD COMMAND LINES - RULED 2026-09-28 (RL-20260928-01, "D2 as recommended"): the rule stands, with NO downward
+  override. (a) The R9 lines run at EntityLevel again. The runner's default order `data/R9_Mojave_UnitMove_Order.xml`
+  tasks `1.BdeHQ`, a brigade HEADQUARTERS element (one command-post vehicle, DIS category 5 = company) that the test
+  data had coded BDE; it is re-coded BDE -> COY in `data/R9_Mojave_Lean_Initialization.xml`, its `_NoComments` twin,
+  `data/R9_Mojave_Initialization.xml` and `data/GA_LeafCompany_Initialization.xml`. Its SIDC (SFGPUCIZ--EH---) and DIS
+  type are untouched, so nothing it creates changes: FidelityTable still lands M577A2_Command_Post (row F-UCIZ-H, keyed
+  on the SIDC; the EchelonCode is never read for it), RealTemplates still a single M1A2 - checked on the deployed
+  build with `--parse-init`, UnitTranslator.Plan on three entity maps, `--destack-selftest` and `--parse-selftest`.
+  The no-argument 5.2 default, DEMO Way A, COMPLETION_CONFIRM and the N3 GA line all choose EntityLevel <- auto.
+  (b) The E1/E2/E2-2 cut-A entity lines (28ID DIV and 48 IBCT BDE tasked, entity fixture) stay REFUSED: cut A keeps
+  no entity-level regression run; E1/E2 stay as records. (c) `data/L2_Infantry_Initialization.xml` and
+  `data/L3_CpProxy_Initialization.xml` code 1.BdeHQ COYG, not COY (the seat's decision under RL-20260928-01): their
+  1.BdeHQ has SIDC SFGPUCI---EH--- and a zeroed DIS type, so the map reaches key (c) on the EchelonCode, where COY
+  would land Infantry Platoon (USA Army), an aggregate; COYG (company group, ranks with COY) matches no row and keeps
+  the key-(d) M577A2 command post exactly - checked the same way as the four. The R9 order on them is EntityLevel.
+  The golden-trace init under `docs/golden-trace/` is a record and keeps BDE.
+  Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default) run exactly as before; the 5.0.2
+  profile is not touched (no aggregate model set there).
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

@@ -1564,7 +1564,7 @@ Write-Host '=== 8n. F6: scenario/init/order provenance - argument > environment 
 $provPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $provScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
 $provSaved   = @{ s = $env:C2SIM_SCENARIO; i = $env:C2SIM_INIT; o = $env:C2SIM_ORDER }
-$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''
+$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''; $provDefCode = $null
 try {
     $env:C2SIM_SCENARIO = 'RunnerTurnaround_EnvScenario'
     $env:C2SIM_INIT     = (Join-Path $RepoRoot 'data\COA-STP1_Initialization.xml')
@@ -1581,6 +1581,7 @@ try {
     $env:C2SIM_INIT     = $null
     $env:C2SIM_ORDER    = $null
     $provDefOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+    $provDefCode = $LASTEXITCODE
 } finally {
     $env:C2SIM_SCENARIO = $provSaved.s
     $env:C2SIM_INIT     = $provSaved.i
@@ -1978,9 +1979,11 @@ Check '8v3 every one of them has a restore: ApplicationNumber/RestUrl/StompUrl i
 Write-Host '=== 8y. -ModelSet: one key, the type map it selects, and the fixture/type-map mismatch refusal ==='
 $msParam = $(if ($params.ContainsKey('ModelSet')) { $params['ModelSet'] } else { $null })
 $msVs    = @(if ($msParam) { $msParam.Attributes | Where-Object { $_.TypeName.Name -eq 'ValidateSet' } })
-Check '8y the parameter exists, is a ValidateSet of the two model sets and DEFAULTS TO EntityLevel' (
-    $null -ne $msParam -and $null -ne $msParam.DefaultValue -and $msParam.DefaultValue.Value -eq 'EntityLevel' -and
-    $msVs.Count -eq 1 -and (@($msVs[0].PositionalArguments | ForEach-Object { $_.Value }) -join ',') -eq 'EntityLevel,AggregateTacticalLevel') (
+# D2 (RL-20260927-06) added 'Auto' and made it the default; the two model sets are still the only
+# explicit values. What Auto CHOOSES is section 8z.
+Check '8y the parameter exists, is a ValidateSet of Auto + the two model sets and DEFAULTS TO Auto (D2)' (
+    $null -ne $msParam -and $null -ne $msParam.DefaultValue -and $msParam.DefaultValue.Value -eq 'Auto' -and
+    $msVs.Count -eq 1 -and (@($msVs[0].PositionalArguments | ForEach-Object { $_.Value }) -join ',') -eq 'Auto,EntityLevel,AggregateTacticalLevel') (
     $(if ($msParam) { "default=[$($msParam.DefaultValue)]" } else { 'no -ModelSet parameter' }))
 Check '8y Get-ModelSetTypeMapDefault: EntityLevel keeps data/unit-type-map-52.json (the unchanged default); AggregateTacticalLevel -> the aggregate map' (
     (Get-ModelSetTypeMapDefault -ModelSet 'EntityLevel') -eq 'data/unit-type-map-52.json' -and
@@ -2062,9 +2065,10 @@ Check '8y runner: the manifest records the model set and what Stage 0 checked it
     $runnerText -match '\$Manifest\.inputs\.modelSet = \[ordered\]@\{' -and
     $runnerText -match 'fixtureModelSet\s*=' -and $runnerText -match 'typeMapDeclares\s*=')
 # BEHAVIOUR, on the REAL runner in -DryRun: Stage 0 prints the model set whether or not the build
-# tree exists, so these hold in a checkout with nothing built. The default output is 8n's.
-Check '8y the DEFAULT dry run says EntityLevel <- default and that the entity map declares it (nothing else changes)' (
-    $provDefFlat -match 'model set : EntityLevel <- default; exported to the app as Vrf__ModelSet' -and
+# tree exists, so these hold in a checkout with nothing built. The default output is 8n's: the R9 pair, whose
+# tasked units are PLT/COY/COY since RL-20260928-01 re-coded 1.BdeHQ BDE -> COY, so auto keeps it EntityLevel.
+Check '8y the DEFAULT dry run says EntityLevel <- auto and that the entity map declares it (nothing else changes)' (
+    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default; exported to the app as Vrf__ModelSet' -and
     $provDefFlat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
     $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
 $msAggOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ModelSet AggregateTacticalLevel 2>&1 | Out-String)
@@ -2105,6 +2109,367 @@ Check '8y appsettings: Vrf:ModelSet is EntityLevel in BOTH files (the default is
 Check '8y appsettings.Demo.json: the _ModelSet explanation names RL-20260927-01, the map and the fixture' (
     $msDemo.Vrf._ModelSet -match 'RL-20260927-01' -and $msDemo.Vrf._ModelSet -match 'unit-type-map-52-aggregate\.json' -and
     $msDemo.Vrf._ModelSet -match 'IronStorm_Centre_52_Aggregate\.scnx')
+
+# ===========================================================================================
+# 8z. D2: THE MODEL SET CHOSEN BY THE TASKED UNITS' ECHELON (RL-20260927-06; plan row D2)
+#     The owner: "consider the echelon threshold just for the units actually tasked, not the
+#     overall set placed at initialization [...] battalion and b[el]ow can be simulated at an
+#     aggregate level rather than entity. Higher echelons can only be run at aggregate level".
+#     Rule as built (RunnerLib Select-ModelSetByEchelon): the highest EchelonCode among the order's
+#     PerformingEntity values decides; above BN -> AggregateTacticalLevel ONLY; BN and below ->
+#     EntityLevel, liftable by -ModelSet AggregateTacticalLevel; NOS/unknown count below BN, named.
+#     And the composition variant must sit on the SMS it declares (C2's hazard).
+# ===========================================================================================
+Write-Host '=== 8z. D2: -ModelSet Auto - the highest TASKED echelon decides; the variant/fixture pairing ==='
+function Read-D2Fixture { param([string]$Rel) return [System.IO.File]::ReadAllText((Join-Path $RepoRoot $Rel)) }
+# THE LADDER (JC3IEDM 3.1 UnitTypeSizeCode / APP-6 position 12 order; groupings rank with their base unit).
+$zLadder = @('TEAM','SQUAD','SECT','PLT','COY','BN','RGT','BDE','DIV','CORPS','ARMY','AG','REGION')
+$zRanks  = @($zLadder | ForEach-Object { (Get-EchelonRank -Code $_).Rank })
+Check '8z ladder: TEAM<SQUAD<SECT<PLT<COY<BN<RGT<BDE<DIV<CORPS<ARMY<AG<REGION, strictly increasing' (
+    (@(for ($i = 1; $i -lt $zRanks.Count; $i++) { $zRanks[$i] -gt $zRanks[$i - 1] }) -notcontains $false) -and $zRanks[0] -gt 0) (
+    ($zRanks -join ','))
+Check '8z ladder: the grouping codes rank with their base unit (COYG=COY, BNG=BATGRP=BN, BDEGRP=BDE); BN is the threshold' (
+    (Get-EchelonRank 'COYG').Rank -eq (Get-EchelonRank 'COY').Rank -and
+    (Get-EchelonRank 'BNG').Rank -eq (Get-EchelonRank 'BN').Rank -and (Get-EchelonRank 'BATGRP').Rank -eq (Get-EchelonRank 'BN').Rank -and
+    (Get-EchelonRank 'BDEGRP').Rank -eq (Get-EchelonRank 'BDE').Rank -and $script:EchelonBattalionRank -eq (Get-EchelonRank 'BN').Rank)
+Check '8z ladder: case does not matter; SQD/SEC (not schema values) read as SQUAD/SECT and SAY so' (
+    (Get-EchelonRank 'bde').Canonical -eq 'BDE' -and (Get-EchelonRank 'SQD').Canonical -eq 'SQUAD' -and
+    (Get-EchelonRank 'SEC').Canonical -eq 'SECT' -and (Get-EchelonRank 'SQD').Note -match 'not a schema value')
+Check '8z ladder: NOS, NKN, air (WING) and naval (FLEET) are UNRANKED; a non-schema code and a missing one are named as such' (
+    (Get-EchelonRank 'NOS').Status -eq 'unranked' -and (Get-EchelonRank 'NOS').Rank -eq 0 -and
+    (Get-EchelonRank 'NKN').Status -eq 'unranked' -and (Get-EchelonRank 'WING').Status -eq 'unranked' -and
+    (Get-EchelonRank 'FLEET').Status -eq 'unranked' -and (Get-EchelonRank 'XYZ').Status -eq 'not-schema' -and
+    (Get-EchelonRank '').Status -eq 'missing' -and (Get-EchelonRank $null).Status -eq 'missing')
+# THE REAL ORDERS AND INITS. Cut A: 28ID (DIV) T01/T02, 1-112 IN (BN) T10, 48 IBCT (BDE) T02b/T14.
+$zCutA   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
+$zCutAe  = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\IRONSTORM_CUTA_Initialization.xml')
+Check '8z CUT A (28ID DIV, 48 IBCT BDE, 1-112 IN BN tasked) -> AggregateTacticalLevel, auto, highest DIV' (
+    $zCutA.Applied -and $zCutA.Choice -eq 'AggregateTacticalLevel' -and $zCutA.Source -eq 'auto' -and $zCutA.Highest -eq 'DIV' -and
+    @($zCutA.Tasked).Count -eq 3 -and $zCutA.TaskCount -eq 5 -and @($zCutA.Refusals).Count -eq 0 -and @($zCutA.Warnings).Count -eq 0) (
+    "choice=$($zCutA.Choice) highest=$($zCutA.Highest) tasked=$(@($zCutA.Tasked).Count) tasks=$($zCutA.TaskCount)")
+Check '8z CUT A: the above-BN units are exactly 28ID (DIV) and 48 IBCT (BDE) - the BN is not one of them' (
+    ($zCutA.AboveBattalionUnits -join ' | ') -eq '28ID__FRIENDLY_INFANTRY_DIVISION (DIV) | 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE (BDE)') (
+    ($zCutA.AboveBattalionUnits -join ' | '))
+Check '8z CUT A on the E-series init (IRONSTORM_CUTA_Initialization.xml) chooses the same' (
+    $zCutAe.Choice -eq 'AggregateTacticalLevel' -and $zCutAe.Highest -eq 'DIV' -and @($zCutAe.Tasked).Count -eq 3)
+# THE COMPANY-ONLY ORDER IS THE RUNNER'S OWN DEFAULT (RL-20260928-01, "D2 as recommended"): the R9 test data carried
+# 1.BdeHQ - a brigade HEADQUARTERS element, DIS category 5 (company), one M577A2 command post under FidelityTable and
+# one M1A2 under RealTemplates - with EchelonCode BDE, which made the R9 order aggregate-only. The TEST DATA was
+# re-coded BDE -> COY; its SIDC (SFGPUCIZ--EH---) and DIS type are untouched, so no planned creation changes
+# (verified on the deployed build: --parse-init, UnitTranslator.Plan in all three modes on three entity maps, and
+# --destack-selftest / --parse-selftest on the re-coded files). Pinned here, so a regression of the DATA is loud.
+function Get-D2UnitCodes {
+    param([string]$Text, [string]$Uuid)
+    $doc = New-Object System.Xml.XmlDocument
+    $doc.LoadXml($Text)
+    foreach ($u in @($doc.SelectNodes("//*[local-name()='Unit']"))) {
+        $id = $u.SelectSingleNode("./*[local-name()='UUID']")
+        if ($null -eq $id -or $id.InnerText.Trim() -ne $Uuid) { continue }
+        $sidc = $u.SelectSingleNode(".//*[local-name()='APP6C-SIDC']")
+        $dis  = @('DISKind','DISDomain','DISCountry','DISCategory','DISSubCategory','DISSpecific','DISExtra' | ForEach-Object {
+                     $n = $u.SelectSingleNode(".//*[local-name()='$_']"); if ($null -ne $n) { $n.InnerText.Trim() } else { '?' } }) -join '.'
+        return [ordered]@{ Echelon = $u.SelectSingleNode("./*[local-name()='EchelonCode']").InnerText.Trim()
+                           Sidc = $(if ($null -ne $sidc) { $sidc.InnerText.Trim() } else { '' }); Dis = $dis }
+    }
+    return $null
+}
+$zR9Files = @('R9_Mojave_Lean_Initialization.xml', 'R9_Mojave_Lean_Initialization_NoComments.xml', 'R9_Mojave_Initialization.xml',
+              'GA_LeafCompany_Initialization.xml')
+$zR9Units = @($zR9Files | ForEach-Object { Get-D2UnitCodes -Text (Read-D2Fixture ('data\' + $_)) -Uuid '670cfdb2-6c43-f267-ad7f-bd6e739def24' })
+Check '8z the R9 test data carries 1.BdeHQ as COY in the four inits the R9 order runs with (RL-20260928-01; it was BDE)' (
+    (@($zR9Units | ForEach-Object { $_.Echelon }) -join ',') -eq 'COY,COY,COY,COY') (
+    'got ' + (@($zR9Units | ForEach-Object { $_.Echelon }) -join ','))
+Check '8z ... and ONLY the EchelonCode moved: the SIDC still reads SFGPUCIZ--EH--- and the DIS type 11.1.153.5.4.0.0 in all four' (
+    @($zR9Units | Where-Object { $_.Sidc -eq 'SFGPUCIZ--EH---' -and $_.Dis -eq '11.1.153.5.4.0.0' }).Count -eq 4) (
+    (@($zR9Units | ForEach-Object { $_.Sidc + '/' + $_.Dis }) -join ', '))
+$zCo = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+Check '8z a COMPANY-ONLY order - the R9 order (1222.MechPlt PLT, 114.MechCoy COY, 1.BdeHQ COY) -> EntityLevel, auto, highest COY, nothing to warn' (
+    $zCo.Choice -eq 'EntityLevel' -and $zCo.Source -eq 'auto' -and $zCo.Highest -eq 'COY' -and -not $zCo.AboveBattalion -and
+    @($zCo.Tasked).Count -eq 3 -and ($zCo.HighestUnits -join ',') -eq '114.MechCoy,1.BdeHQ' -and
+    @($zCo.Refusals).Count -eq 0 -and @($zCo.Warnings).Count -eq 0) (
+    "choice=$($zCo.Choice) highest=$($zCo.Highest) units=$($zCo.HighestUnits -join ',')")
+$zR9Full = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Initialization.xml')
+$zR9Nc   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization_NoComments.xml')
+$zR9Cc   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\COMPLETION_CONFIRM_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+Check '8z the other R9 lines are EntityLevel too: the FULL R9 init, the NoComments lean init, the COMPLETION_CONFIRM order' (
+    $zR9Full.Choice -eq 'EntityLevel' -and $zR9Nc.Choice -eq 'EntityLevel' -and $zR9Cc.Choice -eq 'EntityLevel' -and
+    $zR9Full.Highest -eq 'COY' -and $zR9Nc.Highest -eq 'COY' -and $zR9Cc.Highest -eq 'COY') (
+    "full=$($zR9Full.Choice)/$($zR9Full.Highest) nocomments=$($zR9Nc.Choice) completion=$($zR9Cc.Choice)")
+# L2 / L3 (the 2026-09-06 probe inits, run with the same R9 order): their 1.BdeHQ has SIDC SFGPUCI---EH--- and a
+# zeroed DIS type, so the fidelity table reaches key (c) - functionId + EchelonCode - where COY would land row F-UCI-E,
+# an Infantry Platoon AGGREGATE. COYG ("company group", a C2SIM EchelonCodeType value that ranks with COY) matches no
+# row there, so it keeps the key-(d) M577A2 command post exactly; the seat's decision under RL-20260928-01 (verified on
+# the deployed build as for the four: --parse-init and UnitTranslator.Plan unchanged in every mode and map).
+$zLFiles = @('L2_Infantry_Initialization.xml', 'L3_CpProxy_Initialization.xml')
+$zLUnits = @($zLFiles | ForEach-Object { Get-D2UnitCodes -Text (Read-D2Fixture ('data\' + $_)) -Uuid '670cfdb2-6c43-f267-ad7f-bd6e739def24' })
+Check '8z L2 / L3 carry 1.BdeHQ as COYG (seat, under RL-20260928-01; it was BDE), SIDC SFGPUCI---EH--- and DIS 0.0.0.0.0.0.0 unchanged' (
+    (@($zLUnits | ForEach-Object { $_.Echelon }) -join ',') -eq 'COYG,COYG' -and
+    @($zLUnits | Where-Object { $_.Sidc -eq 'SFGPUCI---EH---' -and $_.Dis -eq '0.0.0.0.0.0.0' }).Count -eq 2) (
+    (@($zLUnits | ForEach-Object { $_.Echelon + ' ' + $_.Sidc + '/' + $_.Dis }) -join ', '))
+$zL2 = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\L2_Infantry_Initialization.xml')
+$zL3 = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\L3_CpProxy_Initialization.xml')
+# (L3 codes 1222.MechPlt BN on purpose - it was the BN -> HQ-section proxy probe - so its highest tasked echelon is BN.)
+Check '8z the R9 order on L2 (highest COY; COYG ranks with COY) and on L3 (highest BN, its 1222.MechPlt) -> EntityLevel, nothing to warn' (
+    $zL2.Choice -eq 'EntityLevel' -and $zL3.Choice -eq 'EntityLevel' -and $zL2.Highest -eq 'COY' -and $zL3.Highest -eq 'BN' -and
+    (@($zL2.Tasked | Where-Object { $_.Name -eq '1.BdeHQ' } | ForEach-Object { $_.Canonical + '/' + $_.Rank }) -join '') -eq 'COYG/5' -and
+    @($zL2.Warnings).Count -eq 0 -and @($zL3.Warnings).Count -eq 0) (
+    "L2=$($zL2.Choice)/$($zL2.Highest) L3=$($zL3.Choice)/$($zL3.Highest)")
+# THE OVERRIDES.
+$zUp   = Select-ModelSetByEchelon -Requested 'AggregateTacticalLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+$zDown = Select-ModelSetByEchelon -Requested 'EntityLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml') -OrderLabel 'the order IRONSTORM_CUTA_Order.xml'
+$zSame = Select-ModelSetByEchelon -Requested 'entitylevel' -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+Check '8z OVERRIDE UP allowed: an entity-eligible order forced to AggregateTacticalLevel - no refusal, said as OVERRIDE UP' (
+    $zUp.Choice -eq 'AggregateTacticalLevel' -and $zUp.Source -eq 'argument -ModelSet' -and $zUp.Auto -eq 'EntityLevel' -and
+    @($zUp.Refusals).Count -eq 0 -and ($zUp.Notes -join ' ') -match 'OVERRIDE UP')
+Check '8z OVERRIDE DOWN refused: cut A forced to EntityLevel -> "above battalion is aggregate-only: <units>"' (
+    @($zDown.Refusals).Count -eq 1 -and $zDown.Refusals[0] -match 'ABOVE BATTALION IS AGGREGATE-ONLY' -and
+    $zDown.Refusals[0] -match [regex]::Escape('28ID__FRIENDLY_INFANTRY_DIVISION (DIV)') -and
+    $zDown.Refusals[0] -match [regex]::Escape('48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE (BDE)') -and
+    $zDown.Refusals[0] -notmatch '1-112_IN' -and $zDown.Refusals[0] -match 'RL-20260927-06') (@($zDown.Refusals) -join ' | ')
+Check '8z an explicit EntityLevel on a BN-and-below order is simply honoured (case-insensitive, no refusal)' (
+    $zSame.Choice -eq 'EntityLevel' -and $zSame.Source -eq 'argument -ModelSet' -and @($zSame.Refusals).Count -eq 0)
+# ONLY THE TASKED UNITS COUNT: the Iron Storm init holds 2 CORPS, 7 DIV and 19 BDE; an order tasking 1-112 IN alone is BN.
+$zOrderOne = "<Order xmlns=`"http://www.sisostds.org/schemas/C2SIM/1.1`"><Task><ManeuverWarfareTask><UUID>11111111-0000-0000-0000-000000000001</UUID><PerformingEntity>{0}</PerformingEntity></ManeuverWarfareTask></Task></Order>"
+$zBnOnly = Select-ModelSetByEchelon -Is52 $true -OrderText ($zOrderOne -f '8d5b2ba6-73c1-6c55-812c-7c8078ea8c97') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
+Check '8z ONLY THE TASKED UNITS COUNT: 1-112 IN (BN) alone on the Iron Storm init (CORPS/DIV/BDE untasked) -> EntityLevel' (
+    $zBnOnly.Choice -eq 'EntityLevel' -and $zBnOnly.Highest -eq 'BN' -and @($zBnOnly.Tasked).Count -eq 1)
+# THE TO TWINS (D-7): STP exports each formation twice; whichever twin is tasked counts, at its own code.
+$zTwin = Select-ModelSetByEchelon -Is52 $true -OrderText ($zOrderOne -f 'da1fa527-6d13-cf54-8eb8-fab9d9c9e12c') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
+Check '8z the OTHER TO twin of 48 IBCT (48IBCT/28ID__FOUR_EIGHT_TH...) tasked alone is still a BDE -> AggregateTacticalLevel' (
+    $zTwin.Choice -eq 'AggregateTacticalLevel' -and $zTwin.Highest -eq 'BDE' -and ($zTwin.HighestUnits -join '') -match '^48IBCT/28ID__FOUR_EIGHT_TH')
+# MIXED SIDES: a hostile formation that is TASKED counts like a friendly one (the ruling does not split by side).
+$zOrderTwo = "<Order xmlns=`"http://www.sisostds.org/schemas/C2SIM/1.1`"><Task><UUID>11111111-0000-0000-0000-000000000001</UUID><PerformingEntity>{0}</PerformingEntity></Task><Task><UUID>11111111-0000-0000-0000-000000000002</UUID><PerformingEntity>{1}</PerformingEntity></Task></Order>"
+$zMixed = Select-ModelSetByEchelon -Is52 $true -OrderText ($zOrderTwo -f '8d5b2ba6-73c1-6c55-812c-7c8078ea8c97', 'a70d50f9-1151-275d-a298-e006f2519715') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
+Check '8z MIXED SIDES: friendly 1-112 IN (BN) + HOSTILE 105th AT BDE (BDE) tasked -> AggregateTacticalLevel; the affiliation is recorded' (
+    $zMixed.Choice -eq 'AggregateTacticalLevel' -and $zMixed.Highest -eq 'BDE' -and
+    (@($zMixed.Tasked | ForEach-Object { $_.Affiliation }) -join '') -eq 'FH') ((@($zMixed.Tasked | ForEach-Object { $_.Affiliation + ':' + $_.EchelonCode }) -join ','))
+# NOS IN REAL DATA: COA-STP1 (the wrapper's default pair) tasks five BNs, four COYs and two NOS units.
+$zCoa = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\COA-STP1_Order.xml') -InitText (Read-D2Fixture 'data\COA-STP1_Initialization.xml')
+Check '8z NOS: COA-STP1 -> EntityLevel (highest BN) and a WARNING that NAMES both NOS units (A/6-56/HHC, 1-1/2/1_AD)' (
+    $zCoa.Choice -eq 'EntityLevel' -and $zCoa.Highest -eq 'BN' -and @($zCoa.Warnings).Count -eq 1 -and
+    $zCoa.Warnings[0] -match [regex]::Escape('A/6-56/HHC [NOS]') -and $zCoa.Warnings[0] -match [regex]::Escape('1-1/2/1_AD [NOS]') -and
+    $zCoa.Warnings[0] -match 'counted BELOW BN') (@($zCoa.Warnings) -join ' | ')
+# A NOS unit whose NAME says brigade (364th TK BDE (res), hostile, SIDC without an echelon) cannot lift the choice.
+$zNosBde = Select-ModelSetByEchelon -Is52 $true -OrderText ($zOrderOne -f '43cc164f-9c49-875b-90b4-d86a206606d6') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
+Check '8z NOS cannot lift: 364th TK BDE (res), coded NOS, tasked alone -> EntityLevel WITH a warning to override' (
+    $zNosBde.Choice -eq 'EntityLevel' -and @($zNosBde.Warnings).Count -eq 1 -and $zNosBde.Warnings[0] -match '364th_TK_BDE' -and
+    $zNosBde.Warnings[0] -match '-ModelSet AggregateTacticalLevel')
+# THE ADVERSARIAL SET, synthetic: every way a tasked unit can fail to carry a ranked echelon.
+$zInit = @'
+<MessageBody xmlns="http://www.sisostds.org/schemas/C2SIM/1.1"><C2SIMInitializationBody><ObjectDefinitions>
+<Entity><ActorEntity><CollectiveEntity><MilitaryOrganization>
+<Unit><Name>U-xyz</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000a</UUID><EchelonCode>XYZ</EchelonCode></Unit>
+<Unit><Name>U-missing</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000b</UUID></Unit>
+<Unit><Name>U-nkn</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000c</UUID><EchelonCode>NKN</EchelonCode></Unit>
+<Unit><Name>U-wing</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000d</UUID><EchelonCode>WING</EchelonCode></Unit>
+<Unit><Name>U-sqd</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000e</UUID><EchelonCode>SQD</EchelonCode></Unit>
+<Unit><APP6CSymbol><APP6C-SIDC>SFGPUCI----H---</APP6C-SIDC></APP6CSymbol><Name>U-nos-sidc-brigade</Name><UUID>aaaaaaaa-0000-0000-0000-00000000000f</UUID><EchelonCode>NOS</EchelonCode></Unit>
+<Unit><Name>U-dup-first</Name><UUID>aaaaaaaa-0000-0000-0000-000000000010</UUID><EchelonCode>COY</EchelonCode></Unit>
+<Unit><Name>U-dup-second</Name><UUID>aaaaaaaa-0000-0000-0000-000000000010</UUID><EchelonCode>DIV</EchelonCode></Unit>
+</MilitaryOrganization></CollectiveEntity></ActorEntity></Entity>
+<Entity><ActorEntity><Platform><Name>P-tank</Name><UUID>aaaaaaaa-0000-0000-0000-000000000020</UUID></Platform></ActorEntity></Entity>
+</ObjectDefinitions></C2SIMInitializationBody></MessageBody>
+'@
+$zPerf = @('aaaaaaaa-0000-0000-0000-00000000000a','aaaaaaaa-0000-0000-0000-00000000000b','aaaaaaaa-0000-0000-0000-00000000000c',
+           'aaaaaaaa-0000-0000-0000-00000000000d','aaaaaaaa-0000-0000-0000-00000000000e','AAAAAAAA-0000-0000-0000-00000000000F',
+           'aaaaaaaa-0000-0000-0000-000000000020','bbbbbbbb-0000-0000-0000-00000000dead')
+$zOrderMany = '<Order xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">' + (@(for ($i = 0; $i -lt $zPerf.Count; $i++) {
+    '<Task><UUID>22222222-0000-0000-0000-00000000000{0}</UUID><PerformingEntity>{1}</PerformingEntity></Task>' -f $i, $zPerf[$i] }) -join '') + '</Order>'
+$zAdv = Select-ModelSetByEchelon -Is52 $true -OrderText $zOrderMany -InitText $zInit
+$zSt  = @{}; foreach ($t in @($zAdv.Tasked)) { $zSt[$t.Name] = $t }
+Check '8z UNKNOWN/NOS handling: 8 performers, none ranked above BN -> EntityLevel; only SQD ranks (SQUAD)' (
+    $zAdv.Choice -eq 'EntityLevel' -and @($zAdv.Tasked).Count -eq 8 -and $zAdv.Highest -eq 'SQUAD' -and @($zAdv.Refusals).Count -eq 0) (
+    "choice=$($zAdv.Choice) highest=$($zAdv.Highest) tasked=$(@($zAdv.Tasked).Count)")
+Check '8z UNKNOWN/NOS handling: each performer carries its own status (not-schema, missing, unranked x3, not-a-unit, not-in-init)' (
+    $zSt['U-xyz'].Status -eq 'not-schema' -and $zSt['U-missing'].Status -eq 'missing' -and $zSt['U-nkn'].Status -eq 'unranked' -and
+    $zSt['U-wing'].Status -eq 'unranked' -and $zSt['U-nos-sidc-brigade'].Status -eq 'unranked' -and
+    $zSt['(a Platform, not a Unit)'].Status -eq 'not-a-unit' -and $zSt['(not in the init)'].Status -eq 'not-in-init') (
+    (@($zAdv.Tasked | ForEach-Object { $_.Name + '=' + $_.Status }) -join ', '))
+Check '8z UNKNOWN/NOS handling: the SIDC''s own echelon (H) of a NOS unit is RECORDED, never decisive; UUIDs match case-insensitively' (
+    $zSt['U-nos-sidc-brigade'].SidcEchelon -eq 'H' -and $zSt['U-nos-sidc-brigade'].Rank -eq 0)
+Check '8z UNKNOWN/NOS handling: the EntityLevel choice is WARNED, naming the unranked units, and the stranger is WARNED on its own' (
+    @($zAdv.Warnings | Where-Object { $_ -match 'carry no ranked echelon' -and $_ -match 'U-xyz \[XYZ\]' -and $_ -match 'U-missing \[missing\]' }).Count -eq 1 -and
+    @($zAdv.Warnings | Where-Object { $_ -match 'bbbbbbbb-0000-0000-0000-00000000dead is not in' }).Count -eq 1) (@($zAdv.Warnings) -join ' | ')
+$zDup = Select-ModelSetByEchelon -Is52 $true -OrderText ($zOrderOne -f 'aaaaaaaa-0000-0000-0000-000000000010') -InitText $zInit
+Check '8z a UUID that appears TWICE in the init with different echelons: the first is used and the clash is WARNED' (
+    $zDup.Choice -eq 'EntityLevel' -and $zDup.Highest -eq 'COY' -and
+    @($zDup.Warnings | Where-Object { $_ -match 'UUID twice with different echelons' }).Count -eq 1)
+# AN ORDER THAT TASKS NOTHING, AN UNPARSEABLE ORDER, AN INIT WITHOUT ECHELONS.
+$zNone  = Select-ModelSetByEchelon -Is52 $true -OrderText '<Order xmlns="http://www.sisostds.org/schemas/C2SIM/1.1"><Task><UUID>x</UUID></Task><Task><UUID>y</UUID></Task></Order>' -InitText $zInit
+$zBad   = Select-ModelSetByEchelon -Is52 $true -OrderText '<Order><Task>' -InitText $zInit
+$zNoEch = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText ((Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml') -replace '<EchelonCode>[^<]*</EchelonCode>', '')
+Check '8z an order that TASKS NOTHING (2 tasks, 0 PerformingEntity) -> EntityLevel, WARNED "tasks NO unit"' (
+    $zNone.Choice -eq 'EntityLevel' -and $zNone.TaskCount -eq 2 -and @($zNone.Tasked).Count -eq 0 -and
+    @($zNone.Warnings | Where-Object { $_ -match 'tasks NO unit' }).Count -eq 1)
+Check '8z an UNPARSEABLE order -> EntityLevel, WARNED that the choice rests on nothing (PushOrder is the authority)' (
+    $zBad.Choice -eq 'EntityLevel' -and -not $zBad.OrderParsed -and
+    @($zBad.Warnings | Where-Object { $_ -match 'could not be parsed' -and $_ -match 'rests on nothing' }).Count -eq 1)
+Check '8z an INIT WITHOUT ECHELONS: cut A falls to EntityLevel - and all three tasked units are WARNED as missing' (
+    $zNoEch.Choice -eq 'EntityLevel' -and @($zNoEch.Tasked | Where-Object { $_.Status -eq 'missing' }).Count -eq 3 -and
+    @($zNoEch.Warnings | Where-Object { $_ -match '3 tasked unit\(s\) carry no ranked echelon' -and $_ -match '28ID__FRIENDLY_INFANTRY_DIVISION \[missing\]' }).Count -eq 1)
+# THE 5.0.2 PROFILE: nothing read, nothing said - its output is the regression control.
+$z502 = Select-ModelSetByEchelon -Is52 $false -OrderText '<not xml' -InitText '<not xml'
+$z502a = Select-ModelSetByEchelon -Requested 'AggregateTacticalLevel' -Is52 $false -OrderText '' -InitText ''
+Check '8z 5.0.2: the selector is NOT applied (EntityLevel <- default, nothing read or warned); an explicit aggregate is left to the pairing refusal' (
+    -not $z502.Applied -and $z502.Choice -eq 'EntityLevel' -and $z502.Source -eq 'default' -and @($z502.Warnings).Count -eq 0 -and
+    $z502a.Choice -eq 'AggregateTacticalLevel' -and $z502a.Source -eq 'argument -ModelSet')
+# THE PAIRING MESSAGES WHEN THE CHOICE WAS NOT TYPED, and when EntityLevel is not a way out.
+$zScEnt = [ordered]@{ Path = 'C:\x\Ent.scnx'; Found = $true; Readable = $true; Sms = '$(DATA_DIR)\simulationModelSets\EntityLevel.sms'; ModelSet = 'EntityLevel'; Via = 'entitylevel.sms' }
+$zTmAgg = [ordered]@{ Path = 'data/unit-type-map-52-aggregate.json'; Found = $true; ModelSet = 'AggregateTacticalLevel'; Via = 'modelSetKey' }
+$zPairAuto = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $zTmAgg -Scenario $zScEnt -ChoiceLabel 'auto: highest TASKED echelon DIV' -AggregateOnly $true
+$zPairArg  = Test-ModelSetPairing -ModelSet 'AggregateTacticalLevel' -Is52 $true -TypeMap $zTmAgg -Scenario $zScEnt
+Check '8z pairing, auto + above BN: "the model set is ... (auto: ...)", and it never suggests -ModelSet EntityLevel' (
+    @($zPairAuto.Refusals).Count -eq 1 -and $zPairAuto.Refusals[0] -match 'FIXTURE/TYPE-MAP MISMATCH: the model set is AggregateTacticalLevel \(auto: ' -and
+    $zPairAuto.Refusals[0] -notmatch 'or -ModelSet EntityLevel' -and $zPairAuto.Refusals[0] -match 'aggregate-only')
+Check '8z pairing, typed and BN-and-below: the A1 wording is unchanged ("-ModelSet is ...", "or -ModelSet EntityLevel")' (
+    @($zPairArg.Refusals).Count -eq 1 -and $zPairArg.Refusals[0] -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel' -and
+    $zPairArg.Refusals[0] -match 'or -ModelSet EntityLevel')
+# THE COMPOSITION VARIANT AND THE FIXTURE. The committed fixtures' own SMS lines, read from the .scnx.
+$zComp    = Get-CompositionVariants -Path (Join-Path $RepoRoot 'data\unit-composition-52-aggregate.json')
+$zFxShip  = Get-ScenarioModelSet -ScnxPath (Join-Path $RepoRoot 'tools\FixtureGen\frame_variants\IronStorm_Centre_52_Aggregate.scnx')
+$zFxDerv  = Get-ScenarioModelSet -ScnxPath (Join-Path $RepoRoot 'tools\FixtureGen\frame_variants\IronStorm_Centre_52_Aggregate_C2SIM.scnx')
+Check '8z composition file: defaultVariant catalogue; catalogue -> the SHIPPED set + IronStorm_Centre_52_Aggregate, authored -> the DERIVED set + _C2SIM' (
+    $zComp.Parsed -and $zComp.DefaultVariant -eq 'catalogue' -and
+    (Get-AggregateSmsKind $zComp.Variants['catalogue'].Sms) -eq 'shipped' -and $zComp.Variants['catalogue'].Fixture -eq 'IronStorm_Centre_52_Aggregate' -and
+    (Get-AggregateSmsKind $zComp.Variants['authored'].Sms) -eq 'derived' -and $zComp.Variants['authored'].Fixture -eq 'IronStorm_Centre_52_Aggregate_C2SIM')
+Check '8z the committed fixtures: _Aggregate loads the SHIPPED set, _Aggregate_C2SIM the DERIVED set the authored variant names' (
+    $zFxShip.Readable -and (Get-AggregateSmsKind $zFxShip.Sms) -eq 'shipped' -and
+    $zFxDerv.Readable -and (ConvertTo-SmsKey $zFxDerv.Sms) -eq (ConvertTo-SmsKey $zComp.Variants['authored'].Sms)) (
+    "shipped=[$($zFxShip.Sms)] derived=[$($zFxDerv.Sms)]")
+Check '8z SMS kinds: the vendor file by macro or absolute path is shipped; a rooted non-vendor .sms is derived; EntityLevel.sms is neither' (
+    (Get-AggregateSmsKind 'C:\MAK\vrforces5.2d\data\simulationModelSets\AggregateTacticalLevel.sms') -eq 'shipped' -and
+    (Get-AggregateSmsKind 'c:/c2sim/vrf-sms/C2SIM_AggregateTacticalLevel.sms') -eq 'derived' -and
+    (Get-AggregateSmsKind '$(DATA_DIR)\simulationModelSets\EntityLevel.sms') -eq 'other' -and (Get-AggregateSmsKind '') -eq 'none')
+# Synthetic scenario records with the committed fixtures' SMS strings and the aggregate model set, so the
+# pairing is checked the same on a machine where the derived set is not deployed (its include then unread).
+$zScShip = [ordered]@{ Path = 'IronStorm_Centre_52_Aggregate.scnx'; Found = $true; Readable = $true; Sms = $zFxShip.Sms; ModelSet = 'AggregateTacticalLevel'; Via = 'test' }
+$zScDerv = [ordered]@{ Path = 'IronStorm_Centre_52_Aggregate_C2SIM.scnx'; Found = $true; Readable = $true; Sms = $zFxDerv.Sms; ModelSet = 'AggregateTacticalLevel'; Via = 'test' }
+$zScGone = [ordered]@{ Path = 'NotDeployed.scnx'; Found = $false; Readable = $false; Sms = ''; ModelSet = 'Unknown'; Via = 'no such file' }
+$zAgg = 'AggregateTacticalLevel'
+$zPc  = Test-CompositionVariantPairing -ModelSet $zAgg -Composition $zComp -Scenario $zScShip
+$zPa  = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'authored' -VariantPassed $true -Composition $zComp -Scenario $zScDerv
+$zPaS = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'authored' -VariantPassed $true -Composition $zComp -Scenario $zScShip
+$zPcD = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'catalogue' -VariantPassed $true -Composition $zComp -Scenario $zScDerv
+$zPcDd= Test-CompositionVariantPairing -ModelSet $zAgg -Composition $zComp -Scenario $zScDerv
+$zPx  = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'doctrine' -VariantPassed $true -Composition $zComp -Scenario $zScShip
+$zPe  = Test-CompositionVariantPairing -ModelSet 'EntityLevel' -Variant 'authored' -VariantPassed $true -Composition $zComp -Scenario $zScEnt
+$zPe0 = Test-CompositionVariantPairing -ModelSet 'EntityLevel' -Composition $zComp -Scenario $zScEnt
+$zPg  = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'authored' -VariantPassed $true -Composition $zComp -Scenario $zScGone
+$zPk  = Test-CompositionVariantPairing -ModelSet $zAgg -Composition $zComp -Scenario $zScShip -PredictedCatalogueSms 'C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms' -PredictedCatalogueSmsSource 'INHERITED env Vrf__CatalogueSms'
+$zPk0 = Test-CompositionVariantPairing -ModelSet $zAgg -Composition $zComp -Scenario $zScShip -PredictedCatalogueSms '$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms' -PredictedCatalogueSmsSource 'appsettings.json Vrf:CatalogueSms'
+Check '8z CLEAN: the default variant (catalogue) on the SHIPPED-set fixture pairs; nothing to export as CatalogueSms, nothing to warn' (
+    $zPc.Applied -and $zPc.Variant -eq 'catalogue' -and $zPc.Matches -eq $true -and @($zPc.Refusals).Count -eq 0 -and
+    $zPc.CatalogueSms -eq '' -and @($zPc.Warnings).Count -eq 0 -and $zPc.Source -match 'defaultVariant')
+Check '8z CLEAN: authored on the DERIVED-set fixture pairs; CatalogueSms = that SMS; WARNED that the app must honour the variant key' (
+    $zPa.Matches -eq $true -and @($zPa.Refusals).Count -eq 0 -and
+    (ConvertTo-SmsKey $zPa.CatalogueSms) -eq (ConvertTo-SmsKey $zComp.Variants['authored'].Sms) -and
+    @($zPa.Warnings | Where-Object { $_ -match 'Vrf:CompositionVariant' }).Count -eq 1)
+Check '8z DIRTY: authored on the SHIPPED-set fixture is REFUSED (its types land EMPTY containers), naming the _C2SIM fixture' (
+    @($zPaS.Refusals).Count -eq 1 -and $zPaS.Refusals[0] -match 'COMPOSITION VARIANT/FIXTURE MISMATCH' -and
+    $zPaS.Refusals[0] -match 'EMPTY generic containers' -and $zPaS.Refusals[0] -match '-Scenario IronStorm_Centre_52_Aggregate_C2SIM' -and
+    $zPaS.Refusals[0] -match '-CompositionVariant catalogue') (@($zPaS.Refusals) -join ' | ')
+Check '8z DIRTY: catalogue on the DERIVED-set fixture is REFUSED (one variable per run), passed or by default' (
+    @($zPcD.Refusals).Count -eq 1 -and $zPcD.Refusals[0] -match 'One variable per run' -and
+    $zPcD.Refusals[0] -match '-Scenario IronStorm_Centre_52_Aggregate[,.]' -and $zPcD.Refusals[0] -match '-CompositionVariant authored' -and
+    @($zPcDd.Refusals).Count -eq 1 -and $zPcDd.Refusals[0] -match 'One variable per run') (@($zPcD.Refusals) -join ' | ')
+Check '8z DIRTY: a variant the composition file does not declare is REFUSED, listing the ones it does' (
+    @($zPx.Refusals).Count -eq 1 -and $zPx.Refusals[0] -match '"doctrine"' -and $zPx.Refusals[0] -match 'catalogue, authored')
+Check '8z DIRTY: -CompositionVariant on EntityLevel is REFUSED; left out, the variant is simply not applied' (
+    @($zPe.Refusals).Count -eq 1 -and $zPe.Refusals[0] -match 'read ONLY on AggregateTacticalLevel' -and
+    -not $zPe0.Applied -and @($zPe0.Refusals).Count -eq 0)
+Check '8z an unreadable (undeployed) fixture: the variant is NOT checked here (a note) - the model-set check owns that refusal' (
+    @($zPg.Refusals).Count -eq 0 -and @($zPg.Notes | Where-Object { $_ -match 'NOT checked' }).Count -eq 1)
+Check '8z CATALOGUE SMS: on the shipped-set fixture a predicted DERIVED Vrf:CatalogueSms is REFUSED; the shipped one is accepted' (
+    @($zPk.Refusals).Count -eq 1 -and $zPk.Refusals[0] -match 'CATALOGUE SMS MISMATCH' -and $zPk.Refusals[0] -match 'INHERITED env' -and
+    @($zPk0.Refusals).Count -eq 0)
+# THE VARIANT THE APP WOULD USE ON ITS OWN (C1b: env > appsettings.json > blank = the file's default) is the
+# one checked when -CompositionVariant is not typed - and on EntityLevel it is simply not applied.
+$zPenv = Test-CompositionVariantPairing -ModelSet $zAgg -Variant 'authored' -VariantSource 'INHERITED env Vrf__CompositionVariant' -Composition $zComp -Scenario $zScShip
+$zPenvE= Test-CompositionVariantPairing -ModelSet 'EntityLevel' -Variant 'authored' -VariantSource 'INHERITED env Vrf__CompositionVariant' -Composition $zComp -Scenario $zScEnt
+Check '8z a variant INHERITED from the environment is the one validated (and named as inherited); on EntityLevel it is not applied' (
+    $zPenv.Variant -eq 'authored' -and $zPenv.Source -eq 'INHERITED env Vrf__CompositionVariant' -and
+    @($zPenv.Refusals).Count -eq 1 -and $zPenv.Refusals[0] -match '\(INHERITED env Vrf__CompositionVariant\)' -and
+    -not $zPenvE.Applied -and @($zPenvE.Refusals).Count -eq 0)
+# THE RUNNER WIRING.
+$zCvParam = $(if ($params.ContainsKey('CompositionVariant')) { $params['CompositionVariant'] } else { $null })
+Check '8z runner: -CompositionVariant exists, is a plain string defaulting to EMPTY (the file''s defaultVariant)' (
+    $null -ne $zCvParam -and $null -ne $zCvParam.DefaultValue -and $zCvParam.DefaultValue.Value -eq '')
+Check '8z runner: Stage 0 calls the selector, sends ITS refusals to $bad and takes the CHOSEN model set before the type map' (
+    $runnerText -match '\$ModelSetSelection = Select-ModelSetByEchelon -Requested \$ModelSetRequested -Is52 \$Is52' -and
+    $runnerText -match 'foreach \(\$x in @\(\$ModelSetSelection\.Refusals\)\) \{ \$bad \+= \$x \}' -and
+    $runnerText.IndexOf('$ModelSet = $ModelSetSelection.Choice') -gt 0 -and
+    $runnerText.IndexOf('$ModelSet = $ModelSetSelection.Choice') -lt $runnerText.IndexOf('$TypeMapFile52  = $(if ($TypeMapFile)'))
+Check '8z runner: the pairing is told HOW the model set was chosen and whether EntityLevel is a way out' (
+    $runnerText -match '-ChoiceLabel \$ModelSetChoiceLabel -AggregateOnly \(\[bool\]\$ModelSetSelection\.AboveBattalion\)')
+Check '8z runner: the composition refusals go to $bad (5.2) and the app gets the variant / catalogue SMS ONLY from the verdict' (
+    $runnerText -match 'if \(\$Is52\) \{ foreach \(\$x in @\(\$CompositionVerdict\.Refusals\)\) \{ \$bad \+= \$x \} \}' -and
+    $runnerText -match "\`$AppEnv52\['Vrf__CompositionVariant'\] = \`$CompositionVerdict\.Variant" -and
+    $runnerText -match "\`$AppEnv52\['Vrf__CatalogueSms'\] = \`$CompositionVerdict\.CatalogueSms")
+Check '8z runner: Vrf__Scenario (C1b''s guard input) is exported on EVERY 5.2 run, from the .scnx Stage 0 read, next to Vrf__ModelSet' (
+    $runnerText -match "\`$AppEnv52\['Vrf__Scenario'\]\s+= \`$ScenarioScnxPath" -and
+    $runnerText.IndexOf("`$AppEnv52['Vrf__Scenario']") -gt $runnerText.IndexOf("`$AppEnv52['Vrf__ModelSet']") -and
+    $runnerText -match "\`$ScenarioScnxPath = Join-Path \`$VrfRoot \('userData\\scenarios\\\{0\}\.scnx' -f \`$Scenario\)")
+Check '8z runner: the variant the app would resolve itself (env > appsettings) is the one checked when -CompositionVariant is not typed' (
+    $runnerText -match "\`$CompositionVariantEnv\s+= \[Environment\]::GetEnvironmentVariable\('Vrf__CompositionVariant'\)" -and
+    $runnerText -match '-VariantPassed \$CompositionVariantPassed -VariantSource \$CompositionVariantAskedFrom')
+Check '8z runner: the manifest records the selection (the tasked units) and the composition pairing, 5.2 only' (
+    $runnerText -match "\`$Manifest\.inputs\.modelSet\['selection'\] = \[ordered\]@\{" -and
+    $runnerText -match "\`$Manifest\.inputs\.modelSet\['composition'\] = " -and $runnerText -match 'tasked\s+= @\(\$ModelSetSelection\.Tasked')
+# BEHAVIOUR ON THE REAL RUNNER (-DryRun). 8n's all-defaults run is the R9 pair - since RL-20260928-01 a company-only
+# order, so it runs at EntityLevel exactly as before D2. Then cut A and the overrides, each one dry run.
+Check '8z DRY RUN, all defaults (the R9 pair): EntityLevel <- auto, the 3 tasked units listed (1.BdeHQ as COY), nothing refused on the model set' (
+    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default' -and
+    $provDefFlat -match 'tasked : 3 unit\(s\) named by the PerformingEntity of 3 task\(s\) in R9_Mojave_UnitMove_Order\.xml' -and
+    $provDefFlat -match 'COY 1\.BdeHQ 670cfdb2-6c43-f267-ad7f-bd6e739def24' -and
+    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH' -and $provDefFlat -notmatch 'ABOVE BATTALION' -and $provDefFlat -notmatch 'MODEL SET:') "exit=$provDefCode"
+if ($provDefFlat -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8z all-defaults plan legs SKIPPED - that dry run did not reach the planned sequence in this checkout (no Release-5.2 binaries)' $true
+} else {
+    Check '8z DRY RUN, all defaults: exit 0, the entity map, Vrf__ModelSet=EntityLevel and NOTHING aggregate in the plan' (
+        $provDefCode -eq 0 -and $provDefFlat -match 'Vrf__ModelSet=EntityLevel' -and $provDefFlat -match 'Vrf__TypeMapFile=data/unit-type-map-52\.json' -and
+        $provDefFlat -notmatch 'Vrf__CompositionVariant' -and $provDefFlat -notmatch 'Vrf__CatalogueSms' -and $provDefFlat -notmatch 'composition :') "exit=$provDefCode"
+    Check '8z DRY RUN, all defaults: the plan exports Vrf__Scenario = the .scnx Stage 0 read (the default scenario here)' (
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\Sample\\FirstExperience\\firstexperience\.scnx' -and
+        $provDefFlat -match 'Vrf__Scenario=\S*firstexperience\.scnx \(the \.scnx Stage 0 read')
+}
+$zRun = { param([string[]]$A) $o = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck @A 2>&1 | Out-String); return @($LASTEXITCODE, ($o -replace '\s+', ' ')) }
+$zCutArgs = @('-Init', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Initialization.xml'), '-Order', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Order.xml'), '-ClientId', 'Not Set')
+$zDownRun = & $zRun (@($zCutArgs) + @('-ModelSet', 'EntityLevel'))
+Check '8z DRY RUN, cut A with -ModelSet EntityLevel: REFUSED at Stage 0 (exit 2), "above battalion is aggregate-only" naming 28ID and 48 IBCT' (
+    $zDownRun[0] -eq 2 -and $zDownRun[1] -match 'ABOVE BATTALION IS AGGREGATE-ONLY: -ModelSet EntityLevel was passed, but the order IRONSTORM_CUTA_Order\.xml tasks 28ID__FRIENDLY_INFANTRY_DIVISION \(DIV\), 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE \(BDE\)' -and
+    $zDownRun[1] -match 'model set : EntityLevel <- argument -ModelSet \(auto would choose AggregateTacticalLevel\)' -and
+    $zDownRun[1] -match 'NOTHING was launched') "exit=$($zDownRun[0])"
+$zAggRun = & $zRun (@($zCutArgs) + @('-Scenario', 'IronStorm_Centre_52_Aggregate'))
+Check '8z DRY RUN, cut A auto on the aggregate fixture: AggregateTacticalLevel, the aggregate map, catalogue variant - all three reach the app' (
+    $zAggRun[0] -in @(0, 2) -and
+    $zAggRun[1] -match 'model set : AggregateTacticalLevel <- auto \(RL-20260927-06\): highest TASKED echelon DIV \(28ID__FRIENDLY_INFANTRY_DIVISION\) is ABOVE BN' -and
+    $zAggRun[1] -match 'type map : data/unit-type-map-52-aggregate\.json - declares AggregateTacticalLevel' -and
+    # The SOURCE depends on the deployed build: its appsettings.json carries Vrf:CompositionVariant from C1b
+    # on ("appsettings.json Vrf:CompositionVariant"), an older one does not ("the defaultVariant of ...").
+    $zAggRun[1] -match 'composition : variant "catalogue" <- (appsettings\.json Vrf:CompositionVariant|the defaultVariant of )' -and
+    $zAggRun[1] -notmatch 'ABOVE BATTALION IS AGGREGATE-ONLY' -and $zAggRun[1] -notmatch 'COMPOSITION VARIANT/FIXTURE MISMATCH') "exit=$($zAggRun[0])"
+if ($zAggRun[1] -match 'DRY RUN - the full planned sequence') {
+    Check '8z ... and its plan exports Vrf__ModelSet=AggregateTacticalLevel, the aggregate map, Vrf__Scenario and Vrf__CompositionVariant=catalogue' (
+        $zAggRun[1] -match 'would set, for the app only \(profile 5\.2\): Vrf__ModelSet=AggregateTacticalLevel' -and
+        $zAggRun[1] -match 'would set, for the app only \(profile 5\.2\): Vrf__TypeMapFile=data/unit-type-map-52-aggregate\.json' -and
+        $zAggRun[1] -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\IronStorm_Centre_52_Aggregate\.scnx' -and
+        $zAggRun[1] -match 'would set, for the app only \(profile 5\.2\): Vrf__CompositionVariant=catalogue')
+} else {
+    Check '8z ... plan leg SKIPPED - that dry run did not reach the planned sequence in this checkout' $true
+}
+$zUpRun = & $zRun @('-ModelSet', 'AggregateTacticalLevel')
+Check '8z DRY RUN, OVERRIDE UP on the (company-only) R9 default: accepted by the selector (OVERRIDE UP), refused only by the entity scenario' (
+    $zUpRun[0] -eq 2 -and $zUpRun[1] -match 'model set : AggregateTacticalLevel <- argument -ModelSet \(auto would choose EntityLevel\)' -and
+    $zUpRun[1] -match 'OVERRIDE UP' -and $zUpRun[1] -notmatch 'ABOVE BATTALION IS AGGREGATE-ONLY' -and
+    $zUpRun[1] -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel') "exit=$($zUpRun[0])"
+$zVarRun = & $zRun @('-CompositionVariant', 'authored')
+Check '8z DRY RUN, -CompositionVariant on an EntityLevel run: REFUSED at Stage 0 (exit 2)' (
+    $zVarRun[0] -eq 2 -and $zVarRun[1] -match '-CompositionVariant authored was passed but the model set is EntityLevel') "exit=$($zVarRun[0])"
+# THE WRAPPER: --composition-variant passed ONLY when given; --model-set documents auto.
+Check '8z RunScenario.sh: --composition-variant is parsed and passed as -CompositionVariant ONLY when given; --model-set documents auto' (
+    $msShText -match '--composition-variant\)\s+COMPOSITION_VARIANT="\$2"; shift 2 ;;' -and
+    $msShText -match '\[ -n "\$COMPOSITION_VARIANT" \] && ARGS\+=\(-CompositionVariant "\$COMPOSITION_VARIANT"\)' -and
+    $msShText -match "COMPOSITION_VARIANT=''" -and $msShText -match '--model-set NAME\s+auto \| EntityLevel \| AggregateTacticalLevel')
 
 # ===========================================================================================
 # 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say

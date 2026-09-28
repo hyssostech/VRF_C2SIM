@@ -86,7 +86,7 @@
                   <ActorReference>271aa71b-9f98-ef26-6b02-c9cc8be56142</ActorReference>
                   <CommandRelationCode>ORGANC</CommandRelationCode>
                 </CommandRelation>
-                <EchelonCode>BDE</EchelonCode>
+                <EchelonCode>COY</EchelonCode>
               </Unit>
             </MilitaryOrganization>
           </CollectiveEntity>
