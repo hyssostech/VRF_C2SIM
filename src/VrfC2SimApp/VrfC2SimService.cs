@@ -101,6 +101,16 @@ public sealed class VrfC2SimService : BackgroundService
     // loss FREEZES them (FreezeAll). Built in the constructor because its vacuous bar is a setting.
     private readonly VertexChainTracker _vertexChains;
 
+    // M3 (RL-20260928-03, owner "AUTO it is"): THE PLANNED CONTAINER MOVE - Vrf:AggregateMovePlanner, parsed once here
+    // (an unknown value, or GroupOffRoad without Vrf:AllowLiteralMove, REFUSES TO START on the aggregate model set -
+    // ContainerStartupPreflight); the per-member step tracker (Auto, PerMemberOffRoad); the cache-only reader of the sim's
+    // road layer (the AUTO decision, tick thread, never fetches); and the TASKABRT reason a failed planned vertex leaves for
+    // SynthesizeUnitCompletion, keyed by container and task. AggregateMovePlanner.cs is the rule; this file is the glue.
+    private readonly AggregateMovePlanner _movePlanner;
+    private readonly PlannedMoveTracker _plannedMoves = new();
+    private Preflight.OsmCacheReader _roadCache;
+    private readonly ConcurrentDictionary<string, (string TaskUuid, string Reason)> _plannedFailReason = new(StringComparer.Ordinal);
+
     // D1 (RL-20260927-01): WHICH MODEL SET the task judges read positions for - Vrf:ModelSet, read straight
     // from the configuration (UnitPositionPolicy says why and what the safe default is). TRUE only on
     // AggregateTacticalLevel, where a MEMBERLESS aggregate is a leaf unit and counts as ONE position.
@@ -513,6 +523,9 @@ public sealed class VrfC2SimService : BackgroundService
         var c2 = config.GetSection("C2SIM").Get<C2SIMSDKSettings>() ?? new C2SIMSDKSettings();
         _vrf = config.GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
         _vertexChains = new VertexChainTracker(_vrf.VertexArrivalRadiusMeters);   // RL-20260927-01
+        // M3: the default is Auto (RL-20260928-03); a value that does not parse keeps Auto here and is REFUSED at start-up
+        // on the aggregate model set (ContainerStartupPreflight) - it never silently becomes another planner.
+        AggregateMovePolicy.TryParse(_vrf.AggregateMovePlanner, out _movePlanner);
         // D1 (RL-20260927-01): the RAW key, not a VrfSettings property - it reaches main from two lanes
         // (appsettings + the runner's Vrf__ModelSet; VrfSettings.ModelSet), and reading the configuration
         // honours it the moment either lands. Absent/unknown = EntityLevel = the pre-D1 behaviour.
@@ -3018,9 +3031,15 @@ public sealed class VrfC2SimService : BackgroundService
         if (!_containerMode)
         {
             _log.LogInformation("{Line}", ContainerStartup.OffLine(_vrf.ModelSet));
+            _log.LogInformation("{Line}", AggregateMovePolicy.StartupLine(_movePlanner, false, _vrf.AllowLiteralMove,
+                                                                           RoadProximityMeters(), 0, 0, ""));
             return true;
         }
         var problems = new List<string>();
+        // M3 (RL-20260928-03): the container move planner - an unknown value, or the GroupOffRoad control without
+        // Vrf:AllowLiteralMove, is a start refusal like every C1 prerequisite below.
+        string plannerRefusal = AggregateMovePolicy.StartRefusal(_vrf.AggregateMovePlanner, _vrf.AllowLiteralMove);
+        if (plannerRefusal != null) problems.Add(plannerRefusal + " (M3, " + AggregateMovePolicy.RulingId + ")");
         if (!_vrf.MaterializeAtOrder)
             problems.Add("Vrf:CreationPolicy must be AtOrder - every unit is an EMPTY container at init and ONLY a tasked " +
                          "unit is populated, in place, when its order arrives (RL-20260927-03)");
@@ -3135,8 +3154,16 @@ public sealed class VrfC2SimService : BackgroundService
                             "route end is WITHHELD (D-6). Catalogue: {Catalogue}.",
                             _nations.Opposing, compPath, ok, refused, ContainerPopulateTimeoutSeconds(),
                             _vrf.ContainerPopulateTimeoutSeconds > 0 ? "" : ", derived",
-                            ContainerScripts.MoveAlongRoute, ContainerScripts.MoveToLocationDirect,
+                            // M3: the route move is the PLANNER's (the next line) unless Vrf:AggregateMovePlanner=Literal.
+                            AggregateMovePolicy.IsPlanned(_movePlanner)
+                                ? $"the vendor's planning task per vertex (Vrf:AggregateMovePlanner={_movePlanner}, {AggregateMovePolicy.RulingId})"
+                                : ContainerScripts.MoveAlongRoute,
+                            ContainerScripts.MoveToLocationDirect,
                             ContainerScripts.PatrolRoute, _vrf.VertexArrivalRadiusMeters, _catalogue.Describe);
+        var (roadFiles, roadEmpty) = RoadCache().Census(Preflight.OsmSet.Highways);
+        _log.LogInformation("{Line}", AggregateMovePolicy.StartupLine(_movePlanner, true, _vrf.AllowLiteralMove,
+                                                                       RoadProximityMeters(), roadFiles, roadEmpty,
+                                                                       RoadCache().CacheDirectory));
         return true;
     }
 
@@ -3470,6 +3497,276 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "(position unreadable - nothing claimed)");
         return false;
     }
+
+    // ============ M3: THE PLANNED CONTAINER MOVE (RL-20260928-03, owner "AUTO it is") ============
+    // docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 2, 4, 5. AggregateMovePlanner.cs is the rule
+    // (what each planner issues, the vendor's completion rule, the AUTO road decision, every log line); VertexChainTracker
+    // is M1's per-vertex state machine (a PLANNED chain names its one completion type and hands its LAST vertex to D-6);
+    // PlannedMoveTracker aggregates a per-member vertex. The glue, all on the TICK THREAD:
+    //   StartContainerPlannedMove      - ExecuteTaskOnTick's planned arm, the committed dispatch point;
+    //   IssuePlannedVertex             - vertex 1 from there, vertices 2..n from IssueNextVertex (M1's continuation);
+    //   ConsumePlannedVertexCompletion - from ConsumeVertexChainCompletion: the PLANNED MOVE outcome line + the routing;
+    //   RoutePlannedMemberCompletion   - from OnVrfTaskCompleted's member branch: a per-member step's completions;
+    //   CompletePlannedStep            - the aggregated step, handed to the container's chain and, on the LAST vertex or a
+    //                                    failure, to the container's own completion tail - the path a container's vendor
+    //                                    completion takes in OnVrfTaskCompleted (D-6, the watchdog window, the arrival
+    //                                    swallow, SynthesizeUnitCompletion).
+    private readonly ConcurrentDictionary<string, PlannedMoveTracker.MemberVerdict> _plannedStepVerdict = new(StringComparer.Ordinal);
+
+    /// <summary>Vrf:RoadProximityMeters in force (a non-positive value = the default 500 m, RL-20260928-03).</summary>
+    private double RoadProximityMeters()
+        => double.IsFinite(_vrf.RoadProximityMeters) && _vrf.RoadProximityMeters > 0.0
+            ? _vrf.RoadProximityMeters : AggregateMovePolicy.DefaultRoadProximityMeters;
+
+    /// <summary>The cache-only reader of the sim's road layer (the pre-flight's own cache directory; never fetches).</summary>
+    private Preflight.OsmCacheReader RoadCache()
+        => _roadCache ??= new Preflight.OsmCacheReader(ResolvePreflightCacheDir(_vrf.PreflightCacheDir));
+
+    /// <summary>The road decision for every leg of the FINAL route (leg k = routeGeo[k-1] -> routeGeo[k]): Auto reads the sim's
+    /// road layer from the cache (never a fetch here - the tick thread), every other planner gets NotApplicable rows.</summary>
+    private List<RoadDecision> RoadDecisionsFor(List<Geodetic> routeGeo)
+    {
+        var outp = new List<RoadDecision>(Math.Max(0, routeGeo.Count - 1));
+        double proximity = RoadProximityMeters();
+        for (int k = 1; k < routeGeo.Count; k++)
+        {
+            if (_movePlanner != AggregateMovePlanner.Auto)
+            {
+                outp.Add(AggregateMovePolicy.DecideRoads(_movePlanner, null, null, proximity));
+                continue;
+            }
+            var a = (routeGeo[k - 1].LatDeg, routeGeo[k - 1].LonDeg);
+            var b = (routeGeo[k].LatDeg, routeGeo[k].LonDeg);
+            var inBand = Preflight.OsmQuery.NearestRoad(RoadCache().Provider, a, b, proximity);
+            var wide = inBand.Found ? inBand : Preflight.OsmQuery.NearestRoad(RoadCache().Provider, a, b, 2.0 * proximity);
+            outp.Add(AggregateMovePolicy.DecideRoads(_movePlanner, inBand, wide, proximity));
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// TICK THREAD, ExecuteTaskOnTick's planned arm (RL-20260928-03). A CONTAINER's FINAL route under a planner: one
+    /// planning task per STP vertex (routeGeo[1..n]; point 0 is the live start and is never driven to), the next only when
+    /// the previous one COMPLETES. The in-flight record gets the LAST vertex and the whole polyline, exactly as the
+    /// PA_Move_Along_Route it replaces did, so arrival evidence, the time rules, the watchdog and D-6 judge it unchanged.
+    /// </summary>
+    private void StartContainerPlannedMove(OrderTask task, CreatedUnit unit, string vrfUuid, List<Geodetic> routeGeo,
+                                           int publishedMembers)
+    {
+        // NO DOUBLE START (M1's rule): the same task dispatched again while its chain runs starts and issues nothing.
+        if (_vertexChains.TryGet(unit.Name, out var running) && !running.Frozen
+            && string.Equals(running.TaskUuid, task.TaskUuid ?? "", StringComparison.Ordinal))
+        {
+            _log.LogWarning("Task '{Task}': CONTAINER {Name} is ALREADY driving this task's PLANNED MOVE (vertex {K} of {N}) - " +
+                            "this re-dispatch of the same task starts nothing and issues nothing ({Ruling}).", task.TaskName,
+                            unit.Name, running.VertexNumber, running.VertexCount, AggregateMovePolicy.RulingId);
+            return;
+        }
+        // A per-member planner tasks exactly the members the population ATTACHED, by uuid. An STP TO sub-container has no
+        // movement system for navigate-to-location to plan with, so a nested container is REFUSED here, never half-tasked.
+        var members = new List<PlannedMoveTracker.Member>();
+        if (AggregateMovePolicy.IsPerMember(_movePlanner))
+        {
+            var attached = _containers.AttachedMembersOf(unit.Name);
+            var nested = attached.Where(m => m.FromTo).Select(m => m.Name).ToList();
+            var noUuid = attached.Where(m => string.IsNullOrEmpty(m.Uuid)).Select(m => m.Name).ToList();
+            if (attached.Count == 0 || nested.Count > 0 || noUuid.Count > 0)
+            {
+                string why = attached.Count == 0 ? "the population attached no member"
+                           : nested.Count > 0
+                               ? $"its members include STP TO sub-container(s) [{string.Join(", ", nested)}], which carry no " +
+                                 "movement system for navigate-to-location to plan with (Group or Literal moves a nested container)"
+                               : $"member(s) [{string.Join(", ", noUuid)}] have no uuid to be tasked by";
+                string reason = $"REFUSED: PLANNED MOVE for CONTAINER {unit.Name} under Vrf:AggregateMovePlanner={_movePlanner} - " +
+                                $"{why} ({AggregateMovePolicy.RulingId})";
+                _log.LogError("Task '{Task}' {Reason}.", task.TaskName, reason);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason);
+                return;
+            }
+            members.AddRange(attached.Select(m => new PlannedMoveTracker.Member(m.Name, m.Uuid)));
+        }
+        var origin = new VertexChainTracker.Point(routeGeo[0].LatDeg, routeGeo[0].LonDeg, routeGeo[0].AltMeters);
+        var vertices = new List<VertexChainTracker.Point>(routeGeo.Count - 1);
+        for (int i = 1; i < routeGeo.Count; i++)
+            vertices.Add(new VertexChainTracker.Point(routeGeo[i].LatDeg, routeGeo[i].LonDeg, routeGeo[i].AltMeters));
+        var roads = RoadDecisionsFor(routeGeo);
+
+        // MarkDispatched FIRST, as on every dispatch path (in-flight record, TASKSTRT, the end time; a chain ANOTHER task
+        // left on this container is ended there).
+        MarkDispatched(task, unit, AggregateMovePolicy.DispatchKind(_movePlanner), routeGeo[^1], routeGeo);
+        var start = _vertexChains.Start(unit.Name, vrfUuid, task.TaskUuid, task.TaskeeUuid, task.TaskName, origin, vertices,
+                                        completionTaskType: AggregateMovePolicy.CompletionTaskType(_movePlanner),
+                                        handLastVertexOn: true);
+        if (start.Outcome != VertexChainTracker.StartOutcome.Started && start.Outcome != VertexChainTracker.StartOutcome.Replaced)
+            // UNREACHABLE (2+ route points; the same-task case returned above). Thrown, like StartVertexChain: the enclosing
+            // DeferredDispatch.Run ends the task loudly instead of leaving it marked dispatched with nothing issued.
+            throw new InvalidOperationException(
+                $"planned move for '{task.TaskName}' on {unit.Name} could not start ({start.Outcome}, {vertices.Count} vertices)");
+        _plannedMoves.Begin(new PlannedMoveTracker.Context(unit.Name, vrfUuid, start.Chain.Generation, _movePlanner, members,
+                                                            roads, vertices.Count));
+        _plannedFailReason.TryRemove(unit.Name, out _);
+        try { IssuePlannedVertex(unit.Name, start.Chain, 1, start.First); }
+        catch
+        {
+            _vertexChains.Clear(unit.Name, out _);
+            _plannedMoves.End(unit.Name);
+            throw;
+        }
+        // The replacing VR-Forces task is issued: a completion for this container now belongs to THIS task.
+        _arrivalReported.TryRemove(unit.Name, out _);
+        ClearStallState(unit.Name);
+        _log.LogInformation("Task '{Task}': PLANNED MOVE for CONTAINER {Name} ({Vrf}) - Vrf:AggregateMovePlanner={Planner} " +
+                            "({Ruling}): {N} vertex(es), one vendor planning task each, the next only when the previous one " +
+                            "COMPLETES; {Target}; no route object is created. Arrival evidence, the time rules, the watchdog " +
+                            "and D-6 judge the LAST vertex.", task.TaskName, unit.Name, vrfUuid, _movePlanner,
+                            AggregateMovePolicy.RulingId, vertices.Count,
+                            AggregateMovePolicy.IsPerMember(_movePlanner)
+                                ? $"each vertex goes to every one of its {members.Count} attached member(s)"
+                                : $"each vertex goes to the container ({publishedMembers} published member(s))");
+    }
+
+    /// <summary>TICK THREAD: issue ONE planned vertex (the chain has made it OUTSTANDING). Move (Group) goes to the
+    /// container; a per-member planner opens the vertex's step, then sends navigate-to-location to every attached member.
+    /// Both through the population's one gate: nothing goes to a container that no longer publishes its members.</summary>
+    private void IssuePlannedVertex(string container, VertexChainTracker.Snapshot chain, int vertex, VertexChainTracker.Point v)
+    {
+        if (!_plannedMoves.TryGet(container, out var ctx) || ctx.Generation != chain.Generation)
+            throw new InvalidOperationException($"no planned-move context for {container} (chain generation {chain.Generation})");
+        var road = _plannedMoves.RoadFor(container, vertex);
+        var t = AggregateMovePolicy.ForVertex(ctx.Planner, v.Lat, v.Lon, road);
+        if (ctx.Planner == AggregateMovePlanner.Auto)
+            _log.LogInformation("{Line}", AggregateMovePolicy.RoadLine(container, vertex, chain.VertexCount, road));
+        ContainerMoveVerdict verdict;
+        if (t.PerMember)
+        {
+            _plannedMoves.BeginVertex(container, chain.Generation, vertex);
+            verdict = _containers.TryIssueMemberMoves(container, ctx.Members.Select(m => m.Uuid).ToList(), t.ScriptId, t.Vars,
+                                                     DateTime.UtcNow, _containerBridge);
+        }
+        else
+            verdict = _containers.TryIssueScriptedMove(container, chain.VrfUuid, t.ScriptId, t.Vars, DateTime.UtcNow,
+                                                       _containerBridge);
+        if (!verdict.Ready)
+            throw new InvalidOperationException($"container {container} may no longer take a move: {verdict.Reason}");
+        _log.LogInformation("{Line}", AggregateMovePolicy.VertexLine(container, vertex, chain.VertexCount, t.ScriptId, t.UseRoads,
+            "OUTSTANDING", FormattableString.Invariant($"to ({v.Lat:F6},{v.Lon:F6})") +
+            (t.PerMember ? $" - to each of {ctx.Members.Count} member(s)" : $" - to the container {chain.VrfUuid}") +
+            $" [{string.Join(", ", t.Vars)}] ({AggregateMovePolicy.RulingId})"));
+    }
+
+    /// <summary>
+    /// TICK THREAD, from ConsumeVertexChainCompletion for a PLANNED container chain: one PLANNED MOVE outcome line, then M1's
+    /// routing - an intermediate vertex re-enters the tick thread for the next one (consumed, TRUE); the LAST vertex and a
+    /// FAILURE are handed on (FALSE) to the container's completion path - D-6, the arrival swallow, SynthesizeUnitCompletion,
+    /// which reports a failure as TASKABRT with the reason left here; a stray or a retired completion is consumed.
+    /// </summary>
+    private bool ConsumePlannedVertexCompletion(string container, VertexChainTracker.Decision d, string vrfTaskType, bool success)
+    {
+        _plannedMoves.TryGet(container, out var ctx);
+        _plannedStepVerdict.TryRemove(container, out var step);
+        var road = _plannedMoves.RoadFor(container, Math.Max(1, d.CompletedVertex));
+        bool useRoads = AggregateMovePolicy.IsGroup(ctx.Planner) ? ctx.Planner == AggregateMovePlanner.Group : road.UseRoads;
+        string script = AggregateMovePolicy.CompletionTaskType(ctx.Planner);
+        string where = DescribeVertexFix(d) + (d.Vacuous ? " (VACUOUS by the vertex bar - R11)" : "");
+        string members = step.Members > 0
+            ? FormattableString.Invariant($"; members {step.Succeeded} succeeded / {step.Failed} failed of {step.Members}") : "";
+        switch (d.Outcome)
+        {
+            case VertexChainTracker.Outcome.Advance:
+                _log.LogInformation("{Line}", AggregateMovePolicy.VertexLine(container, d.CompletedVertex, d.Chain.VertexCount, script,
+                    useRoads, "COMPLETED", $"- {where}{members}; vertex {d.NextVertex} is issued next ({AggregateMovePolicy.RulingId})"));
+                QueueNextVertex(container, d);
+                return true;
+            case VertexChainTracker.Outcome.FinalVertex:
+                _log.LogInformation("{Line}", AggregateMovePolicy.VertexLine(container, d.CompletedVertex, d.Chain.VertexCount, script,
+                    useRoads, "LAST VERTEX COMPLETED", $"- {where}{members}; handed to the task's completion rules: D-6 " +
+                    "(RL-20260927-04), arrival evidence and start time + Duration (RL-20260921-09)"));
+                _plannedMoves.End(container);
+                return false;
+            case VertexChainTracker.Outcome.Failed:
+                string reason = AggregateMovePolicy.FailureReason(container, d.CompletedVertex, d.Chain.VertexCount, ctx.Planner,
+                                                                  step.Members, step.Failed);
+                _plannedFailReason[container] = (d.Chain.TaskUuid, reason);
+                _log.LogWarning("{Line}", AggregateMovePolicy.VertexLine(container, d.CompletedVertex, d.Chain.VertexCount, script,
+                    useRoads, "FAILED", $"- {where}{members}. {reason}; the task takes the failure path (TASKABRT, follow-ons " +
+                    "abandoned)"));
+                _plannedMoves.End(container);
+                return false;
+            case VertexChainTracker.Outcome.Stray:
+                _log.LogWarning("PLANNED MOVE {Name}: a VR-Forces completion ('{Type}', success={Ok}) arrived while {State} - it is " +
+                                "not this chain's {Script} and is SWALLOWED; the chain is unchanged at vertex {K} of {N} ({Ruling}).",
+                                container, vrfTaskType ?? "", success,
+                                !d.Chain.Outstanding ? "the next vertex is still being issued" : "a vertex is outstanding", script,
+                                d.Chain.VertexNumber, d.Chain.VertexCount, AggregateMovePolicy.RulingId);
+                return true;
+            case VertexChainTracker.Outcome.Retired:
+                _log.LogWarning("PLANNED MOVE {Name}: a VR-Forces completion ('{Type}', success={Ok}) arrived for a chain FROZEN by " +
+                                "the back-end loss at vertex {K} of {N} - not the task's arrival, SWALLOWED; nothing more is issued " +
+                                "(STP-822).", container, vrfTaskType ?? "", success, d.Chain.VertexNumber, d.Chain.VertexCount);
+                _plannedMoves.End(container);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// TICK THREAD, from OnVrfTaskCompleted's member branch (RL-20260928-03). TRUE = a member's own navigate-to-location
+    /// completion of the container's OPEN per-member step (consumed; the last one closes the step with the vendor's Move
+    /// (Group) rule and hands the vertex on). FALSE = not a planned step's - the member branch goes on as before.
+    /// </summary>
+    private bool RoutePlannedMemberCompletion(string container, string member, string taskType, bool success)
+    {
+        if (!_plannedMoves.TryGet(container, out var ctx) || !AggregateMovePolicy.IsPerMember(ctx.Planner)) return false;
+        if (!_vertexChains.TryGet(container, out var chain) || chain.Generation != ctx.Generation || !chain.Planned) return false;
+        var v = _plannedMoves.OnMemberCompleted(container, member, taskType, success);
+        if (!v.Consumed) return false;
+        if (!v.StepDone)
+        {
+            if (v.Why.Length > 0)
+                _log.LogDebug("PLANNED MOVE {C}: member {M} {Task} (success={Ok}) - {Why}.", container, member, taskType, success, v.Why);
+            else
+                _log.LogInformation("PLANNED MOVE {C} vertex {K} of {N}: member {M} {Task} {Ok} - {Done} of {All} member(s) ended " +
+                                    "({S} succeeded, {F} failed); waiting for the rest.", container, v.Vertex, ctx.VertexCount, member,
+                                    taskType, success ? "COMPLETED" : "FAILED", v.Members - v.Pending, v.Members, v.Succeeded, v.Failed);
+            return true;
+        }
+        _log.LogInformation("PLANNED MOVE {C} vertex {K} of {N}: member {M} {Task} {Ok} - the LAST of {All}: {S} succeeded, {F} " +
+                            "failed -> the vertex {Result} by the vendor's Move (Group) rule (done when every member's move ended; a " +
+                            "success when at least one succeeded - makLua behaviorEngine roleNode.lua :169-282; {Ruling}).",
+                            container, v.Vertex, ctx.VertexCount, member, taskType, success ? "COMPLETED" : "FAILED", v.Members,
+                            v.Succeeded, v.Failed, v.Success ? "SUCCEEDED" : "FAILED", AggregateMovePolicy.RulingId);
+        _plannedStepVerdict[container] = v;
+        CompletePlannedStep(container, v.Success);
+        return true;
+    }
+
+    /// <summary>
+    /// TICK THREAD: a per-member step's aggregated outcome, taken EXACTLY where a container's vendor completion goes - the
+    /// container's chain first; then, for the LAST vertex or a failure, OnVrfTaskCompleted's container tail: D-6 (a short
+    /// success is withheld, RL-20260927-04), the watchdog window, the arrival-evidence swallow, SynthesizeUnitCompletion.
+    /// </summary>
+    private void CompletePlannedStep(string container, bool success)
+    {
+        if (ConsumeVertexChainCompletion(container, AggregateMovePolicy.NavigateScript, success)) return;
+        if (success && IsContainerUnit(container) && !_arrivalReported.ContainsKey(container)
+            && WithholdShortContainerCompletion(container, AggregateMovePolicy.NavigateScript)) return;
+        ClearStallState(container);
+        if (_arrivalReported.TryRemove(container, out var reportedTask))
+        {
+            _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",
+                                container, reportedTask);
+            return;
+        }
+        SynthesizeUnitCompletion(container, AggregateMovePolicy.NavigateScript, success);
+    }
+
+    /// <summary>The TASKABRT reason a failed planned vertex left for this container's task (consumed; a reason left for
+    /// another task is dropped, never borrowed).</summary>
+    private string PlannedFailureText(string name, string taskUuid)
+        => _plannedFailReason.TryRemove(name ?? "", out var r) && string.Equals(r.TaskUuid, taskUuid ?? "", StringComparison.Ordinal)
+            ? r.Reason : null;
 
     /// <summary>Tick thread (review fix): a case-3 re-created unit is released for tasking when its NEW
     /// object is REFLECTED (readable through TryGetEntityGeodetic), or at the deadline with a warning -
@@ -5875,6 +6172,18 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // M3 (RL-20260928-03, owner "AUTO it is"): A POPULATED CONTAINER's ROUTE is driven by the vendor's PLANNING task, one
+        // per STP vertex (Vrf:AggregateMovePlanner - Auto by default: navigate-to-location per member, obstacleQuery
+        // MAK_OBSTACLE, roads per leg), NOT by PA_Move_Along_Route on STP's straight line, which plans nothing (FINDING_
+        // AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28). No route object; the chain's own continuation issues vertices 2..n. Only
+        // Vrf:AggregateMovePlanner=Literal - the rollback and the G1-2 baseline - passes on to the route arm below
+        // (DoNotRulesSelfTest d10). A patrol keeps PA_Patrol_Route; one point keeps PA_Move_To_Location_Direct (above).
+        if (moveForm == GroundMoveForm.RouteTask && unit.IsContainer && !patrol && AggregateMovePolicy.IsPlanned(_movePlanner))
+        {
+            StartContainerPlannedMove(task, unit, vrfUuid, routeGeo, containerMembers);
+            return;
+        }
+
         // CreateRoute is async; defer the along-route task until the route's ObjectCreated fires
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
@@ -6326,6 +6635,8 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(chain.VrfUuid) && _bridge.TryGetEntityGeodetic(chain.VrfUuid, out var g))
             fix = new VertexChainTracker.Point(g.LatDeg, g.LonDeg, g.AltMeters);
         var d = _vertexChains.OnCompletion(marking, vrfTaskType, success, fix, _arrivalReported.ContainsKey(marking));
+        // M3 (RL-20260928-03): a PLANNED CONTAINER's chain says PLANNED MOVE lines and hands its last vertex to D-6.
+        if (d.Chain.Planned) return ConsumePlannedVertexCompletion(marking, d, vrfTaskType, success);
         string where = DescribeVertexFix(d);
         double bar = _vertexChains.VertexArrivalRadiusMeters;
         switch (d.Outcome)
@@ -6460,6 +6771,12 @@ public sealed class VrfC2SimService : BackgroundService
                             "the chain was started on ({Was}) is no longer this unit's ({Now}); the chain ENDS and the " +
                             "task is left to its own rules ({Ruling}).", unitName, chain.TaskName, vertex,
                             chain.VertexCount, chain.VrfUuid, uuidNow ?? "unbound", VertexChainPolicy.RulingId);
+            return;
+        }
+        // M3 (RL-20260928-03): a PLANNED CONTAINER's chain issues its planner's task for the vertex, not a Move To.
+        if (chain.Planned)
+        {
+            IssuePlannedVertex(unitName, chain, vertex, v);
             return;
         }
         _bridge.MoveToLocation(chain.VrfUuid, new Geodetic { LatDeg = v.Lat, LonDeg = v.Lon, AltMeters = v.Alt });
@@ -7771,6 +8088,24 @@ public sealed class VrfC2SimService : BackgroundService
         bool hostile = _hostilityByC2SimUuid.TryGetValue(task.TaskeeUuid ?? "", out var hc) && hc == "HO";
         string taskName = task.TaskName, unitName = unit.Name, taskeeUuid = task.TaskeeUuid;
         var opt = ShiftOptions();
+        // M3 (RL-20260928-03; FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 5 item 4): THE PRE-FLIGHT IS REPORT +
+        // FALLBACK. A container's route that a vendor PLANNING task will drive (every planner but Literal; a patrol stays
+        // PA_Patrol_Route) is scored and REPORTED exactly as before - the vertex check still moves a bad vertex - but no
+        // lateral detour is spliced into it: the planner routes round MAK_OBSTACLE itself. Literal, a patrol and every
+        // entity-level mover keep the shift as it was - the fallback for a literally-driven leg.
+        bool plannedContainer = unit.IsContainer && AggregateMovePolicy.IsPlanned(_movePlanner)
+                                && VerbMapping.Classify(task.ActionCode).Intent != TaskIntent.Reconnoiter;
+        if (plannedContainer)
+            opt = opt with
+            {
+                ReportOnlyReason = $"the leg is driven by the vendor's planning task (Vrf:AggregateMovePlanner={_movePlanner}, " +
+                                   $"{AggregateMovePolicy.RulingId}), which plans round MAK_OBSTACLE itself - the pre-flight " +
+                                   $"REPORTS a planned leg and does not detour it ({AggregateMovePolicy.FindingRef} sec 5 item 4)",
+            };
+        // AUTO's road layer: fetched HERE, off the tick thread, the way the water and building tiles are - the dispatch reads
+        // it from the cache and never fetches (OsmCacheReader).
+        bool warmRoads = plannedContainer && _movePlanner == AggregateMovePlanner.Auto;
+        double roadBand = 2.0 * RoadProximityMeters();
 
         _log.LogInformation("Task '{Task}': ROUTE SHIFT check queued for {Name} ({N} vertices); dispatch deferred " +
                             "to the result (timeout {T:F0} s -> the authored line).",
@@ -7806,6 +8141,16 @@ public sealed class VrfC2SimService : BackgroundService
                     var pre = svc.PreDispatch(route, limit.LimitRaw, opt);
                     var outcome = pre.Shift;
                     ReportVertexFindings(taskName, unitName, pre, svc, pending);
+                    if (warmRoads)
+                    {
+                        var (roadKnown, roadUnknown) = svc.WarmOsm(Preflight.OsmSet.Highways, pre.CheckedRoute, roadBand);
+                        pending.Add(() =>
+                            _log.LogInformation("Task '{Task}' ({Unit}): ROAD LAYER for the AUTO planner ({Ruling}) - {K} " +
+                                                "osm-highways tile(s) within {B:F0} m of the legs readable, {U} not{Off}; the " +
+                                                "dispatch decides each leg's pathQuery from the cache.", taskName, unitName,
+                                                AggregateMovePolicy.RulingId, roadKnown, roadBand, roadUnknown,
+                                                svc.Options.Offline ? " (Vrf:PreflightOffline: nothing was fetched)" : ""));
+                    }
                     // BEFORE the shift rows, and for EVERY leg rather than only the flagged ones:
                     // with Vrf:PreflightWarnings off (still the shipped default) this reader is
                     // the ONLY one that runs, and it used to say nothing at all about a leg it
@@ -9342,6 +9687,10 @@ public sealed class VrfC2SimService : BackgroundService
         // are the container's business: said at Debug, never a C2SIM completion; the CONTAINER reports.
         if (_containerMode && !string.IsNullOrEmpty(marking) && _containers.IsMember(marking, out var memberOf))
         {
+            // M3 (RL-20260928-03): under a PER-MEMBER planner (Auto, PerMemberOffRoad) a member's own navigate-to-location
+            // completion IS the container's vertex step - aggregated with the vendor's Move (Group) rule into ONE vertex
+            // completion for the container. Still never a C2SIM completion of the member's own.
+            if (RoutePlannedMemberCompletion(memberOf, marking, e.TaskType, success)) return;
             _log.LogDebug("VRF task complete: CONTAINER MEMBER {Member} of {Container} / {Task} (success={Ok}) - a step of " +
                           "its container's scripted task; the container reports (C1).", marking, memberOf, e.TaskType,
                           success);
@@ -9522,10 +9871,13 @@ public sealed class VrfC2SimService : BackgroundService
         // until the end time. Overdue and now arrived: TASKCMPLT - and for a platform ATTACK the
         // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
         // RL-20260925-01).
+        // M3 (RL-20260928-03): a planned container vertex that FAILED left its reason for this task (the vendor's Move
+        // (Group) rule named) - the TASKABRT carries it instead of the generic sentence.
+        string plannedWhy = !success ? PlannedFailureText(name, taskUuid) : null;
         var maybeCode = TimedCompletionPolicy.CompletionCode(taskUuid != null, success, taskContinues, verdict);
         if (maybeCode is not S.TaskStatusCodeType code) return;
         PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
-                       !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
+                       !success ? plannedWhy ?? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
                                   "longer being processed"
                        : verdict == TimedCompletionPolicy.FinishVerdict.EmitNow
                            ? $"unit {name} arrived after its task's end time (start time + Duration) - complete on " +

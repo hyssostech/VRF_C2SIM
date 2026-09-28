@@ -59,6 +59,8 @@ public static class RulingsSelfTest
         failures += ShippedProfileSelfTest.Run();
         Console.WriteLine("=== AUDIT 2026-09-28 fix 2: the \"do not\" rules kept only by absence, pinned by source guards ===");
         failures += DoNotRulesSelfTest.Run();
+        Console.WriteLine("=== M3 (RL-20260928-03): a tasked container's route is driven by the vendor's PLANNING task per vertex (Auto by default) ===");
+        failures += PlannedMoveSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

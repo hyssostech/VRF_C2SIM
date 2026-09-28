@@ -840,6 +840,74 @@ public sealed class TileSource : IDisposable
 }
 
 /// <summary>
+/// M3 (RL-20260928-03): A CACHE-ONLY OSM TILE READER - it NEVER fetches. The AUTO planner's per-leg road decision is
+/// taken at the committed dispatch point, ON THE VR-FORCES TICK THREAD, where an HTTP fetch (TileSource's 60 s
+/// client) must never happen; the route-shift worker, off that thread, is where a missing tile is fetched
+/// (PreflightService.WarmOsm), so by dispatch the cache holds what an online run could get. Same files, same naming
+/// and the same four cases as TileSource (a non-empty tile decodes - KNOWN; the 404 marker - KNOWN and empty; a 0-byte
+/// or missing file, or one that is not a vector tile - UNKNOWN), minus the fetch. Only KNOWN tiles are memoised, so a
+/// tile the worker writes later is read when next asked for.
+/// </summary>
+public sealed class OsmCacheReader
+{
+    private readonly string _root;
+    private readonly ConcurrentDictionary<(OsmSet, int, int), OsmTile> _known = new();
+
+    public OsmCacheReader(string cacheDir) => _root = cacheDir ?? "";
+
+    public string CacheDirectory => _root;
+
+    public OsmTileProvider Provider => Get;
+
+    public OsmTile Get(OsmSet set, int x, int tmsY)
+    {
+        var key = (set, x, tmsY);
+        if (_known.TryGetValue(key, out var hit)) return hit;
+        string fn = Path.Combine(_root, OsmSets.Name(set), OsmTileMath.FileName(x, tmsY));
+        byte[] data;
+        try
+        {
+            var fi = new FileInfo(fn);
+            if (!fi.Exists) return OsmTile.Unknown(set, x, tmsY, "not in the tile cache (the dispatch-time road check never fetches)");
+            if (fi.Length == 0) return OsmTile.Unknown(set, x, tmsY, "0-byte cache file");
+            data = File.ReadAllBytes(fn);
+        }
+        catch (Exception e) { return OsmTile.Unknown(set, x, tmsY, "cache file unreadable: " + e.Message); }
+        try
+        {
+            var layers = Mvt.Decode(data);
+            var tile = OsmTile.FromLayers(set, x, tmsY, layers,
+                Mvt.IsAbsentMarker(layers) ? "absent (the server answered 404; cached marker)" : "cached");
+            _known[key] = tile;
+            return tile;
+        }
+        catch (FormatException e)
+        {
+            return OsmTile.Unknown(set, x, tmsY, "the cache file is not a vector tile (" + e.Message + ")");
+        }
+    }
+
+    /// <summary>How many tile files the cache holds for one set, and how many of them are 0 bytes - the start-up
+    /// line's census (the set's directory may not exist yet: 0 and 0).</summary>
+    public (int Files, int Empty) Census(OsmSet set)
+    {
+        string dir = Path.Combine(_root, OsmSets.Name(set));
+        int files = 0, empty = 0;
+        try
+        {
+            if (!Directory.Exists(dir)) return (0, 0);
+            foreach (var p in Directory.EnumerateFiles(dir, "*.pbf"))
+            {
+                files++;
+                try { if (new FileInfo(p).Length == 0) empty++; } catch { /* counted as a file */ }
+            }
+        }
+        catch { /* an unreadable directory counts as empty; the per-tile reads say UNKNOWN */ }
+        return (files, empty);
+    }
+}
+
+/// <summary>
 /// E6 (D7 harvest): ONE TILE CENSUS PER ORDER, AND NOT ONE PER LEG. <see cref="TileSource"/> has
 /// counted <see cref="TileSource.CacheHits"/> and <see cref="TileSource.Fetched"/> since it was
 /// written, and until now nothing ever printed them - so every harvest that wanted to know whether

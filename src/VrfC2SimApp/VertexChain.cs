@@ -211,10 +211,18 @@ public sealed class VertexChainTracker
     }
 
     /// <summary>A copy of one chain's state, for decisions and log lines. VertexNumber is 1-based: the
-    /// vertex whose Move To is outstanding, or is about to be issued. Frozen = a back-end loss froze it.</summary>
+    /// vertex whose Move To is outstanding, or is about to be issued. Frozen = a back-end loss froze it.
+    /// CompletionTaskType = "" for a lone platform's Move To chain (RL-20260927-01), else the ONE vendor task type
+    /// a planned container chain accepts (M3, RL-20260928-03 - "group_movement_simplified" or
+    /// "navigate-to-location").</summary>
     public readonly record struct Snapshot(string UnitName, string VrfUuid, string TaskUuid, string TaskeeUuid,
                                            string TaskName, long Generation, int VertexNumber, int VertexCount,
-                                           bool Outstanding, int VacuousCount, bool Frozen);
+                                           bool Outstanding, int VacuousCount, bool Frozen,
+                                           string CompletionTaskType = "")
+    {
+        /// <summary>A PLANNED container chain (M3), not a lone platform's Move To chain.</summary>
+        public bool Planned => !string.IsNullOrEmpty(CompletionTaskType);
+    }
 
     public readonly record struct StartResult(StartOutcome Outcome, Point First, Snapshot Chain, Snapshot Replaced);
 
@@ -239,6 +247,8 @@ public sealed class VertexChainTracker
         public int LastFixVertex;
         public int VacuousCount;
         public bool Frozen;               // a back-end loss froze it: it issues nothing ever again
+        public string CompletionTaskType = "";   // "" = the M1 move-to rule; else the one type accepted (M3)
+        public bool HandLastVertexOn;     // M3: the last vertex always goes to the service's own rules (D-6)
     }
 
     private readonly object _lock = new();
@@ -259,9 +269,16 @@ public sealed class VertexChainTracker
     /// live position at dispatch); <paramref name="destinations"/> are points 1..n - a two-point route is
     /// exactly ONE Move To. On Started/Replaced, vertex 1 is OUTSTANDING and <see cref="StartResult.First"/>
     /// is where the caller's MoveToLocation must go, now; if that call throws, the caller must Clear.
+    /// M3 (RL-20260928-03), a PLANNED CONTAINER's chain: <paramref name="completionTaskType"/> is the ONE vendor task
+    /// type whose completion is a vertex (exact, case-insensitive; an empty type is NOT accepted - a container runs only
+    /// the planner's task, and nothing else may advance it), and <paramref name="handLastVertexOn"/> sends the LAST
+    /// vertex to the service's own completion rules even when it is vacuous - for a container those rules are D-6
+    /// (RL-20260927-04), which withholds a short completion itself, with its own line. Both default to the lone
+    /// platform's behaviour (RL-20260927-01), unchanged.
     /// </summary>
     public StartResult Start(string unitName, string vrfUuid, string taskUuid, string taskeeUuid, string taskName,
-                             Point origin, IReadOnlyList<Point> destinations)
+                             Point origin, IReadOnlyList<Point> destinations, string completionTaskType = null,
+                             bool handLastVertexOn = false)
     {
         if (string.IsNullOrEmpty(unitName) || destinations == null || destinations.Count == 0)
             return new StartResult(StartOutcome.Refused, default, default, default);
@@ -289,6 +306,8 @@ public sealed class VertexChainTracker
                 Outstanding = true,
                 LastFix = origin,
                 LastFixVertex = 0,
+                CompletionTaskType = completionTaskType ?? "",
+                HandLastVertexOn = handLastVertexOn,
             };
             _chains[unitName] = c;
             return new StartResult(didReplace ? StartOutcome.Replaced : StartOutcome.Started,
@@ -320,7 +339,7 @@ public sealed class VertexChainTracker
                 _chains.Remove(unitName);
                 return new Decision(Outcome.Retired, snapIdle, 0, double.NaN, double.NaN, 0, false, default, 0);
             }
-            if (!VertexChainPolicy.IsChainMoveToType(vrfTaskType))
+            if (!Accepts(c, vrfTaskType))
                 return new Decision(Outcome.Stray, Snap(c), 0, double.NaN, double.NaN, 0, false, default, 0);
 
             int k = c.Index + 1;
@@ -345,7 +364,8 @@ public sealed class VertexChainTracker
             {
                 var snapLast = Snap(c);
                 _chains.Remove(unitName);
-                return new Decision(vacuous && !arrivalAlreadyReported ? Outcome.FinalVacuous : Outcome.FinalVertex,
+                return new Decision(vacuous && !arrivalAlreadyReported && !c.HandLastVertexOn
+                                        ? Outcome.FinalVacuous : Outcome.FinalVertex,
                                     snapLast, k, dist, disp, dispFrom, vacuous, default, 0);
             }
 
@@ -449,7 +469,14 @@ public sealed class VertexChainTracker
 
     private static Snapshot Snap(Chain c)
         => new(c.UnitName, c.VrfUuid, c.TaskUuid, c.TaskeeUuid, c.TaskName, c.Generation, c.Index + 1,
-               c.Destinations.Count, c.Outstanding, c.VacuousCount, c.Frozen);
+               c.Destinations.Count, c.Outstanding, c.VacuousCount, c.Frozen, c.CompletionTaskType);
+
+    /// <summary>Is this completion's type a vertex of this chain? The lone platform's rule
+    /// (<see cref="VertexChainPolicy.IsChainMoveToType"/>) unless the chain names its one type (M3).</summary>
+    private static bool Accepts(Chain c, string vrfTaskType)
+        => string.IsNullOrEmpty(c.CompletionTaskType)
+            ? VertexChainPolicy.IsChainMoveToType(vrfTaskType)
+            : string.Equals(vrfTaskType, c.CompletionTaskType, StringComparison.OrdinalIgnoreCase);
 
     private static double Meters(Point a, Point b) => RouteExtentPolicy.GreatCircleMeters(a.Lat, a.Lon, b.Lat, b.Lon);
 }

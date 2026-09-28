@@ -31,8 +31,17 @@ public enum ModelSet { EntityLevel, AggregateTacticalLevel }
 /// slow, never flagged. NOT READ (named, not hidden): Ocean (osm-oceans z11), Coast (Shallow-10
 /// z10), Alpine/Mountain/Hills (z12 sets) - inland AOs so far; a coastal or alpine AO needs them.
 ///
-/// BUILDINGS ARE A LEG FLAG ON NEITHER PROFILE: the entity planner routes round them (Move To per
-/// vertex, M1) and buildings cannot stop an aggregate (27.1.4). They are a VERTEX check on both.
+/// BUILDINGS ARE A LEG FLAG ON NEITHER PROFILE (the code's behaviour, unchanged) and a VERTEX check on both.
+/// Entity level: the planner routes round them (Move To per vertex, M1). Aggregate level: the old reason
+/// here - "buildings cannot stop an aggregate (27.1.4)" - is REFUTED. MAK Earth Aggregate (online) gives the
+/// sim engine the OSM footprints AND simplified 3-D building models (buildings.worldwide.osm.online.xml
+/// :11-12, :55); a container's members are placed on the highest surface, roofs included (UG52 14.3.3 p386),
+/// and the aggregated movement actuator's max-slope check refuses a member at a footprint edge - 11 of
+/// 48 IBCT's Mech COs stopped inside one building of the -2 hamlet in G1-2 with "Terrain too steep"
+/// (docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 1 and 4(a)). The remedy on
+/// record is the TASK, not this rule: a container's route is driven by the vendor's planning task, which
+/// plans round MAK_OBSTACLE (buildings and water) - M3, RL-20260928-03 (Vrf:AggregateMovePlanner). A
+/// building leg rule for a literally-driven leg is the finding's sec 4(a) proposal and is NOT built here.
 /// </summary>
 public sealed record ModelSetRules
 {

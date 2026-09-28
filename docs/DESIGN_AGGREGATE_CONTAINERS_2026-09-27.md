@@ -46,6 +46,10 @@ requested uuid for an aggregate (as it does for a control area) was owed to G1-2
 runs: 59 of 59 created under the requested uuid and bound by it; PREREG_IRONSTORM_AGG_G1-2_2026-09-28.md Result); an
 entity (platform) create stays owed. RUNBOOK sec 11i (IDENTITY BY UUID).
 
+STATUS 2026-09-28 (M3, RL-20260928-03): a container's ROUTE move is the vendor's planning task per vertex (Auto by default);
+PA_Move_Along_Route is Vrf:AggregateMovePlanner=Literal only - sec 6 (TASK) carries the update. Built offline on
+feat/aggregate-planned-move; not deployed, not live (G1-3 is its first run). RUNBOOK sec 11o.
+
 ## 1. The five questions
 
 (1) ONLY A CONTAINER HOLDS SUBORDINATES. UG52 72.2.1 p1419: "the aggregate-level simulation objects that are configured
@@ -182,6 +186,20 @@ MoveAlongRoute (:6025); one point gets "PA_Move_To_Location_Direct" (location, r
 (:4984); a patrol "PA_Patrol_Route" (:6004). RunScriptedTask exists (VrfFacade.cpp:1191-1198; ObjectUuid ->
 "simulationobject", Bool -> "checkbox", :169-192) with NO caller yet - G1 is its first live use [A]. A MOVE on a
 memberless container is REFUSED (TASKABRT + text): it would end at once (Q2). Holds are unaffected.
+UPDATED 2026-09-28 - M3, ruled RL-20260928-03 (owner, "AUTO it is"): the ROUTE arm above (PA_Move_Along_Route) is now
+Vrf:AggregateMovePlanner=Literal only - the rollback and the G1-2 baseline. PA_Move_Along_Route drives every member on
+STP's straight centreline and plans nothing; in G1-2 11 Mech COs stopped on it in a building (docs/experiments/
+FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md). By default (Auto) a container's route of N vertices is driven ONE
+VENDOR PLANNING TASK PER VERTEX - no route object; M1's VertexChainTracker (a PLANNED chain that accepts only its planner's
+completion type and hands its LAST vertex to D-6): each member gets navigate-to-location (destination = the vertex at
+altitude 0, obstacleQuery MAK_OBSTACLE, buffer 10 m, pathQuery MAK_ROAD where the sim's roads lie within
+Vrf:RoadProximityMeters of the leg, else NONE); Group sends the container Move (Group) (group_movement_simplified,
+useRoads true); PerMemberOffRoad is Auto with pathQuery NONE everywhere. A vertex completes by Move (Group)'s own rule -
+done when every member's move ended, a success when at least one succeeded (roleNode.lua :169-282) - which the interface
+also applies to a per-member vertex from the members' own completions; a failed vertex is TASKABRT with the reason. The
+point move (PA_Move_To_Location_Direct), the patrol (PA_Patrol_Route) and the holds keep this section's path; the
+publication gate still guards every issue (ContainerPopulator.TryIssueScriptedMove / TryIssueMemberMoves); a per-member
+planner REFUSES a container whose members are STP TO sub-containers (no movement system to plan with). RUNBOOK sec 11o.
 POSITION SOURCE: the container's own centroid (D1 as merged). GetAggregateMembers keeps ENTITY members only
 (VrfFacade.cpp:1036-1070) and aggregate units "do not simulate them individually" (AggregateLevelAggregate.ope:5), so
 UnitPositionPolicy.SourceFor gives AggregateLeaf (:96-101) and TryReadUnitPositions reads the centroid (:7529-7581) - no
