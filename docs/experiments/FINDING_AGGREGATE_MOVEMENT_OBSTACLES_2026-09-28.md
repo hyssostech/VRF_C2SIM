@@ -82,9 +82,12 @@ PA_Move_To_Location_Direct and PA_Move_To_Waypoint_Direct (+Retrograde), PA_Patr
   destination (location) or destinationPoint (object), useRoads (default ON, .xml :70-74). Each member is sent
   Move_To_Location_Plan_Path to its own offset destination - the group's current arrangement wheeled toward the destination and
   compressed to the echelon's extent (.lua :20, :28-77, :212-231); useRoads off = a straight move-to-location per member.
-  Completion: a behaviour-engine role node finishes when every member's move has finished (letAllFinish default true), succeeds
-  if one did (successPolicy default "one"), and the role is critical, so a member's failed plan fails the command
-  (C:\MAK\vrforces5.2d\makLua\behaviorEngine.lua :36-38, :122-137; .lua :196-205).
+  Completion: a behaviour-engine role node finishes when every member's move has finished (letAllFinish default true) and
+  succeeds if at least one did (successPolicy default "one"); the role is critical, so the command fails when that ROLE node
+  fails - which it does only when NO member's move succeeded, or when there is no member at all
+  (C:\MAK\vrforces5.2d\makLua\behaviorEngine\roleNode.lua :61-67, :113-137, :246-280; behaviorEngine.lua :35-38, :122-137;
+  .lua :196-205). CORRECTED 2026-09-28 (lane G1-3, from the M3 lane's reading of roleNode.lua, AggregateMovePlanner.cs
+  :218-237): this line first said "a member's failed plan fails the command" - one member's failure does not fail it.
 - CONTAINER, "Group Navigate Route To Location" (group-navigate-route-to-location, same directory; parameter location): plans
   ONE path for the container with vrf:navigateThroughFeatures {start, destination, buffer 10 m, pathQuery MAK_ROAD} (no
   obstacleQuery passed), makes it a route, drives it with PA_Move_Along_Route and deletes it; done when that script ends
@@ -189,6 +192,10 @@ STILL UNKNOWN (each settles by a registered run, not more reading): whether navi
 road at aggregate level on 5.2; how Move (Group) completes live and whether 0-buffer plans clip footprint edges; the default
 obstacle set of vrf:navigateThroughFeatures when none is passed; the actuator's sampling geometry; the vendor's streamed OSM
 snapshot vs the cached tiles.
+NOTE 2026-09-28 (lane G1-3): the sim's ROAD layer - what a pathQuery MAK_ROAD plans along - is built from the osm-highways
+set (osm.roads.model.xml :9-10, data:vehicle-roads-linear from <features>data:osm-highways</features>, :55 mak_vrf_layer
+Roads; osm.features.xml :35-36), NOT from the "osm" set the pre-flight caches beside osm-water; a road read from the cached
+osm tiles is therefore not the sim's road network. M3 reads osm-highways (OsmFeatures.cs OsmSet.Highways :323-332).
 Adversarial review: competing hypothesis 1 - the mobility table (a speed factor 0) stopped the Mech COs; falsified by FC
 (buildings in no mobility query) and by the feature-stop line never printing for a Mech CO. 2 - steep elevation data;
 falsified by the ~5 percent ground gradient and the units standing 9-11 m above it. 3 - luck in which member met the building;
