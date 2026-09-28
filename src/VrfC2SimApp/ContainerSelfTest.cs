@@ -26,11 +26,21 @@ namespace VrfC2SimApp;
 ///   (p10) THE ENTITY-LEVEL PATH UNCHANGED: plans, states and census as before, and the source guards that keep it so
 ///   (p11) THE SCRIPTS: ids and variables re-read from the vendor XML; the bridge binds their types
 ///   (p12) THE PUBLICATION READER and the start-up arithmetic
+///   (p13) C1b - THE COMPOSITION VARIANT AND THE DERIVED-SMS GUARD (package C2's integration, RL-20260927-04): one
+///         variant selected (unknown = refused), the fixture's SMS read like the runner's Stage 0, the guard both ways
+///         and its bypass controls, the type map's authoredRows read as fidelity Authored, the start-up line
+/// VARIANTS (C1b): the composition file holds a "catalogue" and an "authored" variant. p1 walks the SELECTED variant
+/// (`--populate-selftest --variant authored`; default = the file's defaultVariant, catalogue) on ITS catalogue - the
+/// installed vendor set for catalogue, the DERIVED set for authored (`--derived-sms PATH`, else env
+/// C2SIM_AGGREGATE_SMS, else the file's authored "sms") - and says SKIPPED for the other variant's rows. p2-p12 are
+/// C1's mechanism checks on the catalogue variant and the vendor set whatever is selected; p13's derived-set checks run
+/// only when authored is selected, and FAIL then if the derived set is absent or its types do not resolve.
 /// </summary>
 public static class ContainerSelfTest
 {
     private static int _fail;
     private static int _pass;
+    private static int _skip;
 
     public static int Run()
     {
@@ -49,9 +59,28 @@ public static class ContainerSelfTest
               "a model set that does not exist loads NOTHING - never a silently different catalogue");
         if (res == null) return Finish();
         var cat = new ResolverCatalogue(res);
-        var table = CompositionTable.Load(Path.Combine(repo, "data", "unit-composition-52-aggregate.json"));
+        // C1b: the file is read WHOLE and narrowed to ONE variant, exactly as the service's start-up does.
+        var full = CompositionTable.Load(Path.Combine(repo, "data", "unit-composition-52-aggregate.json"));
+        var table = full.ForVariant(CompositionVariants.Catalogue);
+        var selected = CompositionVariants.Select(full, ArgAfter("--variant") ?? "");
+        bool authoredSelected = !selected.Refused && string.Equals(selected.Name, CompositionVariants.Authored,
+                                                                   StringComparison.OrdinalIgnoreCase);
+        string derivedSms = ArgAfter("--derived-sms")
+                            ?? (Environment.GetEnvironmentVariable("C2SIM_AGGREGATE_SMS") is { Length: > 0 } e ? e : null)
+                            ?? (CompositionVariants.RequiredDerivedSet(full, null).Sms is { Length: > 0 } s ? s
+                                : @"C:\C2SIM\vrf-sms\" + CompositionVariants.DerivedModelSet + ".sms");
+        ResolverCatalogue derived = null;
+        if (authoredSelected)
+        {
+            var dres = File.Exists(derivedSms) ? ObjectTypeResolver.LoadModelSetChain(home, derivedSms) : null;
+            Check(dres != null && dres.Templates.Count > res.Templates.Count,
+                  $"variant authored selected: the DERIVED catalogue loads from {derivedSms} (it only ADDS to the vendor set)",
+                  dres == null ? "absent - deploy it: tools/sms/Deploy-C2SimAggregateSms.ps1"
+                               : $"{dres.RootSms}: {dres.Templates.Count} templates vs {res.Templates.Count}");
+            if (dres != null) derived = new ResolverCatalogue(dres);
+        }
 
-        P1(cat, table);
+        P1(authoredSelected ? derived : cat, full, selected, authoredSelected ? derivedSms : "the installed vendor set");
         P2();
         P3();
         P4(cat, table);
@@ -63,21 +92,35 @@ public static class ContainerSelfTest
         P10(repo, cat);
         P11(home);
         P12(repo);
+        P13(repo, home, cat, full, selected, derived, derivedSms);
         return Finish();
     }
 
     // ------------------------------------------------------------------------------------------------ (p1) ----
-    private static void P1(ResolverCatalogue cat, CompositionTable table)
+    private static void P1(ResolverCatalogue cat, CompositionTable full, CompositionVariants.Selection selected, string where)
     {
-        Console.WriteLine("--- (p1) the composition table in the installed catalogue ---");
+        Console.WriteLine($"--- (p1) the composition table, variant {selected.Name}, in {where} ---");
+        if (selected.Refused || cat == null)
+        {
+            Check(false, "p1 has a declared variant and its catalogue", selected.Refusal ?? "the catalogue did not load");
+            return;
+        }
+        var table = full.ForVariant(selected.Name);
         Check(table.Rows.Count >= 5 && table.ModelSetKey == UnitPositionPolicy.AggregateModelSet,
               "data/unit-composition-52-aggregate.json loads (schema 1, modelSetKey AggregateTacticalLevel)",
               $"{table.Rows.Count} rows, modelSetKey '{table.ModelSetKey}'");
+        // composition_check.py pins: C1's catalogue rows, the 'all' rows (the same in both variants) and C2's authored rows.
         var pinned = new Dictionary<string, (int Leaves, int Flattened)>
         {
             ["C-USA-DIV-UCI"] = (1, 0), ["C-USA-BDE-UCI"] = (17, 3), ["C-USA-BN-UCI"] = (5, 0),
             ["C-USA-BDE-UCA"] = (26, 6), ["C-USA-BN-UCIZ"] = (8, 1),
+            ["C-USA-DIV-UCI-A"] = (1, 0), ["C-USA-BDE-UCI-A"] = (8, 0), ["C-USA-BDE-UCA-A"] = (29, 6),
         };
+        foreach (var other in full.Rows.Where(r => !CompositionVariants.RowBelongsTo(r.Variant, selected.Name)))
+            Skip($"row {other.Id} [{other.Variant}] is not a row of variant {selected.Name}",
+                 other.Variant.Equals(CompositionVariants.Authored, StringComparison.OrdinalIgnoreCase)
+                     ? "not applicable: its AUTHORED types exist only in the derived set - run --populate-selftest --variant authored"
+                     : "not applicable to this variant - run --populate-selftest --variant " + other.Variant);
         foreach (var row in table.Rows)
         {
             var c8 = UnitTypeMap.ParseObjectType(row.ContainerObjectType);
@@ -728,7 +771,302 @@ public static class ContainerSelfTest
               "the gate's bound: 85 s derived at the shipped values (30 + 10 + 2 x 15 + 15), a configured value wins");
     }
 
+    // ----------------------------------------------------------------------------------------------- (p13) ----
+    private const string VendorFixture = "IronStorm_Centre_52_Aggregate";
+    private const string DerivedFixture = "IronStorm_Centre_52_Aggregate_C2SIM";
+
+    private static string VRow(string id, string variant, string maps, string container, string subs)
+        => $"{{ \"id\": \"{id}\", \"variant\": \"{variant}\", \"mapRowIds\": [{maps}], \"container\": {{ \"objectType\": " +
+           $"\"{container}\", \"templateName\": \"x\" }}, \"subordinates\": [{subs}] }}";
+
+    private static string Variants(string authoredModelSet = CompositionVariants.DerivedModelSet)
+        => ", \"variants\": { \"catalogue\": { \"modelSet\": \"AggregateTacticalLevel\", \"note\": \"c\" }, \"authored\": " +
+           $"{{ \"modelSet\": \"{authoredModelSet}\", \"sms\": \"C:\\\\C2SIM\\\\vrf-sms\\\\C2SIM_AggregateTacticalLevel.sms\", " +
+           "\"note\": \"a\" } }, \"defaultVariant\": \"catalogue\"";
+
+    private static void P13(string repo, string home, ResolverCatalogue cat, CompositionTable full,
+                            CompositionVariants.Selection selected, ResolverCatalogue derived, string derivedSms)
+    {
+        Console.WriteLine("--- (p13) C1b: the composition VARIANT and the derived-SMS guard (RL-20260927-04) ---");
+        bool authoredSelected = derived != null || string.Equals(selected.Name, CompositionVariants.Authored,
+                                                                 StringComparison.OrdinalIgnoreCase);
+        Check(!selected.Refused, $"the selected variant is declared by the file ({selected.Name}; {selected.Source})",
+              selected.Refusal ?? "");
+        var map = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"));
+        var authoredRows = map.AuthoredRows;
+
+        // --- the variants in the file, and the resolver on the WHOLE file (main before C1b) ---
+        Check(full.Variants.Count == 2 && full.Variants.ContainsKey("catalogue") && full.Variants.ContainsKey("authored")
+              && full.DefaultVariant == "catalogue" && full.UndeclaredRowVariants().Count == 0
+              && full.Rows.All(r => r.Variant is "catalogue" or "authored" or "all"),
+              "the file declares the variants catalogue and authored, defaultVariant catalogue, and every row carries one",
+              $"{string.Join(", ", full.Variants.Keys)}; default '{full.DefaultVariant}'; " +
+              string.Join(" ", full.Rows.Select(r => $"{r.Id}[{r.Variant}]")));
+        var bde = cat.Resolve(new[] { 3, 11, 1, 225, 8, 3, 1, 1 });
+        var blind = CompositionResolver.Resolve("48_IBCT", bde, "F-UCI-H", null, full, cat);
+        Check(blind.Refused && blind.Refusal.Contains("TABLE DEFECT") && blind.Refusal.Contains("DIFFERENT variants"),
+              "FAIL-FIRST: read variant-blind (main before C1b), the C2 file makes 48 IBCT's map row F-UCI-H a TABLE DEFECT - " +
+              "two variants claim it, so the G1 brigade would get NO members", blind.Refusal ?? "(not refused)");
+
+        // --- selection ---
+        var sc = CompositionVariants.Select(full, "catalogue");
+        var tc = full.ForVariant(sc.Name);
+        string tcIds = string.Join(",", tc.Rows.Select(r => r.Id));
+        Check(!sc.Refused && sc.Name == "catalogue" && tc.SelectedVariant == "catalogue" && tc.FileRowCount == full.Rows.Count
+              && tcIds == "C-USA-DIV-UCI,C-USA-BDE-UCI,C-USA-BN-UCI,C-USA-BDE-UCA,C-USA-BN-UCIZ",
+              "Vrf:CompositionVariant=catalogue: its 3 rows plus the 2 'all' rows, in file order", tcIds);
+        var pc = CompositionResolver.Resolve("48_IBCT", bde, "F-UCI-H", null, tc, cat);
+        Check(!pc.Refused && pc.RowId == "C-USA-BDE-UCI" && pc.Leaves.Count == 17,
+              "... and 48 IBCT's F-UCI-H resolves to C-USA-BDE-UCI, 17 leaves (the C1 draft) - one variant, one row",
+              pc.Refusal ?? $"{pc.RowId}, {pc.Leaves.Count} leaves");
+        var sd = CompositionVariants.Select(full, "   ");
+        Check(!sd.Refused && sd.Name == "catalogue" && sd.Source.Contains("defaultVariant"),
+              "a BLANK setting takes the file's defaultVariant (catalogue)", $"{sd.Name} <- {sd.Source}");
+        var sa = CompositionVariants.Select(full, "Authored");
+        var ta = full.ForVariant(sa.Name);
+        string taIds = string.Join(",", ta.Rows.Select(r => r.Id));
+        var fa = ta.ForMapRow("F-UCI-H");
+        Check(!sa.Refused && sa.Name == "authored" && sa.Info?.ModelSet == CompositionVariants.DerivedModelSet
+              && taIds == "C-USA-BN-UCI,C-USA-BN-UCIZ,C-USA-DIV-UCI-A,C-USA-BDE-UCI-A,C-USA-BDE-UCA-A"
+              && fa.Count == 1 && fa[0].Id == "C-USA-BDE-UCI-A",
+              "Vrf:CompositionVariant=Authored (any case): its 3 rows plus the 2 'all' rows; F-UCI-H -> C-USA-BDE-UCI-A",
+              $"{taIds}; F-UCI-H -> {string.Join(",", fa.Select(r => r.Id))}");
+        var su = CompositionVariants.Select(full, "autored");
+        Check(su.Refused && su.Refusal.StartsWith("COMPOSITION VARIANT 'autored'", StringComparison.Ordinal)
+              && su.Refusal.Contains("authored, catalogue") && su.Refusal.Contains("REFUSING") && su.Refusal.Contains("RL-20260927-04"),
+              "an UNKNOWN variant is REFUSED at start-up, naming the declared ones - never a fallback", su.Refusal ?? "(accepted)");
+        var c1 = CompositionTable.Parse(Json(Row("R1", "\"F-X-H\"", T(TBdeBox), Sub("HQ", 1, "UNIT", THq))));
+        var c1s = CompositionVariants.Select(c1, "");
+        Check(!c1s.Refused && c1s.Name == "catalogue" && c1.ForVariant(c1s.Name).Rows.Count == 1
+              && CompositionVariants.Select(c1, "authored").Refused,
+              "a table with NO variants (the C1 schema) has one implicit variant, catalogue, holding every row; 'authored' is refused",
+              CompositionVariants.Select(c1, "authored").Refusal ?? "(accepted)");
+        var stray = CompositionTable.Parse(Json(
+            VRow("R-OK", "catalogue", "\"F-X-H\"", T(TBdeBox), Sub("HQ", 1, "UNIT", THq)) + "," +
+            VRow("R-TYPO", "authord", "\"F-X-I\"", T(TBdeBox), Sub("HQ", 1, "UNIT", THq)), Variants()));
+        Check(stray.UndeclaredRowVariants().Count == 1 && stray.UndeclaredRowVariants()[0].Contains("R-TYPO")
+              && stray.ForVariant("catalogue").Rows.Count == 1 && stray.ForVariant("authored").Rows.Count == 0,
+              "a row of an UNDECLARED variant belongs to no variant and is REPORTED (the start-up logs it), not used",
+              string.Join("; ", stray.UndeclaredRowVariants()));
+        var cross = CompositionTable.Parse(Json(
+            VRow("R-CAT", "catalogue", "\"F-X-H\"", T(TBdeBox), Sub("INF", 1, "CONTAINER", TBnBox, "R-AUT")) + "," +
+            VRow("R-AUT", "authored", "", T(TBnBox), Sub("RIF", 2, "UNIT", TUnitA)), Variants()));
+        var cx = CompositionResolver.ExpandRow(cross.ForVariant("catalogue").ById("R-CAT"), cross.ForVariant("catalogue"), Synth());
+        Check(cx.Refused && cx.Refusal.Contains("names no row"),
+              "a compose reference ACROSS variants names no row in the narrowed table (composition_check.py's rule)",
+              cx.Refusal ?? "(expanded)");
+
+        // --- the fixture's SMS, read as the runner's Stage 0 reads it ---
+        string fx = Path.Combine(repo, "tools", "FixtureGen", "frame_variants");
+        var fv = CompositionVariants.ReadFixtureSms(Path.Combine(fx, VendorFixture + ".scnx"), home);
+        var fd = CompositionVariants.ReadFixtureSms(Path.Combine(fx, DerivedFixture + ".scnx"), home);
+        Check(fv.Known && fv.Sms == @"$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms"
+              && fd.Known && fd.Sms == @"C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms",
+              $"the fixtures' Simulation-Model-Set-Files, read like RunnerLib.ps1 Get-ScenarioModelSet: {VendorFixture} = " +
+              $"the shipped set, {DerivedFixture} = the derived set", $"{fv.Sms} | {fd.Sms}");
+        var fnone = CompositionVariants.ReadFixtureSms("", home);
+        var fname = CompositionVariants.ReadFixtureSms("NoSuchScenario_C1b", home);
+        var fjunk = CompositionVariants.ReadFixtureSms(Path.Combine(repo, "data", "unit-composition-52-aggregate.json"), home);
+        Check(!fnone.Known && fnone.Via.Contains("not set")
+              && !fname.Found && fname.ScnxPath == Path.Combine(home, "userData", "scenarios", "NoSuchScenario_C1b.scnx")
+              && fjunk.Found && !fjunk.Readable,
+              "a scenario NAME resolves to <VrfHome>\\userData\\scenarios\\<name>.scnx (the runner's rule); unset, missing " +
+              "and not-an-archive are all UNKNOWN", $"{fnone.Via} | {fname.ScnxPath}: {fname.Via} | {fjunk.Via}");
+        Check(CompositionVariants.SmsModelSetName(fd.Sms) == CompositionVariants.DerivedModelSet
+              && CompositionVariants.SmsModelSetName(fv.Sms) == "AggregateTacticalLevel"
+              && string.Equals(CompositionVariants.SmsFilePath(fv.Sms, home),
+                               CompositionVariants.CatalogueSmsPath("AggregateTacticalLevel", home), StringComparison.OrdinalIgnoreCase)
+              && string.Equals(CompositionVariants.SmsFilePath(fd.Sms, home),
+                               CompositionVariants.CatalogueSmsPath(fd.Sms, home), StringComparison.OrdinalIgnoreCase),
+              "an SMS string's model-set name is its file name (Get-ModelSetFromSms); $(DATA_DIR) expands to <VrfHome>\\data, " +
+              "so the shipped fixture's SMS IS the default catalogue's file",
+              CompositionVariants.SmsFilePath(fv.Sms, home));
+
+        // --- THE GUARD, both ways (pure: the real fixtures, catalogue roots as the resolver reports them) ---
+        string vendorRoot = UnitPositionPolicy.AggregateModelSet;   // ObjectTypeResolver.RootSms of the default catalogue
+        string derivedRoot = fd.Sms;                                 // ... of Vrf:CatalogueSms = the derived .sms
+        var gShipped = CompositionVariants.Check(ta, sa, authoredRows, fv, derivedRoot, home);
+        Check(gShipped.Refused
+              && gShipped.Refusal.StartsWith("COMPOSITION VARIANT authored needs the derived SMS C2SIM_AggregateTacticalLevel", StringComparison.Ordinal)
+              && gShipped.Refusal.Contains("loads $(DATA_DIR)\\simulationModelSets\\AggregateTacticalLevel.sms")
+              && gShipped.Refusal.Contains("EMPTY") && gShipped.Refusal.Contains("RL-20260927-04"),
+              "THE GUARD: authored + a fixture on the SHIPPED SMS -> REFUSED: 'COMPOSITION VARIANT authored needs the derived " +
+              "SMS ... the fixture ... loads <sms>'", gShipped.Refusal ?? "(ACCEPTED - the wrong-SMS hazard would run)");
+        var gOk = CompositionVariants.Check(ta, sa, authoredRows, fd, derivedRoot, home);
+        Check(!gOk.Refused && gOk.NeedsDerivedSet && gOk.RequiredName == CompositionVariants.DerivedModelSet,
+              "THE GUARD: authored + a fixture on the DERIVED SMS + the catalogue rooted at that same file -> accepted",
+              gOk.Refusal ?? $"needs {gOk.RequiredName}");
+        var gNone = CompositionVariants.Check(ta, sa, authoredRows, fnone, derivedRoot, home);
+        var gMissing = CompositionVariants.Check(ta, sa, authoredRows, fname, derivedRoot, home);
+        var gJunk = CompositionVariants.Check(ta, sa, authoredRows, fjunk, derivedRoot, home);
+        Check(gNone.Refused && gNone.Refusal.Contains("UNKNOWN") && gNone.Refusal.Contains("Vrf:Scenario is not set")
+              && gMissing.Refused && gMissing.Refusal.Contains("no such file") && gJunk.Refused && gJunk.Refusal.Contains("UNKNOWN"),
+              "THE GUARD: authored with the fixture UNSET, MISSING or UNREADABLE -> REFUSED (an unverified SMS never passes)",
+              gNone.Refusal ?? "(accepted)");
+        var gWrongCat = CompositionVariants.Check(ta, sa, authoredRows, fd, vendorRoot, home);
+        Check(gWrongCat.Refused && gWrongCat.Refusal.Contains("Vrf:CatalogueSms=C:\\C2SIM\\vrf-sms\\C2SIM_AggregateTacticalLevel.sms"),
+              "THE GUARD: authored + the derived fixture but the app's catalogue on the SHIPPED set -> REFUSED (set Vrf:CatalogueSms)",
+              gWrongCat.Refusal ?? "(accepted)");
+        var cShipped = CompositionVariants.Check(tc, sc, authoredRows, fv, vendorRoot, home);
+        var cDerived = CompositionVariants.Check(tc, sc, authoredRows, fd, vendorRoot, home);
+        var cNone = CompositionVariants.Check(tc, sc, authoredRows, fnone, vendorRoot, home);
+        Check(!cShipped.NeedsDerivedSet && !cShipped.Refused && !cDerived.Refused && !cNone.Refused,
+              "the catalogue variant needs no derived set: accepted on the shipped fixture, the derived one and none at all",
+              $"{cShipped.Refusal}{cDerived.Refusal}{cNone.Refusal}");
+
+        // --- bypass controls: the CONTENT triggers the guard, not only the name ---
+        var byType = CompositionTable.Parse(Json(VRow("R-CAT", "catalogue", "\"F-X-H\"", T(TBdeBox),
+            "{ \"function\": \"INF\", \"count\": 1, \"role\": \"UNIT\", \"objectType\": \"3:11:1:225:6:3:1:201\", " +
+            "\"templateName\": \"Infantry BN (USA, IBCT)\", \"fidelity\": \"PROXY\" }"), Variants()));
+        var byFid = CompositionTable.Parse(Json(VRow("R-CAT", "catalogue", "\"F-X-H\"", T(TBdeBox),
+            "{ \"function\": \"HQ\", \"count\": 1, \"role\": \"UNIT\", \"objectType\": \"" + T(THq) + "\", " +
+            "\"templateName\": \"t\", \"fidelity\": \"AUTHORED\" }"), Variants()));
+        var gType = CompositionVariants.Check(byType.ForVariant("catalogue"), CompositionVariants.Select(byType, "catalogue"),
+                                              authoredRows, fv, vendorRoot, home);
+        var gFid = CompositionVariants.Check(byFid.ForVariant("catalogue"), CompositionVariants.Select(byFid, "catalogue"),
+                                             authoredRows, fv, vendorRoot, home);
+        Check(gType.Refused && gType.Why.Contains("A-INF-BN-IBCT") && gFid.Refused && gFid.Why.Contains("fidelity AUTHORED"),
+              "BYPASS CONTROL: a CATALOGUE-variant row naming an authored type, or an entry of fidelity AUTHORED, still needs " +
+              "the derived set - refused on the shipped fixture", $"{gType.Why} | {gFid.Why}");
+        var badDecl = CompositionTable.Parse(Json(VRow("R-A", "authored", "\"F-X-H\"", T(TBdeBox), Sub("HQ", 1, "UNIT", THq)),
+                                                  Variants(UnitPositionPolicy.AggregateModelSet)));
+        var gDecl = CompositionVariants.Check(badDecl.ForVariant("authored"), CompositionVariants.Select(badDecl, "authored"),
+                                              authoredRows, fv, vendorRoot, home);
+        Check(gDecl.Refused && gDecl.RequiredName == CompositionVariants.DerivedModelSet,
+              "BYPASS CONTROL: an 'authored' variant that DECLARES the shipped model set is not obeyed - it still needs " +
+              CompositionVariants.DerivedModelSet, gDecl.Refusal ?? "(accepted)");
+
+        // --- the hazard the guard exists for, on the INSTALLED vendor set ---
+        var hazards = new[] { "C-USA-DIV-UCI-A", "C-USA-BDE-UCI-A", "C-USA-BDE-UCA-A" }
+            .Select(id => CompositionResolver.ExpandRow(ta.ById(id), ta, cat)).ToList();
+        Check(hazards.All(h => h.Refused && (h.Refusal.Contains("UNKNOWN TYPE") || h.Refusal.Contains("says UNIT"))),
+              "THE HAZARD, on the SHIPPED catalogue: every authored row is REFUSED - its types land EMPTY generic containers " +
+              "or the base abstract (C2 record sec 7) - which is why the guard refuses the start",
+              string.Join(" | ", hazards.Select(h => h.Refusal)));
+
+        // --- the type map's authoredRows: fidelity Authored, never lookup rows ---
+        int rawRows;
+        using (var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"))))
+            rawRows = doc.RootElement.GetProperty("rows").GetArrayLength();
+        Check(authoredRows.Count == 7 && authoredRows.All(a => a.Fidelity == TypeFidelity.Authored)
+              && string.Join(",", authoredRows.Select(a => a.Id)) ==
+                 "A-INF-BN-IBCT,A-FA-BN-IBCT,A-BEB-IBCT,A-BSB,A-DIV-HQ,A-FA-BN-ABCT,A-BEB-ABCT"
+              && map.Rows.Count == rawRows && map.Rows.All(r => r.Fidelity != TypeFidelity.Authored),
+              "the type map's 7 authoredRows are read with fidelity AUTHORED (TypeFidelity.Authored, a real value - not Failed); " +
+              "the lookup rows are unchanged", $"{authoredRows.Count} authored ({string.Join(", ", authoredRows.Select(a => a.Fidelity).Distinct())}), {map.Rows.Count} of {rawRows} rows");
+        var mixed = UnitTypeMap.Parse("{ \"nations\": { \"USA\": 225 }, \"rows\": [ { \"id\": \"L1\", \"functionId\": \"UCI\", " +
+                                      "\"echelon\": \"H\", \"nationRole\": \"friendly\", \"nation\": \"USA\", \"objectType\": " +
+                                      "\"3:11:1:225:6:3:1:201\", \"fidelity\": \"AUTHORED\" } ], \"authoredRows\": [ { \"id\": " +
+                                      "\"A1\", \"fidelity\": \"PROXY\" }, { \"id\": \"A2\", \"fidelity\": \"AUTHORED\" } ] }");
+        Check(mixed.Rows[0].Fidelity == TypeFidelity.Failed && mixed.AuthoredRows[0].Fidelity == TypeFidelity.Failed
+              && mixed.AuthoredRows[1].Fidelity == TypeFidelity.Authored
+              && map.FindByObjectType("3:11:1:225:6:3:1:201") == null
+              && map.Lookup("UCI", 'H', "BDE", "friendly", "USA").Row.Id == "F-UCI-H",
+              "AUTHORED stays a table defect among the LOOKUP rows (Failed, as typemap_check.py refuses it there); an " +
+              "authoredRows entry of another fidelity is Failed; no authored type is ever looked up",
+              $"{mixed.Rows[0].Fidelity} / {mixed.AuthoredRows[0].Fidelity} / {mixed.AuthoredRows[1].Fidelity}");
+        var vendorLines = authoredRows.Select(a => CompositionVariants.AuthoredTypeLine(
+            a, UnitTypeMap.ParseObjectType(a.ObjectType) is int[] t8 ? cat.Resolve(t8) : null, vendorRoot)).ToList();
+        Check(vendorLines.All(l => !l.Ok && l.Text.StartsWith("TYPE MAP Authored: ", StringComparison.Ordinal)
+                                   && l.Text.Contains("NOT its own UNIT")),
+              "the TYPE MAP line prints the PARSED fidelity ('TYPE MAP Authored: ...'); on the SHIPPED catalogue each says " +
+              "NOT its own UNIT", vendorLines[0].Text);
+
+        // --- the start-up line ---
+        string lineA = CompositionVariants.StartupLine(sa, ta, fd, derivedRoot, gOk, authoredRows.Count);
+        string lineC = CompositionVariants.StartupLine(sc, tc, fv, vendorRoot, cShipped, authoredRows.Count);
+        string lineN = CompositionVariants.StartupLine(sd, tc, fnone, vendorRoot, cNone, authoredRows.Count);
+        Check(lineA.StartsWith("COMPOSITION VARIANT authored (Vrf:CompositionVariant; RL-20260927-04)", StringComparison.Ordinal)
+              && lineA.Contains("loads C:\\C2SIM\\vrf-sms\\C2SIM_AggregateTacticalLevel.sms") && lineA.Contains("IN USE")
+              && lineC.StartsWith("COMPOSITION VARIANT catalogue", StringComparison.Ordinal)
+              && lineC.Contains("loads $(DATA_DIR)\\simulationModelSets\\AggregateTacticalLevel.sms")
+              && lineC.Contains("needs no derived SMS") && lineC.Contains("NOT in use") && lineC.Contains("RL-20260927-04")
+              && lineN.Contains("Vrf:Scenario is not set") && lineN.Contains("defaultVariant"),
+              "the start-up line names the variant, the SMS the fixture loads (or why it is unknown) and the ruling id", lineA);
+
+        // --- the service: ONE narrowing, before the refusal decision and before any row is resolved ---
+        string svc = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs"));
+        string pre = Between(svc, "private bool ContainerStartupPreflight()", "private void PopulateInPlace(");
+        int narrow = pre.IndexOf("_composition = _composition.ForVariant(variant.Name);", StringComparison.Ordinal);
+        int refuse = pre.IndexOf("REFUSING TO START: {Problems}", StringComparison.Ordinal);
+        int rowsAt = pre.IndexOf("foreach (var row in _composition.Rows)", StringComparison.Ordinal);
+        Check(CountOf(svc, "_composition = _composition.ForVariant(") == 1 && narrow > 0 && narrow < refuse && refuse < rowsAt
+              && pre.Contains("if (variant.Refused) problems.Add(variant.Refusal);")
+              && pre.Contains("if (variantGuard.Refused) problems.Add(variantGuard.Refusal);")
+              && CountOf(svc, "CompositionTable.Load(") == 1,
+              "the service narrows the table ONCE, in the start-up preflight, before the refusal decision and before any row " +
+              "resolves; an unknown variant and a failed guard are start refusals (PopulateInPlace resolves the narrowed table)",
+              FormattableString.Invariant($"narrow {narrow}, refuse {refuse}, rows {rowsAt}"));
+
+        // --- the DERIVED set: only when the authored variant is selected ---
+        if (!authoredSelected)
+        {
+            Skip("the derived-set checks (the authored types land their own UNITs, the authored rings, the init rule unchanged " +
+                 "on the derived chain, the guard on the LOADED derived catalogue)",
+                 "not applicable: variant catalogue - run --populate-selftest --variant authored");
+            return;
+        }
+        if (derived == null)
+        {
+            Check(false, "variant authored: the derived catalogue is available for the derived-set checks",
+                  $"absent at {derivedSms} - tools/sms/Deploy-C2SimAggregateSms.ps1");
+            return;
+        }
+        var ownLines = authoredRows.Select(a => CompositionVariants.AuthoredTypeLine(
+            a, UnitTypeMap.ParseObjectType(a.ObjectType) is int[] t8 ? derived.Resolve(t8) : null, derivedSms)).ToList();
+        Check(ownLines.All(l => l.Ok),
+              "on the DERIVED catalogue each of the 7 authored types lands its OWN warfare-model UNIT (typemap_check.py's " +
+              "authored gate, in the app's resolver)", string.Join(" | ", ownLines.Where(l => !l.Ok).Select(l => l.Text)));
+        var rings = new Dictionary<string, (int N, double Spacing, double Radius, double Reach)>
+        {
+            ["C-USA-DIV-UCI-A"] = (1, 600.0, 0.0, 300.0), ["C-USA-BDE-UCI-A"] = (8, 180.0, 235.0, 835.0),
+            ["C-USA-BDE-UCA-A"] = (29, 300.0, 1387.0, 1987.0),
+        };
+        foreach (var kv in rings)
+        {
+            var p = CompositionResolver.ExpandRow(ta.ById(kv.Key), ta, derived);
+            var lay = PopulatePlanner.Plan("48_IBCT/28ID__AUTHORED", 54.0357, 23.2956, p.Leaves, 0.0);
+            Check(!p.Refused && !lay.Refused && lay.Members.Count == kv.Value.N && Math.Abs(lay.SpacingMeters - kv.Value.Spacing) < 0.5
+                  && Math.Abs(lay.RadiusMeters - kv.Value.Radius) < 1.0 && Math.Abs(lay.ReachMeters - kv.Value.Reach) < 1.0,
+                  $"{kv.Key} on the derived catalogue: {kv.Value.N} member(s) on ONE ring, spacing {kv.Value.Spacing:F0} m, radius " +
+                  $"{kv.Value.Radius:F0} m, reach {kv.Value.Reach:F0} m (composition_check.py --tree, FLAT)",
+                  p.Refusal ?? FormattableString.Invariant($"{lay.Members.Count}, {lay.SpacingMeters:F1}, {lay.RadiusMeters:F1}, {lay.ReachMeters:F1} {lay.Refusal}"));
+        }
+        var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
+        var nations = new NationRoles("USA", "RUS");
+        int same = 0, units = 0;
+        foreach (var u in init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)))
+        {
+            units++;
+            var plan = UnitTranslator.Plan(u with { ElevationAgl = "1000.0" }, TypeMapping.FidelityTable, map, nations);
+            var cv = ContainerTypeRule.Choose(cat, plan.Type.Country, u.SymbolId, u.EchelonCode);
+            var cd = ContainerTypeRule.Choose(derived, plan.Type.Country, u.SymbolId, u.EchelonCode);
+            if (cv.TypeText == cd.TypeText && cv.TemplateName == cd.TemplateName && cv.ExactBranch == cd.ExactBranch) same++;
+        }
+        Check(units == 36 && same == 36,
+              "the init rule on the DERIVED catalogue gives all 36 Iron Storm units the SAME container as the vendor set (the " +
+              "derived set only ADDS)", $"{same} of {units}");
+        var gLoaded = CompositionVariants.Check(ta, sa, authoredRows, fd, derived.Resolver.RootSms, home);
+        Check(!gLoaded.Refused,
+              "THE GUARD on the LOADED derived catalogue (its own RootSms) and the derived fixture -> accepted end to end",
+              gLoaded.Refusal ?? derived.Describe);
+    }
+
     // ---------------------------------------------------------------------------------------------- helpers ----
+    private static string ArgAfter(string flag)
+    {
+        var a = Environment.GetCommandLineArgs();
+        for (int i = 0; i + 1 < a.Length; i++)
+            if (string.Equals(a[i], flag, StringComparison.OrdinalIgnoreCase)) return a[i + 1];
+        return null;
+    }
+
+    private static void Skip(string label, string reason)
+    {
+        _skip++;
+        Console.WriteLine($"  [SKIP] SKIPPED: {label}  ({reason})");
+    }
+
     private sealed class SyntheticCatalogue : ICatalogue
     {
         private readonly Dictionary<string, CatalogueEntry> _byType = new(StringComparer.Ordinal);
@@ -774,9 +1112,11 @@ public static class ContainerSelfTest
 
     private static int Finish()
     {
+        // A SKIP is never a pass: it is counted apart and named (not applicable to the selected variant).
+        string skipped = _skip == 0 ? "" : $" ({_skip} SKIPPED as not applicable to the selected variant - grep [SKIP])";
         Console.WriteLine(_fail == 0
-            ? $"populate-selftest: ALL {_pass} CHECKS PASSED"
-            : $"populate-selftest: {_fail} FAILED, {_pass} passed");
+            ? $"populate-selftest: ALL {_pass} CHECKS PASSED{skipped}"
+            : $"populate-selftest: {_fail} FAILED, {_pass} passed{skipped}");
         return _fail == 0 ? 0 : 1;
     }
 }

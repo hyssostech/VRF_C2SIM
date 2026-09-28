@@ -19,6 +19,17 @@ another deployment. survey_magx.py surveys the shipped chain unless given `--der
 the shipped chain, and the set only ADDS (every vendor template, map row and US init-shell / container candidate type
 resolves as on the shipped chain); both validators FAIL when the derived set is not deployed.
 
+THE APP SIDE (C1b, RL-20260927-04; RUNBOOK sec 11i). The app narrows the composition to ONE variant
+(`Vrf:CompositionVariant`, default `catalogue`; an undeclared name refuses the start) and reads the type map's
+"authoredRows" with fidelity `Authored` - still never as lookup rows ("AUTHORED" in "rows" still parses as Failed,
+which is why typemap_check.py refuses it there). Rows with authored content start ONLY when the fixture the back end
+loads is on the derived set and `Vrf:CatalogueSms` is that same .sms: the app reads the fixture's
+Simulation-Model-Set-Files exactly as the runner's Stage 0 does (scripts/RunnerLib.ps1 Get-ScenarioModelSet), from
+the scenario `Vrf:Scenario` names, and refuses with `COMPOSITION VARIANT authored needs the derived SMS ... loads <sms>`
+otherwise. `VrfC2SimApp --populate-selftest [--variant authored]` pins the same pairing these validators gate offline:
+the catalogue variant on the vendor set (authored rows SKIPPED), the authored variant on the derived set, the guard
+both ways.
+
 ```
 python tools/aggregate/survey_magx.py --out docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md \
        --csv docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.csv \

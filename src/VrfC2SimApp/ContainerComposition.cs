@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace VrfC2SimApp;
 
@@ -7,9 +9,16 @@ namespace VrfC2SimApp;
 public sealed record CompositionEntry(string Function, int Count, string Role, string ObjectType, string TemplateName,
                                       string Compose, string Fidelity, string Note);
 
-/// <summary>One row of the authored composition table: the sub-units a tasked container is populated with.</summary>
+/// <summary>One row of the authored composition table: the sub-units a tasked container is populated with.
+/// <paramref name="Variant"/> is the row's "variant" (package C2): "catalogue", "authored" or "all" - "" when the row
+/// carries none (a C1-schema row, which belongs to every variant, like "all").</summary>
 public sealed record CompositionRow(string Id, IReadOnlyList<string> MapRowIds, string ContainerObjectType,
-                                    string ContainerTemplate, string Depth, IReadOnlyList<CompositionEntry> Subordinates);
+                                    string ContainerTemplate, string Depth, IReadOnlyList<CompositionEntry> Subordinates,
+                                    string Variant = "");
+
+/// <summary>One declared VARIANT of the table ("variants"; package C2, RL-20260927-04): the model set its rows need,
+/// that set's .sms and the fixture built on it - as the file writes them.</summary>
+public sealed record CompositionVariantInfo(string Name, string ModelSet, string Sms, string Fixture, string Note);
 
 /// <summary>
 /// THE AUTHORED COMPOSITION TABLE (Vrf:CompositionFile, default data/unit-composition-52-aggregate.json; C1,
@@ -18,6 +27,9 @@ public sealed record CompositionRow(string Id, IReadOnlyList<string> MapRowIds, 
 /// takes the fields it needs BY NAME and ignores every other one, so the parallel lane that authors the missing US
 /// unit types (C2, feat/aggregate-authored-units) can ADD fields and rows without a code change. schemaVersion 1 only:
 /// a different major is refused rather than guessed at.
+/// VARIANTS (C1b; package C2): the file declares "variants" and a "defaultVariant", and each row a "variant". The
+/// loaded table is the WHOLE file; the service narrows it to ONE variant (<see cref="ForVariant"/>, selected by
+/// <see cref="CompositionVariants.Select"/>) before anything resolves against it.
 /// </summary>
 public sealed class CompositionTable
 {
@@ -27,11 +39,29 @@ public sealed class CompositionTable
     public string SourcePath { get; }
     public string ModelSetKey { get; }
 
-    private CompositionTable(IReadOnlyList<CompositionRow> rows, string path, string modelSetKey)
+    /// <summary>The declared variants by name (case-insensitive); empty for a table that declares none (the C1 schema).</summary>
+    public IReadOnlyDictionary<string, CompositionVariantInfo> Variants { get; }
+
+    /// <summary>The file's "defaultVariant" ("" when it declares none).</summary>
+    public string DefaultVariant { get; }
+
+    /// <summary>The variant this table was narrowed to by <see cref="ForVariant"/>; "" = the whole file.</summary>
+    public string SelectedVariant { get; }
+
+    /// <summary>How many rows the FILE holds (a narrowed table keeps the count for the start-up line).</summary>
+    public int FileRowCount { get; }
+
+    private CompositionTable(IReadOnlyList<CompositionRow> rows, string path, string modelSetKey,
+                             IReadOnlyDictionary<string, CompositionVariantInfo> variants, string defaultVariant,
+                             string selectedVariant, int fileRowCount)
     {
         Rows = rows;
         SourcePath = path;
         ModelSetKey = modelSetKey;
+        Variants = variants;
+        DefaultVariant = defaultVariant;
+        SelectedVariant = selectedVariant;
+        FileRowCount = fileRowCount;
     }
 
     /// <summary>Same search as the type map (UnitTypeMap.ResolvePath): working directory, app directory, and every
@@ -74,14 +104,47 @@ public sealed class CompositionTable
                             s.TryGetProperty("count", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : 0,
                             Str(s, "role"), Str(s, "objectType"), Str(s, "templateName"), Str(s, "compose"),
                             Str(s, "fidelity"), Str(s, "note")));
-                rows.Add(new CompositionRow(Str(r, "id"), ids, cType, cTmpl, Str(r, "depth"), subs));
+                rows.Add(new CompositionRow(Str(r, "id"), ids, cType, cTmpl, Str(r, "depth"), subs, Str(r, "variant")));
             }
         }
-        return new CompositionTable(rows, path, Str(root, "modelSetKey"));
+        var variants = new Dictionary<string, CompositionVariantInfo>(StringComparer.OrdinalIgnoreCase);
+        if (root.TryGetProperty("variants", out var vs) && vs.ValueKind == JsonValueKind.Object)
+            foreach (var p in vs.EnumerateObject())
+                if (p.Value.ValueKind == JsonValueKind.Object && !string.IsNullOrWhiteSpace(p.Name))
+                    variants[p.Name.Trim()] = new CompositionVariantInfo(p.Name.Trim(), Str(p.Value, "modelSet"),
+                                                                         Str(p.Value, "sms"), Str(p.Value, "fixture"),
+                                                                         Str(p.Value, "note"));
+        return new CompositionTable(rows, path, Str(root, "modelSetKey"), variants, Str(root, "defaultVariant"), "",
+                                    rows.Count);
     }
 
     private static string Str(JsonElement e, string name)
         => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? (v.GetString() ?? "").Trim() : "";
+
+    /// <summary>
+    /// THE VARIANT'S TABLE (C1b): the rows of <paramref name="variant"/> plus the rows valid in every variant ("all", or
+    /// a row with no variant field) - composition_check.py variant_rows. Everything downstream (ForMapRow, ById, the
+    /// compose references) then sees ONE variant: a map row that each variant claims once is one claim, not a TABLE
+    /// DEFECT, and a compose reference ACROSS variants names no row (the offline gate's own rule). Call it on the loaded
+    /// (whole) table; <paramref name="variant"/> is a name <see cref="CompositionVariants.Select"/> accepted.
+    /// </summary>
+    public CompositionTable ForVariant(string variant)
+    {
+        string v = (variant ?? "").Trim();
+        var rows = Rows.Where(r => CompositionVariants.RowBelongsTo(r.Variant, v)).ToList();
+        return new CompositionTable(rows, SourcePath, ModelSetKey, Variants, DefaultVariant, v, FileRowCount);
+    }
+
+    /// <summary>Rows whose variant is neither "all" nor a declared variant (with no declaration: neither "all" nor
+    /// "catalogue") - they belong to NO variant, so the start-up names each one instead of dropping it silently.</summary>
+    public IReadOnlyList<string> UndeclaredRowVariants()
+        => Rows.Where(r => !string.IsNullOrWhiteSpace(r.Variant)
+                           && !string.Equals(r.Variant, CompositionVariants.AllVariants, StringComparison.OrdinalIgnoreCase)
+                           && (Variants.Count > 0
+                               ? !Variants.ContainsKey(r.Variant)
+                               : !string.Equals(r.Variant, CompositionVariants.Catalogue, StringComparison.OrdinalIgnoreCase)))
+               .Select(r => $"row {r.Id}: variant '{r.Variant}'")
+               .ToList();
 
     public CompositionRow ById(string id)
         => string.IsNullOrEmpty(id) ? null : Rows.FirstOrDefault(r => string.Equals(r.Id, id, StringComparison.Ordinal));
@@ -92,6 +155,297 @@ public sealed class CompositionTable
         => string.IsNullOrEmpty(mapRowId)
             ? Array.Empty<CompositionRow>()
             : Rows.Where(r => r.MapRowIds.Contains(mapRowId, StringComparer.Ordinal)).ToList();
+}
+
+/// <summary>
+/// THE COMPOSITION VARIANT AND ITS DERIVED-SMS GUARD (C1b - the integration package C2 named in
+/// docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 10; RL-20260927-04, D-2 revised: author the US unit
+/// types the catalogue lacks). PURE apart from reading the fixture archive; the service's start-up preflight calls it
+/// and --populate-selftest (p13) pins it.
+///
+/// SELECTION: Vrf:CompositionVariant (default catalogue; blank = the file's defaultVariant) names ONE declared variant
+/// and the resolver sees only that variant's rows plus the "all" rows (<see cref="CompositionTable.ForVariant"/>). A
+/// name the file does not declare REFUSES the start - a misspelt variant must not quietly run another composition.
+///
+/// THE GUARD: rows with AUTHORED content - the "authored" variant, a variant whose declared model set is not the
+/// table's own, an entry of fidelity AUTHORED, or an entry naming a type of the type map's authoredRows (the CONTENT
+/// decides, not only the name) - run ONLY when the scenario the back end loads is on the DERIVED set
+/// (C2SIM_AggregateTacticalLevel) AND the app's catalogue is rooted at that same .sms file. On the shipped
+/// AggregateTacticalLevel.sms the authored types land EMPTY generic containers or the base abstract (C2's wrong-SMS
+/// hazard, record sec 7), so the start is REFUSED - never a fallback to another variant or another catalogue.
+///
+/// THE FIXTURE'S SMS is read the way the runner's Stage 0 reads it (scripts/RunnerLib.ps1 Get-ScenarioModelSet, the
+/// input of Test-ModelSetPairing): the scenario archive &lt;VrfHome&gt;\userData\scenarios\&lt;name&gt;.scnx (the
+/// runner's $ScenarioScnxPath rule) or a rooted .scnx path, its first *.scn entry, and the (Simulation-Model-Set-Files
+/// "...") line - the line the back end takes its model set from (UG52 13.7 p368: the model set is fixed per scenario).
+/// WHY THE FILE AND NOT A RUNNER SETTING: the runner exports no setting that tells the derived set from the shipped one
+/// - Vrf__ModelSet is the FAMILY, and Get-ModelSetFromSms follows the derived set's include to AggregateTacticalLevel -
+/// and it does not export the scenario either. So the app is told WHICH scenario (Vrf:Scenario, the runner's -Scenario
+/// value) and reads the SMS line itself. Unset or unreadable is UNKNOWN, and UNKNOWN never passes the guard.
+/// </summary>
+public static class CompositionVariants
+{
+    public const string Catalogue = "catalogue";
+    public const string Authored = "authored";
+    /// <summary>A row valid in every variant.</summary>
+    public const string AllVariants = "all";
+    /// <summary>The ruling every line of this feature names.</summary>
+    public const string Ruling = "RL-20260927-04";
+    /// <summary>Package C2's derived set (tools/sms/Deploy-C2SimAggregateSms.ps1) - the required set when the file's own
+    /// variants name no other.</summary>
+    public const string DerivedModelSet = "C2SIM_AggregateTacticalLevel";
+
+    private const StringComparison Ci = StringComparison.OrdinalIgnoreCase;
+
+    /// <summary>composition_check.py variant_rows: a row belongs to <paramref name="variant"/> when it is of that
+    /// variant, of "all", or carries no variant (a C1-schema row).</summary>
+    public static bool RowBelongsTo(string rowVariant, string variant)
+    {
+        string v = (rowVariant ?? "").Trim();
+        return v.Length == 0 || string.Equals(v, AllVariants, Ci) || string.Equals(v, (variant ?? "").Trim(), Ci);
+    }
+
+    /// <summary>What <see cref="Select"/> decided: the declared variant name (the file's spelling), where the name came
+    /// from, its declaration (null for the implicit variant of a table that declares none), or the refusal.</summary>
+    public sealed record Selection(string Name, string Source, CompositionVariantInfo Info, string Refusal)
+    {
+        public bool Refused => Refusal != null;
+    }
+
+    /// <summary>Vrf:CompositionVariant -> ONE declared variant. Blank = the file's defaultVariant, else catalogue. A
+    /// table that declares no variants (the C1 schema) has ONE implicit variant, catalogue, holding every row. Any
+    /// other name is REFUSED, naming what the file declares.</summary>
+    public static Selection Select(CompositionTable table, string setting)
+    {
+        string raw = (setting ?? "").Trim();
+        string want, source;
+        if (raw.Length > 0) { want = raw; source = "Vrf:CompositionVariant"; }
+        else if (!string.IsNullOrWhiteSpace(table?.DefaultVariant))
+        {
+            want = table.DefaultVariant.Trim();
+            source = "Vrf:CompositionVariant blank -> the file's defaultVariant";
+        }
+        else { want = Catalogue; source = "Vrf:CompositionVariant blank and no defaultVariant -> catalogue"; }
+        string path = table?.SourcePath ?? "(no composition table)";
+        if (table == null || table.Variants.Count == 0)
+            return string.Equals(want, Catalogue, Ci)
+                ? new Selection(Catalogue, source, null, null)
+                : new Selection(want, source, null,
+                    $"COMPOSITION VARIANT '{want}' ({source}) is not a variant of {path}: it declares no variants, so " +
+                    $"its only variant is '{Catalogue}' (every row). REFUSING rather than guessing ({Ruling})");
+        if (table.Variants.TryGetValue(want, out var info)) return new Selection(info.Name, source, info, null);
+        return new Selection(want, source, null,
+            $"COMPOSITION VARIANT '{want}' ({source}) is not a variant of {path}: it declares " +
+            $"{string.Join(", ", table.Variants.Keys.OrderBy(k => k, StringComparer.Ordinal))}. REFUSING rather than " +
+            $"running another composition ({Ruling})");
+    }
+
+    private static string NormType(string t)
+        => UnitTypeMap.ParseObjectType(t) is int[] f ? string.Join(":", f) : (t ?? "").Trim();
+
+    /// <summary>WHY the rows of a narrowed table need the derived set, or null when they do not - the guard's trigger.
+    /// "" = the variant IS "authored" (nothing more to say); otherwise the reason: a declared model set other than the
+    /// table's own, an AUTHORED entry, or an entry naming a type of the type map's authoredRows - a catalogue row that
+    /// names an authored type needs the derived set just the same (composition_check.py forbids it offline; the app
+    /// does not rely on that).</summary>
+    public static string AuthoredContent(CompositionTable variantTable, Selection selection,
+                                         IReadOnlyList<UnitTypeRow> authoredRows)
+    {
+        if (selection != null && string.Equals(selection.Name, Authored, Ci)) return "";
+        var info = selection?.Info;
+        if (info != null && info.ModelSet.Length > 0 && !string.Equals(info.ModelSet, variantTable?.ModelSetKey ?? "", Ci))
+            return $"variant '{info.Name}' declares the model set {info.ModelSet}";
+        var authoredTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var a in authoredRows ?? Array.Empty<UnitTypeRow>())
+            if (!string.IsNullOrWhiteSpace(a.ObjectType)) authoredTypes.TryAdd(NormType(a.ObjectType), a.Id);
+        foreach (var r in variantTable?.Rows ?? Array.Empty<CompositionRow>())
+            foreach (var s in r.Subordinates)
+            {
+                if (string.Equals(s.Fidelity, "AUTHORED", Ci))
+                    return $"row {r.Id} entry {s.Function} is fidelity AUTHORED";
+                if (authoredTypes.TryGetValue(NormType(s.ObjectType), out var id))
+                    return $"row {r.Id} entry {s.Function} names the authored type {s.ObjectType} ({id})";
+            }
+        return null;
+    }
+
+    /// <summary>The derived set the authored content needs: the selected variant's declared model set when it is not
+    /// the table's own, else the file's "authored" variant's, else <see cref="DerivedModelSet"/>. Never the table's own
+    /// (shipped) model set - a declaration that says so is ignored, not obeyed.</summary>
+    public static (string Name, string Sms) RequiredDerivedSet(CompositionTable table, CompositionVariantInfo selected)
+    {
+        string own = table?.ModelSetKey ?? "";
+        if (selected != null && selected.ModelSet.Length > 0 && !string.Equals(selected.ModelSet, own, Ci))
+            return (selected.ModelSet, selected.Sms);
+        if (table != null && table.Variants.TryGetValue(Authored, out var a) && a.ModelSet.Length > 0
+            && !string.Equals(a.ModelSet, own, Ci))
+            return (a.ModelSet, a.Sms);
+        return (DerivedModelSet, "");
+    }
+
+    /// <summary>What the fixture archive says (RunnerLib.ps1 Get-ScenarioModelSet's Found / Readable / Sms / Via).</summary>
+    public sealed record FixtureSmsReading(string Setting, string ScnxPath, bool Found, bool Readable, string Sms, string Via)
+    {
+        public bool Known => Found && Readable;
+    }
+
+    /// <summary>The scenario archive a Vrf:Scenario value names: a rooted path as given, else
+    /// &lt;vrfHome&gt;\userData\scenarios\&lt;name&gt;.scnx - the runner's $ScenarioScnxPath rule ("" when unset).</summary>
+    public static string ScenarioArchivePath(string scenarioSetting, string vrfHome)
+    {
+        string s = (scenarioSetting ?? "").Trim();
+        if (s.Length == 0) return "";
+        if (Path.IsPathRooted(s)) return s;
+        return Path.Combine(vrfHome ?? "", "userData", "scenarios", s.EndsWith(".scnx", Ci) ? s : s + ".scnx");
+    }
+
+    /// <summary>PORT of RunnerLib.ps1 Get-ScenarioModelSet: the archive's first *.scn entry and its
+    /// (Simulation-Model-Set-Files "...") line, by the runner's own regex. Never throws.</summary>
+    public static FixtureSmsReading ReadFixtureSms(string scenarioSetting, string vrfHome)
+    {
+        string s = (scenarioSetting ?? "").Trim();
+        if (s.Length == 0) return new FixtureSmsReading(s, "", false, false, "", "Vrf:Scenario is not set");
+        string path = ScenarioArchivePath(s, vrfHome);
+        if (!File.Exists(path)) return new FixtureSmsReading(s, path, false, false, "", "no such file");
+        try
+        {
+            using var zip = ZipFile.OpenRead(path);
+            var entry = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".scn", Ci));
+            if (entry == null) return new FixtureSmsReading(s, path, true, false, "", "no .scn inside the archive");
+            string scn;
+            using (var sr = new StreamReader(entry.Open())) scn = sr.ReadToEnd();
+            var m = Regex.Match(scn, "\\(Simulation-Model-Set-Files\\s+\"([^\"]*)\"\\s*\\)");
+            if (!m.Success)
+                return new FixtureSmsReading(s, path, true, false, "", "the .scn has no Simulation-Model-Set-Files line");
+            return new FixtureSmsReading(s, path, true, true, m.Groups[1].Value, "Simulation-Model-Set-Files of " + entry.FullName);
+        }
+        catch (Exception ex)
+        {
+            return new FixtureSmsReading(s, path, true, false, "", "unreadable: " + ex.Message);
+        }
+    }
+
+    /// <summary>The model-set NAME of an SMS string - its file name without .sms, as Get-ModelSetFromSms reads the leaf:
+    /// "C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms" -> C2SIM_AggregateTacticalLevel.</summary>
+    public static string SmsModelSetName(string sms)
+    {
+        string leaf = (sms ?? "").Replace('/', '\\').Split('\\').Last().Trim();
+        return leaf.EndsWith(".sms", Ci) ? leaf[..^4] : leaf;
+    }
+
+    /// <summary>The file an SMS string names on this machine: $(DATA_DIR) is &lt;vrfHome&gt;\data (the vendor macro;
+    /// build_fixture.py expand_vendor_macros), and a relative path is relative to the executable's directory,
+    /// &lt;vrfHome&gt;\bin64 (UG52 Table 15 p271).</summary>
+    public static string SmsFilePath(string sms, string vrfHome)
+    {
+        string p = (sms ?? "").Trim().Replace("$(DATA_DIR)", Path.Combine(vrfHome ?? "", "data"), Ci);
+        if (p.Length == 0) return "";
+        if (!Path.IsPathRooted(p)) p = Path.Combine(vrfHome ?? "", "bin64", p);
+        try { return Path.GetFullPath(p); } catch { return p; }
+    }
+
+    /// <summary>The .sms file a catalogue root names (ObjectTypeResolver.RootSms): a ROOTED path as given, else a
+    /// model-set NAME in &lt;vrfHome&gt;\data\simulationModelSets.</summary>
+    public static string CatalogueSmsPath(string rootSms, string vrfHome)
+    {
+        string r = (rootSms ?? "").Trim();
+        if (r.Length == 0) return "";
+        if (!Path.IsPathRooted(r))
+            r = Path.Combine(ObjectTypeResolver.ModelSetsDir(vrfHome ?? ""), (r.EndsWith(".sms", Ci) ? r[..^4] : r) + ".sms");
+        try { return Path.GetFullPath(r); } catch { return r; }
+    }
+
+    /// <summary>One line for a fixture reading: what it loads, or why it is UNKNOWN.</summary>
+    public static string Describe(FixtureSmsReading f)
+    {
+        if (f == null || string.IsNullOrEmpty(f.Setting)) return "Vrf:Scenario is not set";
+        if (!f.Found) return $"Vrf:Scenario '{f.Setting}' -> {f.ScnxPath}: no such file";
+        if (!f.Readable) return $"{f.ScnxPath}: {f.Via}";
+        return $"the fixture {f.ScnxPath} loads {f.Sms}";
+    }
+
+    /// <summary>The guard's verdict. <see cref="Why"/> is null when the rows need no derived set.</summary>
+    public sealed record Verdict(string Why, string RequiredName, string RequiredSms, string Refusal)
+    {
+        public bool NeedsDerivedSet => Why != null;
+        public bool Refused => Refusal != null;
+    }
+
+    /// <summary>
+    /// THE GUARD. Rows with authored content (<see cref="AuthoredContent"/>) pass only when (1) the fixture's SMS is
+    /// KNOWN, (2) it is the required derived set (by model-set name), and (3) the app's catalogue is rooted at the SAME
+    /// .sms file - otherwise the start is REFUSED, the text beginning "COMPOSITION VARIANT &lt;name&gt; needs the
+    /// derived SMS ...". Rows with no authored content need nothing: the derived set only ADDS types
+    /// (typemap_check.py), so the catalogue variant runs on the shipped or the derived SMS alike.
+    /// </summary>
+    public static Verdict Check(CompositionTable variantTable, Selection selection, IReadOnlyList<UnitTypeRow> authoredRows,
+                                FixtureSmsReading fixture, string catalogueRootSms, string vrfHome)
+    {
+        string why = AuthoredContent(variantTable, selection, authoredRows);
+        if (why == null) return new Verdict(null, "", "", null);
+        var (name, sms) = RequiredDerivedSet(variantTable, selection?.Info);
+        string head = $"COMPOSITION VARIANT {selection?.Name ?? "(none)"} needs the derived SMS {name}" +
+                      (string.IsNullOrEmpty(sms) ? "" : $" ({sms})") + (why.Length > 0 ? $" ({why})" : "");
+        if (fixture == null || !fixture.Known)
+            return new Verdict(why, name, sms,
+                $"{head}, but the fixture's SMS is UNKNOWN ({Describe(fixture)}). Name the scenario the back end loads in " +
+                "Vrf:Scenario (the runner's -Scenario value, or a rooted .scnx path) - it is read like the runner's Stage 0 " +
+                $"(RunnerLib.ps1 Get-ScenarioModelSet), and an unverified SMS never passes ({Ruling})");
+        if (!string.Equals(SmsModelSetName(fixture.Sms), name, Ci))
+            return new Verdict(why, name, sms,
+                $"{head}, but the fixture {fixture.ScnxPath} loads {fixture.Sms}: there the authored types land EMPTY " +
+                "generic containers or the base abstract (the wrong-SMS hazard, docs/experiments/" +
+                $"AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7). Run it on a fixture built on {name} " +
+                $"(IronStorm_Centre_52_Aggregate_C2SIM), or set Vrf:CompositionVariant={Catalogue} ({Ruling})");
+        string fixtureFile = SmsFilePath(fixture.Sms, vrfHome);
+        string catalogueFile = CatalogueSmsPath(catalogueRootSms, vrfHome);
+        if (!string.Equals(fixtureFile, catalogueFile, Ci))
+            return new Verdict(why, name, sms,
+                $"{head}: the fixture {fixture.ScnxPath} loads it ({fixture.Sms}), but the app's catalogue is rooted at " +
+                $"{(string.IsNullOrWhiteSpace(catalogueRootSms) ? "(nothing - it did not load)" : catalogueRootSms)}: the " +
+                "container rule and the composition would be resolved against a set the simulator does not load. Set " +
+                $"Vrf:CatalogueSms={fixtureFile} ({Ruling})");
+        return new Verdict(why, name, sms, null);
+    }
+
+    /// <summary>The TYPE MAP line of one authoredRows type - the init's "TYPE MAP {Fidelity}: ..." shape, printing the
+    /// PARSED fidelity - with what the catalogue lands for it. Ok = fidelity Authored and it lands its OWN warfare-model
+    /// UNIT (the template it names).</summary>
+    public static (bool Ok, string Text) AuthoredTypeLine(UnitTypeRow a, CatalogueEntry hit, string catalogueRoot)
+    {
+        bool ok = a != null && a.Fidelity == TypeFidelity.Authored && hit != null && hit.Role == CatalogueRole.Unit
+                  && (string.Equals(hit.DisplayName, a.TemplateName, StringComparison.Ordinal)
+                      || string.Equals(hit.Name, a.TemplateName, StringComparison.Ordinal));
+        string lands = hit == null ? "NOTHING" : $"'{hit.DisplayName}', a {hit.Role}";
+        return (ok, $"TYPE MAP {a?.Fidelity}: {a?.Id} -> {a?.TemplateName} ({a?.ObjectType}) [authoredRows; {a?.NationRole} " +
+                    $"{a?.Nation} {a?.EchelonCode}] lands {lands} in the catalogue rooted at {catalogueRoot}" +
+                    (ok ? " - its own warfare-model UNIT, which the authored composition variant creates."
+                        : " - NOT its own UNIT: a composition leaf of this type is REFUSED (the catalogue is not the derived " +
+                          "set tools/sms/Deploy-C2SimAggregateSms.ps1 builds, or the row is not AUTHORED)."));
+    }
+
+    /// <summary>THE START-UP LINE: the variant and where it came from, its rows, the SMS the fixture loads, the
+    /// catalogue, the guard's verdict and the ruling.</summary>
+    public static string StartupLine(Selection selection, CompositionTable variantTable, FixtureSmsReading fixture,
+                                     string catalogueRoot, Verdict verdict, int authoredRowCount)
+    {
+        string rows = variantTable == null ? "no table"
+            : $"{variantTable.Rows.Count} of the {variantTable.FileRowCount} row(s) of {variantTable.SourcePath} (its own " +
+              $"and the '{AllVariants}' rows: {string.Join(", ", variantTable.Rows.Select(r => r.Id))})";
+        string guard = verdict == null || !verdict.NeedsDerivedSet
+            ? "It needs no derived SMS: catalogue units only, which resolve alike on the shipped and the derived set."
+            : verdict.Refused
+                ? "It needs the derived SMS " + verdict.RequiredName + " and the guard REFUSED the start (see the refusal)."
+                : $"It needs the derived SMS {verdict.RequiredName}" +
+                  (verdict.Why.Length > 0 ? $" ({verdict.Why})" : "") +
+                  ": the fixture loads it and the catalogue is rooted at the same file.";
+        string authored = verdict != null && verdict.NeedsDerivedSet
+            ? $"{authoredRowCount} authoredRows type(s) read with fidelity {TypeFidelity.Authored} and IN USE (the TYPE MAP " +
+              "Authored lines)."
+            : $"{authoredRowCount} authoredRows type(s) in the type map, NOT in use (they serve the '{Authored}' variant only).";
+        return $"COMPOSITION VARIANT {selection?.Name} ({selection?.Source}; {Ruling}): {rows}. SMS: {Describe(fixture)}. " +
+               $"Catalogue: {(string.IsNullOrWhiteSpace(catalogueRoot) ? "(not loaded)" : catalogueRoot)}. {guard} {authored}";
+    }
 }
 
 /// <summary>Where a container's members come from (design sec 4.1, in precedence order).</summary>
@@ -186,9 +540,18 @@ public static class CompositionResolver
                 $"is named by no row of {table?.SourcePath ?? "(no composition table loaded)"} and its container template " +
                 $"'{container?.DisplayName ?? "(unresolved)"}' configures no subordinates");
         if (rows.Count > 1)
+        {
+            // C1b: rows of DIFFERENT variants claiming one map row mean the table was never narrowed to one variant
+            // (the C2 data read variant-blind) - said as such, still refused rather than silently taking the first.
+            bool mixed = rows.Select(r => (r.Variant ?? "").Trim().ToLowerInvariant()).Distinct().Count() > 1;
             return PopulatePlan.Refuse(PopulateSource.Table, rows[0].Id,
                 $"TABLE DEFECT: map row '{mapRowId}' is claimed by {rows.Count} composition rows " +
-                $"({string.Join(", ", rows.Select(r => r.Id))}) - one row per map row");
+                $"({string.Join(", ", rows.Select(r => string.IsNullOrEmpty(r.Variant) ? r.Id : $"{r.Id} [{r.Variant}]"))}) - " +
+                (mixed && string.IsNullOrEmpty(table.SelectedVariant)
+                    ? "rows of DIFFERENT variants: the table was not narrowed to one variant (Vrf:CompositionVariant, " +
+                      "CompositionTable.ForVariant)"
+                    : "one row per map row"));
+        }
         return ExpandRow(rows[0], table, catalogue, containerRank);
     }
 

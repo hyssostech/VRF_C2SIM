@@ -223,6 +223,10 @@ aggregate terrain; the fixture validated as the shipped set FAILS. NOT deployed 
 - The resolver must SELECT a variant (setting) and REFUSE "authored" unless the fixture's SMS is the derived set
   (the runner already classifies it as the aggregate family: RunnerLib.ps1 Get-ModelSetFromSms follows its include).
 - AUTHORED leaves are created by objectType like any catalogue leaf; nothing else differs.
+- BUILT 2026-09-27 by C1b (fix/composition-variant-guard; RUNBOOK sec 11i): Vrf:CompositionVariant selects one variant;
+  rows with authored content start only when the fixture Vrf:Scenario names loads the derived set (read like the
+  runner's Get-ScenarioModelSet) and Vrf:CatalogueSms is that same .sms. Sec 7's "the app reads rows only" no longer
+  holds: the app also reads authoredRows, with fidelity Authored, and still never as lookup rows.
 
 ## 11. Adversarial review
 

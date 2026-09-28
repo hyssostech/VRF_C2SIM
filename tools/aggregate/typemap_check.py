@@ -30,9 +30,11 @@ Gates (every one exits non-zero on failure):
                usable row for the friendly nation and for EACH hostile nation the map carries
   authored     (package C2, RL-20260927-04) the map's "authoredRows": the AUTHORED US unit types of
                the derived set C2SIM_AggregateTacticalLevel (tools/sms). They are NOT lookup rows -
-               the app reads "rows" only (UnitTypeMap.Parse), and would parse fidelity AUTHORED as
-               Failed (ParseFidelity) while Lookup ignores fidelity, so an AUTHORED row in "rows"
-               is refused. Gated: schema; one row per design type (tools/sms/aggregate_authored_
+               the app looks up "rows" only (UnitTypeMap.Lookup), and parses fidelity AUTHORED there
+               as Failed (ParseFidelity) while Lookup ignores fidelity, so an AUTHORED row in "rows"
+               is refused. Since C1b the app ALSO reads "authoredRows" (UnitTypeMap.AuthoredRows,
+               fidelity Authored) for the composition's authored variant and its derived-SMS guard
+               only. Gated: schema; one row per design type (tools/sms/aggregate_authored_
                design.json) with the same type, label, .entity and .magx; on the DEPLOYED derived
                chain each lands its own warfare-model UNIT and its .magx names it; on the VENDOR chain
                it does NOT (the wrong-SMS hazard - what it would land is printed); the derived chain
