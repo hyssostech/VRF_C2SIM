@@ -1637,14 +1637,21 @@ Check '8n with NOTHING exported all three report the built-in default - on 5.2 t
     $provDefFlat -match 'init : \S*IRONSTORM_CUTA_Initialization\.xml <- built-in default' -and
     $provDefFlat -match 'order : \S*IRONSTORM_CUTA_Order\.xml <- built-in default' -and
     $provDefFlat -notmatch 'came from the ENVIRONMENT')
-Check '8n ... and its clientId is the built-in init''s own SystemName "Not Set", SAID to be the built-in default - never a mismatch' (
-    $provDefFlat -match 'clientId : Not Set \(built-in default - the SystemName of the built-in init IRONSTORM_CUTA_Initialization\.xml' -and
-    $provDefFlat -notmatch 'clientId MISMATCH')
-Check '8n the MOJAVE R9 set stays selectable: named, it resolves as the old default did (clientId from appsettings.json)' (
+Check '8n the MOJAVE R9 set stays selectable: named, it resolves as the old default did' (
     $provR9Flat -match 'scenario : Sample\\FirstExperience\\firstexperience <- argument -Scenario' -and
     $provR9Flat -match 'init : \S*R9_Mojave_Lean_Initialization\.xml <- argument -Init' -and
-    $provR9Flat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- argument -Order' -and
-    $provR9Flat -match 'clientId : STP \(appsettings\.json\)' -and $provR9Flat -notmatch 'built-in default - the SystemName')
+    $provR9Flat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- argument -Order')
+# The clientId banner line is printed only AFTER Stage 0's validation, which a checkout with no app build fails first
+# (its appsettings.json is missing) - so these two legs SKIP there, and only there.
+if ($provDefFlat -match "appsettings\.json is MISSING from the app's content root") {
+    Check '8n clientId legs SKIPPED - Stage 0 stopped at the missing app build before its clientId banner line' $true
+} else {
+    Check '8n ... and its clientId is the built-in init''s own SystemName "Not Set", SAID to be the built-in default - never a mismatch' (
+        $provDefFlat -match 'clientId : Not Set \(built-in default - the SystemName of the built-in init IRONSTORM_CUTA_Initialization\.xml' -and
+        $provDefFlat -notmatch 'clientId MISMATCH')
+    Check '8n ... and the NAMED R9 set keeps its clientId from appsettings.json (STP), never the built-in default' (
+        $provR9Flat -match 'clientId : STP \(appsettings\.json\)' -and $provR9Flat -notmatch 'built-in default - the SystemName')
+}
 Check '8n runner: the built-in pair is Iron Storm on 5.2 and the R9 pair on 5.0.2, and the "Not Set" clientId goes with the 5.2 init only' (
     $runnerText -match "\`$ScenarioBuiltin = 'IronStorm_Centre_52_Aggregate'" -and
     $runnerText -match "\`$InitBuiltin  = Join-Path \`$DataDir \`$\(if \(\`$Is52\) \{ 'IRONSTORM_CUTA_Initialization\.xml' \} else \{ 'R9_Mojave_Lean_Initialization\.xml' \}\)" -and
@@ -2011,9 +2018,17 @@ try {
     # (e) THE BUILT-IN DEFAULT (2026-09-28): nothing named, nothing inherited, the built-in Iron Storm init. Its own
     #     SystemName "Not Set" is used, SAID to be the built-in default, exported like -ClientId - and put back.
     $ciE = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass '(none)' -Builtin 2>&1 | Out-String)
-    Check '8v3 (e) the built-in init gets its own clientId "Not Set", credited to the BUILT-IN DEFAULT, and the shell gets nothing back' (
-        $ciE -match 'EXITCODE=0' -and $ciE -match 'clientId\s+:\s+Not Set \(built-in default - the SystemName of the built-in init' -and
-        $ciE -match 'AFTER=\[\]' -and $ciE -notmatch 'clientId MISMATCH') $ciE
+    # $ciE is the child's WHOLE stdout, so it carries the runner's host output (the validation lines included) as well
+    # as the probe's own EXITCODE / AFTER / LINE> lines.
+    if ($ciE -match "appsettings\.json is MISSING from the app's content root") {
+        # The banner line is printed after validation, which a checkout with no app build fails first; the export and
+        # the restore are still exercised, and the restore is still asserted.
+        Check '8v3 (e) banner leg SKIPPED - Stage 0 stopped at the missing app build; the shell still gets nothing back' ($ciE -match 'AFTER=\[\]') $ciE
+    } else {
+        Check '8v3 (e) the built-in init gets its own clientId "Not Set", credited to the BUILT-IN DEFAULT, and the shell gets nothing back' (
+            $ciE -match 'EXITCODE=0' -and $ciE -match 'clientId\s+:\s+Not Set \(built-in default - the SystemName of the built-in init' -and
+            $ciE -match 'AFTER=\[\]' -and $ciE -notmatch 'clientId MISMATCH') $ciE
+    }
     # (f) An INHERITED Vrf__ClientId still beats the built-in default (the environment beats a built-in default, as for
     #     the init itself) - and a wrong one is refused by the same gate, never silently replaced.
     $ciF = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' -Builtin 2>&1 | Out-String)
