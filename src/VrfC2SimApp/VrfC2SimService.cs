@@ -4566,7 +4566,10 @@ public sealed class VrfC2SimService : BackgroundService
                                                           // RL-20260921-09: a predecessor whose unit is
                                                           // OVERDUE is waited for up to the chain backstop
                                                           // from its dispatch, not skipped at end + margin.
-                                                          _vrf.TaskChainBackstopSeconds);
+                                                          _vrf.TaskChainBackstopSeconds,
+                                                          // RL-20260927-05: and so is a mover the timed walk
+                                                          // has not flagged yet - asked when the window expires.
+                                                          () => TreatPredecessorAsOverdue(task, timeoutSeconds));
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -5876,10 +5879,20 @@ public sealed class VrfC2SimService : BackgroundService
             // above), so what reaches this line without a Duration is a task that HAS geometry -
             // a move - and therefore has arrival evidence to complete on. The supervisor default
             // that armed Vrf:DefaultHoldSeconds here is gone, knob and all.
+            // RL-20260927-05 leaves this case as it was, so the line says what the gate really does: a
+            // task with no end time is never OVERDUE, and its successors get the configured floor only.
             if (task.DurationMs <= 0)
                 _log.LogWarning("Task '{Task}': the order gives NO Duration, so this task has no end time - " +
-                                "it completes only on its own evidence (arrival, or a VR-Forces completion), " +
-                                "and until it does its STREND successors wait at the gate.", task.TaskName);
+                                "it completes only on its own evidence (arrival, or a VR-Forces completion). " +
+                                "With no end time it is never OVERDUE: a STREND successor waits for it at most " +
+                                "{Floor:F0} s from this dispatch (Vrf:TaskPredecessorTimeoutSeconds, the floor) and " +
+                                "is then handled by Vrf:PredecessorTimeoutPolicy={Policy} (skip = TASKABRT), even " +
+                                "if the unit arrives later - the wait for a late mover up to the chain backstop " +
+                                "(RL-20260927-05) needs an end time.",
+                                task.TaskName,
+                                TaskDispatchPolicy.PredecessorTimeoutSeconds(_vrf.TaskPredecessorTimeoutSeconds, 0.0,
+                                                                             _predecessorEndMargin),
+                                _vrf.PredecessorTimeoutPolicy ?? "skip");
             else if (seconds <= 0.0)
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
                                 "zero - NO end time is armed.",
@@ -8118,6 +8131,51 @@ public sealed class VrfC2SimService : BackgroundService
                            $"({p.DurationSeconds:F0} s after dispatch)");
             // The task is over: release its follow-ons' gate.
             _sequencer.CompleteTask(p.TaskUuid);
+        }
+    }
+
+    /// <summary>
+    /// RL-20260927-05 (2026-09-27, the owner's "Q1 a" on the RL-20260925-01 Q1 finding). THE STREND GATE
+    /// ASKS THIS - once, on the thread pool - when <paramref name="successor"/>'s window on its predecessor
+    /// (the predecessor's end time + Vrf:TaskPredecessorEndMarginSeconds, counted from the dispatch reading
+    /// the end-time timer shares) expires before the timed walk has flagged that predecessor OVERDUE. The
+    /// OVERDUE flag comes from MaybeCompleteTimedTasks, at most once a WALL second on the tick thread, so a
+    /// task-clock step larger than the margin let the window expire first and skipped the follow-on of a
+    /// mover that then ARRIVED (TimerAnchorSelfTest t4).
+    /// TRUE - the predecessor has a destination and has not finished (no TASKCMPLT, no TASKABRT;
+    /// TimedCompletionPolicy.IsUnfinishedMover): it is treated as OVERDUE, and the successor keeps waiting
+    /// until its TASKCMPLT releases it, until it is ABANDONED (a STUCK unit's follow-ons, RL-20260925-01 Q2),
+    /// or until Vrf:TaskChainBackstopSeconds from ITS dispatch - the only point at which it is skipped.
+    /// FALSE - the skip stands, as before: a predecessor with NO destination (a hold) ends by its timer, so
+    /// its window expiring means its timer had not completed it by end + margin; a predecessor with no end
+    /// time (no Duration) is never OVERDUE and is bounded by the configured floor (not changed by
+    /// RL-20260927-05); one already completed or aborted is not waited for.
+    /// </summary>
+    private bool TreatPredecessorAsOverdue(OrderTask successor, double windowSeconds)
+    {
+        string pred = successor.StartAfterTaskUuid;
+        try
+        {
+            if (!_timed.IsUnfinishedMover(pred, out bool heldForEndTime)) return false;
+            _log.LogWarning("Task '{Task}': the window on its predecessor {Pred} ({W:F0} s = its end time + margin, " +
+                            "from ITS dispatch) expired before the timed walk flagged it OVERDUE. The predecessor has " +
+                            "a destination and has not finished (no TASKCMPLT, no TASKABRT){Held}, so it is treated as " +
+                            "OVERDUE: this task keeps waiting - released by its TASKCMPLT, abandoned with it if its unit " +
+                            "is reported STUCK (RL-20260925-01), skipped only at Vrf:TaskChainBackstopSeconds={B} s " +
+                            "from its dispatch (RL-20260927-05).",
+                            successor.TaskName, pred, windowSeconds,
+                            heldForEndTime
+                                ? " - its unit has ARRIVED and its TASKCMPLT is held for its end time, which the timed " +
+                                  "walk has not reached yet"
+                                : "",
+                            _vrf.TaskChainBackstopSeconds);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Task '{Task}': the STREND gate could not ask whether its predecessor {Pred} is an " +
+                              "unfinished mover - treated as NOT (the skip below stands).", successor.TaskName, pred);
+            return false;
         }
     }
 

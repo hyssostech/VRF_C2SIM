@@ -53,6 +53,13 @@ a Duration was reported complete at dispatch + Duration, whether or not the unit
 - (a) a unit that arrives EARLY is held, and reported complete at its end time;
 - (b) a unit still travelling at its end time is logged OVERDUE, and reported complete the moment it arrives;
 - (c) its follow-on task waits for it instead of being skipped;
+  NOTE 2026-09-27 (added after registration; the text above is not rewritten): as built on 2026-09-25, (c) held only
+  while the timed walk's OVERDUE line reached the gate inside the 60 s margin - one task-clock step larger than the
+  margin skipped the follow-on anyway (docs/RUNBOOK.md sec 11). Since branch fix/gate-late-predecessor
+  (RL-20260927-05) the gate asks the timer when its window expires, and a predecessor with a destination and no
+  TASKCMPLT/TASKABRT yet is waited for up to the chain backstop. This run's late arriver (P2t HIT) came through the
+  OVERDUE line (P2 HIT, L164251 "423 s of a 420 s Duration"), at 3.4-4.4x while tasks ran (P11), where one sample
+  step is a few SIM s - the race did not arise.
 - (d) a task with no destination ends at its end time;
 - (e) a task with no Duration completes only on evidence;
 - (f) a stuck unit gets the watchdog's abort, and its follow-ons are abandoned;

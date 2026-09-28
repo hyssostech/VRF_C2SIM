@@ -453,7 +453,10 @@ public static class TaskDispatchPolicy
     /// margin below could cover once observation lag was added). MarkDispatched now reads the axis
     /// ONCE and hands the same reading to NotifyDispatched and to TimedCompletionPolicy.Register, so
     /// the gate's window and the end time count from one instant and the margin covers only the
-    /// timed walk's observation lag (it runs at most once a WALL second).
+    /// timed walk's observation lag (it runs at most once a WALL second). RL-20260927-05: for a
+    /// predecessor WITH a destination not even that lag can skip the successor any more - when the
+    /// window expires before the OVERDUE flag, the gate asks TimedCompletionPolicy.IsUnfinishedMover
+    /// and waits up to the chain backstop; a hold still depends on the margin.
     ///
     /// THE RULE: the window is the longer of what the operator configured and the predecessor's
     /// own end time plus a margin. The configured value keeps its meaning - it is the floor, and

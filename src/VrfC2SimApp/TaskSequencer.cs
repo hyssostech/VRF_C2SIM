@@ -165,9 +165,17 @@ public sealed class TaskSequencer
     /// expires on a predecessor that has been signalled OVERDUE (<see cref="NotifyOverdue"/>), keep
     /// waiting until this many seconds after ITS dispatch. The service passes
     /// Vrf:TaskChainBackstopSeconds. NaN (the default) = no extension.</param>
+    /// <param name="treatPredecessorAsOverdue">RL-20260927-05 (2026-09-27, the owner's "Q1 a"): asked ONCE,
+    /// when phase 2's window expires on a predecessor that has NOT been signalled OVERDUE (and has neither
+    /// completed nor been abandoned). True = treat it as OVERDUE: the wait extends to
+    /// <paramref name="overdueBackstopSeconds"/> exactly as for a signalled one. The service answers from
+    /// TimedCompletionPolicy.IsUnfinishedMover - a predecessor with a destination and no TASKCMPLT or
+    /// TASKABRT yet. Null (the default) = never asked, the pre-RL-20260927-05 behaviour; a question that
+    /// throws counts as false (that behaviour), never as a faulted gate.</param>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
         long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct,
-        double dispatchTimeoutSeconds = double.NaN, double overdueBackstopSeconds = double.NaN)
+        double dispatchTimeoutSeconds = double.NaN, double overdueBackstopSeconds = double.NaN,
+        Func<bool> treatPredecessorAsOverdue = null)
     {
         clock ??= TaskClock.Wall;
         double timeoutSeconds = Math.Max(0.0, predecessorTimeoutSeconds);
@@ -213,8 +221,20 @@ public sealed class TaskSequencer
                 // ("follow on tasks are delayed by the slow progress on a leg"). Keep waiting on its
                 // completion or abandonment, bounded by the chain backstop measured from ITS
                 // dispatch. NaN (the default) = no extension, the pre-2026-09-25 behaviour.
+                // RL-20260927-05 (2026-09-27, the owner's "Q1 a"): AND THE EXTENSION DOES NOT HANG ON A
+                // RACE. The OVERDUE signal comes from the timed walk (tick thread, at most once a WALL
+                // second) while this window expires on the pool the moment the task clock reaches
+                // end + margin; one task-clock step larger than the margin let the window win, and the
+                // follow-on of a mover that then ARRIVED was skipped (TimerAnchorSelfTest t4). So a
+                // predecessor not yet signalled is ASKED: one that has a destination and has not
+                // finished (no TASKCMPLT, no TASKABRT) is treated as OVERDUE. A predecessor with no
+                // destination (a hold) or no timer at all answers false and keeps the skip - a hold
+                // ends by its timer, so a skip here means its timer had not completed it by
+                // end + margin. A STUCK unit's follow-ons are ABANDONED (RL-20260925-01 Q2), and the
+                // abandonment is tested first, here and in the extension's own wait.
                 if (!pred.Completed.Task.IsCompleted && !pred.Abandoned.Task.IsCompleted
-                    && pred.Overdue.Task.IsCompleted && double.IsFinite(overdueBackstopSeconds))
+                    && double.IsFinite(overdueBackstopSeconds)
+                    && (pred.Overdue.Task.IsCompleted || Ask(treatPredecessorAsOverdue)))
                 {
                     ct.ThrowIfCancellationRequested();
                     double servedNow = double.IsNaN(pred.DispatchedAtClock)
@@ -244,6 +264,15 @@ public sealed class TaskSequencer
             await clock.DelayAsync(delayMs / 1000.0, ct).ConfigureAwait(false);
 
         return GateResult.Proceed;
+    }
+
+    // RL-20260927-05: the caller's question, asked at most once per gate. A throw is the pre-ruling
+    // answer (false: no extension), never a faulted gate - the caller logs its own failures.
+    private static bool Ask(Func<bool> question)
+    {
+        if (question is null) return false;
+        try { return question(); }
+        catch (Exception) { return false; }
     }
 
     // Lazily create-or-get the state for a task uuid, so waiters and signallers
