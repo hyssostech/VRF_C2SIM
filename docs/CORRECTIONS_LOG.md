@@ -655,3 +655,19 @@ candidate from the record; the research lane was told to drop it and the CLOSED 
 candidate (buildings as obstacles for the aggregate profile, a formation-wide corridor, added vertices) is the one the owner asked
 about on 2026-09-27 (P5116) and stays.
 AMENDED the same hour: the sentence "roads are not a routing option" above was itself a mechanism claim made without the research. The aggregate model set ships scripts named group-navigate-route-to-location and group_movement_simplified (with a useRoads flag), so how the vendor moves aggregate units is OPEN until the documentation is read and cited (lane RS1); the CLOSED line now says so. The message of 2026-09-28 that prompted this amendment: "You still need to do the research to understand how this is done in vrf."
+
+## G1-3's W-gate stop read as a destination-binding failure (2026-09-28, refuted the same evening)
+Claimed (seat, to the owner at ~19:25Z and in the M3b lane brief): T10's members reported vertex 1 COMPLETED with 0 m moved because
+the destination never reached navigate-to-location (our "location" type tag vs the script's locationreference parameter); the fix
+would be native. Marked inferred, not verified - and wrong.
+Corrected (PREREG_IRONSTORM_AGG_G1-3_2026-09-28 Result, run 20260928T190047Z): the vendor's own parameter echo at console level 3
+(app log L9681-L9713) shows the destination bound exactly on every member at both vertices, seen independently in the WatchVrf trace;
+the script planned paths of 2+ points (0 "Could not compute path" / "Invalid path computed" in either log) and started its move-along
+subtask; the EXECUTOR refused it - DtAggregatedMoveAlongController::setupRoute "route does not exist" on 5 of 5 members - and
+navigate-to-location.lua :252-259 ends SUCCESS regardless of the subtask. Lead: the script names its route "<unit name> Path part 1"
+(42 characters with our 30-character member names; the back end says "...Pathr"); the vendor headers document a per-type name cap and
+a lookup BY NAME (aggregatedMoveAlongController.h :70-77) - a name used as a key, the third instance today (RL-20260928-02). The
+back end also crashed 2.9 s after the first planned dispatch (0xC0000005; C:\MAK\logs .dmp/.callstack.log unread - the owner's call,
+RL-20260921-02 item 4) and the harness reported the shutdown as graceful. The M3b lane was redirected: short member display names by
+construction (identity is the uuid), a vacuous planned vertex = failure, a crashed back end voids the window. The seat's error: a
+cause claim built on the lane's stated assumption instead of on the run's own evidence, before the Result was harvested.
