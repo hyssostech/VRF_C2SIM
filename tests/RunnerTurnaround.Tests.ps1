@@ -2140,6 +2140,43 @@ Check '8z ladder: NOS, NKN, air (WING) and naval (FLEET) are UNRANKED; a non-sch
     (Get-EchelonRank 'NKN').Status -eq 'unranked' -and (Get-EchelonRank 'WING').Status -eq 'unranked' -and
     (Get-EchelonRank 'FLEET').Status -eq 'unranked' -and (Get-EchelonRank 'XYZ').Status -eq 'not-schema' -and
     (Get-EchelonRank '').Status -eq 'missing' -and (Get-EchelonRank $null).Status -eq 'missing')
+# D2b (RL-20260927-06, RL-20260928-01): THE APP'S COPY OF THIS LADDER. src\VrfC2SimApp\ModelSetGuard.cs EchelonLadder
+# drives the app's own twin of the rule - the order-receipt guard that REFUSES an above-BN order on EntityLevel (RUNBOOK
+# sec 11k). --rulings-selftest (g1) compares it with THIS file's tables; this compares this file's tables with IT, from
+# the suite, because the C# self-tests run only at a deploy (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3 item 4).
+function Get-D2bCsLadder {
+    param([string]$Text)
+    $out = [ordered]@{ Ladder = @{}; Threshold = $null; Aliases = @{}; Unranked = @{} }
+    $blk = { param($head) $i = $Text.IndexOf($head); if ($i -lt 0) { return '' }; $j = $Text.IndexOf('};', $i); if ($j -lt 0) { return '' }; $Text.Substring($i, $j - $i) }
+    foreach ($m in [regex]::Matches((& $blk 'LadderTable ='), '\("([A-Z]+)",\s*(\d+)\)')) { $out.Ladder[$m.Groups[1].Value] = [int]$m.Groups[2].Value }
+    foreach ($m in [regex]::Matches((& $blk 'AliasTable ='), '\("([A-Z]+)",\s*"([A-Z]+)"\)')) { $out.Aliases[$m.Groups[1].Value] = $m.Groups[2].Value }
+    foreach ($m in [regex]::Matches((& $blk 'UnrankedTable ='), '\("([A-Z]+)",\s*"((?:[^"\\]|\\.)*)"\)')) { $out.Unranked[$m.Groups[1].Value] = ($m.Groups[2].Value -replace '\\"', '"') }
+    $t = [regex]::Match($Text, 'public const int BattalionRank = (\d+);')
+    if ($t.Success) { $out.Threshold = [int]$t.Groups[1].Value }
+    return $out
+}
+function Compare-D2bLadder {
+    param($Cs)
+    $flat = { param($h) (@($h.Keys | Sort-Object | ForEach-Object { '{0}={1}' -f $_, $h[$_] }) -join ',') }
+    $bad = @()
+    if ((& $flat $Cs.Ladder) -ne (& $flat $script:EchelonLadder)) { $bad += ('ladder: C# [' + (& $flat $Cs.Ladder) + ']') }
+    if ($Cs.Threshold -ne $script:EchelonBattalionRank) { $bad += ('threshold: C# ' + $Cs.Threshold) }
+    if ((& $flat $Cs.Aliases) -ne (& $flat $script:EchelonAliases)) { $bad += ('aliases: C# [' + (& $flat $Cs.Aliases) + ']') }
+    if ((& $flat $Cs.Unranked) -ne (& $flat $script:EchelonUnranked)) { $bad += 'unranked codes or notes' }
+    return @($bad)
+}
+$zCsText = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\ModelSetGuard.cs') -Raw
+$zCs     = Get-D2bCsLadder -Text $zCsText
+Check '8z D2b: the app''s EchelonLadder (ModelSetGuard.cs) is read from its source - 17 codes, the threshold, 2 aliases, 11 unranked' (
+    $zCs.Ladder.Count -eq 17 -and $null -ne $zCs.Threshold -and $zCs.Aliases.Count -eq 2 -and $zCs.Unranked.Count -eq 11) (
+    "{0} / {1} / {2} / {3}" -f $zCs.Ladder.Count, $zCs.Threshold, $zCs.Aliases.Count, $zCs.Unranked.Count)
+$zCsBad = @(Compare-D2bLadder -Cs $zCs)
+Check '8z D2b: THE SAME TABLE in the app and here - ladder, BN threshold, SQD/SEC aliases, unranked codes and notes' (
+    $zCsBad.Count -eq 0) ($zCsBad -join ' | ')
+$zCsDirty = @(Compare-D2bLadder -Cs (Get-D2bCsLadder -Text ($zCsText -replace '\("BN", 6\)', '("BN", 7)')))
+$zCsDirty2 = @(Compare-D2bLadder -Cs (Get-D2bCsLadder -Text ($zCsText -replace 'BattalionRank = 6;', 'BattalionRank = 7;')))
+Check '8z D2b DIRTY CONTROL: the app source with BN at 7, or the threshold at 7, is REPORTED - the equality can fail' (
+    $zCsDirty.Count -gt 0 -and $zCsDirty2.Count -gt 0)
 # THE REAL ORDERS AND INITS. Cut A: 28ID (DIV) T01/T02, 1-112 IN (BN) T10, 48 IBCT (BDE) T02b/T14.
 $zCutA   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml')
 $zCutAe  = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\IRONSTORM_CUTA_Initialization.xml')

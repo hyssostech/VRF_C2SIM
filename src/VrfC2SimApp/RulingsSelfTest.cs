@@ -53,6 +53,8 @@ public static class RulingsSelfTest
         failures += AggregateLeafSelfTest.Run();
         Console.WriteLine("=== RL-20260921-09 / RL-20260925-01 / RL-20260927-05: ONE anchor for the timer and the STREND gate, and a gate that waits for an unfinished mover ===");
         failures += TimerAnchorSelfTest.Run();
+        Console.WriteLine("=== D2b (RL-20260927-06, RL-20260928-01): the model-set rule at order receipt - above BN on EntityLevel is REFUSED ===");
+        failures += ModelSetGuardSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
