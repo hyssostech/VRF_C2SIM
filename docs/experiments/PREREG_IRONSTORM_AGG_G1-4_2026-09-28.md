@@ -42,17 +42,27 @@ RUN KIND: movement
 VENDOR CITATION: G1-3's list, unchanged (its sec VENDOR CITATION: UG52 72.2.1 p1419, Table 68 p1470, 35.5.11 p735, 30.5
 p587; navigate-to-location.xml / .lua; roleNode.lua; featureconfig.txt; osm.roads.model.xml). For THE ONE VARIABLE:
 - vrfutil/uuid.h :247-249 (C:\MAK\vrforces5.2d\include, read-only): "The UUID has been changed to be a memory blob of fixed
-  size. The blob's format is the first char is the type, and the rest is the data" / `char myData[36];` [V] - 35 data bytes.
+  size. The blob's format is the first char is the type, and the rest is the data" / `char myData[36];` [V: the lines read].
+  THE CUT AT 35 IS OBSERVED, WHERE IT HAPPENS IS NOT [Fable review]: G1-3's back end printed the reference cut at exactly 35
+  characters (vrfc2simapp.log L9809; 20 of 20 mentions per the G1-3 Result) [V]; that the 36-byte blob is the cutter is [A] -
+  uuid.h :251-253 keeps a string uuid that is not a boost uuid in an unbounded `DtString myUUIDString` [V: read], and
+  PREREG_ROUTE_NAME_LENGTH_2026-09-02 :512-518 calls the blob its own INFERRED candidate [V: read]. The CLOSED line (the cut at
+  35) stands; only its location is [A].
 - vrftasks/moveAlongTasks.h :79-82 (the move-along carries its route as a DtUUID), vrfmodel/aggregatedMoveAlongController.h
   :70-77 (the controller looks the route up by it), navigate-to-location.lua :223 (the route is named "<taskee> Path part
   <n>"), :31 (MAX_POINTS_PER_ROUTE 100), :252-259 (the script ends SUCCESS once its move-along subtask stops, whatever that
   subtask's result) [A: RUNBOOK sec 11o and VrfNames.cs :62-88; --populate-selftest p16 (a) re-reads the lua and the three
   headers on the deployed exe, ContainerSelfTest.cs :1680-1696, 199 PASS per the deploy line].
-- RoadToKaunasPhaseTwo.oob :103563-103565 (the vendor's own script route uuid "JAM-137 Path part 1_8"), :72127 (its
-  move-along references "VRF_UUID:JAM-137 Path part 1_8"), :72076-72130 (planned with buffer 0) [A: RUNBOOK 11o].
+- RoadToKaunasPhaseTwo.oob :103563-103565 (the route object: marking-text "JAM-137 Path part 1", uuid "VRF_UUID:JAM-137 Path
+  part 1_8"), :72127 and :72196 (its move-along references "VRF_UUID:JAM-137 Path part 1_8"), :72034 and :72082 (buffer
+  0.000000), :72084-72085 (the DtRwVector destination), :103561 (publish-flag 0) [V: docs/experiments/EXTRACT_RoadToKaunasPhaseTwo
+  _oob_2026-09-28.txt - the cited ranges only, from the vendor's .scnx (sha256 22e06582...), whose .oob member equals the m3b
+  lane's extract, sha256 891a5a2f...]. So the "<name> Path part <n>_<counter>" FORM is the vendor's own [V]; that a
+  move-along carries that string through a 36-byte blob is [A] (above).
 - UG52: SILENT on the route-reference length and on "Path part" - 0 hits for "Path part", "route does not exist" and
   "navigate-to-location" in docs/vendor/mak-5.2/txt/*.txt [V]; "A graphical object's name can be up to 255 characters long"
-  (VR-Forces_5.2_Users_Guide.txt :32795) [V] - the ROUTE keeps its whole name; the cut is the move-along's copy of it.
+  (VR-Forces_5.2_Users_Guide.txt :32795) [V]; that the ROUTE keeps its whole name and only the move-along's copy is cut is
+  [A]. R-REF printed WHOLE in G1-4 is the observation that would show the cut was the reference's; H1 = 0 alone does not.
 
 OWN-RECORD CITATION:
 - Rulings: G1-3's list, unchanged (RL-20260927-01..-06, RL-20260928-01..-03, RL-20260921-09, RL-20260913-03,
@@ -83,9 +93,10 @@ intermediate planned vertex that "succeeds" without moving into EXECUTOR REFUSED
 crashed back end VOID the window (runner line, manifest, exit 3; StopVrf52 exit 8). Buffer 10 is NOT changed: it is the next
 hypothesis if G1-4 still fails (HANDOFF_SEAT sec 2), and it is in RL-20260928-03's operative text.
 
-THE RUN'S HIGH PREDICTIONS (sec 4, rows H1-H6): 0 "route does not exist"; every tasked member moves at every vertex it is
-sent to; T14 and T10 ARRIVE in the SCORED run (the pre-warm keeps G1-3's W-DONE rule, sec 3 W); 0 EXECUTOR REFUSED; the
-destination echo exact, as in G1-3; the member names exactly the M3b table with the uuids unchanged. THE FALSIFIER OF THE
+THE RUN'S HIGH PREDICTIONS (sec 4, rows H1-H5): 0 "route does not exist"; every tasked member moves at every vertex it is
+sent to; 0 EXECUTOR REFUSED; the destination echo exact, as in G1-3; the member names exactly the M3b table with the uuids
+unchanged. MEDIUM (H6, after Fable's review): T14 and T10 ARRIVE in the SCORED run - never yet observed under Auto; the
+pre-warm keeps G1-3's W-DONE rule (sec 3 W). THE FALSIFIER OF THE
 WINDOW: a crash of the back end (a crash record for its pid, the "Error vrfSimHLA1516e.exe" window, the trace's backends 1 ->
 0, the sim clock lost) makes the window VOID - neither a pass nor a fail of M3b.
 
@@ -110,8 +121,8 @@ mapping, the destination, T02 and its river. Their src line numbers move by sec 
 (u) THE ONE VARIABLE, PART 1 - THE MEMBER NAMES AND THE ROUTE REFERENCES. VrfNames.MemberName (:152-153) = ChildName
 (:177-185) on the container's Designator (:139-150: the name before its first "__", then before that part's last "/") within
 PlannedMemberNameChars = 34 - 11 (" Path part ") - 2 (part digits) - 5 ("_" + a 4-digit counter) = 16 (:111-112); 34 =
-UuidReferenceChars (:91), the longest reference a move-along has carried intact; 35 = UuidReferenceCutChars (:95), the blob's
-data bytes. ContainerComposition.cs :705-735 routes every member name through it (PopulatePlanner.MaxNameChars). COMPUTED
+UuidReferenceChars (:91), the longest reference a move-along has carried intact; 35 = UuidReferenceCutChars (:95), the length
+the reference was OBSERVED cut to (that the blob's 35 data bytes do it is [A], VENDOR CITATION). ContainerComposition.cs :705-735 routes every member name through it (PopulatePlanner.MaxNameChars). COMPUTED
 [V: scratch laneG1-4\route_ref_lengths.py, a transcription of those lines, whose controls reproduce p16 (d)'s five 1-112 IN
 names (:1726) and G1-3's live C1c names (vrfc2simapp.log L632, L640), and the scorer's --expected]:
 
@@ -125,7 +136,7 @@ names (:1726) and G1-3's live C1c names (vrfc2simapp.log L632, L640), and the sc
 | 48_IBCT/... | 48_IBCT.INF<1-3>RIF<1-3>, 48_IBCT.INF<1-3>WPN1 (12 Mech COs) | 16 | 30 | 30 / 31 / 32 / 33 | 34 |
 
 Every reference fits the 34 intact characters: the longest in the run's likely range (part 1, a counter of up to 4 digits)
-is 33, the worst case 34 = the measured-safe maximum; none reaches 35 (the blob). THE CONTROL LINE (G1-3): the C1c name
+is 33, the worst case 34 = the measured-safe maximum; none reaches 35 (the observed cut); all fit under 34 and under 35. THE CONTROL LINE (G1-3): the C1c name
 `1-112_IN/28ID__FRIENDLY_I.RIF2` (30) gave "1-112_IN/28ID__FRIENDLY_I.RIF2 Path part 1" (42, + the counter), carried as its
 first 35, "1-112_IN/28ID__FRIENDLY_I.RIF2 Path" - what the back end printed as "...Pathr" (35 + one byte) [V: the script and
 G1-3 L9809]. No designator is cut on cut A (48_IBCT + ".INF1RIF1" = 16 exactly). NOT known: the counter's range (the vendor
@@ -221,8 +232,9 @@ cache_manifest.ps1 stay in G1-3's scratch u3. Python = /c/Users/PauloBarthelmess
 python.exe (the bare "python" is the Store alias [V]). THE SEAT RUNS C3, D', W, E AND F under RL-20260928-01.
 
 THE HOLDER - BRANCH (a), SEAT DECISION 2026-09-28 [V: RtiProbe 56380 up at 21:44Z, started 18:59:46Z, so its 28800 s hold
-ends about 02:59:46Z 2026-09-29]: the go-live runs under branch (a) and STARTS E NO LATER THAN 02:15Z 2026-09-29. Branch (b')
-below is kept only as the recorded fallback if (a) cannot be met; it is not the plan.
+ends about 02:59:46Z 2026-09-29]: the go-live runs under branch (a) and STARTS E NO LATER THAN 01:55Z 2026-09-29 (SEAT
+DECISION after Fable's review, replacing 02:15Z): the whole scored window - launch about 4 min + the 2700 s cap - then closes
+before 56380's hold ends. IF E CANNOT START BY 01:55Z, THE GO-LIVE MOVES TO BRANCH (b') below.
 - (a) HOLDER 56380 (appNo 5255) STILL UP with at least 60 min of hold left before W AND before E (golive_checks -HolderPid
   56380 -MinHoldLeftMin 60): no holder step; the runner recognises it PERSISTENT (G1-3's W did).
 - (b') 56380 HAS RESIGNED (or would resign inside E): step D' - golive_checks -Phase preholder (56380 gone, no RtiProbe),
@@ -230,7 +242,7 @@ below is kept only as the recorded fallback if (a) cannot be met; it is not the 
   `scripts/StartFederationHolder52.ps1 -AppNumbers 5270,5271,5272,5273 -SettleSecs 28800` (-WhatIf first), EXPECT
   "HOLDER JOINED: pid ... appNo 5270", exit 0; exit 1 or 2 = STOP, no blind relaunch (RUNBOOK 9c). The RtiProbe tree is R4's
   18:16Z build at the pin (not rebuilt; optional, code unchanged [A: the deploy line]).
-W and E start only with at least 60 min of hold left (golive_checks -MinHoldLeftMin 60, G1-3's default) and E by 02:15Z. A
+W and E start only with at least 60 min of hold left (golive_checks -MinHoldLeftMin 60, G1-3's default) and E by 01:55Z. A
 persistent holder that resigns INSIDE a window is RECORDED with the federation's state; it does NOT void the window by itself
 (SEAT DECISION 2026-09-28: the crash-void limb V is about the BACK END only).
 
@@ -239,7 +251,10 @@ A0. PRECONDITIONS: the seat's go-live; Fable's cold review of sec 4's cause rows
     out, never kill, HANDOFF_SEAT sec 3 item 4); `git diff --stat b0bad53 main -- src scripts` still EMPTY - if it moved,
     NOTHING is rebuilt and the difference is recorded; deployed hashes as registered, else STOP before W.
 A.  "/c/Program Files/PowerShell/7/pwsh.exe" -NoProfile -File <L4>/golive_checks_g1_4.ps1 -Phase prelaunch -HolderPid 56380
-    -MarkerWant 5270   EXPECT 0 checks FAILED (branch (a)); branch (b'): -Phase preholder -MarkerWant 5270 first.
+    -MarkerWant 5270   EXPECT 0 checks FAILED (branch (a)); branch (b'): -Phase preholder -MarkerWant 5270 first. THEN THE
+    FEDERATE LIST, read-only: `<python> <L4>/rti_federates.py` (the long-lived rtiexec log's join / resign lines, names and
+    handles only; RUNBOOK :31, :1455, :2445 read joins from that log) - EXPECT exactly one joined federate, remoteControl
+    56380 (branch (a)); any other = STOP before W and the seat decides (RUNBOOK sec 0's ghost-federate check).
 A2. THE BUILD, OFFLINE: the deployed exe's --populate-selftest (p16 names the five 1-112 IN members '1-112_IN.HQ1' ..
     '1-112_IN.WPN1' and every shipped row within 16) and --planned-move-selftest <exe dir>\preflight-cache (81 PASS; m9 NEAR on
     every cut-A leg; m10 EXECUTOR REFUSED) - from the deploy line [A] or re-run by the seat from PowerShell with the 5.2 PATH
@@ -258,9 +273,9 @@ W.  THE PRE-WARM (unscored) = THE W GATE: golive_checks -Phase prelaunch (0 FAIL
     RELABELLED - the Result's own critique: it "failed with the destination reached"; the binding is H3's); W-DONE (G1-3's
     rule, SEAT DECISION 2026-09-28: a vertex all members reached but that never CLOSED - S9 - is a FAIL = STOP before E; NOT
     REACHED is RECORDED, the seat's call, and NOT a stop by itself PROVIDED W-MOVE passes - every dispatched T10 member displaced
-    > 50 m and the container at least 50 m closer to vertex 1; the arrival, H6, is HIGH for the scored run only); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
+    > 50 m and the container at least 50 m closer to vertex 1; the arrival, H6, is MEDIUM and for the scored run only); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
     <L4>/simcache_after_prewarm.txt.
-E.  THE RUN: golive_checks -Phase prelaunch -MarkerWant 5281 (a) / 5285 (b'); `sh <L4>/g1_4_runner.sh scored-dryrun` (EXPECT
+E.  THE RUN: golive_checks -Phase prelaunch -MarkerWant 5281 -StartBy 2026-09-29T01:55:00Z (a) / -MarkerWant 5285 (b'); `sh <L4>/g1_4_runner.sh scored-dryrun` (EXPECT
     block 5281-5291 / 5285-5295, marker -> 5292 / 5296, 2700 s CAP with -StopWhenComplete); then `sh <L4>/g1_4_runner.sh
     scored` ONCE, stdout to a file. The command, verbatim G1-3's (sec 3 E there), the log name aside:
         scripts/RunScenario.sh --scenario IronStorm_Centre_52_Aggregate --init data/IRONSTORM_CUTA_Initialization.xml
@@ -288,13 +303,18 @@ exist" COUNT - never a line), V-CRASH (the run manifest's backendCrash; stopvrf.
 "CRASHED BEFORE THE CLOSE"; the watchdog's "StopVrf exit 8"; crash records `vrfSim*-<pid>.callstack.log|.dmp` LISTED in
 C:\MAK\logs by name and mtime between the back end's start and the window's close + 5 s; the trace's backends 1 -> 0; the
 app's "(no back end reporting)" before shutdown); W-DEST relabelled W-MOVE, which now also needs every dispatched T10 / T14 member displaced > 50 m;
-W-DONE per G1-3's rule (S9 = FAIL; NOT REACHED = the seat's call provided W-MOVE passes). Its --selftest: 51
+W-DONE per G1-3's rule (S9 = FAIL; NOT REACHED = the seat's call provided W-MOVE passes); in BOTH modes a vertex issued
+< 30 trace-s before the last fix is NOT EVALUATED by H3 (a missing echo; an OFF echo still fails) and H5 (Fable review item 4;
+W-MOVE's 30 s rule) - the app log carries no wall stamp per line, so a vertex's issue instant on the trace clock is its
+mover's dispatch for vertex 1 and the instant the last member first came within 50 m of vertex k-1 for vertex k. Its --selftest: 53
 checks PASS, 0 FAIL - G1-3's 41 (the uuid oracle, the chain checker, the CLEAN control, S7, the must-not-fire wet edge, 26
 dirty controls) on synthetic runs in the M3b line forms, plus an ECEF oracle (G1-3's echo reads (54.029734, 23.305499, 0)),
 the M3b name oracle, the clean M3b rows, and SIX NEW DIRTY controls each caught: route-not-exist (H1), executor-refused (H2),
 vacuous-advance (H2), echo-off (H3, a member's echo 111 m off), no-move (H5, one T14 member parked), crash (V-CRASH VOID; the
-vendor .log beside the callstack never matched), and one MUST-NOT-STOP control (not-reached: T10 half-way to vertex 1 at the
-window's end - W-DONE "NOT REACHED - the seat's call", the W gate PASSES) [V: scratch laneG1-4\g1_4_score_selftest.txt].
+vendor .log beside the callstack never matched), SEVENTH echo-missing (H3, one member's vertex-1 echo absent), and two
+MUST-NOT controls: not-reached (T10 half-way to vertex 1 at the window's end - W-DONE "NOT REACHED - the seat's call", the W
+gate PASSES) and late-issue (vertex 2 issued 10 trace-s before the last fix, no echo and no move yet - H3 and H5 read it NOT
+EVALUATED and pass) [V: scratch laneG1-4\g1_4_score_selftest.txt].
 THE CONTROL, FAIL-FIRST ON REAL DATA [V]: `g1_4_score.py runs\20260928T190047Z_run --wgate --member-names c1c` (G1-3's own
 pre-warm, read with its own naming rule) -> exit 1, "W GATE: FAIL + VOID (branch A; H1, H2, H5, M10, M12, V-CRASH(VOID),
 W-DONE(NOT REACHED, W-MOVE failed), W-MOVE)" - W-DONE's NOT REACHED counts only because W-MOVE failed: H1 15 relayed "route does not exist" (first L9811); H2 the pre-M3b equivalent L9979 (vertex 1
@@ -302,8 +322,12 @@ W-DONE(NOT REACHED, W-MOVE failed), W-MOVE)" - W-DONE's NOT REACHED counts only 
 record (19:05:16Z) and .dmp (19:05:17Z) for pid 3344 (names and mtimes only), the trace's backends 1 -> 0 at t=194.9 s and
 the app's L10245; and, as it must, H3 PASSES there (10 echoes exact, vertices 1 and 2 - the binding G1-3 saw) and every
 identity / population limb passes (scratch control_g1_3_wgate_c1c.txt). With the default M3b names the same run fails more
-(the names do not match: I2, I6, I8, W1n ...; control_g1_3_wgate_m3b.txt). A MUST-NOT-FIRE control on G1-2's clean pre-warm
-(20260928T141734Z_run, the Literal build): V-CRASH "no signal", H1 0, H2 0 (control_g1_2_prewarm_wgate_c1c.txt).
+(the names do not match: I2, I6, I8, W1n ...; control_g1_3_wgate_m3b.txt). THE MUST-NOT-FIRE CONTROL on G1-2's clean pre-warm
+(20260928T141734Z_run, the Literal build), re-run on the FINAL scorer (Fable review item 5) [V: scratch laneG1-4\control_g1_2
+_prewarm_wgate_c1c.txt, sha256 a45f947e...; the scorer g1_4_score.py sha256 4d6e6ac0...]: V-CRASH "no signal" (pid 40344), H1
+0, H2 0; its W gate FAILS, as it must on that build, on the M3 limbs (M1-M5, M7, M16: the Literal route), H3 / H5 (no planned
+vertex), W-DONE (the Literal path closes no planned step) and W-MOVE - the last on G1-2's far-shore member
+48_IBCT/28ID__FRIENDL.INF1RIF2 (13 m, G1-3 sec 1(i)), which the new member > 50 m limb names.
 
 THE NEW ROWS (G1-4's one variable). G1-3's P0-P23, P-FALS and O1-O12 apply as registered there, their line numbers per sec 2,
 with the changes named after this table.
@@ -311,11 +335,11 @@ with the changes named after this table.
 | # | Prediction | Confidence | What counts as a MISS | Measured |
 |---|---|---|---|---|
 | H1 | THE EXECUTOR TAKES THE ROUTE: ZERO relayed "route does not exist" from any member of any task, in the pre-warm and in the scored run (scorer H1); the vendor sim log's count of the same text is 0 too (R-VEND, count only). | HIGH | Any = STOP. With R-REF showing the reference WHOLE (sec 4 COMPETITORS), the name reading of G1-3 (i) is REFUTED; with it cut, the budget of sec 1(u) is wrong. | |
-| H2 | NO EXECUTOR REFUSED: ZERO L-REFUSED lines and ZERO "EXECUTOR REFUSED" TASKABRT reasons; ZERO intermediate vertices COMPLETED VACUOUS with the unit moved < 100 m (the pre-M3b form). | HIGH | Any = STOP (the executor refused again; the TASKABRT is M3b working as designed, the move is not). | |
-| H3 | THE DESTINATION ECHO EXACT, AS IN G1-3: every member of T10 and T14 (and T02's one) prints the level-3 echo for every vertex its container issued, and each converts to that vertex at ellipsoid height 0 within 0.5 m (G1-3: exact to 0.000 m on 10 of 10). | HIGH | Any echo off or missing = STOP; the binding the CLOSED list settles is not reopened - the miss is recorded and the seat decides. | |
+| H2 | NO EXECUTOR REFUSED: ZERO L-REFUSED lines and ZERO "EXECUTOR REFUSED" TASKABRT reasons; ZERO intermediate vertices COMPLETED VACUOUS with the unit moved < 100 m (the pre-M3b form). | HIGH | Any = STOP. Two branches: (a) with H1 > 0 or H5 failing - the executor refused again (the TASKABRT is M3b working as designed, the move is not); (b) H2 fires with H1 = 0 and H5 PASS - M3b (2)'s refusal test fired on a GENUINE move (it judges the container's centroid fix, evidenced live with ONE member only - PLAN_MOVEMENT :133, RUNBOOK :3959): STOP, M3b (2) is reviewed, and it is NOT a name verdict. | |
+| H3 | THE DESTINATION ECHO EXACT, AS IN G1-3: every member of T10 and T14 (and T02's one) prints the level-3 echo for every vertex its container issued, and each converts to that vertex at ellipsoid height 0 within 0.5 m (G1-3: exact to 0.000 m on 10 of 10). | HIGH | Any echo off, or missing for a vertex issued 30 trace-s or more before the last fix, = STOP (a vertex issued later is NOT EVALUATED for a missing echo); the binding the CLOSED list settles is not reopened - the miss is recorded and the seat decides. | |
 | H4 | THE NAMES AS sec 1(u): each L-POP lists the registered short names in slot order, each "<short> = <container>.<suffix>"; L-ID-POP names exactly the v5 uuids of G1-3 (unchanged: the derivation takes the suffix) beside the full names; EXACTLY 59 L-ID-CREATED (the 23 members under their G1-3 uuids with their short names as markings); 23 L-MEMBER "(8..16 chars) came back as EXACTLY that name ... bound by its uuid (C1d)"; ZERO NAME DISAMBIGUATED / NAME COLLISION (scorer W1n, I2, I3, I6, I8, I12, I13). | HIGH | Any limb = STOP (C1d's regression guard, RL-20260928-02, as G1-3's P3). | |
-| H5 | EVERY TASKED MEMBER MOVES at every vertex it is sent to: displacement > 1.0 m on the trace (scorer H5; G1-3: 0.0 m for 5 of 5); and G1-3's P10 (each mover's members displaced > 50 m: 1 of 1, 5 of 5, 17 of 17). | HIGH | A member that does not move at a vertex = STOP. | |
-| H6 | T14 AND T10 ARRIVE IN THE SCORED RUN (G1-3's P12, unchanged): L-ARRIVE with 1/1 and the ONE POSITION suffix, then one TASKCMPLT each. The PRE-WARM is judged by G1-3's W-DONE rule (sec 3 W), not by this row (SEAT DECISION 2026-09-28). | HIGH (scored run only) | T14 or T10 not arriving in the scored run = STOP. | |
+| H5 | EVERY TASKED MEMBER MOVES at every vertex it is sent to: displacement > 1.0 m on the trace (scorer H5; G1-3: 0.0 m for 5 of 5); and G1-3's P10 (each mover's members displaced > 50 m: 1 of 1, 5 of 5, 17 of 17). | HIGH | A member that does not move at a vertex issued 30 trace-s or more before the last fix = STOP (a later vertex is NOT EVALUATED). A member whose plan FAILED (a member FAILED line, M10, or a relayed failure, M12) also reads 0 m: that miss is M10 / M12's - a PLAN failure - not the executor's. | |
+| H6 | T14 AND T10 ARRIVE IN THE SCORED RUN (G1-3's P12): L-ARRIVE with 1/1 and the ONE POSITION suffix, then one TASKCMPLT each. The PRE-WARM is judged by G1-3's W-DONE rule (sec 3 W), not by this row (SEAT DECISION 2026-09-28). Still scored. | MEDIUM (Fable review item 3: an arrival under Auto has never been observed; G1-2's T10 arrived on the LITERAL path) | A miss is RECORDED as "not an M3b verdict", with its mode: a plan failure (M10 / M12), the stall watchdog on the container's centroid fix, T10's armed end (450 SIM s) or the window's 2700 s cap. | |
 | R-REF | THE CARRIED REFERENCE: every relayed "Move-Along Route: \"<ref>\"" is the WHOLE "<member> Path part <n>" or "<member> Path part <n>_<counter>", <= 34 characters (G1-3: 5 of 5 "<30 chars> Pathr"). | MEDIUM | Recorded; read with H1 (sec COMPETITORS). | |
 | V | THE WINDOW IS VALID - NO BACK-END CRASH (the BACK END only; a persistent holder's resignation is recorded, not a void): no crash record for the back end's pid dated before the window closed, no "Error vrfSimHLA1516e.exe" window, no `BACK END CRASHED` line or manifest backendCrash, StopVrf52 exit 0 or 6 (not 8), the trace's backends never 1 -> 0, the sim clock never lost before shutdown (scorer V-CRASH). IF a crash happens, the harness NAMES it (the runner line + exit 3, StopVrf52 exit 8) - M3b (3)'s first live test. | MEDIUM (no crash: G1 and G1-2 ran clean, G1-3 crashed once, n = 1, its stack unread); HIGH (a crash is named by the runner and StopVrf52) | A crash = the window is VOID: neither a pass nor a fail of M3b, no row is scored, the successor is G1-5 with new numbers. A crash the scorer sees and the runner did NOT name = STOP (M3b (3) failed live). | |
 
@@ -359,8 +383,25 @@ else it shows. A VOID or STOPPED run is re-registered as IRONSTORM_AGG_G1-<date>
 under this registration or its successor without a ruling: it is in RL-20260928-03's operative text.
 
 ONE VARIABLE: M3b as deployed - the member-name budget, EXECUTOR REFUSED, the crash-void - on G1-3's order, fixture, init,
-composition, settings, sequence and harness geometry. Differences named, not intended: the holder branch (a) reuses G1-3's
-holder 56380 (G1-3 claimed and started it); branch (b') starts a new one on the same RtiProbe tree.
+composition, settings, sequence and harness geometry (the differences not intended: sec 4a).
+
+## 4a. Differences named, not intended (Fable review item 6)
+
+- M3b IS THREE CHANGES, NOT ONE: (1) the names - the variable the cause claim is about; (2) EXECUTOR REFUSED and (3) the
+  crash-void ship beside it. (2) changes what a vacuous intermediate vertex DOES (it now fails the task instead of advancing),
+  (3) only what the harness SAYS about a crash. Vertex 2's "Cound not create route" is observable only if vertex 1 moves:
+  under (2) a refused vertex 1 ends the task before vertex 2 is issued, where G1-3 advanced to it.
+- THE FEDERATION IS 3-6 HOURS OLDER: the same long-lived rtiexec 47980 (up since 2026-09-26) and the same federation instance
+  held by 56380 since 19:00:02Z. G1-3's crashed back end (pid 3344) was closed by StopVrf's taskkill without a clean resign of
+  its own [A: the G1-3 Result]; the rtiexec log nevertheless records a "VR-Forces Sim Engine 5.2d" federate (handle 5)
+  "has resigned" at its L582339, after G1-3's app (remoteControl 26024) resigned at L581979 - the only Sim Engine joined since
+  56380 joined (L535605), so that resign is taken to be pid 3344's [A: attribution by order; the log names no pid for a Sim
+  Engine]. READ-ONLY FEDERATE LIST at 2026-09-28T22:2xZ [V: scratch laneG1-4\rti_federates.py over runs\launch52\rtiexec_20260926T115802Z5.0.1-...-47980.log,
+  join / resign lines only, names and handles printed]: joined now = remoteControl 56380 (handle 2) ONLY. Step A repeats it.
+- THE SCORED RUN HAS NO G1-3 CONTROL: G1-3 stopped at its W gate, so the scored rows' control is G1-2's scored run
+  (20260928T142731Z) on another build (699552c, the Literal path) - every scored comparison names that difference.
+- THE HOLDER: branch (a) reuses G1-3's holder 56380 (G1-3 claimed and started it); branch (b') would start a new one on the
+  same RtiProbe tree.
 
 ## 5. Application numbers
 
@@ -408,7 +449,8 @@ ASCII + CRLF.
 4. BUFFER stays 10, untouched (RL-20260928-03's operative text); testing 0 is for the owner after a G1-4 failure.
 5. THE ORDER: the handoff (written after the G1-3 Result, under the seat switch RL-20260928-04) governs - G1-4 now; the
    callstack read stays the owner's open call (HANDOFF_SEAT sec 4) and does not block G1-4.
-6. THE HOLDER: branch (a); E starts no later than 02:15Z 2026-09-29; a holder that resigns inside a window is recorded and
+6. THE HOLDER: branch (a); E starts no later than 01:55Z 2026-09-29 (replacing 02:15Z after Fable's review; else branch
+   (b')); a holder that resigns inside a window is recorded and
    does not void it by itself - V is about the back end only (sec 3).
 7. THE TEARDOWN SLACK: the scorer counts crash records up to the window's close + 5 s [A: the lane's choice, approved by the
    seat]; the runner itself lets a window stand for a crash dated after it closed (WARN, RunC2SimScenario.ps1 :5980-5982).

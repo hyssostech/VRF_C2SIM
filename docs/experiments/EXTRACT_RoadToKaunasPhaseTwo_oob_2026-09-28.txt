@@ -1,0 +1,197 @@
+EXTRACT - RoadToKaunasPhaseTwo.oob, the cited line ranges only (lane G1-4, 2026-09-28; Fable review item 7)
+SOURCE: C:\MAK\vrforces5.2d\userData\scenarios\Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo.scnx
+  .scnx sha256 22e0658280a1455f56644bc3c9215583f69ca7970cec58f8e0781ac42b8a9903 (1196436 bytes), read-only
+  member RoadToKaunasPhaseTwo.oob sha256 891a5a2f90cb346c5a706dbe078f5198ed93c1bb8095548cfd56772cd7b6f37c (9524543 bytes, 177139 lines)
+  = the m3b lane's extract (H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\5fc25950-1a10-4ade-9a7b-68cb5c1daf05\scratchpad\m3b\rtk_p2\RoadToKaunasPhaseTwo.oob), sha256 891a5a2f90cb346c5a706dbe078f5198ed93c1bb8095548cfd56772cd7b6f37c
+RANGES: :71967-72137 (the JAM-137 navigate-to-location task and its move-along subtask; :72084-72085 the DtRwVector
+  destination, :72127 the move-along's route reference), :72195-72201, :103560-103565 (the route object: marking-text
+  and uuid). Each line is '<source line number>: <source text>', text unchanged but for the line ending. Vendor sample
+  content, quoted for citation; nothing else of the file is reproduced.
+
+----- :71967-72137
+ 71967:    (local-vrf-object 
+ 71968:       (publish-flag 1)
+ 71969:       (object-identifier  "1:3001:175")
+ 71970:       (marking-text "JAM-137")
+ 71971:       (object-type  3 (11 1 260 5 21 0 55))
+ 71972:       (uuid  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 71973:       (state-repository 
+ 71974:          (engagement-zones )
+ 71975:          (suppression-level 0)
+ 71976:          (sector-of-responsibility 
+ 71977:             (sector-center 0.000000)
+ 71978:             (sector-size 1.570796)
+ 71979:          )
+ 71980:          (request-task-needed False)
+ 71981:          (task-status-list 
+ 71982:             (task-status 
+ 71983:                (controller-name "base-system.script-controller")
+ 71984:                (task-message 
+ 71985:                   (Task 
+ 71986:                      (task-type "move_to_waypoint_plan_path")
+ 71987:                      (subtask False)
+ 71988:                      (allow-task-visualizations True)
+ 71989:                      (script-id "move_to_waypoint_plan_path")
+ 71990:                      (variables 
+ 71991:                         (DtRwObjectName
+ 71992:                            (destinationObject  "VRF_UUID:e0cc6b93-34f4-3a44-952c-72ef5e286d19")
+ 71993:                         )
+ 71994:                         (DtRwBoolean
+ 71995:                            (displayRoute False)
+ 71996:                         )
+ 71997:                      )
+ 71998:                      (variable-data-types 
+ 71999:                         (DtRwString
+ 72000:                            (destinationObject "simulationobject")
+ 72001:                         )
+ 72002:                         (DtRwString
+ 72003:                            (displayRoute "checkbox")
+ 72004:                         )
+ 72005:                      )
+ 72006:                   )
+ 72007: 
+ 72008:                   (transmitter  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72009:                   (receiver  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72010:                   (independently-tasked True)
+ 72011:                   (task-id 44)
+ 72012:                   (task-tracking-number -1)
+ 72013:                )
+ 72014:                (is-tasked True)
+ 72015:                (subtask-status-list 
+ 72016:                   (subtask-status 
+ 72017:                      (task-id 45)
+ 72018:                      (complete False)
+ 72019:                      (result False)
+ 72020:                      (canceled False)
+ 72021:                   )
+ 72022:                )
+ 72023:             )
+ 72024:             (task-status 
+ 72025:                (controller-name "base-system.script-controller")
+ 72026:                (task-message 
+ 72027:                   (task 
+ 72028:                      (task-type "navigate-to-waypoint")
+ 72029:                      (subtask True)
+ 72030:                      (allow-task-visualizations True)
+ 72031:                      (script-id "navigate-to-waypoint")
+ 72032:                      (variables 
+ 72033:                         (DtRwReal
+ 72034:                            (buffer 0.000000)
+ 72035:                         )
+ 72036:                         (DtRwObjectName
+ 72037:                            (destinationObject  "VRF_UUID:e0cc6b93-34f4-3a44-952c-72ef5e286d19")
+ 72038:                         )
+ 72039:                         (DtRwBoolean
+ 72040:                            (displayRoute False)
+ 72041:                         )
+ 72042:                         (DtRwString
+ 72043:                            (obstacleQuery "MAK_OBSTACLE")
+ 72044:                         )
+ 72045:                         (DtRwString
+ 72046:                            (pathQuery "MAK_ROAD")
+ 72047:                         )
+ 72048:                         (DtRwString
+ 72049:                            (query "")
+ 72050:                         )
+ 72051:                      )
+ 72052:                      (variable-data-types 
+ 72053:                      )
+ 72054:                   )
+ 72055: 
+ 72056:                   (transmitter  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72057:                   (receiver  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72058:                   (independently-tasked False)
+ 72059:                   (task-id 45)
+ 72060:                   (task-tracking-number -1)
+ 72061:                )
+ 72062:                (is-tasked True)
+ 72063:                (subtask-status-list 
+ 72064:                   (subtask-status 
+ 72065:                      (task-id 46)
+ 72066:                      (complete False)
+ 72067:                      (result False)
+ 72068:                      (canceled False)
+ 72069:                   )
+ 72070:                )
+ 72071:             )
+ 72072:             (task-status 
+ 72073:                (controller-name "base-system.script-controller")
+ 72074:                (task-message 
+ 72075:                   (task 
+ 72076:                      (task-type "navigate-to-location")
+ 72077:                      (subtask True)
+ 72078:                      (allow-task-visualizations True)
+ 72079:                      (script-id "navigate-to-location")
+ 72080:                      (variables 
+ 72081:                         (DtRwReal
+ 72082:                            (buffer 0.000000)
+ 72083:                         )
+ 72084:                         (DtRwVector
+ 72085:                            (destination  3342171.519012 1548639.110621 5189483.444645)
+ 72086:                         )
+ 72087:                         (DtRwBoolean
+ 72088:                            (displayRoute False)
+ 72089:                         )
+ 72090:                         (DtRwString
+ 72091:                            (obstacleQuery "MAK_OBSTACLE")
+ 72092:                         )
+ 72093:                         (DtRwString
+ 72094:                            (pathQuery "MAK_ROAD")
+ 72095:                         )
+ 72096:                         (DtRwString
+ 72097:                            (query "")
+ 72098:                         )
+ 72099:                      )
+ 72100:                      (variable-data-types 
+ 72101:                      )
+ 72102:                   )
+ 72103: 
+ 72104:                   (transmitter  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72105:                   (receiver  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72106:                   (independently-tasked False)
+ 72107:                   (task-id 46)
+ 72108:                   (task-tracking-number -1)
+ 72109:                )
+ 72110:                (is-tasked True)
+ 72111:                (subtask-status-list 
+ 72112:                   (subtask-status 
+ 72113:                      (task-id 47)
+ 72114:                      (complete False)
+ 72115:                      (result False)
+ 72116:                      (canceled False)
+ 72117:                   )
+ 72118:                )
+ 72119:             )
+ 72120:             (task-status 
+ 72121:                (controller-name "base-system.aggregated-movement.aggregated-move-along-controller")
+ 72122:                (task-message 
+ 72123:                   (task 
+ 72124:                      (task-type "move-along")
+ 72125:                      (subtask True)
+ 72126:                      (allow-task-visualizations True)
+ 72127:                      (route  "VRF_UUID:JAM-137 Path part 1_8")
+ 72128:                      (traversal-direction 0)
+ 72129:                      (start-at-closest-point True)
+ 72130:                   )
+ 72131: 
+ 72132:                   (transmitter  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72133:                   (receiver  "VRF_UUID:bd0887ff-1265-614a-b568-f049808db8bf")
+ 72134:                   (independently-tasked False)
+ 72135:                   (task-id 47)
+ 72136:                   (task-tracking-number -1)
+ 72137:                )
+----- :72195-72201
+ 72195:                         (aggregated-move-along-process-state-repository-default 
+ 72196:                            (route  "VRF_UUID:JAM-137 Path part 1_8")
+ 72197:                            (current-route-vertex 51)
+ 72198:                            (task-start-point  3342924.084250 1550238.497640 5188622.487719)
+ 72199:                            (route-is-discovered True)
+ 72200:                            (patrol-reverse False)
+ 72201:                            (world-destination  3342172.918016 1549019.397367 5189369.808353)
+----- :103560-103565
+103560:    (local-vrf-object 
+103561:       (publish-flag 0)
+103562:       (object-identifier  "1:3001:522")
+103563:       (marking-text "JAM-137 Path part 1")
+103564:       (object-type  1 (17 0 0 2 0 0 0))
+103565:       (uuid  "VRF_UUID:JAM-137 Path part 1_8")
