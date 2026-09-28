@@ -51,7 +51,17 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
 1. (DONE by the Fable seat) M3b merged as 739cce2, suite green, pushed.
 2. (DONE 21:20Z by the Opus seat, RUNBOOK sec 9 "M3b DEPLOY") Deploy: a managed rebuild of the ten consumers from main 739cce2 (RUNBOOK sec 9, the R4 line is the model; an ops
    agent can run it); verify by the output trees; record the sec 9 line; RtiProbe stays as is while the holder runs.
-3. G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
+3-4. DONE 2026-09-28 by the Opus seat: G1-4 registered (7ac84c2, Fable GO WITH FIXES applied), owner "Go on go-live";
+   pre-warm run 20260928T225800Z_run (block 5270-5280, marker 5281, 17b0859): W GATE FAIL (H5, P-FALS(e)) - STOP before E,
+   scored block never claimed. M3b's question answered at n = 1: H1 0 "route does not exist" (G1-3: 15), R-REF 35/35 whole,
+   H2/H3/M10/M12 PASS, T10 and T02 vertex 1 CLOSED, no crash. Misses, UNEXPLAINED (no cause claimed): T14 48_IBCT.INF3WPN1
+   0.0 m (tasked, planned, move-along on the whole ref, no refusal); T02 28ID.HQ1 crossed river 8011072 16 m from a road
+   bridge. Seat's own registration flaw: W-MOVE ungated T14 members but H5 still gated them in W. One new sim-cache URI
+   entry (23:02:31Z). Evidence: scratchpad H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\b25cd950-e1a5-4e5b-97e2-4b1267e629d2\
+   scratchpad\laneG1-4\ (W_gate_20260928T225800Z_run.txt). NEXT: the Result by a read-only harvest lane -> Fable cold ->
+   owner; then G1-5; the Label follow-up (5) is unblocked. Holder 56380 ends at the owner's reboot: next launch claims a
+   holder from 5281 (branch b').
+   (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
 4. Go-live (the seat, under RL-20260928-01): A -> C3 -> W (dry run, pre-warm, W gate) -> E -> F, the scripts of
