@@ -3881,13 +3881,43 @@ EntityLevel nothing changes - shells and platforms exactly as before - and the s
 PREREQUISITES, checked at start-up; a missing one is `AGGREGATE CONTAINERS (...) - REFUSING TO START: ...`:
 `Vrf:CreationPolicy=AtOrder` (scripts/RunScenario.sh exports it), `Vrf:TypeMappingMode=FidelityTable`, the
 aggregate catalogue (`Vrf:VrfHome` or MAK_VRFDIR; `Vrf:CatalogueSms` names a derived .sms when the lane-C2 authored
-types live in one), `Vrf:CompositionFile` (default `data/unit-composition-52-aggregate.json`; every row is resolved
-against the catalogue and logged), and A REBUILT BRIDGE. PublishedSubordinateCount is a NEW native member
+types live in one), `Vrf:CompositionFile` (default `data/unit-composition-52-aggregate.json`; every row of the
+selected variant is resolved against the catalogue and logged; the variant and its guard below), and A REBUILT BRIDGE. PublishedSubordinateCount is a NEW native member
 (`src/VrfFacade/VrfFacade.cpp`), bound by reflection so the managed build compiles against the pinned bridge - and
 the pinned `VrfBridge.dll` (90272bc9...) does NOT carry it. The deploy for G1 is therefore a native `/t:Rebuild` of
 the bridge plus all eleven consumers (sec 9), on a machine WITH the C++ toolset: on 2026-09-27 this one had none
 (MSBuild MSB4019 on Microsoft.Cpp.Default.props; no VC\Tools\MSVC under VS 18), so the native member is written and
 source-checked but NOT compiled.
+
+THE COMPOSITION VARIANT AND ITS SMS GUARD (C1b, branch `fix/composition-variant-guard`; RL-20260927-04). The composition
+file holds two variants: `catalogue` (the C1 rows - catalogue units, a PROXY where the vendor has no US type) and
+`authored` (FM 3-96 with the seven US unit types package C2 authored, which exist ONLY in the derived set
+`C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms`; `docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md`).
+`Vrf:CompositionVariant` (default `catalogue`; blank = the file's `defaultVariant`) selects ONE, and the resolver sees
+that variant's rows plus the `all` rows - read variant-blind, the C2 file made 48 IBCT's map row F-UCI-H a TABLE DEFECT.
+A name the file does not declare REFUSES TO START. THE GUARD: rows with authored content (the variant `authored`, an
+AUTHORED entry, or an entry naming a type of the type map's `authoredRows`, which the app reads with fidelity `Authored`
+and never as lookup rows) start ONLY when the fixture is on the derived set AND the app's catalogue (`Vrf:CatalogueSms`)
+is that same `.sms`. The fixture's SMS is read the way the runner's Stage 0 reads it (`scripts/RunnerLib.ps1`
+`Get-ScenarioModelSet`: the archive's first `.scn`, its `Simulation-Model-Set-Files` line); `Vrf:Scenario` says WHICH
+scenario (the runner's `-Scenario` value, resolved under `userData\scenarios` like the runner does, or a rooted `.scnx`
+path), because the runner exports no setting that tells the derived set from the shipped one (`Vrf__ModelSet` is the
+family). Unset or unreadable = UNKNOWN = refused. On a fixture on the shipped set the start is refused, never degraded:
+`COMPOSITION VARIANT authored needs the derived SMS C2SIM_AggregateTacticalLevel (...), but the fixture <scnx> loads`
+`$(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms: there the authored types land EMPTY generic containers ...`.
+Start-up: `COMPOSITION VARIANT <name> (<source>; RL-20260927-04): ... SMS: ... Catalogue: ...` and, for authored
+content, one `TYPE MAP Authored: <id> -> <template> (<type>) ... lands ...` line per authored type. The
+catalogue variant needs no derived set (the derived set only adds types) and runs on either fixture. To run the authored
+variant (G1b) - the fixture deployed per `tools/FixtureGen/README.md`, and until the runner exports `Vrf__Scenario`
+itself (a runner follow-up):
+```
+scripts/RunScenario.sh --model-set AggregateTacticalLevel --scenario IronStorm_Centre_52_Aggregate_C2SIM \
+  --env Vrf__CompositionVariant=authored --env Vrf__Scenario=IronStorm_Centre_52_Aggregate_C2SIM \
+  --env 'Vrf__CatalogueSms=C:\C2SIM\vrf-sms\C2SIM_AggregateTacticalLevel.sms' ...
+```
+Offline: `VrfC2SimApp --populate-selftest` walks the catalogue variant on the vendor set (the authored rows SKIPPED, with
+the reason) and pins the guard both ways; `--populate-selftest --variant authored` walks the authored variant on the
+derived set (`--derived-sms PATH` or env C2SIM_AGGREGATE_SMS for another deployment) and FAILS if it is not deployed.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

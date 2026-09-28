@@ -19,6 +19,11 @@ public enum TypeFidelity
     AuthoredPending,
     /// <summary>No table row matched at all (a table defect). The unit is NOT created.</summary>
     Failed,
+    /// <summary>An AUTHORED unit type (package C2, RL-20260927-04): a row of the map's "authoredRows", a US unit type that
+    /// exists ONLY in the derived model set C2SIM_AggregateTacticalLevel (tools/sms). Never a LOOKUP row - "AUTHORED" in
+    /// "rows" still parses as <see cref="Failed"/> (typemap_check.py refuses it there) - and consulted only by the
+    /// composition's "authored" variant and its derived-SMS guard (C1b, CompositionVariants).</summary>
+    Authored,
 }
 
 /// <summary>One row of data/unit-type-map.json.</summary>
@@ -75,11 +80,18 @@ public sealed class UnitTypeMap
     public IReadOnlyDictionary<string, int> Nations { get; }   // name -> DIS country code
     public string SourcePath { get; }
 
-    private UnitTypeMap(IReadOnlyList<UnitTypeRow> rows, IReadOnlyDictionary<string, int> nations, string path)
+    /// <summary>The map's "authoredRows" (package C2), each with fidelity <see cref="TypeFidelity.Authored"/> (any other
+    /// value there is <see cref="TypeFidelity.Failed"/>). NOT lookup rows: <see cref="Lookup"/> and
+    /// <see cref="FindByObjectType"/> read <see cref="Rows"/> only, exactly as before. Empty when the map has none.</summary>
+    public IReadOnlyList<UnitTypeRow> AuthoredRows { get; }
+
+    private UnitTypeMap(IReadOnlyList<UnitTypeRow> rows, IReadOnlyDictionary<string, int> nations, string path,
+                        IReadOnlyList<UnitTypeRow> authoredRows)
     {
         Rows = rows;
         Nations = nations;
         SourcePath = path;
+        AuthoredRows = authoredRows;
     }
 
     // ---- loading ----------------------------------------------------------
@@ -137,12 +149,31 @@ public sealed class UnitTypeMap
                 ProxyNote = Str(r, "proxyNote"),
             });
         }
-        return new UnitTypeMap(rows, nations, path);
+        // C1b: the AUTHORED types (package C2) - read, never looked up. Their own list, their own fidelity.
+        var authored = new List<UnitTypeRow>();
+        if (root.TryGetProperty("authoredRows", out var ar) && ar.ValueKind == JsonValueKind.Array)
+            foreach (var r in ar.EnumerateArray())
+                authored.Add(new UnitTypeRow
+                {
+                    Id = Str(r, "id"),
+                    SurveyRow = Str(r, "entityFile"),
+                    EchelonCode = Str(r, "echelonCode"),
+                    NationRole = Str(r, "nationRole"),
+                    Nation = Str(r, "nation"),
+                    IsAggregate = r.TryGetProperty("isAggregate", out var aa) && aa.ValueKind == JsonValueKind.True,
+                    ObjectType = Str(r, "objectType"),
+                    TemplateName = Str(r, "templateName"),
+                    Fidelity = ParseAuthoredFidelity(Str(r, "fidelity")),
+                    ProxyNote = Str(r, "proxyNote"),
+                });
+        return new UnitTypeMap(rows, nations, path, authored);
     }
 
     private static string Str(JsonElement e, string name)
         => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : "";
 
+    // The LOOKUP rows' fidelity. "AUTHORED" is deliberately NOT a value here: an authored type in "rows" would be looked
+    // up for every variant, so it stays a table defect (Failed), as typemap_check.py's schema gate says.
     private static TypeFidelity ParseFidelity(string s) => s switch
     {
         "EXACT" => TypeFidelity.Exact,
@@ -150,6 +181,10 @@ public sealed class UnitTypeMap
         "AUTHORED_PENDING" => TypeFidelity.AuthoredPending,
         _ => TypeFidelity.Failed,
     };
+
+    // The authoredRows' fidelity: AUTHORED is the only value that list carries (typemap_check.py gates it).
+    private static TypeFidelity ParseAuthoredFidelity(string s)
+        => s == "AUTHORED" ? TypeFidelity.Authored : TypeFidelity.Failed;
 
     // ---- key extraction ---------------------------------------------------
 

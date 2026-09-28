@@ -1195,6 +1195,22 @@ public class VrfSettings
     // code change. Must be the SMS the fixture loads, or the sim will not know the types the app creates.
     public string CatalogueSms { get; set; } = "";
 
+    // THE COMPOSITION VARIANT (C1b; package C2, RL-20260927-04): which variant of CompositionFile a tasked container
+    // is populated from - "catalogue" (catalogue units only, a PROXY where the vendor has no US type; runs on the
+    // shipped or the derived SMS) or "authored" (FM 3-96 with the AUTHORED US unit types, which exist ONLY in the
+    // derived set C2SIM_AggregateTacticalLevel). The resolver sees that variant's rows plus the "all" rows. Blank = the
+    // file's defaultVariant. A name the file does not declare REFUSES TO START. A variant with authored content starts
+    // only when Scenario below names a fixture on the derived SMS AND CatalogueSms is that same .sms - on the shipped
+    // set the authored types land EMPTY containers (C2's wrong-SMS hazard), so it is refused, never degraded.
+    public string CompositionVariant { get; set; } = CompositionVariants.Catalogue;
+
+    // THE SCENARIO THE BACK END LOADS (C1b), for the guard above: the runner's -Scenario value (a name under
+    // VrfHome\userData\scenarios, ".scnx" appended - the runner's own rule) or a rooted .scnx path. Its SMS is read
+    // the way the runner's Stage 0 reads it (RunnerLib.ps1 Get-ScenarioModelSet: the .scn's Simulation-Model-Set-Files
+    // line); the runner exports no setting that tells the derived set from the shipped one (Vrf__ModelSet is the
+    // family). "" = unknown: logged, harmless for the catalogue variant, and a refusal for the authored one.
+    public string Scenario { get; set; } = "";
+
     // THE PUBLICATION GATE'S BOUND, in WALL seconds from the moment an order starts a container's population: the
     // slot check, the member creates, the attach and the container PUBLISHING its members must all have happened by
     // then, or the container's MOVE tasks are refused with TASKABRT (never dispatched to an empty container).

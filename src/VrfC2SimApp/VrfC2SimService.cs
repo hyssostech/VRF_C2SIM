@@ -2833,7 +2833,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// prerequisite of C1 is checked and a missing one REFUSES TO START - AtOrder (RL-20260927-03), the fidelity table
     /// (the composition key), the aggregate catalogue (the init rule), the composition file, and the bridge's
     /// publication reader (the gate) - then every composition row is validated against the catalogue and the choices
-    /// are said once, naming the rulings.
+    /// are said once, naming the rulings. C1b: the composition is narrowed to ONE variant (Vrf:CompositionVariant), and
+    /// a variant with authored content passes only on the derived SMS the fixture (Vrf:Scenario) loads.
     /// </summary>
     private bool ContainerStartupPreflight()
     {
@@ -2864,6 +2865,33 @@ public sealed class VrfC2SimService : BackgroundService
             try { _composition = CompositionTable.Load(compPath); }
             catch (Exception ex) { problems.Add($"Vrf:CompositionFile '{compPath}' failed to parse: {ex.Message}"); }
         }
+        // C1b (package C2's integration; RL-20260927-04): the resolver sees ONE composition VARIANT, and a variant with
+        // AUTHORED content runs only on the derived SMS the fixture loads, with the catalogue rooted at that same file.
+        // The rules are pure (CompositionVariants; --populate-selftest p13); an unknown variant or a failed guard is a
+        // start refusal like every prerequisite above - never a fallback to another variant or catalogue.
+        string vrfHome = !string.IsNullOrWhiteSpace(_vrf.VrfHome) ? _vrf.VrfHome
+                       : Environment.GetEnvironmentVariable("MAK_VRFDIR") is { Length: > 0 } makVrfDir ? makVrfDir
+                       : ObjectTypeResolver.DefaultVrfHome;                   // GetResolver's own rule
+        CompositionVariants.Selection variant = null;
+        CompositionVariants.FixtureSmsReading fixture = null;
+        CompositionVariants.Verdict variantGuard = null;
+        if (_composition != null)
+        {
+            variant = CompositionVariants.Select(_composition, _vrf.CompositionVariant);
+            if (variant.Refused) problems.Add(variant.Refusal);
+            else
+            {
+                foreach (string stray in _composition.UndeclaredRowVariants())
+                    _log.LogError("COMPOSITION VARIANT: {Row} of {File} is a variant the file does not declare - that row " +
+                                  "belongs to NO variant and is never used (composition_check.py's schema gate refuses it).",
+                                  stray, compPath);
+                _composition = _composition.ForVariant(variant.Name);
+                fixture = CompositionVariants.ReadFixtureSms(_vrf.Scenario, vrfHome);
+                variantGuard = CompositionVariants.Check(_composition, variant, _typeMap?.AuthoredRows, fixture, res?.RootSms,
+                                                         vrfHome);
+                if (variantGuard.Refused) problems.Add(variantGuard.Refusal);
+            }
+        }
         var publishedCount = PublishedCountReader.Bind(_bridge);
         _containerBridge = new ContainerBridgeAdapter(_bridge, publishedCount);
         if (publishedCount == null)
@@ -2877,6 +2905,20 @@ public sealed class VrfC2SimService : BackgroundService
             _life.StopApplication();
             return false;
         }
+        // The authoredRows (fidelity Authored) are IN USE only when the variant's rows carry authored content: one TYPE MAP
+        // line each, saying what the catalogue lands for it; otherwise the start-up line counts them as not in use.
+        var authoredRows = _typeMap?.AuthoredRows ?? Array.Empty<UnitTypeRow>();
+        if (variantGuard.NeedsDerivedSet)
+            foreach (var a in authoredRows)
+            {
+                var a8 = UnitTypeMap.ParseObjectType(a.ObjectType);
+                var (landsOwn, text) = CompositionVariants.AuthoredTypeLine(a, a8 != null ? _catalogue.Resolve(a8) : null,
+                                                                            res.RootSms);
+                if (landsOwn) _log.LogInformation("{Line}", text);
+                else _log.LogError("{Line}", text);
+            }
+        _log.LogInformation("{Line}", CompositionVariants.StartupLine(variant, _composition, fixture, res.RootSms, variantGuard,
+                                                                      authoredRows.Count));
         int ok = 0, refused = 0;
         foreach (var row in _composition.Rows)
         {
