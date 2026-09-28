@@ -101,16 +101,18 @@ CORRECT.
   10000 m birth, the oracle's +1 and the SIDC 'G' test are GONE - do not reintroduce any of them.
   A ROUTE VERTEX has no AGL frame in the API and does need the terrain query (TerrainProfile).
   "Born buried therefore never moves" is FALSIFIED. Live confirmation of the rewrite is still owed.
-- **Entity-level vs aggregate-level - THE STANCE**: this code is ENTITY-LEVEL ONLY. Every
-  scenario ever loaded declares `EntityLevel.sms`; nothing in src/ branches on the SMS. A unit is
-  created as a pseudo-aggregate (`createAggregate(..., Disaggregated, createSubordinates=true)`)
-  whose member PLATFORMS are separately simulated and placed on terrain (UG52 14.3.3); the unit's
-  own position is derived from them each tick and has no clamp of its own. `setAltitude` on a
-  unit is documented to do nothing; `setLocation` on a unit snaps members into formation and
-  clamps them (`setLocationRequest.h:31-32`). The Y-15 "hybrid" is two scenario PROFILES chosen
-  per run - UG52 13.7 forbids mixing SMS families in one scenario - and it is NOT IMPLEMENTED.
-  MAK's own samples never call `setAltitude` for placement: they hand the create a point at/near
-  the terrain and rely on the default clamp. Do not describe the code as adapting to the SMS.
+- **Entity-level vs aggregate-level - THE STANCE (rewritten 2026-09-28; the 09-05 text said
+  "ENTITY-LEVEL ONLY" and is refuted)**: two model sets, one per run, chosen by `Vrf:ModelSet`
+  and by default by the highest TASKED echelon - above BN -> AggregateTacticalLevel only, BN and
+  below -> EntityLevel, overridable upward (RL-20260927-06; the runner's `-ModelSet auto`, the
+  app's order-receipt guard, PLAN rows D2/D2b). Entity level: a unit is a pseudo-aggregate of
+  separately simulated platforms; a lone platform moves by Move To PER VERTEX (RL-20260927-01).
+  Aggregate level: every unit is an empty Aggregate Container at init; only the TASKED ones are
+  populated in place from the composition (RL-20260927-02/-03/-04); a container moves by the
+  vendor's PLANNING task per STP vertex, AUTO per leg (RL-20260928-03, row M3 - the vendor's
+  executor refused the script's route in G1-3; M3b in progress). Every created object's identity
+  is its UUID; names are display only (RL-20260928-02, C1d). The tripwire list is the CLOSED
+  block at the top of `docs/PLAN_MOVEMENT_2026-09-27.md` - read it before proposing a mechanism.
 - `docs/HANDOFF_2026-09-01_R9_COMPLETE.md` opens with a **CLOSED - DO NOT REOPEN** list. Each
   line names its record and its reopening evidence. Read it before proposing a cause.
 - `docs/CORRECTIONS_LOG.md` holds refuted claims. If a code comment and this log disagree, the
@@ -142,3 +144,8 @@ in the corrections log. A reader of the stale site never learns it is dead.
 - Vendor sim logs dump the whole environment in cleartext - never attach one anywhere; send the
   `.callstack.log` / `.dmp`.
 - Live doc caps: HANDOFF and the 5.2 DIFF are 200 lines. Adding means collapsing something else.
+- THE SEAT (RL-20260928-04): the seat session runs on Opus 5.5; before any cause claim or design
+  brief reaches the owner, Fable reviews it cold (Agent, model fable) on the evidence only, and
+  Fable runs the judgment-heavy lanes. Every seat, whatever the model: grep the CLOSED list,
+  `docs/RULINGS*.md` and `docs/vendor/mak-5.2/txt` BEFORE any mechanism claim, and cite. Seat
+  quality = the owner's corrections per day (2026-09-28: six). Handoff: HANDOFF_SEAT_2026-09-28.

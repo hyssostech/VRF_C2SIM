@@ -2,7 +2,7 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -03). Archived (cap): -08, 0914-02 on 09-26;
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -105,3 +105,14 @@ RL-20260928-03 | 2026-09-28 | VERBATIM
     Group, PerMemberOffRoad and Literal stay selectable for registered comparisons; the pre-flight is report + fallback; the first
     registered run is G1-3 on T14's line. Y-11/Y-13 (entity-level Ignore Roads) are untouched.
   pointer: PLAN_MOVEMENT_2026-09-27 rows M3, G1-3; feat/aggregate-planned-move; appsettings.json _AggregateMovePlanner.
+RL-20260928-04 | 2026-09-28 | VERBATIM
+  Q (owner, P10345): "DOes it make sense to have opus 5.5 run the seat, and invoke Fable for the real work requiring special skills, rather
+    than burn Fable tokens as supervisor?" - the seat (P10347) answered yes with one inversion: Opus 5.5 runs the seat (orchestration, the
+    record discipline, go-lives, routine adversarial reading); Fable is invoked as the cold-start REVIEWER of every cause claim and design
+    brief before it reaches the owner, and as the executor of the few judgment-heavy lanes; switch at a natural cut (after M3b / G1-4).
+  A (owner, P10359): "Ok. Slot this switch for the soonest appropriate opportunity then"
+  supervisor reading: the soonest appropriate cut is the M3b merge (the lane in flight at 19:56Z): the Fable seat merges M3b, writes the seat
+    handoff (docs/HANDOFF_SEAT_2026-09-28.md) and stops; the next session starts on Opus 5.5 and runs the deploy, the G1-4 registration and
+    the go-live on holder 5255 (RtiProbe 56380, up to ~03:00Z 09-29), invoking Fable through the Agent tool (model fable) for reviews and
+    judgment lanes. Seat quality is measured by the owner's corrections per day (2026-09-28: six).
+  pointer: docs/HANDOFF_SEAT_2026-09-28.md; CLAUDE.md sec 5 (the seat rule); memory feedback-seat-model-policy.
