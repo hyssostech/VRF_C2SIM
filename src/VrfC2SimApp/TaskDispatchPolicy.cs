@@ -576,19 +576,34 @@ public static class TaskDispatchPolicy
     /// slot's offset again at every link: along one unit's chain the start grows quadratically (d = 60
     /// min, ten back-to-back tasks: the last one at 54 h instead of 9 h), past the 86,400 s chain
     /// backstop, and the tail is TASKABRT'd as never dispatched.
-    ///   Receipt               (DEFAULT) start = max(predecessor completion, order receipt + offset).
+    ///   Receipt               (DEFAULT) start = max(predecessor completion,
+    ///                         order receipt + (offset - minOffset)), minOffset = the smallest SimulationTime
+    ///                         offset over the tasks OF THIS ORDER that carry one (<see cref="MinSimulationOffsetMs"/>).
     ///                         Receipt is stamped ONCE per order on the task clock the gate runs on.
+    ///   ReceiptAbsolute       start = max(predecessor completion, order receipt + offset) - no rebase
+    ///                         (the first STP-850 build, 1a6dd6d / 213c312).
     ///   PredecessorCompletion start = predecessor completion + offset - the pre-STP-850 behaviour,
     ///                         kept for rollback.
+    /// WHY THE REBASE (split orders): STP rehearsals send ONE ORDER PER PHASE WAVE and keep ABSOLUTE slot
+    /// offsets across waves (U1's slots 0-2 in wave 1, 3-4 in wave 2), because SitaWare reads the same
+    /// order off the server and places offsets absolutely. Measured from receipt without a rebase, wave 2
+    /// would idle three phases after it arrived. Rebasing on the order's own earliest offset makes each
+    /// wave start on receipt; a full-plan order has minOffset 0 and is unchanged. Vrf:DurationScale applies
+    /// to the REBASED offset. RESIDUAL LIMITS: separately pushed orders (blue, red) are each anchored at
+    /// their own receipt; a full plan with no slot-0 task starts early in VRF only (its first slot is pulled
+    /// to receipt); a single-task order's delay is rebased away (the N2c probe
+    /// PROBE_RIDGE_1-35_DELAYED_Order.xml needs ReceiptAbsolute to keep its 300 s); a STREND to a task of an
+    /// EARLIER order is not emitted by STP (STP-886), so a wave's first task per unit is a root here.
     /// The scenario-start anchor is deliberately not offered: the interface has no scenario-start
-    /// instant it could stamp on the task clock. A DateTime StartTime is converted to an offset from
-    /// receipt (<see cref="StartOffsetMs"/>) and anchored the same way: start = max(predecessor
-    /// completion, that instant). The ActionTemporalRelationship/Duration relative delay is not affected
-    /// - it stays a delay after the predecessor (StartTime/RelativeTime is not honoured at all). Every
-    /// order on disk whose tasks carry a predecessor carries NO SimulationTime or DateTime start on those
-    /// tasks, so for them the two values dispatch identically (--rulings-selftest, STP-850 section).
+    /// instant it could stamp on the task clock. A DateTime StartTime is an INSTANT: it is converted to an
+    /// offset from receipt (<see cref="StartOffsetMs"/>), anchored (start = max(predecessor completion,
+    /// that instant)) under both receipt values, and never rebased and never contributes to minOffset.
+    /// The ActionTemporalRelationship/Duration relative delay is not affected - it stays a delay after the
+    /// predecessor (StartTime/RelativeTime is not honoured at all). Every order on disk whose tasks carry a
+    /// predecessor carries NO SimulationTime or DateTime start on those tasks (--rulings-selftest, STP-850
+    /// section, which names the orders whose minOffset is not 0).
     /// </summary>
-    public enum StartTimeAnchor { Receipt, PredecessorCompletion }
+    public enum StartTimeAnchor { Receipt, ReceiptAbsolute, PredecessorCompletion }
 
     /// <summary>STP-850: Vrf:StartTimeAnchor, parsed. Case-insensitive; blank means the default. An
     /// unknown value is NOT valid and answers <see cref="StartTimeAnchor.Receipt"/> (the default) - the
@@ -598,6 +613,7 @@ public static class TaskDispatchPolicy
         string v = (value ?? "").Trim();
         valid = true;
         if (v.Length == 0 || v.Equals("Receipt", StringComparison.OrdinalIgnoreCase)) return StartTimeAnchor.Receipt;
+        if (v.Equals("ReceiptAbsolute", StringComparison.OrdinalIgnoreCase)) return StartTimeAnchor.ReceiptAbsolute;
         if (v.Equals("PredecessorCompletion", StringComparison.OrdinalIgnoreCase))
             return StartTimeAnchor.PredecessorCompletion;
         valid = false;
@@ -605,10 +621,31 @@ public static class TaskDispatchPolicy
     }
 
     /// <summary>STP-850: the anchor the gate is handed (TaskSequencer.WaitForStartAsync's
-    /// startAnchorClock): the order-receipt reading under Receipt, NaN (no anchor: the offset is served
-    /// after the predecessor) under PredecessorCompletion.</summary>
+    /// startAnchorClock): the order-receipt reading under Receipt and ReceiptAbsolute, NaN (no anchor: the
+    /// offset is served after the predecessor) under PredecessorCompletion.</summary>
     public static double StartAnchorClock(StartTimeAnchor anchor, double receiptClock)
-        => anchor == StartTimeAnchor.Receipt ? receiptClock : double.NaN;
+        => anchor == StartTimeAnchor.PredecessorCompletion ? double.NaN : receiptClock;
+
+    /// <summary>STP-850 (split orders): the smallest SimulationTime offset over the tasks of ONE order that
+    /// CARRY a SimulationTime start (OrderTask.HasSimulationStart). A task with no StartTime, a DateTime or a
+    /// RelativeTime start does not contribute. 0 when no task carries one.</summary>
+    public static long MinSimulationOffsetMs(IEnumerable<(bool HasSimulationStart, long SimulationStartMs)> tasks)
+    {
+        long min = long.MaxValue;
+        foreach (var (has, ms) in tasks ?? Enumerable.Empty<(bool, long)>())
+            if (has) min = Math.Min(min, Math.Max(0L, ms));
+        return min == long.MaxValue ? 0L : min;
+    }
+
+    /// <summary>STP-850 (split orders): the SimulationTime offset the gate is handed, BEFORE
+    /// Vrf:DurationScale. Receipt rebases a carried offset on the order's minimum (never below 0);
+    /// ReceiptAbsolute and PredecessorCompletion hand it on as authored. A task that carries no SimulationTime
+    /// is untouched (its 0 means "absent", and a DateTime start is an instant, not an offset).</summary>
+    public static long RebasedSimulationOffsetMs(long simulationStartMs, bool hasSimulationStart,
+                                                 long orderMinOffsetMs, StartTimeAnchor anchor)
+        => anchor == StartTimeAnchor.Receipt && hasSimulationStart
+         ? Math.Max(0L, simulationStartMs - Math.Max(0L, orderMinOffsetMs))
+         : simulationStartMs;
 
     /// <summary>R4 + STP-850: the unscaled start offset the gate is handed as its SimulationTime argument.
     /// A SimulationTime offset as authored; otherwise a DateTime StartTime becomes an offset from
@@ -623,12 +660,13 @@ public static class TaskDispatchPolicy
     }
 
     /// <summary>STP-850: one order task as the chain-lead arithmetic sees it under this anchor. A
-    /// SimulationTime offset under Receipt is a lower bound from receipt; everything else keeps the
-    /// pre-STP-850 node (the larger of the two authored delays, added after the predecessor).</summary>
+    /// SimulationTime offset under Receipt / ReceiptAbsolute is a lower bound from receipt (the caller passes
+    /// the offset the gate gets - REBASED under Receipt); everything else keeps the pre-STP-850 node (the
+    /// larger of the two authored delays, added after the predecessor).</summary>
     public static ChainNode ChainNodeFor(string uuid, string predecessorUuid, long durationMs,
                                          long simulationStartMs, long relativeDelayMs, StartTimeAnchor anchor)
     {
-        bool fromReceipt = anchor == StartTimeAnchor.Receipt && simulationStartMs > 0;
+        bool fromReceipt = anchor != StartTimeAnchor.PredecessorCompletion && simulationStartMs > 0;
         return new ChainNode(uuid, predecessorUuid, durationMs,
                              fromReceipt ? simulationStartMs : Math.Max(simulationStartMs, relativeDelayMs),
                              fromReceipt);

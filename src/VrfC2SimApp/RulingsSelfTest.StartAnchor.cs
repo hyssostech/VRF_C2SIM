@@ -22,8 +22,16 @@ namespace VrfC2SimApp;
 ///   (f) Vrf:DurationScale 0.25 scales the offset exactly as it scales the Duration;
 ///   (g) the setting round-trips (parse, default, shipped json, override) and the service wiring;
 ///   (h) PARITY: every order in data/ and docs/golden-trace/orders/ parses and dispatches identically
-///       under both values;
-///   (i) a gated DateTime StartTime is anchored too: start = max(predecessor completion, that instant).
+///       under all three values, except the orders whose minimum offset is not 0 (named);
+///   (i) a gated DateTime StartTime is anchored too: start = max(predecessor completion, that instant),
+///       and it is never rebased;
+///   (j) SPLIT ORDERS: a phase-wave order with absolute slots starts on its own receipt under Receipt
+///       (rebased on the order's minimum offset), and idles under ReceiptAbsolute (the fail-first);
+///   (k) a full-plan order (minimum 0) dispatches identically under Receipt and ReceiptAbsolute;
+///   (l) a task with no StartTime does not pin the minimum; the parser marks a present SimulationTime.
+/// Cases (a)-(f) hand the gate the offset directly (their orders have a slot-0 task, minimum 0), so the
+/// split-order rebase leaves them unchanged. Receipt below means the rebased Receipt unless it says
+/// ReceiptAbsolute.
 /// Everything runs on the signalled StepClock - task-clock seconds, no wall time.
 /// </summary>
 public static partial class RulingsSelfTest
@@ -165,7 +173,7 @@ public static partial class RulingsSelfTest
 
         // ------------------------------------------------------------------ (g) ----
         {
-            bool v1, v2, v3, v4, v5;
+            bool v1, v2, v3, v4, v5, v6;
             bool parse =
                 TaskDispatchPolicy.ParseStartTimeAnchor("Receipt", out v1) == TaskDispatchPolicy.StartTimeAnchor.Receipt && v1
                 && TaskDispatchPolicy.ParseStartTimeAnchor(" predecessorcompletion ", out v2)
@@ -173,14 +181,18 @@ public static partial class RulingsSelfTest
                 && TaskDispatchPolicy.ParseStartTimeAnchor(null, out v3) == TaskDispatchPolicy.StartTimeAnchor.Receipt && v3
                 && TaskDispatchPolicy.ParseStartTimeAnchor("ScenarioStart", out v4) == TaskDispatchPolicy.StartTimeAnchor.Receipt
                 && !v4
-                && TaskDispatchPolicy.ParseStartTimeAnchor("bogus", out v5) == TaskDispatchPolicy.StartTimeAnchor.Receipt && !v5;
+                && TaskDispatchPolicy.ParseStartTimeAnchor("bogus", out v5) == TaskDispatchPolicy.StartTimeAnchor.Receipt && !v5
+                && TaskDispatchPolicy.ParseStartTimeAnchor("RECEIPTABSOLUTE", out v6)
+                   == TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute && v6;
             Check(ref failures, parse,
-                  "(g) Vrf:StartTimeAnchor parses Receipt / PredecessorCompletion case-insensitively, blank = Receipt, and " +
-                  "an unknown value (ScenarioStart is not offered) is INVALID and falls back to Receipt");
+                  "(g) Vrf:StartTimeAnchor parses Receipt / ReceiptAbsolute / PredecessorCompletion case-insensitively, " +
+                  "blank = Receipt, and an unknown value (ScenarioStart is not offered) is INVALID and falls back to Receipt");
             Check(ref failures, TaskDispatchPolicy.StartAnchorClock(TaskDispatchPolicy.StartTimeAnchor.Receipt, 123.5) == 123.5
+                                && TaskDispatchPolicy.StartAnchorClock(TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute, 123.5) == 123.5
                                 && double.IsNaN(TaskDispatchPolicy.StartAnchorClock(
                                        TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion, 123.5)),
-                  "(g) Receipt hands the gate the receipt reading; PredecessorCompletion hands it NaN (no anchor: the old gate)");
+                  "(g) Receipt and ReceiptAbsolute hand the gate the receipt reading; PredecessorCompletion hands it NaN " +
+                  "(no anchor: the old gate)");
             Check(ref failures, new VrfSettings().StartTimeAnchor == "Receipt",
                   "(g) the C# default of Vrf:StartTimeAnchor is Receipt");
 
@@ -200,24 +212,35 @@ public static partial class RulingsSelfTest
                                      {
                                          ["Vrf:StartTimeAnchor"] = "PredecessorCompletion",
                                      }).Build().GetSection("Vrf").Get<VrfSettings>();
+                var absolute = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                                   .AddJsonFile(appSettings, optional: false)
+                                   .AddInMemoryCollection(new Dictionary<string, string>
+                                   {
+                                       ["Vrf:StartTimeAnchor"] = "ReceiptAbsolute",
+                                   }).Build().GetSection("Vrf").Get<VrfSettings>();
                 Check(ref failures, shipped.StartTimeAnchor == "Receipt"
                                     && rolledBack?.StartTimeAnchor == "PredecessorCompletion"
                                     && TaskDispatchPolicy.ParseStartTimeAnchor(rolledBack.StartTimeAnchor, out bool rv)
-                                       == TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion && rv,
-                      "(g) the shipped appsettings.json says Receipt, and Vrf:StartTimeAnchor=PredecessorCompletion " +
-                      "round-trips through the configuration stack to the rollback value");
+                                       == TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion && rv
+                                    && TaskDispatchPolicy.ParseStartTimeAnchor(absolute?.StartTimeAnchor, out bool av)
+                                       == TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute && av,
+                      "(g) the shipped appsettings.json says Receipt, and Vrf:StartTimeAnchor=PredecessorCompletion and " +
+                      "=ReceiptAbsolute round-trip through the configuration stack");
 
                 string src = File.ReadAllText(service);
                 string gateCall = Stp850Between(src, "var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid,",
                                                 "if (gate != GateResult.Proceed)");
                 Check(ref failures, Stp850CountOf(src, "double orderReceiptClock = TaskClockSeconds;") == 1
-                                    && src.Contains("_ = RunTaskAsync(t, u, orderReceiptClock);")
+                                    && src.Contains("_ = RunTaskAsync(t, u, orderReceiptClock, orderMinOffsetMs);")
+                                    && Stp850CountOf(src, "long orderMinOffsetMs = TaskDispatchPolicy.MinSimulationOffsetMs(") == 1
+                                    && Stp850CountOf(src, "TaskDispatchPolicy.RebasedSimulationOffsetMs(") == 2
                                     && src.Contains("TaskDispatchPolicy.StartAnchorClock(_startTimeAnchor, orderReceiptClock)")
                                     && gateCall.StartsWith("var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,",
                                                            StringComparison.Ordinal)
                                     && gateCall.Contains("startAnchorClock: startAnchor"),
-                      "(g) the service stamps receipt ONCE per order on the task clock, hands it to every task, and the " +
-                      "gate gets the DurationScale-scaled offset (scaledStartMs) with that anchor");
+                      "(g) the service stamps receipt and the order's minimum offset ONCE per order, rebases each offset " +
+                      "(dispatch AND the chain-lead line) through the same policy call, and the gate gets the " +
+                      "DurationScale-scaled rebased offset (scaledStartMs) with the receipt anchor");
             }
         }
 
@@ -234,6 +257,7 @@ public static partial class RulingsSelfTest
             int goldenFiles = files.Count - dataFiles;
             int parsed = 0, gatedTasks = 0, gatedWithOffset = 0, leadDiffers = 0;
             var unparsed = new List<string>();
+            var rebasedOrders = new List<string>();
             var ironstormOffsets = new List<string>();
             foreach (var f in files)
             {
@@ -244,8 +268,6 @@ public static partial class RulingsSelfTest
                 catch (Exception ex) { unparsed.Add($"{Path.GetFileName(f)} ({ex.GetType().Name})"); continue; }
                 if (order == null || order.Tasks.Count == 0) { unparsed.Add($"{Path.GetFileName(f)} (no tasks)"); continue; }
                 parsed++;
-                var nodesOld = new List<TaskDispatchPolicy.ChainNode>();
-                var nodesNew = new List<TaskDispatchPolicy.ChainNode>();
                 foreach (var t in order.Tasks)
                 {
                     if (!string.IsNullOrEmpty(t.StartAfterTaskUuid))
@@ -256,13 +278,15 @@ public static partial class RulingsSelfTest
                     if (Path.GetFileName(f) == "IRONSTORM_CUTA_Order.xml")
                         ironstormOffsets.Add($"{(t.TaskName ?? "").Split('_')[0]}={t.SimulationStartMs / 1000}s" +
                                              (string.IsNullOrEmpty(t.StartAfterTaskUuid) ? "" : "(gated)"));
-                    nodesOld.Add(TaskDispatchPolicy.ChainNodeFor(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
-                        t.SimulationStartMs, t.RelativeDelayMs, TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion));
-                    nodesNew.Add(TaskDispatchPolicy.ChainNodeFor(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
-                        t.SimulationStartMs, t.RelativeDelayMs, TaskDispatchPolicy.StartTimeAnchor.Receipt));
                 }
-                if (TaskDispatchPolicy.LongestChainLeadSeconds(nodesOld, 1.0)
-                    != TaskDispatchPolicy.LongestChainLeadSeconds(nodesNew, 1.0)) leadDiffers++;
+                // All three values: the logged lead must agree whenever the order's minimum offset is 0. An order
+                // whose minimum is NOT 0 is named - Receipt rebases it, the other two do not (a legitimate change).
+                long min = TaskDispatchPolicy.MinSimulationOffsetMs(order.Tasks.Select(t => (t.HasSimulationStart, t.SimulationStartMs)));
+                double lPc = LeadUnder(order, TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion);
+                double lAbs = LeadUnder(order, TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute);
+                double lRec = LeadUnder(order, TaskDispatchPolicy.StartTimeAnchor.Receipt);
+                if (min > 0) rebasedOrders.Add($"{Path.GetFileName(f)} (min {min / 1000} s: lead {lAbs:F0} -> {lRec:F0} s)");
+                else if (lPc != lAbs || lAbs != lRec) leadDiffers++;
             }
             Check(ref failures, dataFiles > 0 && goldenFiles > 0 && unparsed.Count == 0,
                   $"(h) every order file parses to at least one task - {dataFiles} in data/, {goldenFiles} in " +
@@ -270,7 +294,12 @@ public static partial class RulingsSelfTest
             Check(ref failures, parsed == files.Count && gatedTasks > 0 && gatedWithOffset == 0 && leadDiffers == 0,
                   $"(h) PARITY: {parsed} orders parse; their {gatedTasks} gated tasks carry NO SimulationTime " +
                   $"or DateTime start ({gatedWithOffset} do), so the anchor never reaches them, and the logged chain " +
-                  $"lead is identical under both values ({leadDiffers} orders differ)");
+                  $"lead is identical under all THREE values for every order whose minimum offset is 0 " +
+                  $"({leadDiffers} such orders differ)");
+            Check(ref failures, rebasedOrders.Count == 1 && rebasedOrders[0].StartsWith("PROBE_RIDGE_1-35_DELAYED_Order.xml ",
+                                                                                      StringComparison.Ordinal),
+                  $"(h) the ONLY on-disk order Receipt rebases is the one-task N2c probe (its 300 s delay is pulled to " +
+                  $"receipt; ReceiptAbsolute keeps it): {string.Join(", ", rebasedOrders)}");
             Check(ref failures, ironstormOffsets.Count == 5 && ironstormOffsets.All(s => !s.Contains("(gated)") || s.Contains("=0s")),
                   $"(h) IRONSTORM_CUTA_Order.xml's offsets are on ROOTS only: {string.Join(", ", ironstormOffsets)}");
 
@@ -279,16 +308,16 @@ public static partial class RulingsSelfTest
                 string f = data == null ? null : Path.Combine(data, name);
                 if (f == null || !File.Exists(f)) { Check(ref failures, false, $"(h) {name} is on disk"); continue; }
                 var order = OrderParser.Parse(File.ReadAllText(f));
-                var graph = new List<ChainTask>();
-                foreach (var t in order.Tasks)
-                    graph.Add(new ChainTask(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs, t.SimulationStartMs));
-                var before = WalkChain(graph, 600.0, 60.0, 1.0, Stp850Backstop, 60.0);
-                var after = WalkChain(graph, 600.0, 60.0, 1.0, Stp850Backstop, 60.0, anchorAtReceipt: true);
-                bool same = before.Dispatched == after.Dispatched && before.SkippedCount == after.SkippedCount
-                            && before.DispatchedAt.All(kv => after.DispatchedAt.TryGetValue(kv.Key, out var at) && at == kv.Value);
+                var before = WalkChain(GraphUnder(order, TaskDispatchPolicy.StartTimeAnchor.PredecessorCompletion),
+                                       600.0, 60.0, 1.0, Stp850Backstop, 60.0);
+                var abs = WalkChain(GraphUnder(order, TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute),
+                                    600.0, 60.0, 1.0, Stp850Backstop, 60.0, anchorAtReceipt: true);
+                var after = WalkChain(GraphUnder(order, TaskDispatchPolicy.StartTimeAnchor.Receipt),
+                                      600.0, 60.0, 1.0, Stp850Backstop, 60.0, anchorAtReceipt: true);
+                bool same = SameWalk(before, abs) && SameWalk(abs, after);
                 Check(ref failures, same && after.Dispatched == order.Tasks.Count,
-                      $"(h) PARITY: {name} walks IDENTICALLY under both values - {after.Dispatched} of {order.Tasks.Count} " +
-                      $"dispatched, every dispatch at the same task-clock second");
+                      $"(h) PARITY: {name} walks IDENTICALLY under all three values - {after.Dispatched} of " +
+                      $"{order.Tasks.Count} dispatched, every dispatch at the same task-clock second");
             }
         }
 
@@ -326,8 +355,113 @@ public static partial class RulingsSelfTest
                           $"FAIL-FIRST (i) PredecessorCompletion: the same DateTime start is served AFTER the predecessor " +
                           $"- opens at {opened[0]:F0} s and {opened[1]:F0} s, never at the instant");
             }
+            Check(ref failures,
+                  TaskDispatchPolicy.RebasedSimulationOffsetMs(0L, false, (long)(3.0 * D * 1000.0),
+                                                               TaskDispatchPolicy.StartTimeAnchor.Receipt) == 0L
+                  && TaskDispatchPolicy.StartOffsetMs(
+                         TaskDispatchPolicy.RebasedSimulationOffsetMs(0L, false, (long)(3.0 * D * 1000.0),
+                                                                      TaskDispatchPolicy.StartTimeAnchor.Receipt),
+                         receiptUtc.AddSeconds(D), receiptUtc) == (long)(D * 1000.0),
+                  "(i) SPLIT ORDERS: a DateTime start is an INSTANT - the Receipt rebase never touches it (still " +
+                  $"{D:F0} s after receipt with the order's minimum at {3.0 * D:F0} s)");
+        }
+
+        // ------------------------------------------------------------------ (j) ----
+        {
+            // SPLIT ORDERS. STP sends one order per phase wave and keeps ABSOLUTE slots: wave 2 of a plan with
+            // d = 60 min carries U1's slots 3 and 4 (180 and 240 min, STREND between them) and U2's slot 4
+            // (240 min). STP emits no STREND to a wave-1 task (STP-886), so each unit's first wave-2 task is a
+            // root here. Receipt must start the wave on its own receipt: U1 at +0 and +60 min, U2 at +60.
+            var wave2 = new List<(ChainTask Task, bool HasSim)>
+            {
+                (new ChainTask("U1-S3", "", (long)(D * 1000.0), (long)(3.0 * D * 1000.0)), true),
+                (new ChainTask("U1-S4", "U1-S3", (long)(D * 1000.0), (long)(4.0 * D * 1000.0)), true),
+                (new ChainTask("U2-S4", "", (long)(D * 1000.0), (long)(4.0 * D * 1000.0)), true),
+            };
+            var rec = WalkChain(Rebased(wave2, TaskDispatchPolicy.StartTimeAnchor.Receipt), 600.0, 60.0, 1.0,
+                                Stp850Backstop, 60.0, anchorAtReceipt: true);
+            var abs = WalkChain(Rebased(wave2, TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute), 600.0, 60.0, 1.0,
+                                Stp850Backstop, 60.0, anchorAtReceipt: true);
+            Check(ref failures, abs.At("U1-S3") == 3.0 * D && abs.At("U1-S4") == 4.0 * D && abs.At("U2-S4") == 4.0 * D,
+                  $"FAIL-FIRST (j) ReceiptAbsolute: wave 2 IDLES three phases after its receipt - U1 at " +
+                  $"{abs.Times("U1-S3", "U1-S4")} s, U2 at {abs.Times("U2-S4")} s");
+            Check(ref failures, rec.At("U1-S3") == 0.0 && rec.At("U1-S4") == D && rec.At("U2-S4") == D && rec.SkippedCount == 0,
+                  $"(j) STP-850 Receipt, SPLIT ORDER wave 2 (offsets 180/240 + 240 min, minimum 180): U1 starts at " +
+                  $"receipt +{rec.Times("U1-S3", "U1-S4")} s and U2 at +{rec.Times("U2-S4")} s - the wave starts on its receipt");
+            var scaled = WalkChain(Rebased(wave2, TaskDispatchPolicy.StartTimeAnchor.Receipt), 600.0, 60.0, 0.25,
+                                   Stp850Backstop, 15.0, anchorAtReceipt: true);
+            Check(ref failures, scaled.At("U1-S3") == 0.0 && scaled.At("U1-S4") == 0.25 * D && scaled.At("U2-S4") == 0.25 * D,
+                  $"(j) Vrf:DurationScale=0.25 scales the REBASED offset: wave 2 at +{scaled.Times("U1-S3", "U1-S4", "U2-S4")} s");
+        }
+
+        // ------------------------------------------------------------------ (k) ----
+        {
+            // A FULL-PLAN order (a slot-0 task present, minimum 0) is not touched by the rebase.
+            var plan = new List<(ChainTask Task, bool HasSim)>();
+            foreach (var t in SlotChain(5, D, 1.0)) plan.Add((t with { Uuid = "U1-" + t.Uuid, Pred = t.Pred == "" ? "" : "U1-" + t.Pred }, true));
+            foreach (var t in SlotChain(5, D, 1.0)) plan.Add((t with { Uuid = "U2-" + t.Uuid, Pred = t.Pred == "" ? "" : "U2-" + t.Pred }, true));
+            var rec = WalkChain(Rebased(plan, TaskDispatchPolicy.StartTimeAnchor.Receipt), 600.0, 60.0, 1.0,
+                                Stp850Backstop, 60.0, anchorAtReceipt: true);
+            var abs = WalkChain(Rebased(plan, TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute), 600.0, 60.0, 1.0,
+                                Stp850Backstop, 60.0, anchorAtReceipt: true);
+            Check(ref failures, SameWalk(rec, abs) && rec.Dispatched == 10 && rec.At("U2-T5") == 4.0 * D,
+                  $"(k) a FULL-PLAN order (minimum offset 0) dispatches IDENTICALLY under Receipt and ReceiptAbsolute " +
+                  $"({rec.Dispatched} dispatched; U2's last at {rec.At("U2-T5"):F0} s)");
+        }
+
+        // ------------------------------------------------------------------ (l) ----
+        {
+            long H(double slots) => (long)(slots * D * 1000.0);
+            long pinned = TaskDispatchPolicy.MinSimulationOffsetMs(new[] { (false, 0L), (true, H(3)), (true, H(4)) });
+            long real0 = TaskDispatchPolicy.MinSimulationOffsetMs(new[] { (true, 0L), (true, H(3)) });
+            long none = TaskDispatchPolicy.MinSimulationOffsetMs(new[] { (false, 0L), (false, 0L) });
+            Check(ref failures, pinned == H(3) && real0 == 0L && none == 0L,
+                  $"(l) a task with NO StartTime (or a DateTime one) does not pin the order's minimum ({pinned / 1000} s, " +
+                  $"not 0); an EXPLICIT SimulationTime of 0 does ({real0}); no carried offset at all -> 0 ({none})");
+
+            string repo = FindRulingsRepoRoot();
+            string coa = repo == null ? null : Path.Combine(repo, "data", "COA-STP1_Order.xml");
+            if (coa != null && File.Exists(coa))
+            {
+                var order = OrderParser.Parse(File.ReadAllText(coa));
+                int carried = order.Tasks.Count(t => t.HasSimulationStart);
+                int gatedCarried = order.Tasks.Count(t => t.HasSimulationStart && !string.IsNullOrEmpty(t.StartAfterTaskUuid));
+                Check(ref failures, carried == 11 && gatedCarried == 0,
+                      $"(l) the parser marks a PRESENT SimulationTime: COA-STP1 has {carried} (10 x P0 + T13's 3h20m), none " +
+                      $"of them on its 31 RelativeTime-started gated tasks ({gatedCarried})");
+            }
+            else Check(ref failures, false, "(l) data/COA-STP1_Order.xml is on disk");
         }
     }
+
+    /// <summary>STP-850 split orders: the suite graph with each offset rebased as the service does it.</summary>
+    private static List<ChainTask> Rebased(List<(ChainTask Task, bool HasSim)> tasks, TaskDispatchPolicy.StartTimeAnchor anchor)
+    {
+        long min = TaskDispatchPolicy.MinSimulationOffsetMs(tasks.Select(t => (t.HasSim, t.Task.StartDelayMs)));
+        return tasks.Select(t => t.Task with
+        {
+            StartDelayMs = TaskDispatchPolicy.RebasedSimulationOffsetMs(t.Task.StartDelayMs, t.HasSim, min, anchor),
+        }).ToList();
+    }
+
+    /// <summary>An on-disk order as the gate graph under this anchor (rebased under Receipt).</summary>
+    private static List<ChainTask> GraphUnder(OrderData order, TaskDispatchPolicy.StartTimeAnchor anchor)
+        => Rebased(order.Tasks.Select(t => (new ChainTask(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
+                                                          t.SimulationStartMs), t.HasSimulationStart)).ToList(), anchor);
+
+    /// <summary>The E4 lead the service logs for this order under this anchor.</summary>
+    private static double LeadUnder(OrderData order, TaskDispatchPolicy.StartTimeAnchor anchor)
+    {
+        long min = TaskDispatchPolicy.MinSimulationOffsetMs(order.Tasks.Select(t => (t.HasSimulationStart, t.SimulationStartMs)));
+        var nodes = order.Tasks.Select(t => TaskDispatchPolicy.ChainNodeFor(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
+            TaskDispatchPolicy.RebasedSimulationOffsetMs(t.SimulationStartMs, t.HasSimulationStart, min, anchor),
+            t.RelativeDelayMs, anchor)).ToList();
+        return TaskDispatchPolicy.LongestChainLeadSeconds(nodes, 1.0);
+    }
+
+    private static bool SameWalk(ChainOutcome a, ChainOutcome b)
+        => a.Dispatched == b.Dispatched && a.SkippedCount == b.SkippedCount
+           && a.DispatchedAt.All(kv => b.DispatchedAt.TryGetValue(kv.Key, out var at) && at == kv.Value);
 
     /// <summary>A serial one-unit chain as STP exports it: task k (1-based) in slot k-1, Duration one slot,
     /// SimulationTime (k-1) x slot, STREND on task k-1.</summary>

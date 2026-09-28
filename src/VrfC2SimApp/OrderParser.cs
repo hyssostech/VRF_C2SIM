@@ -79,6 +79,7 @@ public static class OrderParser
                 MapGraphicUuid = FirstOrEmpty(m.MapGraphicID),
                 MapGraphicUuids = AllNonEmpty(m.MapGraphicID),
                 SimulationStartMs = simMs,
+                HasSimulationStart = HasSimulationStartOf(m),
                 StartAfterTaskUuid = startAfter,
                 RelativeDelayMs = relMs,
                 DurationMs = Math.Max(0, durationMs),
@@ -255,6 +256,13 @@ public static class OrderParser
         }
         return (simMs, startAfter, relMs, absStart);
     }
+
+    /// <summary>STP-850 (split orders): the task CARRIES a readable StartTime/SimulationTime - an explicit
+    /// P...0S counts, an absent StartTime, a DateTime or RelativeTime start and an undecodable duration do
+    /// not. Only such tasks set the order's minimum offset (TaskDispatchPolicy.MinSimulationOffsetMs).</summary>
+    private static bool HasSimulationStartOf(S.ManeuverWarfareTaskType m)
+        => m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null
+           && FindTotalIsoMs(st.DelayTimeAmount.IsoTimeDuration) >= 0;
 
     private static double? ElevOf(S.GeodeticCoordinateType g)
         => g.AltitudeAGLSpecified ? g.AltitudeAGL

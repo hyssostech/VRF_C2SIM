@@ -93,7 +93,10 @@ public enum GateResult
 /// are unchanged; what changed is only what the offset is measured from - the caller's
 /// startAnchorClock (order receipt under Vrf:StartTimeAnchor=Receipt, the default), giving
 /// start = max(predecessor completion, receipt + offset). NaN keeps the oracle's order
-/// (Vrf:StartTimeAnchor=PredecessorCompletion). The relative delay keeps it always.
+/// (Vrf:StartTimeAnchor=PredecessorCompletion). The relative delay keeps it always. SPLIT ORDERS:
+/// under Receipt the service hands in the offset REBASED on its order's smallest SimulationTime
+/// offset, so a phase-wave order with STP's absolute slots starts on its own receipt
+/// (ReceiptAbsolute skips the rebase); this class is unaware of it.
 /// </summary>
 public sealed class TaskSequencer
 {
@@ -185,9 +188,12 @@ public sealed class TaskSequencer
     /// (<paramref name="simulationStartMs"/>) is measured FROM - order receipt, stamped once per order
     /// (Vrf:StartTimeAnchor=Receipt). The task then dispatches at max(predecessor completion,
     /// anchor + offset). NaN (the default) = the offset is a delay served AFTER the predecessor
-    /// completes (Vrf:StartTimeAnchor=PredecessorCompletion, the pre-STP-850 behaviour). The service
-    /// also passes a DateTime StartTime here, converted to an offset from receipt, so it is anchored
-    /// the same way (start = max(predecessor completion, that instant)). The relative delay
+    /// completes (Vrf:StartTimeAnchor=PredecessorCompletion, the pre-STP-850 behaviour). Under the
+    /// default Receipt the CALLER has already rebased the offset on its order's smallest SimulationTime
+    /// offset (split orders; TaskDispatchPolicy.RebasedSimulationOffsetMs); this method only measures
+    /// what it is given from the anchor. The service also passes a DateTime StartTime here, converted
+    /// to an offset from receipt and never rebased, so it is anchored the same way (start =
+    /// max(predecessor completion, that instant)). The relative delay
     /// (ActionTemporalRelationship/Duration) is never anchored: it stays a delay after the
     /// predecessor. Every gate outcome above the delay is unchanged either way. Proceed means the
     /// predecessor signalled Completed - NOT that its unit is idle (a platform ATTACK re-records its

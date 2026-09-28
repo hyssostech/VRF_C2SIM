@@ -2889,13 +2889,24 @@ no Duration and no geometry is malformed and is refused, not held (below).
   Raising it is still harmless - it is a floor - and it is no longer necessary.
 - **A `StartTime/SimulationTime` offset is measured from ORDER RECEIPT since STP-850 (2026-09-28,
   `Vrf:StartTimeAnchor`, default `Receipt`).** A task starts at max(its predecessor's completion, order
-  receipt + offset); receipt is stamped once per order on the task clock and the offset is scaled by
-  `Vrf:DurationScale`. Before, the offset was served as a delay AFTER the predecessor completed (the C++
+  receipt + (offset - minOffset)), minOffset = the smallest SimulationTime offset over the tasks OF THIS
+  ORDER that carry one (a task with no StartTime or a DateTime start does not count); receipt is stamped
+  once per order on the task clock and the REBASED offset is scaled by `Vrf:DurationScale`. THE REBASE IS
+  FOR SPLIT ORDERS: STP rehearsals send one order per phase wave and keep ABSOLUTE slots across waves
+  (SitaWare places the same order's offsets absolutely), so wave 2 - U1's slots 3-4 - would otherwise idle
+  three phases after receipt; a full-plan order has minOffset 0 and is unchanged. `ReceiptAbsolute` is
+  the un-rebased rule (the first STP-850 build). LIMITS: separately pushed orders (blue, red) are each
+  anchored at their own receipt; a full plan with no slot-0 task starts early in VRF only; a one-task
+  order's delay is rebased away - the N2c probe `PROBE_RIDGE_1-35_DELAYED_Order.xml` needs
+  `ReceiptAbsolute` to keep its 300 s; STP emits no STREND to a task of an earlier order (STP-886), so a
+  wave's first task per unit is a root here. Start-up and order-receipt lines: "START TIME ANCHOR
+  (STP-850)", "START TIME BASE (STP-850): this order's smallest SimulationTime offset is N s". Before, the offset was served as a delay AFTER the predecessor completed (the C++
   oracle's order), and STP's export - absolute slot offsets plus one same-unit STREND lower bound - then
   grew a unit's chain quadratically past `Vrf:TaskChainBackstopSeconds` (d = 60 min, ten tasks: the last
-  start at 54 h, the tail TASKABRT'd as never dispatched). A DateTime StartTime is anchored the same way:
-  it is converted to an offset from receipt, so under Receipt the task starts at max(its predecessor's
-  completion, that instant) - before STP-850 the offset was again served after the predecessor. Gate
+  start at 54 h, the tail TASKABRT'd as never dispatched). A DateTime StartTime is an INSTANT: it is
+  converted to an offset from receipt, never rebased, and under Receipt and ReceiptAbsolute the task starts
+  at max(its predecessor's completion, that instant) - before STP-850 the offset was again served after the
+  predecessor. Gate
   outcomes (dispatch window, completion window, OVERDUE extension, abandon/backstop) are unchanged, and so
   is the ActionTemporalRelationship/Duration relative delay, which stays a delay after the predecessor
   (StartTime/RelativeTime is not honoured by the parser at all). THE INVARIANT IS THE GATE'S, NOT THE
@@ -2908,8 +2919,9 @@ no Duration and no geometry is malformed and is refused, not held (below).
   fires right at the completion instead of an offset later, so this is hit more often. Lines to look for:
   start-up "START TIME ANCHOR (STP-850)", per task "start delay ... counted from ORDER RECEIPT", and the
   "CHAIN DEPTH" lead now follows the anchor. No order in `data/` or `docs/golden-trace/orders/` carries a
-  SimulationTime or DateTime start on a gated task, so they all dispatch identically either way
-  (`--rulings-selftest`, STP-850 section). Rollback: `$env:Vrf__StartTimeAnchor = "PredecessorCompletion"`.
+  SimulationTime or DateTime start on a gated task, and all but the N2c probe have minOffset 0, so they
+  dispatch identically under all three values (`--rulings-selftest`, STP-850 section). No rebase:
+  `$env:Vrf__StartTimeAnchor = "ReceiptAbsolute"`; rollback: `"PredecessorCompletion"`.
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.

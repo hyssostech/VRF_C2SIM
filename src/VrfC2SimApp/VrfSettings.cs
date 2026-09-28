@@ -700,16 +700,26 @@ public class VrfSettings
     // STP-850: WHAT A StartTime/SimulationTime OFFSET IS MEASURED FROM (TaskDispatchPolicy.StartTimeAnchor
     // has the rule and its evidence).
     //   "Receipt"               (DEFAULT) the task starts at max(its predecessor's completion, order
-    //                           receipt + offset). Receipt is stamped once per order on the task clock
-    //                           (Vrf:TaskClock) and the offset is scaled by Vrf:DurationScale.
+    //                           receipt + (offset - minOffset)), minOffset = the smallest SimulationTime
+    //                           offset over the tasks OF THIS ORDER that carry one. So a split-order
+    //                           phase wave that keeps STP's absolute slots starts on its own receipt; a
+    //                           full-plan order (minOffset 0) is unchanged. Receipt is stamped once per
+    //                           order on the task clock (Vrf:TaskClock) and the REBASED offset is scaled
+    //                           by Vrf:DurationScale.
+    //   "ReceiptAbsolute"       max(its predecessor's completion, order receipt + offset) - no rebase (the
+    //                           first STP-850 build). A wave-2 order then idles its earlier phases.
     //   "PredecessorCompletion" the offset is a delay served AFTER the predecessor completes - the
     //                           behaviour before STP-850 (the C++ oracle's order), kept for rollback. On
     //                           an STP export (absolute slot offsets plus same-unit STREND links) it
     //                           grows a unit's chain quadratically past Vrf:TaskChainBackstopSeconds.
-    // A DateTime StartTime is converted to an offset from receipt and anchored the same way (Receipt:
-    // start = max(predecessor completion, that instant)). Unknown values fall back to "Receipt" with an
-    // ERROR at start-up. The ActionTemporalRelationship/Duration relative delay is not affected by either
-    // value (StartTime/RelativeTime is not honoured at all).
+    // A DateTime StartTime is an INSTANT: converted to an offset from receipt and anchored under both
+    // receipt values (start = max(predecessor completion, that instant)), never rebased, never part of
+    // minOffset; nor is a task with no StartTime. Limits of the rebase: separately pushed orders are each
+    // anchored at their own receipt; a full plan with no slot-0 task starts early in VRF only; a one-task
+    // order's delay is rebased away (use ReceiptAbsolute to keep it); STP emits no STREND to a task of an
+    // earlier order (STP-886). Unknown values fall back to "Receipt" with an ERROR at start-up. The
+    // ActionTemporalRelationship/Duration relative delay is not affected by any value (StartTime/
+    // RelativeTime is not honoured at all).
     public string StartTimeAnchor { get; set; } = "Receipt";
 
     // COMPLETION ON START TIME + DURATION - the owner's TEMPORARY position (RL-20260921-09),
