@@ -12,7 +12,7 @@ CLOSED - tripwires, one line each; the pointer is the record. A session that wan
 - Vendor docs, samples and community material BEFORE any probe; a probe cites the doc it rests on. A suspected VR-Forces bug means we misuse it -> CLAUDE.md Research bias (2026-09-01), AUDIT_REPEATED_INSTRUCTIONS items 1, 11.
 - Hostile side: Chinese preferred, Russian acceptable - RUS for Iron Storm -> L4080 (2026-09-02), RL-20260927-02.
 - The demo is IRON STORM (Suwalki, STP CoaRenderer narrative 1); Mojave is preserved, no new effort -> RL-20260920-01, AUDIT item 12 (runner default still R9 - open).
-- Ground movement is OFF-ROAD by the vendor's 5.2 direction: tracked and wheels-off-road systems Ignore Roads by default, Prefer Roads is what the vendor sets for civilians, and sending it is against the grain; the mobility table's road factor is a speed multiplier, not a router. Roads / road-snapping are NOT a routing option -> VRF_5.2_DECISION_EVIDENCE Y-11, Y-13 (2026-09-03), the 09-13 exchange (L25453), CORRECTIONS_LOG 2026-09-28.
+- ENTITY-level tracked and wheels-off-road vehicles Ignore Roads by default; Prefer Roads is what vendor scenarios set for civilians -> VRF_5.2_DECISION_EVIDENCE Y-11, Y-13 (2026-09-03). AGGREGATE-level movement past buildings and impassable terrain is OPEN: the mechanism is being read from the vendor docs and model-set scripts (lane RS1, 2026-09-28) - no claim stands until that finding is on record; do not build a remedy before it.
 
 Ruling: RL-20260927-01 ("Go" on the decision brief of 2026-09-27). Basis: docs/experiments/FINDING_GROUND_MOVEMENT_
 PRACTICE_2026-09-27.md (vendor citations, the stops read against them, the aggregate mobility table). Frame: Y-15

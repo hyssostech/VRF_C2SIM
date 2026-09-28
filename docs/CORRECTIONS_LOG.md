@@ -654,3 +654,4 @@ confirming test of the cause claim; it is not the answer to routing". The road o
 candidate from the record; the research lane was told to drop it and the CLOSED list carries the settlement. The pre-flight
 candidate (buildings as obstacles for the aggregate profile, a formation-wide corridor, added vertices) is the one the owner asked
 about on 2026-09-27 (P5116) and stays.
+AMENDED the same hour: the sentence "roads are not a routing option" above was itself a mechanism claim made without the research. The aggregate model set ships scripts named group-navigate-route-to-location and group_movement_simplified (with a useRoads flag), so how the vendor moves aggregate units is OPEN until the documentation is read and cited (lane RS1); the CLOSED line now says so. Owner 2026-09-28: "You still need to do the research to understand how this is done in vrf."
