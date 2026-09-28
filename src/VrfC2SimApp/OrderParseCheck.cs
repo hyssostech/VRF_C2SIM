@@ -34,10 +34,10 @@ public static class OrderParseCheck
                 Console.WriteLine($"      {p.Lat.ToString("R", CultureInfo.InvariantCulture)}," +
                                   $"{p.Lon.ToString("R", CultureInfo.InvariantCulture)}," +
                                   $"{(p.Elev.HasValue ? p.Elev.Value.ToString("R", CultureInfo.InvariantCulture) : "(none)")}");
-            if (t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.StartAfterTaskUuid.Length > 0
-                || t.AbsoluteStartUtc.HasValue)
-                Console.WriteLine($"    timing: simStartMs={t.SimulationStartMs} relDelayMs={t.RelativeDelayMs} " +
-                                  $"startAfter={Blank(t.StartAfterTaskUuid)}" +
+            // STP-850: hasSimulationStart on EVERY task - it decides whether the task counts toward the
+            // order's minOffset (census below), so an explicit P0 and an absent StartTime must be told apart.
+            Console.WriteLine($"    timing: simStartMs={t.SimulationStartMs} hasSimulationStart={t.HasSimulationStart} " +
+                              $"relDelayMs={t.RelativeDelayMs} startAfter={Blank(t.StartAfterTaskUuid)}" +
                                   (t.AbsoluteStartUtc.HasValue
                                       ? $" absoluteStartUtc={t.AbsoluteStartUtc.Value:O}" : ""));
             // R4: the end time is dispatch + Duration, so the Duration is part of the parse.
@@ -81,6 +81,16 @@ public static class OrderParseCheck
                           $"{data.Tasks.Count(t => t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.AbsoluteStartUtc.HasValue)} " +
                           "of them non-zero");
         Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.SimulationStartMs))}");
+        // STP-850 (split orders): the operator's preview of whether this order is rebased. The number is the
+        // service's own (TaskDispatchPolicy.MinSimulationOffsetMs over the same parsed tasks).
+        long minOffsetMs = TaskDispatchPolicy.MinSimulationOffsetMs(
+            data.Tasks.Select(t => (t.HasSimulationStart, t.SimulationStartMs)));
+        Console.WriteLine($"minOffset (STP-850): {minOffsetMs} ms over " +
+                          $"{data.Tasks.Count(t => t.HasSimulationStart)} task(s) carrying a SimulationTime - " +
+                          (minOffsetMs > 0
+                              ? "under Vrf:StartTimeAnchor=Receipt every SimulationTime offset is REBASED by it " +
+                                "(the order starts on its receipt); ReceiptAbsolute keeps the authored offsets"
+                              : "NOT rebased under any Vrf:StartTimeAnchor value"));
         return 0;
     }
 

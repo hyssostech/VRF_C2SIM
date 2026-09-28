@@ -66,7 +66,7 @@ public static class OrderParser
             var m = t?.Item;
             if (m == null) continue;
 
-            var (simMs, startAfter, relMs, absStart) = TimingOf(m);
+            var (simMs, hasSim, startAfter, relMs, absStart) = TimingOf(m);
             long durationMs = DurationMsOf(m.Duration);
             var task = new OrderTask
             {
@@ -79,6 +79,7 @@ public static class OrderParser
                 MapGraphicUuid = FirstOrEmpty(m.MapGraphicID),
                 MapGraphicUuids = AllNonEmpty(m.MapGraphicID),
                 SimulationStartMs = simMs,
+                HasSimulationStart = hasSim,
                 StartAfterTaskUuid = startAfter,
                 RelativeDelayMs = relMs,
                 DurationMs = Math.Max(0, durationMs),
@@ -229,15 +230,26 @@ public static class OrderParser
     private static long DurationMsOf(S.DurationType d)
         => d == null ? 0 : FindTotalIsoMs(d.IsoTimeDuration);
 
-    private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(S.ManeuverWarfareTaskType m)
+    /// <summary>R4 timing. hasSim (STP-850, split orders): the task CARRIES a readable
+    /// StartTime/SimulationTime - an explicit P...0S counts; an absent StartTime, a DateTime or RelativeTime
+    /// start and an undecodable duration do not. Only such tasks set the order's minimum offset
+    /// (TaskDispatchPolicy.MinSimulationOffsetMs). Decoded HERE, from the same value as simMs, so the flag
+    /// and the offset cannot drift apart.</summary>
+    private static (long simMs, bool hasSim, string startAfter, long relMs, DateTime? absStart) TimingOf(
+        S.ManeuverWarfareTaskType m)
     {
         long simMs = 0;
+        bool hasSim = false;
         DateTime? absStart = null;
         // StartTime is a TimeInstantType: SimulationTime (a relative DelayTimeAmount - the form
         // STP exports), DateTime (an absolute IsoDateTime), or RelativeTime (no delay amount in
         // the schema, so nothing to honour). R4 accepts the first two.
         if (m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null)
-            simMs = Math.Max(0, FindTotalIsoMs(st.DelayTimeAmount.IsoTimeDuration));
+        {
+            long decoded = FindTotalIsoMs(st.DelayTimeAmount.IsoTimeDuration);
+            simMs = Math.Max(0, decoded);
+            hasSim = decoded >= 0;
+        }
         else if (m.StartTime?.Item is S.DateTimeType dt && !string.IsNullOrWhiteSpace(dt.IsoDateTime)
                  && DateTime.TryParse(dt.IsoDateTime, System.Globalization.CultureInfo.InvariantCulture,
                                       System.Globalization.DateTimeStyles.AdjustToUniversal
@@ -253,7 +265,7 @@ public static class OrderParser
             startAfter = (atr.TemporalAssociationWithAction ?? "").Trim();
             if (atr.Duration != null) relMs = Math.Max(0, FindTotalIsoMs(atr.Duration.IsoTimeDuration));
         }
-        return (simMs, startAfter, relMs, absStart);
+        return (simMs, hasSim, startAfter, relMs, absStart);
     }
 
     private static double? ElevOf(S.GeodeticCoordinateType g)

@@ -85,6 +85,18 @@ public enum GateResult
 /// delay; NEITHER is reproduced here (the time-multiple scaling is a later refinement, the
 /// double-wait is a bug). All golden-trace orders carry zero timing, so these are
 /// behavior-neutral for the golden trace.
+///
+/// STP-850 (2026-09-28): "predecessor-first, then the delay" is NO LONGER the default for a
+/// SimulationTime offset. The schema's offset is measured from the scenario start and STP exports
+/// absolute slot offsets plus a same-unit STREND lower bound, so serving the offset after the
+/// predecessor grew a unit's chain quadratically past the chain backstop. The gate outcomes above
+/// are unchanged; what changed is only what the offset is measured from - the caller's
+/// startAnchorClock (order receipt under Vrf:StartTimeAnchor=Receipt, the default), giving
+/// start = max(predecessor completion, receipt + the offset it is handed). NaN keeps the oracle's order
+/// (Vrf:StartTimeAnchor=PredecessorCompletion). The relative delay keeps it always. SPLIT ORDERS:
+/// under Receipt the service hands in the offset REBASED on its order's smallest SimulationTime
+/// offset, so a phase-wave order with STP's absolute slots starts on its own receipt
+/// (ReceiptAbsolute skips the rebase); this class is unaware of it.
 /// </summary>
 public sealed class TaskSequencer
 {
@@ -172,10 +184,24 @@ public sealed class TaskSequencer
     /// TimedCompletionPolicy.IsUnfinishedMover - a predecessor with a destination and no TASKCMPLT or
     /// TASKABRT yet. Null (the default) = never asked, the pre-RL-20260927-05 behaviour; a question that
     /// throws counts as false (that behaviour), never as a faulted gate.</param>
+    /// <param name="startAnchorClock">STP-850: the task-clock reading the SimulationTime offset
+    /// (<paramref name="simulationStartMs"/>) is measured FROM - order receipt, stamped once per order
+    /// (Vrf:StartTimeAnchor=Receipt). The task then dispatches at max(predecessor completion,
+    /// anchor + offset). NaN (the default) = the offset is a delay served AFTER the predecessor
+    /// completes (Vrf:StartTimeAnchor=PredecessorCompletion, the pre-STP-850 behaviour). Under the
+    /// default Receipt the CALLER has already rebased the offset on its order's smallest SimulationTime
+    /// offset (split orders; TaskDispatchPolicy.RebasedSimulationOffsetMs); this method only measures
+    /// what it is given from the anchor. The service also passes a DateTime StartTime here, converted
+    /// to an offset from receipt and never rebased, so it is anchored the same way (start =
+    /// max(predecessor completion, that instant)). The relative delay
+    /// (ActionTemporalRelationship/Duration) is never anchored: it stays a delay after the
+    /// predecessor. Every gate outcome above the delay is unchanged either way. Proceed means the
+    /// predecessor signalled Completed - NOT that its unit is idle (a platform ATTACK re-records its
+    /// engage in flight after that signal; RUNBOOK sec 11).</param>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
         long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct,
         double dispatchTimeoutSeconds = double.NaN, double overdueBackstopSeconds = double.NaN,
-        Func<bool> treatPredecessorAsOverdue = null)
+        Func<bool> treatPredecessorAsOverdue = null, double startAnchorClock = double.NaN)
     {
         clock ??= TaskClock.Wall;
         double timeoutSeconds = Math.Max(0.0, predecessorTimeoutSeconds);
@@ -261,7 +287,16 @@ public sealed class TaskSequencer
         // M2: the start delay is served on the SAME clock as the Duration and the gate above.
         // An order's delay is a statement about the scenario, not about the operator's afternoon.
         if (delayMs > 0)
-            await clock.DelayAsync(delayMs / 1000.0, ct).ConfigureAwait(false);
+        {
+            double delaySeconds = delayMs / 1000.0;
+            // STP-850: under Vrf:StartTimeAnchor=Receipt the SimulationTime offset is measured from the
+            // anchor (order receipt), so only what is LEFT of it after the predecessor gate is served:
+            // start = max(predecessor completion, anchor + offset). A relative delay is not anchored.
+            if (simulationStartMs > 0 && double.IsFinite(startAnchorClock))
+                delaySeconds = Math.Max(0.0, startAnchorClock + delaySeconds - clock.Now());
+            if (delaySeconds > 0.0)
+                await clock.DelayAsync(delaySeconds, ct).ConfigureAwait(false);
+        }
 
         return GateResult.Proceed;
     }

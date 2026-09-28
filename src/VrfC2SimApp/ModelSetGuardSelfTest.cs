@@ -303,7 +303,8 @@ public static class ModelSetGuardSelfTest
         int graphics = onOrder.IndexOf("_graphicsByC2SimUuid[g.Uuid] = incoming;", StringComparison.Ordinal);
         int record = onOrder.IndexOf("_taskByUuid[task.TaskUuid] = task;", StringComparison.Ordinal);
         int materialize = onOrder.IndexOf("MaterializeUnit(", StringComparison.Ordinal);
-        int run = onOrder.IndexOf("_ = RunTaskAsync(t, u);", StringComparison.Ordinal);
+        // Merge with STP-850: the dispatch call also carries the order's receipt clock and minimum offset.
+        int run = onOrder.IndexOf("_ = RunTaskAsync(t, u, orderReceiptClock, orderMinOffsetMs);", StringComparison.Ordinal);
         Check(ref failures, parse > 0 && guard > parse && graphics > guard && record > graphics && materialize > record && run > materialize
                             && CountOf(svc, "ModelSetGuard.Decide(") == 1,
               "(g13) THE SOURCE GUARD: ModelSetGuard.Decide is called ONCE, in OnOrder, right after the parse - BEFORE the " +
