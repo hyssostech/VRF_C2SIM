@@ -1,6 +1,9 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-3: G1-2 re-run on the M3 build - a tasked container moves by the vendor's PLANNING task per STP vertex, AUTO per leg (RL-20260928-03) (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED - LAUNCH PENDING (the seat's go-live). Registered by lane G1-3 (session 5fc25950; the registration
+STATUS: STOPPED AT THE W GATE 2026-09-28 - NO SCORED RUN (see Result: the pre-warm 20260928T190047Z_run scored "W GATE:
+FAIL (branch A; M10, M12, W-DEST)"; on T10 the planner worked and the executor did not - the vendor's move-along refused
+the planned route, "route does not exist"; the back end crashed 2.9 s after the first planned dispatch; E not launched,
+block 5270-5280 never claimed). Registered by lane G1-3 (session 5fc25950; the registration
 commit's own time is the stamp) on branch run/ironstorm-agg-g1-3 from main abe7cdf (= fde3ff2 + the deploy lane R4's
 record, RUNBOOK secs 9 and 11o only: `git diff --stat fde3ff2 abe7cdf` is docs/RUNBOOK.md [V]; the build's source is
 fde3ff2), BEFORE any order push, holder action or launch. PREPARATION ONLY: no C2SIM push, no holder start, no VR-Forces
@@ -786,4 +789,178 @@ UNKNOWN -> what the run settled); Appendix B annotated from the manifests. ASCII
 
 ## Result (written after the harvest, never from a live read)
 
-(pending - nothing has been launched.)
+RESULT 2026-09-28: STOPPED AT THE W GATE - NO SCORED RUN. The pre-warm (run 20260928T190047Z_run, 19:00:46-19:07:59Z,
+runner exit 0) scored "W GATE: FAIL (branch A; M10, M12, W-DEST) - STOP before E" (g1_3_score.py --wgate; scratch
+u3\laneG1-3\W_gate_20260928T190047Z_run.txt). E was not launched: P0-P23 are NOT SCORED and the scored block 5270-5280 was
+never claimed. Independently of the gate, the pre-warm's back end CRASHED 2.9 s after the first planned dispatch (N2). By
+the stop rules (sec 4) nothing is patched or re-run under this registration; a successor is IRONSTORM_AGG_G1-2026-09-28-4 or
+later, with new numbers. Marks: [V] = checked by lane G1-3 after the run (the run directory, the vendor script, the vendor
+headers, the vendor's own saved scenario); [A] = the seat's record or an inference.
+
+THE SEQUENCE AS RUN (by the seat under RL-20260928-01) [A unless marked]:
+- A, 18:46:19Z: 1 check FAILED - 16 MSBuild.exe processes started 18:43:07Z, idle build nodes of the STP session (not a
+  federation participant, not this lane's), left to time out; A again at 18:59:01Z: 0 FAILED (u3\laneG1-3\A_preholder.txt,
+  A_preholder2.txt).
+- C3, 18:46:26-18:47:23Z: PushInit exit 0 ("QUERYINIT : 40 Units"), PushOrder exit 0, one "ORDER (69670 chars)" echo
+  (C3_stdout.txt, c3_pushinit.txt, c3_pushorder.txt) - as registered.
+- D: the claim 5255-5258 applied to the main checkout's Appendix B before the join (marker 5255 -> 5259); RtiProbe pid
+  56380 "HOLDER JOINED: pid 56380 appNo 5255, holding 28800 s" at 19:00:02Z on the first attempt [V:
+  runs/launch52/g1-3-holder-20260928T185943Z.log] - up to about 03:00Z 2026-09-29, kept for the successor.
+- W: the prelaunch check at 19:00:23Z 0 FAILED (W_prelaunch.txt); the sim cache listed at 18:59:56Z; the dry run 19:00:24Z
+  exit 0; the pre-warm at 19:00:46Z [V: its runner log and run directory]: holder 56380 recognised PERSISTENT, block
+  5259-5269 claimed (marker 5259 -> 5270), Stage 2h holder 5266 (pid 31660) joined in 3 s, back end 5259 (vrfSimHLA1516e pid
+  3344), the oracle gate passed (72 real-coordinate POS lines, 36 uuids), the order on the bus at 19:04:51.4Z, the app on
+  5263 (pid 26024, exit 0, a clean resign), the 120 s window ran to its cap (about 19:05:19-19:07:21Z), StopVrf exit 0
+  ("VR-Forces 5.2d is down (graceful; nothing was killed)"), the teardown ran.
+
+WHAT HELD [V, the W gate output]: W0-W7 - the three populations attached and published 1 / 5 / 17 of N; IDENTITY branch A,
+I1-I17 - 59 of 59 created under the requested uuid and bound by it (C1d's regression guard, RL-20260928-02); M1 (L-M3-ON,
+road layer 41 / 0 empty), M2 and M3 (both D2b lines, "allowed"), M4 (T10's ROAD LAYER: 10 readable, 0 not), M5-M8 (one
+PLANNED MOVE line, 3 vertices / 5 members, kind navigate-to-location; the chain in order, never two vertices outstanding;
+both OUTSTANDING lines carry the registered variables and vertices; NEAR -> MAK_ROAD at 0 m on the offline table's ways
+372319246 and 367165904), M9 (each closed step consistent with the vendor's rule), M13-M17 (M13 vacuous - T14 never
+ran; 0 obstacleQuery other than MAK_OBSTACLE; 0 stray, retired, refused or already-driving lines; the literal route gone; 0
+report-only lines, 0 splices), the water falsifiers. T14 and T02 were never dispatched: their predecessors' 300 SIM s
+holds had not run out when the back end stopped (N2).
+WHAT FAILED: M10 - two member FAILED lines at vertex 2 (L10211, L10213); M12 - two relayed "Cound not create route"
+(L10199, L10201); W-DEST - T10's container came 0 m closer to vertex 1 and all five members were displaced 0.0 m. W-DONE:
+NOT REACHED.
+
+N1 - WHAT THE FIVE T10 MEMBERS DID (app log L9608-L10213 against navigate-to-location.lua, read line by line) [V]:
+(a) Vertex 1 went to all five (L9617) with the registered variables. On each member the vendor's script controller began
+    navigate-to-location and echoed its parameters at console level 3 (L9681-L9713): `destination={3448198.452440,
+    1485421.208769, 5138688.441927}; obstacleQuery=MAK_OBSTACLE; pathQuery=MAK_ROAD; buffer=10; displayRoute=False;
+    query=""` - that vector is (54.029734, 23.305499) at ellipsoid height 0 to 0.000 m, the registered vertex 1 (vertex 2's
+    echo, L10119-L10151, is (54.024000, 23.313000) to 0.000 m). The independent observer recorded the same five echoes. The
+    script then printed "Navigate-to: pathQuery=MAK_ROAD", "Navigate-to: obstacleQuery=MAK_OBSTACLE" (our variable: without
+    it, and with query="", the script prints NONE, :46-57) and "Navigation: Initializing" (:127).
+(b) Within 0.7 SIM s each member started a move-along SUBTASK on base-system.aggregated-movement.aggregated-move-along-
+    controller, route "<member> Pathr" (L9809-L9865), and that controller refused it at once: `Warning:
+    DtAggregatedMoveAlongController::setupRoute -- %1 route does not exist. | 1-112_IN/28ID__FRIENDLY_I.RIF2 Pathr`; the
+    subtask Failed, 5 of 5 (L9813-L9875). The script starts that subtask only after its path job returned at least two
+    points and createRoute returned a route that passed its own validity check (:177-186, :213-246).
+(c) Each member's navigate-to-location then ended Completed (L9915-L9971): the script ends with SUCCESS whenever its last
+    move-along subtask stops, whatever that subtask's result (:252-259). "5 succeeded, 0 failed -> the vertex SUCCEEDED"
+    (L9977) therefore counts five moves that never started, and the interface - by design, an intermediate vertex advances
+    either way (VertexChain.cs :359, :381-384) - closed vertex 1 with the unit "1451 m from it and moved 0 m since dispatch
+    (VACUOUS by the vertex bar - R11)" (L9979) and issued vertex 2 (L10021).
+(d) Vertex 2: the same echo and debug lines on all five; HQ1 and RIF2 relayed "Cound not create route" (:230-233: createRoute
+    returned no valid route for a path of at least two points) and FAILED (L10211, L10213); RIF1, RIF3 and WPN1 had not
+    returned from planning (:163-171) when the back end crashed.
+
+N2 - THE BACK END CRASHED at 19:05:16.935Z, 2.9 s after T10's dispatch (L9608, 19:05:14.067Z) and about 2 s after the
+vertex-2 failures [V]. C:\MAK\logs\vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-3344.callstack.log (1,506 B) and the
+back end's own log were last written at that instant, the .dmp (1,175,055 B) at 19:05:17.492Z (names, sizes and times
+only). The back end's CPU fell from 2.14 cores (19:05:17Z) to 0.03 (19:05:22Z) and read 0.00-0.01 to the end, working set
+flat at 3,668 MB (thread-samples.csv); no console line was relayed after L10209 and the independent observer's last console
+row is at t=77 s (19:05:14.9Z); the app's sim-clock reader ran at exactly 1.000 x wall (L10235) and then "could not be read
+(no back end reporting)" (L10241, L10245); the observer's back-end count fell 1 -> 0 between t=192.9 and 194.9 s
+(19:07:11-13Z). StopVrf's inventory named the process by its window, "Error vrfSimHLA1516e.exe" - the dialog of the
+2026-09-21 D5b crash (RUNBOOK, STP-854) - and its taskkill without /F closed it; the process was gone by 19:07:58Z. By
+count-grep only (the vendor-log rule of this lane's brief) the 36-line callstack carries 0xC0000005 once, "Lua" / "lua" on
+6 / 7 lines, StateData once, and none of route, navigat, AreaCollector, addGeometry, FeatureSet, NameGenerator, MoveAlong,
+isDestroyed or DamageActuator; its
+content was not read - that is the owner's call, as it was for D5b's callstack (RL-20260921-02 item 4). Neither the runner
+("RUN COMPLETE") nor the app named the crash, and the whole 120 s observation window ran after it. Had the W gate carried
+P20's crash limb it would have failed on it too.
+
+THE SEAT'S READING, TESTED - "the destination did not reach the script; a path of fewer than 2 points ends the task as a
+success; createRoute on an empty point list gives 'Cound not create route'" - REFUTED on four counts [V]: (1) the vendor's
+own parameter echo carries the vertex exactly (N1 (a)); (2) a path of fewer than two points ends the task FAILED, printing
+"Could not compute path - <message>" or "Invalid path computed" (:177-185) - 0 of either in the app log and in the back
+end's own log, and the vertex-1 tasks ended Completed; (3) the failed move-along subtask is started only after a path of at
+least two points and a valid route (:213-246); (4) "Cound not create route" lies inside the loop that runs only while at
+least two points remain (:213-235) - never on an empty list. THE DESTINATION BINDING (sec 7) IS SEEN LIVE: the facade's
+"location" reaches navigate-to-location's LOCATIONREFERENCE as the exact vertex and the script plans with it; the vendor's
+own saved navigate-to-location task carries the same value class, a DtRwVector destination (RoadToKaunasPhaseTwo.oob
+:72084-72085 [V, lane m3b's extract of the vendor's .scnx]).
+
+THE NAMED COMPETITORS [V]:
+- ALTITUDE 0 REJECTED - EXCLUDED: with the destination at ellipsoid height 0 the path job returned at least two points on
+  all five members at vertex 1 and on HQ1 and RIF2 at vertex 2; the script itself sets every path point to altitude 0
+  before createRoute (:195-199).
+- NO ROAD PATH FROM THE START POSITION - EXCLUDED wherever a job returned: "no path" is the fewer-than-two-points branch,
+  printed and FAILED (:177-185), 0 lines. Undecided for RIF1, RIF3 and WPN1 at vertex 2 (no return before N2).
+- THE TASK REFUSED BY THE MODEL SET - EXCLUDED: the back end's script controller ran navigate-to-location on each member,
+  the script's load section and init() ran (the three debug lines), and its move-along subtask went to the aggregate model
+  set's own controller. The client-side "Can't create data of type navigate-to-location. No creator found." (L9615, our
+  process's vendor SDK) is the twin of G1-2's pa_move_along_route line - 18 such lines in both runs, the same task types
+  but that one (O6) - and PA_Move_Along_Route ran in G1-2 beside its twin.
+
+THE READING THIS LANE SETTLES ON: THE PLANNER WORKED AND THE EXECUTOR DID NOT [V]. On each T10 member the destination
+arrived, a path of at least two points was planned (pathQuery MAK_ROAD; its points are not printed - DEBUG_DETAIL is false,
+:17) and a route was created, then the aggregate model's move-along controller could not find that route, so no member
+moved; navigate-to-location reports that as a success by its own code, the vendor's Move (Group)
+rule counts it (Move_To_Location_Plan_Path.lua :50-52 passes the same result up), and the interface advanced past a vacuous
+vertex. WHY the controller could not find the route is NOT settled by this run [A]:
+ (i) THE ROUTE'S NAME - the lead. navigate-to-location names its route this:getName() .. " Path part N" (:223): 42
+     characters on our 30-character member names (C1c), "1-112_IN/28ID__FRIENDLY_I.RIF2 Path part 1". The back end calls
+     it "1-112_IN/28ID__FRIENDLY_I.RIF2 Pathr" (36 characters, no hidden byte) in 20 of 20 mentions, in its own log and in
+     ours, and "Path part" 0 times. VR-Forces documents a per-type maximum name length and a generator that makes a unique
+     name within it (vrfNameGenerator.h :38-53; simObjectNetInterface.h :202-205), as C1c measured for aggregate names, and
+     this controller "looks up the route by name" (aggregatedMoveAlongController.h :70-77). In the vendor's own Road to
+     Kaunas save the same controller follows a navigate-to-location route of the short-named aggregate JAM-137: route
+     "JAM-137 Path part 1", uuid "VRF_UUID:JAM-137 Path part 1_8" (the name plus a counter), publish-flag 0,
+     route-is-discovered True at vertex 51, planned with our queries and query "" but buffer 0 (RoadToKaunasPhaseTwo.oob
+     :71967-72137, :72195-72201, :103560-103565 [V]). A second route asking for the same capped name would also explain
+     vertex 2's "Cound not create route".
+ (ii) THE ROUTE IS UNPUBLISHED (displayRoute false, :225) - NOT SUFFICIENT: the vendor's followed route is unpublished too,
+     and the vendor's aggregate Move to Location (Plan Along Roads) defaults displayRoute to 0 (Move_To_Location_Plan_Path.xml;
+     .lua :39-45).
+ (iii) A SAME-TICK RACE (the subtask starts in the tick the route is created) - WEAKENED, not excluded: the vendor script
+     always does this, and the vendor save shows it working.
+ WHAT SEPARATES THEM: one aggregate unit with a short name running navigate-to-location with these variables, buffer 10
+ included - it moves under (i) and fails the same way under (ii) or (iii). CONTROL [V]: in G1-2 the same five members ran
+ move-along on the same controller on an app-created route with a 150-character name (G1-2's run, L21495-L21513) and T10
+ arrived - the controller moves these members; what differs here is the script-created route.
+
+UNEXPLAINED - each a falsifier of the reading until explained:
+- N2's crash. Its timing (2 s after two failed createRoute calls, with three planning jobs outstanding and the failed tasks'
+  shutdown deleting their routes, :300-302) and the Lua frames point at the navigate-to-location path; nothing on the stack
+  was read. G1 and G1-2 ran the same fixture, the same aggregate reactive Lua tasks (the same 17 client-side task types) and
+  a higher peak working set (3,801 and 3,876 MB, against 3,668 here) without a crash. The vendor's own comment on a non-zero
+  buffer ("DtAreaFeatureSetAdapter::AreaCollector::addGeometry does not deal correctly with large obstacle features",
+  :39-40; we pass 10, the vendor save 0) is a candidate the count-grep does not support (0 frames). n = 1.
+- "Pathr": the rule that turned "... Path part 1" into "... Pathr" is not in the installed headers, and the Lua and class
+  references are not installed on this machine (C:\MAK\vrforces5.2d\doc\luadoc and classdoc are placeholder pages).
+- Why HQ1 and RIF2, and not the other three, returned from planning first at vertex 2.
+- O8, carried: the pre-warm's init took 36 of 36 create altitudes from the FALLBACK again (L355) with the sim cache warm.
+
+RECORDED [V]: O6 - 18 "No creator found" lines, the navigate-to-location twin at L9615. O10 - the relayed console led the
+app's SIM clock by about 13.7 s (dispatch at app SIM 312.3, the task's first console stamp 326.030). P22 - the populations
+published 11.1 s after they began (L1088-L1092; G1-2: 1.7 s). P19 - 28 cache HITs, 0 HTTP FETCH (L10265); at 19:27Z the
+cache manifest read 520 files / 27c2117e and the road layer 41 / 213bae20 - unchanged. P23 - the sim cache listing was
+identical before (18:59:56Z) and after (19:26:09Z): 21,805 files, 495,598,329 bytes, newest write 10:20:57Z
+(u3\laneG1-3\simcache_before_prewarm.txt, simcache_after_prewarm.txt) - the pre-warm added nothing. The shutdown cleanup
+dispatched 64 deletes (the registered 36 + 23 + 5 areas, no route object) to a back end that had crashed. Reports: 594
+delivered, 0 FAILED; three TASKSTRT (T01, T13, T10), no terminal report. The WS-runaway alert at 19:02:11Z (857 MB/min,
+2,143 MB) is the load-time alert both G1-2 runs also raised (746 and 1,045 MB/min) without a crash.
+
+WHAT IT MEANS (implication, not measurement): the vendor's success bit for navigate-to-location means "its move-along
+stopped", not "arrived" (:252-259), so a step that closes VACUOUS is a move that did not happen, and M3 advances past it by
+design. The W gate did its job - it stopped before E - but two of its labels over-claimed: W-DEST ("the destination reached
+the script") failed with the destination reached, and M9 checks the bookkeeping, not the move. The planner of RL-20260928-03
+is not refuted: its planning ran on the aggregate model set; its execution on our members did not.
+
+NUMBERS: 5255 CONSUMED (holder 56380), 5256-5258 BURNED; pre-warm block - 5259 (back end, pid 3344, crashed, N2), 5261
+(WatchVrf pre-check), 5262 (WatchVrf trace), 5263 (VrfC2SimApp, pid 26024, exit 0), 5264 (Stage 2c RtiProbe), 5266 (Stage 2h
+holder attempt 1, pid 31660) CONSUMED; 5260 (--no-gui), 5265 (oracle gate passed), 5267-5269 BURNED; marker 5270. The
+scored block 5270-5280 was never claimed. A successor takes new numbers from 5270: with holder 56380 still up (to about
+03:00Z 2026-09-29), pre-warm 5270-5280, scored 5281-5291, marker -> 5292; after it resigns, a holder claim first - holder
+5270-5273, pre-warm 5274-5284, scored 5285-5295, marker -> 5296.
+
+NEXT, in order: (1) RULE - the owner decides whether pid 3344's callstack is read (the D5b precedent, RL-20260921-02 item 4).
+(2) PREREG - the one-variable probe of (i): one short-named aggregate unit, these navigate-to-location variables. (3) M3's
+design - an intermediate vertex that closes VACUOUS is not a success. (4) The harness - a back-end crash (crash artefacts
+for its pid, the "Error vrfSimHLA1516e.exe" window, a sim clock that stops while the process lives) ends the window as VOID.
+(5) Only then a successor registration.
+
+ADVERSARIAL REVIEW: the strongest competitor to the settled reading (the planner worked, the executor did not) was the
+seat's (the destination never bound); the vendor's parameter echo, exact to 0.000 m and seen by two observers, and the
+script's own branches exclude it. The strongest competitor to the lead cause (the route's name) is a defect in the
+aggregate move-along path that does not depend on names - (iii), or something unseen; the vendor save of JAM-137 weakens it,
+but it is one save and not a run on this machine, and it differs from ours in the buffer (0 against 10) as well as in the
+name's length, so the probe must hold the buffer at 10. The crash could be unrelated to M3 (a D5b-class vendor race);
+against that stand its timing and the clean G1 and G1-2 runs, for it n = 1 and an unread stack. Verified: the log lines, the
+vector conversion, the script and XML lines, the headers, the save's lines, the crash stamps, the manifests and the sim
+cache listing. Assumed: that the name mismatch is what the controller trips on, and anything about the crash's frames.
