@@ -84,7 +84,7 @@ crashed back end VOID the window (runner line, manifest, exit 3; StopVrf52 exit 
 hypothesis if G1-4 still fails (HANDOFF_SEAT sec 2), and it is in RL-20260928-03's operative text.
 
 THE RUN'S HIGH PREDICTIONS (sec 4, rows H1-H6): 0 "route does not exist"; every tasked member moves at every vertex it is
-sent to; T14 and T10 ARRIVE (in the pre-warm: T10's vertex 1 reached and CLOSED - W-DONE); 0 EXECUTOR REFUSED; the
+sent to; T14 and T10 ARRIVE in the SCORED run (the pre-warm keeps G1-3's W-DONE rule, sec 3 W); 0 EXECUTOR REFUSED; the
 destination echo exact, as in G1-3; the member names exactly the M3b table with the uuids unchanged. THE FALSIFIER OF THE
 WINDOW: a crash of the back end (a crash record for its pid, the "Error vrfSimHLA1516e.exe" window, the trace's backends 1 ->
 0, the sim clock lost) makes the window VOID - neither a pass nor a fail of M3b.
@@ -220,8 +220,9 @@ claim_holder_g1_4.ps1 (branch (b') only), g1_4_score.py, route_ref_lengths.py; l
 cache_manifest.ps1 stay in G1-3's scratch u3. Python = /c/Users/PauloBarthelmess/AppData/Local/Programs/Python/Python312/
 python.exe (the bare "python" is the Store alias [V]). THE SEAT RUNS C3, D', W, E AND F under RL-20260928-01.
 
-TWO HOLDER BRANCHES, chosen at the go-live by the clock [V: RtiProbe 56380 up at 21:44Z, started 18:59:46Z, so its 28800 s
-hold ends about 02:59:46Z 2026-09-29]:
+THE HOLDER - BRANCH (a), SEAT DECISION 2026-09-28 [V: RtiProbe 56380 up at 21:44Z, started 18:59:46Z, so its 28800 s hold
+ends about 02:59:46Z 2026-09-29]: the go-live runs under branch (a) and STARTS E NO LATER THAN 02:15Z 2026-09-29. Branch (b')
+below is kept only as the recorded fallback if (a) cannot be met; it is not the plan.
 - (a) HOLDER 56380 (appNo 5255) STILL UP with at least 60 min of hold left before W AND before E (golive_checks -HolderPid
   56380 -MinHoldLeftMin 60): no holder step; the runner recognises it PERSISTENT (G1-3's W did).
 - (b') 56380 HAS RESIGNED (or would resign inside E): step D' - golive_checks -Phase preholder (56380 gone, no RtiProbe),
@@ -229,9 +230,9 @@ hold ends about 02:59:46Z 2026-09-29]:
   `scripts/StartFederationHolder52.ps1 -AppNumbers 5270,5271,5272,5273 -SettleSecs 28800` (-WhatIf first), EXPECT
   "HOLDER JOINED: pid ... appNo 5270", exit 0; exit 1 or 2 = STOP, no blind relaunch (RUNBOOK 9c). The RtiProbe tree is R4's
   18:16Z build at the pin (not rebuilt; optional, code unchanged [A: the deploy line]).
-W and E start only with at least 60 min of hold left (golive_checks -MinHoldLeftMin 60, G1-3's default). The record is SILENT
-on a persistent holder that resigns INSIDE a window (the pre-warm's own Stage 2h holder is also joined): if it happens it is
-RECORDED with the federation's state and the seat decides VOID or not - this lane does not decide it.
+W and E start only with at least 60 min of hold left (golive_checks -MinHoldLeftMin 60, G1-3's default) and E by 02:15Z. A
+persistent holder that resigns INSIDE a window is RECORDED with the federation's state; it does NOT void the window by itself
+(SEAT DECISION 2026-09-28: the crash-void limb V is about the BACK END only).
 
 A0. PRECONDITIONS: the seat's go-live; Fable's cold review of sec 4's cause rows done; no lane building, running a suite or an
     agent for the quiet period (ask the STP session to hold builds first; idle MSBuild workers fail the check - let them time
@@ -254,9 +255,10 @@ W.  THE PRE-WARM (unscored) = THE W GATE: golive_checks -Phase prelaunch (0 FAIL
         <python> <L4>/g1_4_score.py <prewarm run dir> --wgate > <L4>/W_gate_<run>.txt
     prints "W GATE: PASS" (exit 0): G1-3's population + identity limbs (branch A) with W1n and I6 on the M3b names; G1-3's M3
     limbs M1-M17 (M9 now labelled the BOOKKEEPING of the vendor's rule, not the move); H1, H2, H3 (sec 4); W-MOVE (G1-3's W-DEST,
-    RELABELLED - the Result's own critique: it "failed with the destination reached"; the binding is H3's); W-DONE (HIGH here:
-    T10's vertex 1 reached by all 5 members and CLOSED SUCCEEDED inside the window - NOT REACHED is a FAIL, no longer "the
-    seat's call"); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
+    RELABELLED - the Result's own critique: it "failed with the destination reached"; the binding is H3's); W-DONE (G1-3's
+    rule, SEAT DECISION 2026-09-28: a vertex all members reached but that never CLOSED - S9 - is a FAIL = STOP before E; NOT
+    REACHED is RECORDED, the seat's call, and NOT a stop by itself PROVIDED W-MOVE passes - every dispatched T10 member displaced
+    > 50 m and the container at least 50 m closer to vertex 1; the arrival, H6, is HIGH for the scored run only); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
     <L4>/simcache_after_prewarm.txt.
 E.  THE RUN: golive_checks -Phase prelaunch -MarkerWant 5281 (a) / 5285 (b'); `sh <L4>/g1_4_runner.sh scored-dryrun` (EXPECT
     block 5281-5291 / 5285-5295, marker -> 5292 / 5296, 2700 s CAP with -StopWhenComplete); then `sh <L4>/g1_4_runner.sh
@@ -285,15 +287,17 @@ move-along reference against the whole "<member> Path part <n>[_<counter>]"), R-
 exist" COUNT - never a line), V-CRASH (the run manifest's backendCrash; stopvrf.stdout.log's "Error vrfSim..." window and
 "CRASHED BEFORE THE CLOSE"; the watchdog's "StopVrf exit 8"; crash records `vrfSim*-<pid>.callstack.log|.dmp` LISTED in
 C:\MAK\logs by name and mtime between the back end's start and the window's close + 5 s; the trace's backends 1 -> 0; the
-app's "(no back end reporting)" before shutdown); W-DEST relabelled W-MOVE; W-DONE's NOT REACHED a FAIL. Its --selftest: 50
+app's "(no back end reporting)" before shutdown); W-DEST relabelled W-MOVE, which now also needs every dispatched T10 / T14 member displaced > 50 m;
+W-DONE per G1-3's rule (S9 = FAIL; NOT REACHED = the seat's call provided W-MOVE passes). Its --selftest: 51
 checks PASS, 0 FAIL - G1-3's 41 (the uuid oracle, the chain checker, the CLEAN control, S7, the must-not-fire wet edge, 26
 dirty controls) on synthetic runs in the M3b line forms, plus an ECEF oracle (G1-3's echo reads (54.029734, 23.305499, 0)),
 the M3b name oracle, the clean M3b rows, and SIX NEW DIRTY controls each caught: route-not-exist (H1), executor-refused (H2),
 vacuous-advance (H2), echo-off (H3, a member's echo 111 m off), no-move (H5, one T14 member parked), crash (V-CRASH VOID; the
-vendor .log beside the callstack never matched) [V: scratch laneG1-4\g1_4_score_selftest.txt].
+vendor .log beside the callstack never matched), and one MUST-NOT-STOP control (not-reached: T10 half-way to vertex 1 at the
+window's end - W-DONE "NOT REACHED - the seat's call", the W gate PASSES) [V: scratch laneG1-4\g1_4_score_selftest.txt].
 THE CONTROL, FAIL-FIRST ON REAL DATA [V]: `g1_4_score.py runs\20260928T190047Z_run --wgate --member-names c1c` (G1-3's own
 pre-warm, read with its own naming rule) -> exit 1, "W GATE: FAIL + VOID (branch A; H1, H2, H5, M10, M12, V-CRASH(VOID),
-W-DONE(NOT REACHED), W-MOVE)": H1 15 relayed "route does not exist" (first L9811); H2 the pre-M3b equivalent L9979 (vertex 1
+W-DONE(NOT REACHED, W-MOVE failed), W-MOVE)" - W-DONE's NOT REACHED counts only because W-MOVE failed: H1 15 relayed "route does not exist" (first L9811); H2 the pre-M3b equivalent L9979 (vertex 1
 "1451 m from it, moved 0 m"); H5 0.0 m for all five members; V-CRASH the "Error vrfSimHLA1516e.exe" window, the callstack
 record (19:05:16Z) and .dmp (19:05:17Z) for pid 3344 (names and mtimes only), the trace's backends 1 -> 0 at t=194.9 s and
 the app's L10245; and, as it must, H3 PASSES there (10 echoes exact, vertices 1 and 2 - the binding G1-3 saw) and every
@@ -311,9 +315,9 @@ with the changes named after this table.
 | H3 | THE DESTINATION ECHO EXACT, AS IN G1-3: every member of T10 and T14 (and T02's one) prints the level-3 echo for every vertex its container issued, and each converts to that vertex at ellipsoid height 0 within 0.5 m (G1-3: exact to 0.000 m on 10 of 10). | HIGH | Any echo off or missing = STOP; the binding the CLOSED list settles is not reopened - the miss is recorded and the seat decides. | |
 | H4 | THE NAMES AS sec 1(u): each L-POP lists the registered short names in slot order, each "<short> = <container>.<suffix>"; L-ID-POP names exactly the v5 uuids of G1-3 (unchanged: the derivation takes the suffix) beside the full names; EXACTLY 59 L-ID-CREATED (the 23 members under their G1-3 uuids with their short names as markings); 23 L-MEMBER "(8..16 chars) came back as EXACTLY that name ... bound by its uuid (C1d)"; ZERO NAME DISAMBIGUATED / NAME COLLISION (scorer W1n, I2, I3, I6, I8, I12, I13). | HIGH | Any limb = STOP (C1d's regression guard, RL-20260928-02, as G1-3's P3). | |
 | H5 | EVERY TASKED MEMBER MOVES at every vertex it is sent to: displacement > 1.0 m on the trace (scorer H5; G1-3: 0.0 m for 5 of 5); and G1-3's P10 (each mover's members displaced > 50 m: 1 of 1, 5 of 5, 17 of 17). | HIGH | A member that does not move at a vertex = STOP. | |
-| H6 | T14 AND T10 ARRIVE (G1-3's P12, unchanged): L-ARRIVE with 1/1 and the ONE POSITION suffix, then one TASKCMPLT each; in the PRE-WARM, T10's vertex 1 reached by all 5 members within 50 m and CLOSED "the LAST of 5 ... -> the vertex SUCCEEDED" inside the window (W-DONE). | HIGH | T14 or T10 not arriving = STOP; in the pre-warm, W-DONE NOT REACHED or reached-not-closed (S9) = STOP before E. | |
+| H6 | T14 AND T10 ARRIVE IN THE SCORED RUN (G1-3's P12, unchanged): L-ARRIVE with 1/1 and the ONE POSITION suffix, then one TASKCMPLT each. The PRE-WARM is judged by G1-3's W-DONE rule (sec 3 W), not by this row (SEAT DECISION 2026-09-28). | HIGH (scored run only) | T14 or T10 not arriving in the scored run = STOP. | |
 | R-REF | THE CARRIED REFERENCE: every relayed "Move-Along Route: \"<ref>\"" is the WHOLE "<member> Path part <n>" or "<member> Path part <n>_<counter>", <= 34 characters (G1-3: 5 of 5 "<30 chars> Pathr"). | MEDIUM | Recorded; read with H1 (sec COMPETITORS). | |
-| V | THE WINDOW IS VALID - NO BACK-END CRASH: no crash record for the back end's pid dated before the window closed, no "Error vrfSimHLA1516e.exe" window, no `BACK END CRASHED` line or manifest backendCrash, StopVrf52 exit 0 or 6 (not 8), the trace's backends never 1 -> 0, the sim clock never lost before shutdown (scorer V-CRASH). IF a crash happens, the harness NAMES it (the runner line + exit 3, StopVrf52 exit 8) - M3b (3)'s first live test. | MEDIUM (no crash: G1 and G1-2 ran clean, G1-3 crashed once, n = 1, its stack unread); HIGH (a crash is named by the runner and StopVrf52) | A crash = the window is VOID: neither a pass nor a fail of M3b, no row is scored, the successor is G1-5 with new numbers. A crash the scorer sees and the runner did NOT name = STOP (M3b (3) failed live). | |
+| V | THE WINDOW IS VALID - NO BACK-END CRASH (the BACK END only; a persistent holder's resignation is recorded, not a void): no crash record for the back end's pid dated before the window closed, no "Error vrfSimHLA1516e.exe" window, no `BACK END CRASHED` line or manifest backendCrash, StopVrf52 exit 0 or 6 (not 8), the trace's backends never 1 -> 0, the sim clock never lost before shutdown (scorer V-CRASH). IF a crash happens, the harness NAMES it (the runner line + exit 3, StopVrf52 exit 8) - M3b (3)'s first live test. | MEDIUM (no crash: G1 and G1-2 ran clean, G1-3 crashed once, n = 1, its stack unread); HIGH (a crash is named by the runner and StopVrf52) | A crash = the window is VOID: neither a pass nor a fail of M3b, no row is scored, the successor is G1-5 with new numbers. A crash the scorer sees and the runner did NOT name = STOP (M3b (3) failed live). | |
 
 CHANGES TO G1-3's ROWS: P0 (ii) - the build is b0bad53's (sec Registration), (i) holder branch (a) or (b') (sec 3); P1 - the
 L-CON-ON / L-M3-ON lines as G1-3's; P2 - the 36 init containers as G1-3's; P3 - the 23 members under their G1-3 uuids with the
@@ -392,25 +396,24 @@ ASCII + CRLF.
 - THE LABEL (HANDOFF_SEAT sec 3 item 5): the map shows the 16-character member names; the full designation in the vendor's
   Label is a follow-up after this Result, not part of G1-4.
 
-## 8. Where the record was silent or disagreed - the choices this lane made, for the seat to decide
+## 8. Where the record was silent or disagreed - SEAT DECISIONS 2026-09-28 (on the lane's eight open points)
 
-1. THE CAP, 34 OR 35: HANDOFF_SEAT sec 2 says the reference "fits the 35-byte DtUUID payload"; the CLOSED list says a
-   move-along "cuts at 35"; the code budgets 34 (VrfNames.UuidReferenceChars :91, "35 was never bisected"). This file
-   measures against 34 - every cut-A reference fits either way (sec 1(u)).
-2. W-DONE IN THE PRE-WARM made HIGH (NOT REACHED = STOP before E), where G1-3 left NOT REACHED to the seat - per this lane's
-   brief (T10 ARRIVES, W-DONE reached). It assumes T10's vertex 1 is reachable inside the 120 s window [A: G1-2's pre-warm T10
-   arrived on the straight line; under Auto the path is a road path with a planning pause].
-3. H5's "moves" is > 1.0 m, not > 0 m: 1 m of fix jitter is allowed (G1-3's refused members read exactly 0.0 m).
-4. BUFFER 10 AS "THE NEXT HYPOTHESIS" (HANDOFF_SEAT sec 2, RUNBOOK 11o) is inside RL-20260928-03's operative text ("buffer
-   10 m"); testing 0 needs a ruling or a registered comparison the ruling allows - not decided here.
-5. THE ORDER OF WORK: the G1-3 Result's NEXT list put a one-variable short-name probe (2) and the callstack decision (1) before
-   a successor registration (5); HANDOFF_SEAT sec 3 (later) goes to G1-4 on M3b directly. This lane followed the handoff; the
-   callstack decision (RL-20260921-02 item 4 precedent) is still open.
-6. A PERSISTENT HOLDER RESIGNING INSIDE A WINDOW: silent in the record (sec 3); recorded, not decided.
-7. A CRASH RECORD DATED IN TEARDOWN: the runner lets the window stand (WARN, :5980-5982); the scorer counts records up to the
-   window's close + 5 s (its own slack, stated here).
-8. T02 CANNOT READ "EXECUTOR REFUSED": its one vertex is the last, which M3b leaves to D-6 (sec 1(v)); a refused T02 shows as
-   D-6 WITHHELD and the watchdog, and H2 cannot see it - H1 and H5 do.
+1. THE CAP: the budget stays 34 (the code's conservative VrfNames.UuidReferenceChars :91, "35 was never bisected"); every
+   cut-A reference fits under both 34 and 35 (sec 1(u); the handoff's "35-byte payload" and the CLOSED list's "cuts at 35"
+   agree with that).
+2. W-DONE IN THE PRE-WARM: G1-3's rule (sec 3 W) - reached-not-closed (S9) = FAIL = STOP; NOT REACHED = recorded, the seat's
+   call, not a stop by itself provided W-MOVE passes. "T10 arrives" is H6, the SCORED run only; G1-2's straight-line pre-warm
+   arrival [A] does not carry to a road path with a planning pause.
+3. H5's "moves" is > 1.0 m (1 m of fix jitter allowed; G1-3's refused members read exactly 0.0 m) - accepted.
+4. BUFFER stays 10, untouched (RL-20260928-03's operative text); testing 0 is for the owner after a G1-4 failure.
+5. THE ORDER: the handoff (written after the G1-3 Result, under the seat switch RL-20260928-04) governs - G1-4 now; the
+   callstack read stays the owner's open call (HANDOFF_SEAT sec 4) and does not block G1-4.
+6. THE HOLDER: branch (a); E starts no later than 02:15Z 2026-09-29; a holder that resigns inside a window is recorded and
+   does not void it by itself - V is about the back end only (sec 3).
+7. THE TEARDOWN SLACK: the scorer counts crash records up to the window's close + 5 s [A: the lane's choice, approved by the
+   seat]; the runner itself lets a window stand for a crash dated after it closed (WARN, RunC2SimScenario.ps1 :5980-5982).
+8. T02: H2 cannot see a refused T02 - its one vertex is the last, which M3b leaves to D-6 (sec 1(v)); its D-6 path is
+   covered by H6 / the arrival rules (and H1 / H5 see the refusal and the missing move).
 
 ## Result (written after the harvest, never from a live read)
 
