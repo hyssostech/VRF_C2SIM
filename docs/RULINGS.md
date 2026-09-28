@@ -2,8 +2,8 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-01 to -06). Archived (cap): -08, 0914-02 on 09-26; 0925-01, 0921-05
-#   and 0926-01 on 09-27.
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01). Archived (cap): -08, 0914-02 on 09-26; 0925-01, 0921-05,
+#   0926-01 on 09-27; 0927-01 on 09-28.
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
@@ -35,23 +35,6 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     (since 746c091) and stall detection shipped OFF. That unit builds this position; stall detection is ON in the demo profile and OFF
     elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
   pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
-
-RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
-  Q (as put, P5321 - the seat's decision brief, requested by the owner at P5314 (last-prompt record) "Restate the proposed approach given the facts above";
-    its closing block): "Decisions: (a) This sequence: entity-level fix and run first, aggregate profile behind it. (b) Move To per vertex for lone
-    platforms, reversing the 2026-09-07 withdrawal. (c) The pre-flight port with per-profile rules. On your go, this becomes the plan document and the
-    first registered run is drafted." The brief's body (P5321) is the approach: one pre-flight for both profiles (STP vertices and legs checked against the
-    OSM water and buildings the sim reads; bad vertices nudged and reported; wet legs detoured or reported; rivers reported as STP authoring defects);
-    lone platforms driven by Move To per STP vertex, units unchanged; the aggregate-level profile for Iron Storm per PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06;
-    hand waypoints (i)(j)(k) and the corridor launch bar retired once live-proven. Between Q and A (P5327-P5337) the seat answered "What's the thinking
-    about when aggregate level and entity level are used" - explanation only, no new question.
-  A (owner, P5338): "Go"
-  supervisor reading: "Go" approves (a), (b), (c) and the sequence as put. It leaves RL-20260921-09, RL-20260913-03 and RL-20260914-01 as they are (the brief
-    kept them) and does NOT decide the hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types), which the aggregate lane puts back to him.
-    [CORRECTED 2026-09-27, seat's own premise: the aggregate catalogue has RUS 107 / BLR 24 simulated units; "RU 4" counted a label spelling
-    (AGGREGATE_CATALOGUE_2026-09-27; CORRECTIONS_LOG). The decision itself is unchanged and still his.]
-  pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
-    feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.
 
 RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
   Q (as put, P5695, the seat's A1 report; its "Two decisions for you before G1"): "1. Hostile side: RUS (107 units, branch-correct stand-ins for every
@@ -112,3 +95,16 @@ RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompt
     (2) a setting (Vrf:ModelSet / runner -ModelSet) overrides the automatic choice, so battalion-and-below may run at aggregate level too; (3) above
     battalion is aggregate-only (the entity catalogue stops at BN). "bow" read as "below". Package D2 builds the automatic selector.
   pointer: PLAN_MOVEMENT_2026-09-27 row D2; VRF_5.2_DECISION_EVIDENCE Y-15 (dated note); scripts/RunC2SimScenario.ps1 -ModelSet (A1).
+
+RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
+  Q (as put, P7308 - the D2 lane's two side effects: "1. The runner's default Mojave order becomes aggregate-only ... 1.BdeHQ carries EchelonCode BDE
+    ... 2. The cut-A entity-level command lines (E1, E2) are refused ... My recommendation on both: keep the rule as ruled, with no escape hatch. For (1),
+    fix the test data, not the rule: 1.BdeHQ is a company-sized element and its code should say so (COY) ... For (2), accept it"; and P7452 - the G1
+    push blocked by the permission classifier: "This is yours to authorize, not mine to work around. Options: 1. Allow it here ... 2. A fresh executor
+    ... 3. Run step C3 yourself ... I recommend option 1: the server is the sanctioned private validation target")
+  A (owner, P7459): "D2 as recommended. Go for the server"
+  supervisor reading: (1) RL-20260927-06 stands with no downward override; the Mojave test order's HQ unit is re-coded below battalion in the TEST DATA in
+    a way that keeps its current single-vehicle representation (the executor verifies with --parse-init), and cut A keeps no entity-level regression
+    run - E1/E2 stay as records. (2) "Go for the server" authorises the private validation server push (127.0.0.1:18080 / 61614) for G1 and its
+    successors; the operator's 8080/61613 server stays out of bounds as before.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows D2, G1; PREREG_IRONSTORM_AGG_G1_2026-09-28 sec 3 (C3); feat/modelset-selector.

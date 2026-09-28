@@ -5,7 +5,8 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01, RL-20260921-05, RL-20260926-01.
+#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01, RL-20260921-05, RL-20260926-01,
+#      RL-20260927-01 (moved 2026-09-28, unchanged, to make room for RL-20260928-01; the movement approach it approved is implemented and live-proven).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -419,4 +420,21 @@ RL-20260926-01 | 2026-09-26 | status VERBATIM - P3272: 2 SELECTIONS + 1 TYPED; P
     advance-and-hold is the coordinator's direction (no owner record, not in A1-A6). CNFPSL is held in place for now (A6 narrows A5); Jira STP-866.
   supervisor reading: extended to the ATTACK family (ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT) because they share the ATTACK path; not asked
   pointer: feat/engage-doctrine + fix/engage-followup (TaskDispatchPolicy.ForEngage); SEMANTIC_MAPPING sec 3; RUNBOOK sec 11; STP-865, STP-866.
+
+RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
+  Q (as put, P5321 - the seat's decision brief, requested by the owner at P5314 (last-prompt record) "Restate the proposed approach given the facts above";
+    its closing block): "Decisions: (a) This sequence: entity-level fix and run first, aggregate profile behind it. (b) Move To per vertex for lone
+    platforms, reversing the 2026-09-07 withdrawal. (c) The pre-flight port with per-profile rules. On your go, this becomes the plan document and the
+    first registered run is drafted." The brief's body (P5321) is the approach: one pre-flight for both profiles (STP vertices and legs checked against the
+    OSM water and buildings the sim reads; bad vertices nudged and reported; wet legs detoured or reported; rivers reported as STP authoring defects);
+    lone platforms driven by Move To per STP vertex, units unchanged; the aggregate-level profile for Iron Storm per PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06;
+    hand waypoints (i)(j)(k) and the corridor launch bar retired once live-proven. Between Q and A (P5327-P5337) the seat answered "What's the thinking
+    about when aggregate level and entity level are used" - explanation only, no new question.
+  A (owner, P5338): "Go"
+  supervisor reading: "Go" approves (a), (b), (c) and the sequence as put. It leaves RL-20260921-09, RL-20260913-03 and RL-20260914-01 as they are (the brief
+    kept them) and does NOT decide the hostile-side aggregate mapping (RU 4 vs BLR 31 vendor types), which the aggregate lane puts back to him.
+    [CORRECTED 2026-09-27, seat's own premise: the aggregate catalogue has RUS 107 / BLR 24 simulated units; "RU 4" counted a label spelling
+    (AGGREGATE_CATALOGUE_2026-09-27; CORRECTIONS_LOG). The decision itself is unchanged and still his.]
+  pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
+    feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.
 
