@@ -117,6 +117,10 @@ public sealed class VrfC2SimService : BackgroundService
     private ContainerBridgeAdapter _containerBridge;     // tick thread only
     // unit name -> the container the init rule chose for it (every in-scope unit on the aggregate model set).
     private readonly ConcurrentDictionary<string, ContainerChoice> _containerByName = new(StringComparer.Ordinal);
+    // C1c: member names are planned and reserved under this lock (PopulateInPlace); a member's requested-vs-returned name
+    // is logged once (OnVrfObjectCreated).
+    private readonly object _memberNameLock = new();
+    private readonly ConcurrentDictionary<string, byte> _memberNameLogged = new(StringComparer.Ordinal);
     private DateTime _nextPopulateSweep = DateTime.MinValue;
 
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
@@ -1143,8 +1147,27 @@ public sealed class VrfC2SimService : BackgroundService
         var pts = points
             .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev ?? 0.0 })
             .ToList();
-        _names.Requested(name);   // B3: so the area's ObjectCreated is an EXACT match, not a prefix scan
+        RequestWholeName(name, "control area");   // B3: so the area's ObjectCreated is an EXACT match, not a prefix scan
         _tickActions.Enqueue(() => _bridge.CreateControlArea(pts, name, "TacticalArea", uuid));
+    }
+
+    /// <summary>
+    /// C1c: register a name VR-Forces returns WHOLE - a route, waypoint, control area or line/point graphic carries no
+    /// DIS marking (237 route names of 31-206 characters came back intact over 132 runs; VrfNames) - so it is an EXACT
+    /// match for its own ObjectCreated and never a candidate for a unit's cut one (NameRegistry.RequestedWhole). The one
+    /// way it could still take a unit's callback - being EXACTLY a requested unit's name or 30-character marking - is
+    /// said at ERROR, never guessed around: a graphic is not renamed (a duplicate route name is the FIFO case of
+    /// _pendingRouteTasks).
+    /// </summary>
+    private void RequestWholeName(string name, string what)
+    {
+        string unit = _names.KeyConflict(name, truncatable: false);
+        _names.RequestedWhole(name);
+        if (unit != null)
+            _log.LogError("NAME COLLISION (C1c): the {What} name '{Name}' is EXACTLY the name VR-Forces returns for the " +
+                          "requested unit '{Unit}' (its first {W} characters) - that unit's callbacks would bind to this " +
+                          "object instead. Rename one of them in the source data.", what, name, unit,
+                          VrfNames.AggregateMarkingChars);
     }
 
     private void TickLoop()
@@ -1472,6 +1495,11 @@ public sealed class VrfC2SimService : BackgroundService
         // parent C2SIM uuid -> its AUTHORED <Subordinate> uuid order (N2: the attach order = the
         // declared order, so the declared first child becomes the leader, UG52 18.1.1).
         var declaredByParent = new Dictionary<string, IReadOnlyList<string>>();
+        // C1c: this init's graphic names, which come back WHOLE (no marking) and are registered AFTER its units on the
+        // terrain-query path - so the unit rename below checks them here (a unit whose 30-character form equals one would
+        // hand its callback to the graphic).
+        var initWholeNames = init.Areas.Select(a => a.Name).Concat(init.Lines.Select(l => l.Name))
+                                 .Concat(init.Points.Select(p => p.Name)).Where(n => !string.IsNullOrEmpty(n)).ToList();
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
@@ -1561,6 +1589,35 @@ public sealed class VrfC2SimService : BackgroundService
                                     plan.Fidelity, plan.Name, plan.TemplateName,
                                     FormatSpec(plan.Type), plan.MapNote,
                                     plan.Substitution.Length == 0 ? "" : " " + plan.Substitution);
+            }
+
+            // C1c (2026-09-28, run G1): EVERY NAME WE ASK VR-FORCES FOR IS UNIQUE WITHIN ITS FIRST 30 CHARACTERS - what
+            // VR-Forces returns of an aggregate name that overflows its 31-character marking field (VrfNames; 107 of 107
+            // cut names), and the NameRegistry can only tell two cut names apart by what survives. Checked against every
+            // name already requested, every unit planned earlier in this init and this init's graphics, and resolved HERE -
+            // after the proxy tag, before any map is keyed by the name: a colliding unit is requested as its unique
+            // 30-character form ("~k"), which VR-Forces returns exactly. No shipped init has such a pair (13 of 13 files,
+            // --populate-selftest p14), so on every one of them this changes nothing.
+            {
+                string before = plan.Name;
+                string unique = _names.UniqueTruncatable(before, toCreate.Select(p => p.Name), out string collidesWith,
+                                                         initWholeNames);
+                if (unique == null)
+                    _log.LogError("NAME COLLISION (C1c): unit '{Name}' agrees with '{Other}' in its first {W} characters and no " +
+                                  "~k tag is free - it is requested as it is, and its callbacks may not be attributable.",
+                                  before, collidesWith, VrfNames.AggregateMarkingChars);
+                else if (!string.Equals(unique, before, StringComparison.Ordinal))
+                {
+                    plan = plan with { Name = unique };
+                    if (proxiesToReport.Count > 0 && proxiesToReport[^1].Uuid == unit.Uuid)
+                        proxiesToReport[^1] = (proxiesToReport[^1].Uuid, proxiesToReport[^1].Name, unique,
+                                               proxiesToReport[^1].Substitution);
+                    _log.LogWarning("NAME DISAMBIGUATED (C1c): unit '{C2Sim}' is requested from VR-Forces as '{Unique}' - " +
+                                    "'{Before}' agrees with '{Other}' in its first {W} characters, all VR-Forces returns of " +
+                                    "an aggregate name that overflows its 31-character marking field, so their callbacks " +
+                                    "could not be told apart. Every lookup and log line uses the new name.",
+                                    unit.Name, unique, before, collidesWith, VrfNames.AggregateMarkingChars);
+                }
             }
 
             // Create-time terrain-clamp fix (docs/SUPERVISED_RECOVERY_PLAN.md sec 3b;
@@ -2025,7 +2082,9 @@ public sealed class VrfC2SimService : BackgroundService
         //      would then report a control point's position as that unit's and ExecuteTaskOnTick
         //      would task it. Registering the name makes the callback an EXACT match, which
         //      short-circuits the scan before it starts - exactly what the area loop above does
-        //      with _names.Requested(area.Name).
+        //      with _names.Requested(area.Name). (C1c: all of these now register through
+        //      RequestWholeName - a graphic comes back whole, so it is an exact match but never a
+        //      prefix-scan candidate for a unit's cut callback.)
         //   2. Registration happens for the WHOLE batch BEFORE the first create is enqueued, which
         //      is the rule EnqueueCreates follows for units (f0d1c68) and for the same reason: the
         //      tick thread drains _tickActions concurrently with this method, so a create issued in
@@ -2057,8 +2116,8 @@ public sealed class VrfC2SimService : BackgroundService
         }
         if (linesToCreate.Count > 0 || pointsToCreate.Count > 0)
         {
-            foreach (var l in linesToCreate) _names.Requested(l.Name);
-            foreach (var p in pointsToCreate) _names.Requested(p.Name);
+            foreach (var l in linesToCreate) RequestWholeName(l.Name, "init line");
+            foreach (var p in pointsToCreate) RequestWholeName(p.Name, "init point");
             // Say ONCE which of the now-larger requested set are strict prefixes of others at the
             // DIS marking width. A graphic is not a DIS entity and its name is not truncated, so a
             // graphic/unit prefix pair cannot mis-bind the GRAPHIC - but it CAN make a genuinely
@@ -2554,7 +2613,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 n++;
                 string handle = string.IsNullOrEmpty(s.FunctionHandle) ? "SUB" : s.FunctionHandle;
-                string childName = MakeChildName(plan.Name, handle, n);
+                string childName = MakeChildName(plan.Name, handle, n, toCreate.Select(p => p.Name));
                 var ot = s.ObjectType;
                 var childType = new EntityTypeSpec {
                     Kind = ot[1], Domain = ot[2], Country = ot[3], Category = ot[4],
@@ -2995,10 +3054,18 @@ public sealed class VrfC2SimService : BackgroundService
         string refusal = plan.Refused ? plan.Refusal : null;
         if (refusal == null)
         {
-            layout = PopulatePlanner.Plan(name, d.Plan.Pos.LatDeg, d.Plan.Pos.LonDeg, plan.Leaves, _vrf.DeStackRotationDeg);
-            if (layout.Refused) refusal = layout.Refusal;
-            else if (layout.Members.FirstOrDefault(m => _names.IsRequested(m.Name)) is { } clash)
-                refusal = $"NAME COLLISION: member name '{clash.Name}' is already an object of this run";
+            // C1c (2026-09-28, run G1): the member names are PLANNED AND RESERVED UNDER ONE LOCK - the order thread and the
+            // tick thread can both populate, and a second container must see the first one's names before it picks its
+            // own - and each is checked against every name this run requested at the 30 characters VR-Forces keeps of an
+            // aggregate's name (NameRegistry.KeyConflict). Every member name is at most 30 characters, so VR-Forces
+            // returns it EXACTLY: no prefix scan runs for a member, and the "MORE THAN ONE name" guard cannot fire for one.
+            lock (_memberNameLock)
+            {
+                layout = PopulatePlanner.Plan(name, d.Plan.Pos.LatDeg, d.Plan.Pos.LonDeg, plan.Leaves, _vrf.DeStackRotationDeg,
+                                              c => _names.KeyConflict(c, truncatable: true));
+                if (layout.Refused) refusal = layout.Refusal;
+                else foreach (var m in layout.Members) _names.Requested(m.Name);
+            }
         }
         if (refusal != null)
         {
@@ -3027,6 +3094,11 @@ public sealed class VrfC2SimService : BackgroundService
             "NOTHING IS DELETED. Members: [" +
             string.Join(", ", layout.Members.Select(m => $"{m.Name} ({m.Leaf.TemplateName})")) + "].";
         _log.LogInformation("{Line}", populateLine);
+        // C1c: say which members took a ~k tag (none in the shipped compositions - it takes two containers alike in their
+        // first 26-29 characters, or a name another object of this run already holds).
+        foreach (var m in layout.Members.Where(m => m.NameNote != null))
+            _log.LogWarning("NAME DISAMBIGUATED (C1c): member {Suffix} of {Name} is requested as '{Member}' - {Note}.",
+                            m.Leaf.Suffix, name, m.Name, m.NameNote);
         AnnounceSubstitution(c2simUuid, d, name, layout.Members.Count);
         var members = layout.Members;
         var force = d.Plan.Force;
@@ -3701,14 +3773,41 @@ public sealed class VrfC2SimService : BackgroundService
         }
     }
 
-    /// <summary>A short, unique VRF marking for a synthesized sub-unit: "&lt;parent&gt;.&lt;handle&gt;&lt;n&gt;",
-    /// trimmed to the marking limit.</summary>
-    private static string MakeChildName(string parent, string handle, int n)
+    /// <summary>A short, unique VRF marking for a synthesized sub-unit: "&lt;parent&gt;.&lt;handle&gt;&lt;n&gt;" within the
+    /// 30 characters VR-Forces keeps of an AGGREGATE's name (C1c; VrfNames.ChildName - the parent is cut, the suffix
+    /// survives), unique against every requested name and the rest of this batch (<paramref name="planned"/>) through
+    /// NameRegistry.KeyConflict, with a ~k tag when the plain name is taken. It used to be cut to 34
+    /// (MaxVrfMarkingChars), so siblings of a parent of 27+ characters came back from VR-Forces under ONE 30-character
+    /// name - the defect that cost run G1 its container members. Unchanged whenever parent + suffix already fit in 30
+    /// (every COA-STP1 expansion: "510/40~PXY.HQ1"). The name is RESERVED (registered) as it is chosen, under the lock the
+    /// member planner uses, so two expansions running at once - the order thread and the tick thread both materialize -
+    /// can never pick the same one.</summary>
+    private string MakeChildName(string parent, string handle, int n, IEnumerable<string> planned)
     {
-        string suffix = "." + handle + n;
-        int room = MaxVrfMarkingChars - suffix.Length;
-        string p = parent.Length <= room ? parent : parent.Substring(0, Math.Max(1, room));
-        return p + suffix;
+        string suffix = handle + n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var batch = planned?.ToList();
+        string name, why;
+        int tag;
+        lock (_memberNameLock)
+        {
+            name = VrfNames.UniqueChildName(parent, suffix,
+                c => _names.KeyConflict(c, truncatable: true, batch) is string other
+                    ? "collides with '" + other + "' within 30 characters" : null,
+                out tag, out why);
+            if (name != null) _names.Requested(name);
+        }
+        if (name == null)
+        {
+            string plain = VrfNames.ChildName(parent, suffix) ?? parent + "." + suffix;
+            _log.LogError("NAME COLLISION (C1c): the synthesized sub-unit {Suffix} of {Parent} has no name unique within {W} " +
+                          "characters ({Why}) - it is requested as '{Plain}' and its callbacks may not be attributable.",
+                          suffix, parent, VrfNames.AggregateMarkingChars, why, plain);
+            return plain;
+        }
+        if (tag > 1)
+            _log.LogWarning("NAME DISAMBIGUATED (C1c): the synthesized sub-unit {Suffix} of {Parent} is named '{Name}' - the " +
+                            "plain name {Why}.", suffix, parent, name, why);
+        return name;
     }
 
     /// <summary>
@@ -5520,7 +5619,7 @@ public sealed class VrfC2SimService : BackgroundService
         if (unit.IsAggregate && !unit.IsContainer && _vrf.AggregatePlanAndMove)
         {
             string wptName = task.TaskName + " WPT";
-            _names.Requested(wptName);   // B3: the waypoint's ObjectCreated is matched by this name
+            RequestWholeName(wptName, "waypoint");   // B3: the waypoint's ObjectCreated is matched by this name
             var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
             wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
             _pendingRouteUnit[wptName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
@@ -5617,7 +5716,7 @@ public sealed class VrfC2SimService : BackgroundService
         // CreateRoute is async; defer the along-route task until the route's ObjectCreated fires
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
-        _names.Requested(routeName);   // B3: the route's ObjectCreated is matched by this name
+        RequestWholeName(routeName, "route");   // B3: the route's ObjectCreated is matched by this name
         var routeQueue = _pendingRouteTasks.GetOrAdd(routeName, _ => new ConcurrentQueue<PendingRouteTask>());
         if (!routeQueue.IsEmpty)
             _log.LogWarning("Route name '{Route}' already has {N} pending task(s) - duplicate TaskName in " +
@@ -6494,8 +6593,10 @@ public sealed class VrfC2SimService : BackgroundService
         string name = bind.Name;
         if (bind.Truncated)
             _log.LogWarning("VRF returned created object '{Returned}' for the name we requested, '{Requested}' " +
-                            "({Uuid}) - a platform's name is its DIS MARKING and is truncated. Correlating it to " +
-                            "the requested name; every lookup uses that name.", e.Name, name, e.Uuid);
+                            "({Uuid}) - a name that overflows its DIS marking field (11 characters for a platform, 31 for " +
+                            "an aggregate) comes back as its first {Entity} or {Aggregate} (VrfNames). Correlating it to " +
+                            "the requested name; every lookup uses that name.", e.Name, name, e.Uuid,
+                            VrfNames.EntityMarkingChars, VrfNames.AggregateMarkingChars);
         if (bind.Ambiguous)
             _log.LogError("VRF returned created object '{Returned}' ({Uuid}), which is the truncation of MORE THAN " +
                           "ONE name we requested - it cannot be attributed and is left under the returned name. " +
@@ -6556,9 +6657,27 @@ public sealed class VrfC2SimService : BackgroundService
         // C1 (RL-20260927-03): a MEMBER of a container being populated has been created - when the last one arrives
         // every member is attached to the container, in planned order (ContainerPopulator.OnMemberCreated). Tick
         // thread: the AddToOrganization calls inside are safe here.
-        if (_containerMode && !string.IsNullOrEmpty(name) && _containers.IsMember(name, out _))
+        if (_containerMode && !string.IsNullOrEmpty(name) && _containers.IsMember(name, out var memberOfContainer))
+        {
+            // C1c: ONCE PER MEMBER, the name we asked for against the name VR-Forces returned. A member name is at most
+            // 30 characters (VrfNames), inside the 31-character aggregate marking field, so the two are EQUAL; anything
+            // else is said at WARN.
+            if (_memberNameLogged.TryAdd(name, 0))
+            {
+                if (string.Equals(e.Name, name, StringComparison.Ordinal))
+                    _log.LogInformation("POPULATE {Container}: member '{Requested}' ({N} chars) came back as EXACTLY that name " +
+                                        "({Uuid}) - at most {W} characters, it fits the aggregate marking and is bound by " +
+                                        "exact match (C1c).", memberOfContainer, name, name.Length, e.Uuid,
+                                        VrfNames.AggregateMarkingChars);
+                else
+                    _log.LogWarning("POPULATE {Container}: member '{Requested}' ({N} chars) came back as '{Returned}' ({M} " +
+                                    "chars, {Uuid}) - NOT the name we asked for; it was correlated through the registry's " +
+                                    "prefix rule (C1c: a member name should never be cut).",
+                                    memberOfContainer, name, name.Length, e.Name, (e.Name ?? "").Length, e.Uuid);
+            }
             foreach (var ev in _containers.OnMemberCreated(name, e.Uuid, DateTime.UtcNow, _containerBridge))
                 LogPopulateEvent(ev);
+        }
 
         // ORDER-TIME MATERIALIZATION case 3 (C13): a shell that was deleted and re-created as its
         // TEMPLATE has arrived. Re-attach it under its superior shell (if it had one) and release the
@@ -9485,6 +9604,11 @@ public sealed class VrfC2SimService : BackgroundService
     // payload, C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h:412), so a name longer than 34
     // characters arrives CUT and stops resolving - the 2026-09-02 route-uuid finding, which cost
     // a whole probe run. The proxy marking tag is appended only when the result still fits.
+    // C1c (2026-09-28): that is a REFERENCE limit, NOT what VR-Forces keeps of an object's own name - an aggregate name
+    // that overflows its 31-character marking field comes back as its first 30, a platform's that overflows 11 as its
+    // first 10 (VrfNames). Member and sub-unit names are therefore built within 30 (VrfNames.ChildName), and a unit name
+    // is made unique within 30 before it is requested (NameRegistry.UniqueTruncatable); this constant now budgets the
+    // proxy tag only.
     private const int MaxVrfMarkingChars = 34;
 
     private static string FormatSpec(EntityTypeSpec t)

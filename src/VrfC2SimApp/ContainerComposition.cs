@@ -673,9 +673,10 @@ public static class CompositionResolver
     }
 }
 
-/// <summary>One planned member of a population: its unique name and its slot on the ring.</summary>
+/// <summary>One planned member of a population: its unique name and its slot on the ring. NameNote is null for the
+/// plain "container.suffix" name and says why otherwise (C1c: the ~k tag that kept it unique within 30).</summary>
 public sealed record PopulateMember(int Slot, string Name, PopulateLeaf Leaf, double NorthMeters, double EastMeters,
-                                    double LatDeg, double LonDeg, double BearingDeg);
+                                    double LatDeg, double LonDeg, double BearingDeg, string NameNote = null);
 
 /// <summary>The ring a flat population is born on.</summary>
 public sealed record PopulateLayout(IReadOnlyList<PopulateMember> Members, double SpacingMeters, double RadiusMeters,
@@ -697,27 +698,33 @@ public sealed record PopulateLayout(IReadOnlyList<PopulateMember> Members, doubl
 /// </summary>
 public static class PopulatePlanner
 {
-    /// <summary>The interface's marking limit for a name it asks VR-Forces for (VrfC2SimService.MaxVrfMarkingChars).</summary>
-    public const int MaxNameChars = 34;
+    /// <summary>C1c (2026-09-28): the longest member name - 30 characters (<see cref="VrfNames.AggregateMarkingChars"/>),
+    /// which fits the 31-character aggregate marking field and so comes back from VR-Forces EXACTLY (a longer aggregate
+    /// name comes back as its first 30, 107 of 107). It was 34 (VrfC2SimService.MaxVrfMarkingChars, a DtUUID reference
+    /// limit), and run G1 lost 22 of its 23 members to names that agreed in their first 30 characters.</summary>
+    public const int MaxNameChars = VrfNames.AggregateMarkingChars;
 
     /// <summary>A leaf of this echelon rank or below sizes the ring (composition_check.py SIZING_RANK_MAX = CO).</summary>
     public static readonly int SizingRankMax = CompositionResolver.Rank(5) ?? 4;
 
     private const double MetersPerDegLat = 111_320.0;   // DeStacker's constant
 
-    /// <summary>"&lt;container, trimmed&gt;.&lt;suffix&gt;" within <see cref="MaxNameChars"/> - the shape of
-    /// VrfC2SimService.MakeChildName, so a member reads as its container's child in every log.</summary>
-    public static string MemberName(string container, string suffix)
-    {
-        string s = "." + suffix;
-        int room = MaxNameChars - s.Length;
-        string p = container ?? "";
-        if (p.Length > room) p = p.Substring(0, Math.Max(1, room));
-        return p + s;
-    }
+    /// <summary>"&lt;container, cut&gt;[~k].&lt;suffix&gt;" within <see cref="MaxNameChars"/> (VrfNames.ChildName) - the
+    /// shape of VrfC2SimService.MakeChildName, so a member reads as its container's child in every log. The container
+    /// is cut to (30 - 1 - suffix length), so the member's WHOLE name survives and VR-Forces returns it exactly.</summary>
+    public static string MemberName(string container, string suffix, int disambiguator = 0)
+        => VrfNames.ChildName(container, suffix, disambiguator);
 
+    /// <summary>
+    /// The ring and the member names. <paramref name="conflictOf"/> (C1c) is the run's own name check - the service
+    /// passes NameRegistry.KeyConflict - and returns why a candidate name is taken, or null. Every member name is
+    /// at most 30 characters, unique among the members, not the container's own 30-character marking, and cleared by
+    /// <paramref name="conflictOf"/>; a candidate that is not takes the first free ~k tag (k = 2 .. 99), deterministic
+    /// for the same run state, and the population is REFUSED (NAME COLLISION) only when none is free.
+    /// </summary>
     public static PopulateLayout Plan(string containerName, double anchorLat, double anchorLon,
-                                      IReadOnlyList<PopulateLeaf> leaves, double rotationDeg)
+                                      IReadOnlyList<PopulateLeaf> leaves, double rotationDeg,
+                                      Func<string, string> conflictOf = null)
     {
         if (leaves == null || leaves.Count == 0)
             return new PopulateLayout(Array.Empty<PopulateMember>(), 0.0, 0.0, 0.0, "no leaf to place");
@@ -735,17 +742,27 @@ public static class PopulatePlanner
         double metersPerDegLon = MetersPerDegLat * Math.Max(Math.Cos(anchorLat * Math.PI / 180.0), 0.01);
         var members = new List<PopulateMember>(leaves.Count);
         var names = new HashSet<string>(StringComparer.Ordinal);
+        string containerKey = VrfNames.Key(containerName);
         for (int k = 0; k < leaves.Count; k++)
         {
             var (north, east) = DeStacker.EqualBearingOffset(k, leaves.Count, radius, rotationDeg);
-            string name = MemberName(containerName, leaves[k].Suffix);
-            if (!names.Add(name))
+            string name = VrfNames.UniqueChildName(containerName, leaves[k].Suffix, candidate =>
+                names.Contains(candidate) ? "is another member's name"
+                : string.Equals(candidate, containerKey, StringComparison.Ordinal)
+                    ? "is the container's own 30-character marking"
+                    : conflictOf?.Invoke(candidate) is string c ? "collides with '" + c + "' within 30 characters"
+                    : null,
+                out int tag, out string why);
+            if (name == null)
                 return new PopulateLayout(Array.Empty<PopulateMember>(), spacing, radius, reach,
-                    $"NAME COLLISION: member name '{name}' is produced twice within {MaxNameChars} characters");
+                    $"NAME COLLISION: member '{leaves[k].Suffix}' of '{containerName}' has no name unique within " +
+                    $"{MaxNameChars} characters (the ~2..~{VrfNames.MaxDisambiguator} tags included): {why}");
+            names.Add(name);
             double bearing = ((rotationDeg + 360.0 * k / leaves.Count) % 360.0 + 360.0) % 360.0;
             members.Add(new PopulateMember(k, name, leaves[k], north, east,
                                            anchorLat + north / MetersPerDegLat, anchorLon + east / metersPerDegLon,
-                                           radius > 0.0 ? bearing : 0.0));
+                                           radius > 0.0 ? bearing : 0.0,
+                                           tag > 1 ? $"tag {VrfNames.Tag(tag)}: the plain name {why}" : null));
         }
         return new PopulateLayout(members, spacing, radius, reach, null);
     }

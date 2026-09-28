@@ -195,6 +195,75 @@ public static class NameSelfTest
                             && recreate.TryGetUuid(liveUnit, out var tu2) && tu2 == "VRF_UUID:template",
               "the allowance is ONE-SHOT: the next unexpected rebind is refused again");
 
+        // ---- C1c (2026-09-28, run G1): an AGGREGATE comes back at 30 characters; the request-time key check ----
+        // The G1 shape, verbatim: the division container (32 chars) comes back as its first 30, and its HQ member,
+        // built within 34, came back as THE SAME 30 characters.
+        const string div = "28ID__FRIENDLY_INFANTRY_DIVISION";
+        const string divKey = "28ID__FRIENDLY_INFANTRY_DIVISI";
+        Check(ref failures, VrfNames.Key(div) == divKey && VrfNames.AggregateMarkingChars == 30
+                            && VrfNames.AggregateMarkingField == 31
+                            && VrfNames.EntityMarkingChars == NameRegistry.MarkingTruncationWidth,
+              "C1c: VrfNames.Key is the first 30 characters - what an aggregate name that overflows its 31-character field " +
+              "comes back as; a platform stays at the 10 of MarkingTruncationWidth");
+        Check(ref failures, VrfNames.ReturnedAggregateName(div) == divKey
+                            && VrfNames.ReturnedAggregateName("4ID__FRIENDLY_INFANTRY_DIVISION") == "4ID__FRIENDLY_INFANTRY_DIVISION"
+                            && VrfNames.ReturnedAggregateName("ABC") == "ABC",
+              "C1c: the MEASURED rule - 32 characters came back as the first 30, a 31-character name that FITS the field came " +
+              "back whole (runs 20260928T101531Z / T102541Z), a short one whole");
+        var g1 = new NameRegistry();
+        g1.Requested(div);
+        g1.Bind(divKey, "VRF_UUID:div");
+        Check(ref failures, g1.KeyConflict("28ID__FRIENDLY_INFANTRY_DIVISI.HQ1", truncatable: true) == div,
+              "C1c FAIL-FIRST: the 34-character member name '28ID__FRIENDLY_INFANTRY_DIVISI.HQ1' collides with its own " +
+              "container within 30 - the check names the container");
+        Check(ref failures, g1.KeyConflict("28ID__FRIENDLY_INFANTRY_DI.HQ1", truncatable: true) == null,
+              "C1c: the 30-character member name '28ID__FRIENDLY_INFANTRY_DI.HQ1' collides with nothing");
+        Check(ref failures, g1.KeyConflict(divKey, truncatable: true) == div,
+              "C1c: a name EQUAL to a cut name's 30 characters is a collision (its exact callback would hijack the cut one)");
+        var twins = new NameRegistry();
+        twins.Requested("4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION");
+        string twin = twins.UniqueTruncatable("4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION_REAR", null, out var met);
+        Check(ref failures, met == "4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION" && twin == "4ID/III_Corps__FOUR_TH_US_IN~2"
+                            && twins.KeyConflict(twin, truncatable: true) == null,
+              $"C1c: two unit names alike in their first 30 - the second is requested as its unique 30-character form " +
+              $"('{twin}')");
+        Check(ref failures, twins.UniqueTruncatable("ABCDEFGHIJ", null, out var none) == "ABCDEFGHIJ" && none == null,
+              "C1c: a name that collides with nothing is requested UNCHANGED");
+        // A WHOLE name (route, waypoint, control area, line/point) comes back intact, so it is never a candidate for a
+        // unit's cut callback. FAIL-FIRST with the old registration: the same route makes the unit AMBIGUOUS.
+        const string unitLong = "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE";
+        const string routeLong = "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE T14 ROUTE";
+        var oldReg = new NameRegistry();
+        oldReg.Requested(unitLong);
+        oldReg.Requested(routeLong);
+        Check(ref failures, oldReg.Bind(VrfNames.Key(unitLong), "VRF_UUID:unit").Ambiguous,
+              "C1c FAIL-FIRST: a long route registered like a unit makes the unit's 30-character callback AMBIGUOUS");
+        var wholeReg = new NameRegistry();
+        wholeReg.Requested(unitLong);
+        wholeReg.RequestedWhole(routeLong);
+        var unitBind = wholeReg.Bind(VrfNames.Key(unitLong), "VRF_UUID:unit");
+        Check(ref failures, !unitBind.Ambiguous && unitBind.Name == unitLong && wholeReg.IsWhole(routeLong)
+                            && wholeReg.Bind(routeLong, "VRF_UUID:route").Name == routeLong,
+              "C1c: registered WHOLE, the route is no candidate - the unit's cut callback resolves to the unit, the route's " +
+              "own callback is an exact match");
+        Check(ref failures, wholeReg.KeyConflict(VrfNames.Key(unitLong), truncatable: false) == unitLong
+                            && wholeReg.KeyConflict(routeLong, truncatable: false) == null,
+              "C1c: a whole name EXACTLY equal to a unit's 30-character name is reported (the one way it could take the " +
+              "unit's callback); a route sharing only the unit's prefix, or itself (the FIFO duplicate case), is not");
+        var upgrade = new NameRegistry();
+        upgrade.RequestedWhole("ABCDEFGHIJKLMNOP");
+        upgrade.Requested("ABCDEFGHIJKLMNOP");
+        Check(ref failures, !upgrade.IsWhole("ABCDEFGHIJKLMNOP"),
+              "C1c: a truncatable request wins over an earlier whole one (the conservative reading)");
+        // The init rename also sees the SAME init's graphics (not registered yet on the terrain-query path): a unit whose
+        // 30 characters equal an area's name would hand its cut callback to the area.
+        var graphics = new NameRegistry();
+        string beforeArea = graphics.UniqueTruncatable(unitLong, null, out var metArea, new[] { VrfNames.Key(unitLong) });
+        Check(ref failures, metArea == VrfNames.Key(unitLong) && beforeArea == "48_IBCT/28ID__FRIENDLY_INFAN~2"
+                            && graphics.UniqueTruncatable(unitLong, null, out _, new[] { routeLong }) == unitLong,
+              "C1c: a unit whose 30-character form EQUALS a planned graphic's name is renamed ('48_IBCT/28ID__FRIENDLY_INFAN~2'); " +
+              "a graphic that only shares its prefix changes nothing");
+
         // ---- cleanup list: one uuid however many names point at it ----
         Check(ref failures, reg.CreatedUuids().Count == 2,
               "CreatedUuids is DISTINCT (the truncated unit's two names are one object)");
