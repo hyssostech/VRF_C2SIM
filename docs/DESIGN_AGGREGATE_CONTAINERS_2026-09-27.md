@@ -42,7 +42,9 @@ time), through new VrfFacade/VrfBridge create overloads, and every ObjectCreated
 (NameRegistry.BindCreated); the publication gate (PublishedSubordinateCount) and the PA_* scripted tasks already address
 the container by uuid - unchanged. `--populate-selftest` p15 replays G1's 23 members with their OLD 34-character names:
 by uuid 23 of 23 bind, by name alone 1 of 23. Needs a native rebuild + all eleven consumers; that VR-Forces returns the
-requested uuid for an aggregate (as it does for a control area) is owed to G1-2. RUNBOOK sec 11i (IDENTITY BY UUID).
+requested uuid for an aggregate (as it does for a control area) was owed to G1-2 and was SEEN there (2026-09-28, both
+runs: 59 of 59 created under the requested uuid and bound by it; PREREG_IRONSTORM_AGG_G1-2_2026-09-28.md Result); an
+entity (platform) create stays owed. RUNBOOK sec 11i (IDENTITY BY UUID).
 
 ## 1. The five questions
 

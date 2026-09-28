@@ -4034,10 +4034,16 @@ OFFLINE PROOF: `--populate-selftest` p15 replays G1's 23 members with their OLD 
 the 23 derived uuids are distinct, stable and what `MemberPlan` sends; every shipped init (13 of 13) has one object per
 uuid - each unit's C2SIM uuid well-formed, unique and no graphic's; every `_bridge.CreateEntity`/`CreateAggregate` call
 passes a uuid (source guard); the linked bridge carries the overloads. `--name-selftest` pins the v5 derivation
-against Python's uuid5 values, the fallback, the line shapes and the marking resolution. NOT PROVEN - LIVE-OWED (G1-2):
-that VR-Forces returns the REQUESTED uuid for ENTITIES and AGGREGATES as it does for control areas. If it does not, every
-unit prints the `not one we requested` WARN, the summary reads `0 of 36 ... by uuid`, and the name rule (C1c) still binds
-them. THE RESIDUAL: a completion whose marking two uuid-bound objects share cannot be attributed (it carries no uuid) -
+against Python's uuid5 values, the fallback, the line shapes and the marking resolution. SEEN LIVE 2026-09-28 for
+AGGREGATES (G1-2, docs/experiments/PREREG_IRONSTORM_AGG_G1-2_2026-09-28.md Result P3 and N2: the pre-warm
+20260928T141734Z_run and the scored 20260928T142731Z_run on the 699552c build, bridge 03226dd0): VR-Forces returned the
+REQUESTED uuid for every aggregate - 59 `created as uuid ... (requested)` lines per run (36 init containers under their
+C2SIM uuids, 35 with the cut marking and 4ID__FRIENDLY_INFANTRY_DIVISION whole; 23 members under their derived uuids,
+each with its own name), 0 `not one we requested`, `IDENTITY: 36 of 36 objects bound by uuid, 0 by name ...`, the
+populations `1 of 1`, `5 of 5`, `17 of 17`, and an independent federate (WatchVrf) saw the three performers and the 23
+members under those uuids. STILL LIVE-OWED: an ENTITY (createEntity - no platform is created on the aggregate
+profile), a synthesized sub-unit and a template re-create. Where a uuid is not honoured, that object prints the `not one
+we requested` WARN, the summary reads fewer than n by uuid, and the name rule (C1c) still binds it. THE RESIDUAL: a completion whose marking two uuid-bound objects share cannot be attributed (it carries no uuid) -
 C1c's names keep markings apart for every name the interface requests. The vendor's report message carries its sender as
 a DtUUID (`vrfmsgs/vrfObjectMessage.h:83` `transmitter()`; "sending by name or UUID of object", :77-78), which the facade
 reads today only for its marking (VrfFacade.cpp reportTrampoline) - a candidate native follow-up to attribute completions
