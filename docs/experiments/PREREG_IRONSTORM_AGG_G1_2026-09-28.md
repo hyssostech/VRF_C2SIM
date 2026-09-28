@@ -673,3 +673,21 @@ UNEXPLAINED OR ASSUMED: the container's in-motion lag behind its member (up to 1
 publication rate or dead reckoning]; why a 31-character name survives whole while 32 and more are cut to 30 [A: the
 vendor's truncation code is not read]; L81507 "Can't create data of type pa_move_along_route. No creator found." (raw
 vendor SDK output, once; the same benign family E2-2 printed for other types; no effect seen).
+
+### Seat readings (2026-09-28, written after this record was merged; the three items the Result left to the seat)
+
+- P2(f), L183045 "Cleanup: deleting 48 created VR-Forces objects before resign...": NOT a delete in the falsifier's sense.
+  It is the resign-time teardown every run prints after "Application is shutting down..." (E2-2 L582395, 42 objects),
+  outside the window; C1's "never deletes and re-creates" concerns objects during the run. P2 PASSES. G1-2 registers (f)
+  as "ZERO DELETE-family lines from init to the last scored line; the shutdown cleanup line is excluded by name".
+- P15: PASSES by its letter (0 L-D6 WITHHELD for T10 / T14) and its stated reason is WITHDRAWN: T14 produced no arrival
+  evidence (P12; the route origin moved by the pre-flight, N3), so the vendor completion 9 m from the route end was the
+  first and only close and D-6 handed it on within its 100 m. D-6's withhold limb was not exercised. G1-2 registers P15
+  in two limbs: (i) a vendor completion within 100 m of the destination takes the hand-on (SEEN here); (ii) a completion
+  more than 100 m short is WITHHELD and the arrival evidence or the time rules close the task (UNSEEN). P12 must name
+  whose position the arrival evidence reads - the container's fix trails its member by up to 150 m while moving.
+- P3c versus S2: where a registered branch names a consequence (S2: population TIMED OUT -> that container's moves are
+  REFUSED with TASKABRT), the branch's reading governs; P3c's STOP clause is for a dispatch that reaches a container whose
+  members are attached but unpublished (the publication gate failing), which did not happen. P3c is a MISS by the letter
+  and not a stop of its own; this run's stop is P3 (N1). G1-2 rewords P3c: "ZERO memberless-move refusals other than
+  S2's; any dispatch before its container's L-PUB = STOP".
