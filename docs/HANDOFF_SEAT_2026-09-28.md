@@ -58,7 +58,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    u3\laneG1-3 adapted (scratchpad H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\5fc25950-1a10-4ade-9a7b-68cb5c1daf05\
    scratchpad\u3\laneG1-3\); ask the STP session to hold builds first (idle MSBuild workers fail the pre-launch check;
    let them time out, never kill).
-5. LABEL follow-up (owner 2026-09-28 ~20:55Z, from UG52 13.2.5 / 21.2 / 21.3): our creates send label = nullString
+5. LABEL follow-up (asked 2026-09-28 ~20:55Z; UG52 13.2.5 / 21.2 / 21.3): our creates send label = nullString
    (VrfFacade.cpp :943, :964, :980), so the map shows only the NAME - the 30-character cut for containers, the 16-character
    display name for members. The vendor's LABEL is uncapped, not unique and never a key: put the full C2SIM designation in the
    Label on every create (a small native change - the facade hard-codes the null label; the bridge overloads take a label
