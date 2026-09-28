@@ -1577,7 +1577,13 @@ Write-Host '=== 8n. F6: scenario/init/order provenance - argument > environment 
 $provPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $provScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
 $provSaved   = @{ s = $env:C2SIM_SCENARIO; i = $env:C2SIM_INIT; o = $env:C2SIM_ORDER }
-$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''; $provDefCode = $null
+$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''; $provDefCode = $null; $provR9Out = ''; $provR9Code = $null
+# THE MOJAVE R9 SET BY NAME - the 5.2 built-in default until 2026-09-28, when the default became Iron Storm cut A
+# (RL-20260920-01 item 1). Every R9-specific check below (8y, 8z) now reads THIS dry run, so each keeps testing exactly
+# what it tested; the all-defaults run ($provDefOut) is Iron Storm's and has checks of its own.
+$provR9Args = @('-Scenario', 'Sample\FirstExperience\firstexperience',
+                '-Init',  (Join-Path $RepoRoot 'data\R9_Mojave_Lean_Initialization.xml'),
+                '-Order', (Join-Path $RepoRoot 'data\R9_Mojave_UnitMove_Order.xml'))
 try {
     $env:C2SIM_SCENARIO = 'RunnerTurnaround_EnvScenario'
     $env:C2SIM_INIT     = (Join-Path $RepoRoot 'data\COA-STP1_Initialization.xml')
@@ -1595,6 +1601,8 @@ try {
     $env:C2SIM_ORDER    = $null
     $provDefOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
     $provDefCode = $LASTEXITCODE
+    $provR9Out = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck @provR9Args 2>&1 | Out-String)
+    $provR9Code = $LASTEXITCODE
 } finally {
     $env:C2SIM_SCENARIO = $provSaved.s
     $env:C2SIM_INIT     = $provSaved.i
@@ -1605,6 +1613,7 @@ try {
 $provEnvFlat = ($provEnvOut -replace '\s+', ' ')
 $provArgFlat = ($provArgOut -replace '\s+', ' ')
 $provDefFlat = ($provDefOut -replace '\s+', ' ')
+$provR9Flat  = ($provR9Out -replace '\s+', ' ')
 Check '8n THE F6 DEFECT: $env:C2SIM_SCENARIO is honoured by the ps1 (it was read only by RunScenario.sh)' (
     $provEnvFlat -match 'scenario : RunnerTurnaround_EnvScenario') "banner did not carry the env scenario"
 Check '8n the banner names the SOURCE of all three, and says the environment for all three' (
@@ -1621,11 +1630,29 @@ Check '8n an ARGUMENT beats the environment for all three (so the env arm cannot
     $provArgFlat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- argument -Order')
 Check '8n with all three given as arguments the environment warning is NOT printed' (
     $provArgFlat -notmatch 'came from the ENVIRONMENT')
-Check '8n with NOTHING exported all three report the built-in default, and 5.2 still gets its own scenario default' (
-    $provDefFlat -match 'scenario : Sample\\FirstExperience\\firstexperience <- built-in default' -and
-    $provDefFlat -match 'init : \S*R9_Mojave_Lean_Initialization\.xml <- built-in default' -and
-    $provDefFlat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- built-in default' -and
+# THE BUILT-IN DEFAULT IS IRON STORM (2026-09-28; RL-20260920-01 item 1, audit 2026-09-28 fix 3): the cut-A pair on
+# its aggregate fixture, and the clientId that goes with that init.
+Check '8n with NOTHING exported all three report the built-in default - on 5.2 the IRON STORM cut-A pair on IronStorm_Centre_52_Aggregate' (
+    $provDefFlat -match 'scenario : IronStorm_Centre_52_Aggregate <- built-in default' -and
+    $provDefFlat -match 'init : \S*IRONSTORM_CUTA_Initialization\.xml <- built-in default' -and
+    $provDefFlat -match 'order : \S*IRONSTORM_CUTA_Order\.xml <- built-in default' -and
     $provDefFlat -notmatch 'came from the ENVIRONMENT')
+Check '8n ... and its clientId is the built-in init''s own SystemName "Not Set", SAID to be the built-in default - never a mismatch' (
+    $provDefFlat -match 'clientId : Not Set \(built-in default - the SystemName of the built-in init IRONSTORM_CUTA_Initialization\.xml' -and
+    $provDefFlat -notmatch 'clientId MISMATCH')
+Check '8n the MOJAVE R9 set stays selectable: named, it resolves as the old default did (clientId from appsettings.json)' (
+    $provR9Flat -match 'scenario : Sample\\FirstExperience\\firstexperience <- argument -Scenario' -and
+    $provR9Flat -match 'init : \S*R9_Mojave_Lean_Initialization\.xml <- argument -Init' -and
+    $provR9Flat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- argument -Order' -and
+    $provR9Flat -match 'clientId : STP \(appsettings\.json\)' -and $provR9Flat -notmatch 'built-in default - the SystemName')
+Check '8n runner: the built-in pair is Iron Storm on 5.2 and the R9 pair on 5.0.2, and the "Not Set" clientId goes with the 5.2 init only' (
+    $runnerText -match "\`$ScenarioBuiltin = 'IronStorm_Centre_52_Aggregate'" -and
+    $runnerText -match "\`$InitBuiltin  = Join-Path \`$DataDir \`$\(if \(\`$Is52\) \{ 'IRONSTORM_CUTA_Initialization\.xml' \} else \{ 'R9_Mojave_Lean_Initialization\.xml' \}\)" -and
+    $runnerText -match "\`$OrderBuiltin = Join-Path \`$DataDir \`$\(if \(\`$Is52\) \{ 'IRONSTORM_CUTA_Order\.xml' \} else \{ 'R9_Mojave_UnitMove_Order\.xml' \}\)" -and
+    $runnerText -match "\`$ClientIdBuiltin = \`$\(if \(\`$Is52\) \{ 'Not Set' \} else \{ '' \}\)" -and
+    $runnerText -match "if \(-not \`$ClientId -and -not \`$ClientIdEnvBefore -and \`$ClientIdBuiltin -and \`$InputSource\['init'\] -eq 'built-in default'\)")
+Check '8n the built-in init really declares the SystemName the built-in clientId names ("Not Set")' (
+    ([System.IO.File]::ReadAllText((Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Initialization.xml'))) -match '<SystemName>Not Set</SystemName>')
 # The WRAPPER half of "identically in both entry points". scripts\RunScenario.sh already read all
 # three; what it did NOT do was say so, and it passed an env-sourced value to the runner as an
 # ARGUMENT, which would make the runner report 'argument' for a value nobody typed. It now prints
@@ -1658,10 +1685,32 @@ if (-not (Test-Path -LiteralPath $provBash)) {
     $provBlankOut = (& $provBash '-c' "export C2SIM_SCENARIO='   '; export C2SIM_INIT='  '; export C2SIM_ORDER=' '; '$provWrapperPosix' --dry-run" 2>&1 | Out-String)
     $provBlankFlat = ($provBlankOut -replace '\s+', ' ')
     Check '8n a WHITESPACE-ONLY C2SIM_SCENARIO/INIT/ORDER counts as unset in the wrapper too (same rule as the runner)' (
-        $provBlankFlat -match 'scenario : R9_Mojave_Empty_52_NavAO <- built-in default' -and
-        $provBlankFlat -match 'init : data/COA-STP1_Initialization\.xml <- built-in default' -and
-        $provBlankFlat -match 'order : data/COA-STP1_Order\.xml <- built-in default') (
+        $provBlankFlat -match 'scenario : IronStorm_Centre_52_Aggregate <- built-in default' -and
+        $provBlankFlat -match 'init : data/IRONSTORM_CUTA_Initialization\.xml <- built-in default' -and
+        $provBlankFlat -match 'order : data/IRONSTORM_CUTA_Order\.xml <- built-in default') (
         "the wrapper banner did not fall back to its OWN defaults")
+    # THE WRAPPER'S DEFAULT IS IRON STORM TOO (2026-09-28), with the clientId that goes with that init; a NAMED init keeps
+    # the old default clientId C2SIM, so the Mojave command lines of the record run exactly as they did.
+    Check '8n the wrapper''s built-in default is the Iron Storm cut-A pair with clientId "Not Set"' (
+        $provBlankFlat -match 'clientId: Not Set') ('banner: ' + $(if ($provBlankFlat -match 'clientId: \S+( \S+)?') { $Matches[0] } else { '(none)' }))
+    $provShR9 = (& $provBash $provWrapperPosix '--dry-run' '--scenario' 'R9_Mojave_Empty_52_NavAO' '--init' 'data/COA-STP1_Initialization.xml' '--order' 'data/COA-STP1_Order.xml' 2>&1 | Out-String)
+    $provShR9Flat = ($provShR9 -replace '\s+', ' ')
+    Check '8n the wrapper''s Mojave set, named, keeps clientId C2SIM (the old default) and passes all three as arguments' (
+        $provShR9Flat -match 'clientId: C2SIM' -and
+        $provShR9Flat -match 'scenario : R9_Mojave_Empty_52_NavAO <- argument --scenario' -and
+        $provShR9Flat -match 'init : data/COA-STP1_Initialization\.xml <- argument --init' -and
+        $provShR9Flat -match 'order : data/COA-STP1_Order\.xml <- argument --order')
+    Check '8n the wrapper resolves the clientId AFTER the options, only when --client-id was not given' (
+        $provShText -match "--client-id\)\s+CLIENT_ID=""\`$2""; CLIENT_ID_SET=1; shift 2 ;;" -and
+        $provShText -match "if \[ ""\`$INIT_SRC"" = 'built-in default' \]; then CLIENT_ID='Not Set'; else CLIENT_ID='C2SIM'; fi" -and
+        $provShText -match "else SCENARIO='IronStorm_Centre_52_Aggregate';" -and
+        $provShText -match "else INIT='data/IRONSTORM_CUTA_Initialization\.xml';" -and
+        $provShText -match "else ORDER='data/IRONSTORM_CUTA_Order\.xml';")
+    Check '8n the wrapper''s usage names the Iron Storm defaults and how to select the Mojave set' (
+        $provShDef -match '--scenario NAME\s+scenario name\s+\(default IronStorm_Centre_52_Aggregate' -and
+        $provShDef -match 'default data/IRONSTORM_CUTA_Initialization\.xml' -and $provShDef -match 'default data/IRONSTORM_CUTA_Order\.xml' -and
+        $provShDef -match '--scenario R9_Mojave_Empty_52_NavAO --init data/COA-STP1_Initialization\.xml' -and
+        $provShDef -match 'Not Set with the built-in')
 }
 
 # 8o. F5: the runner PREDICTS the route-shift state from its OWN environment, while a
@@ -1908,16 +1957,19 @@ Write-Host '=== 8v3. SF-R4: Vrf__ClientId is restored, and the banner names its 
 $ciProbe = Join-Path ([System.IO.Path]::GetTempPath()) ('_ClientIdLeakProbe.{0}.ps1' -f [Guid]::NewGuid().ToString('N'))
 # The probe runs a REAL dry run (nothing launched, no run directory - see 8h) and reports the
 # shell afterwards plus the two lines that carry the claim: the Stage 0 banner and, when it
-# fires, the SystemName gate. 'STP' is the SystemName the shipped inits declare, so the
+# fires, the SystemName gate. 'STP' is the SystemName the R9 inits declare, so the
 # banner-reading arms must use it - a mismatching id aborts at validation BEFORE the banner,
-# which is itself asserted as arm (d).
+# which is itself asserted as arm (d). Since 2026-09-28 the built-in default is Iron Storm (whose
+# init declares "Not Set"), so arms (a)-(d) NAME the R9 set; arms (e)-(f) run the built-in default.
 $ciSrc = @'
-param([string]$Runner, [string]$Before, [string]$Pass)
+param([string]$Runner, [string]$Before, [string]$Pass, [string]$R9Init, [string]$R9Order, [switch]$Builtin)
 if ($Before -eq '(unset)') { $env:Vrf__ClientId = $null } else { $env:Vrf__ClientId = $Before }
+# A HASHTABLE splat: an ARRAY splatted into a script binds its '-Scenario' strings POSITIONALLY (to -Init).
+$set = $(if ($Builtin) { @{} } else { @{ Scenario = 'Sample\FirstExperience\firstexperience'; Init = $R9Init; Order = $R9Order } })
 if ($Pass -eq '(none)') {
-    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck @set 2>&1
 } else {
-    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ClientId $Pass 2>&1
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ClientId $Pass @set 2>&1
 }
 Write-Output ('EXITCODE=' + $LASTEXITCODE)
 Write-Output ('AFTER=[' + $env:Vrf__ClientId + ']')
@@ -1927,19 +1979,20 @@ foreach ($ln in (($out | Out-String) -split "`r?`n")) {
 '@
 try {
     [System.IO.File]::WriteAllText($ciProbe, $ciSrc, (New-Object System.Text.UTF8Encoding($false)))
+    $ciR9 = @('-R9Init', (Join-Path $RepoRoot 'data\R9_Mojave_Lean_Initialization.xml'), '-R9Order', (Join-Path $RepoRoot 'data\R9_Mojave_UnitMove_Order.xml'))
     # (a) -ClientId on a shell that had nothing: the run must give the shell back nothing.
-    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass 'STP' 2>&1 | Out-String)
+    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass 'STP' @ciR9 2>&1 | Out-String)
     Check '8v3 (a) -ClientId leaves NOTHING behind when the shell had nothing' (
         $ciA -match 'AFTER=\[\]') $ciA
     Check '8v3 (a) and the banner credits the SWITCH, not appsettings.json' (
         $ciA -match 'clientId\s+:\s+STP \(-ClientId -> Vrf__ClientId') $ciA
     # (b) -ClientId on a shell that had its OWN value: that value comes back, not the runner's.
-    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'MINE' -Pass 'STP' 2>&1 | Out-String)
+    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'MINE' -Pass 'STP' @ciR9 2>&1 | Out-String)
     Check '8v3 (b) -ClientId puts the shell''s OWN value back, not the runner''s' (
         $ciB -match 'AFTER=\[MINE\]') $ciB
     # (c) THE MISLABEL ITSELF: no -ClientId, but the shell carries one. The app reads it and it
     #     beats appsettings.json, so the banner must say so - it used to say "(appsettings.json)".
-    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' 2>&1 | Out-String)
+    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' @ciR9 2>&1 | Out-String)
     Check '8v3 (c) an INHERITED Vrf__ClientId is named as INHERITED, never credited to appsettings.json' (
         $ciC -match 'clientId\s+:\s+STP \(INHERITED Vrf__ClientId in this shell' -and
         $ciC -notmatch 'clientId\s+:\s+STP \(appsettings\.json\)') $ciC
@@ -1948,13 +2001,25 @@ try {
     # (d) AND THE GATE NOW BITES ON IT. A leaked id that disagrees with the init's SystemName is
     #     a run that creates 0 UNITS; the check used to compare appsettings.json, which is the
     #     value the app would NOT have used, so it could not see this at all.
-    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'WRONGID' -Pass '(none)' 2>&1 | Out-String)
+    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'WRONGID' -Pass '(none)' @ciR9 2>&1 | Out-String)
     Check '8v3 (d) an inherited id that disagrees with the init is REFUSED at validation (exit 2)' (
         $ciD -match 'EXITCODE=2') $ciD
     Check '8v3 (d) and the refusal names the EFFECTIVE value and the source it came from' (
         $ciD -match "clientId MISMATCH: the EFFECTIVE Vrf:ClientId is 'WRONGID' \(source: INHERITED Vrf__ClientId") $ciD
     Check '8v3 (d) a refused run still hands the shell back its own value untouched' (
         $ciD -match 'AFTER=\[WRONGID\]') $ciD
+    # (e) THE BUILT-IN DEFAULT (2026-09-28): nothing named, nothing inherited, the built-in Iron Storm init. Its own
+    #     SystemName "Not Set" is used, SAID to be the built-in default, exported like -ClientId - and put back.
+    $ciE = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass '(none)' -Builtin 2>&1 | Out-String)
+    Check '8v3 (e) the built-in init gets its own clientId "Not Set", credited to the BUILT-IN DEFAULT, and the shell gets nothing back' (
+        $ciE -match 'EXITCODE=0' -and $ciE -match 'clientId\s+:\s+Not Set \(built-in default - the SystemName of the built-in init' -and
+        $ciE -match 'AFTER=\[\]' -and $ciE -notmatch 'clientId MISMATCH') $ciE
+    # (f) An INHERITED Vrf__ClientId still beats the built-in default (the environment beats a built-in default, as for
+    #     the init itself) - and a wrong one is refused by the same gate, never silently replaced.
+    $ciF = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' -Builtin 2>&1 | Out-String)
+    Check '8v3 (f) an inherited Vrf__ClientId beats the built-in default: STP on the Iron Storm init is REFUSED as INHERITED (exit 2), left as it was' (
+        $ciF -match 'EXITCODE=2' -and $ciF -match "clientId MISMATCH: the EFFECTIVE Vrf:ClientId is 'STP' \(source: INHERITED Vrf__ClientId" -and
+        $ciF -match 'AFTER=\[STP\]') $ciF
 } finally { Remove-Item -LiteralPath $ciProbe -Force -ErrorAction SilentlyContinue }
 # The structural half: ONE mechanism, and it is the one SF-D built.
 Check '8v3 the restore is one line in the SAME outermost finally as the DurationScale one' (
@@ -2078,16 +2143,21 @@ Check '8y runner: the manifest records the model set and what Stage 0 checked it
     $runnerText -match '\$Manifest\.inputs\.modelSet = \[ordered\]@\{' -and
     $runnerText -match 'fixtureModelSet\s*=' -and $runnerText -match 'typeMapDeclares\s*=')
 # BEHAVIOUR, on the REAL runner in -DryRun: Stage 0 prints the model set whether or not the build
-# tree exists, so these hold in a checkout with nothing built. The default output is 8n's: the R9 pair, whose
-# tasked units are PLT/COY/COY since RL-20260928-01 re-coded 1.BdeHQ BDE -> COY, so auto keeps it EntityLevel.
-Check '8y the DEFAULT dry run says EntityLevel <- auto and that the entity map declares it (nothing else changes)' (
-    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default; exported to the app as Vrf__ModelSet' -and
-    $provDefFlat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
+# tree exists, so these hold in a checkout with nothing built. The R9 output is 8n's R9 run (the R9 set NAMED - it was
+# the default until 2026-09-28): tasked units PLT/COY/COY since RL-20260928-01 re-coded 1.BdeHQ BDE -> COY, so auto
+# keeps it EntityLevel. The DEFAULT output is Iron Storm cut A now, which auto takes to the aggregate model set.
+Check '8y the R9 dry run (named) says EntityLevel <- auto and that the entity map declares it (nothing else changes)' (
+    $provR9Flat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default; exported to the app as Vrf__ModelSet' -and
+    $provR9Flat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
+    $provR9Flat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
+Check '8y the DEFAULT dry run (Iron Storm cut A) says AggregateTacticalLevel <- auto and that the aggregate map declares it' (
+    $provDefFlat -match 'model set : AggregateTacticalLevel <- auto \(RL-20260927-06\): highest TASKED echelon DIV \(28ID__FRIENDLY_INFANTRY_DIVISION\) is ABOVE BN - aggregate-only; exported to the app as Vrf__ModelSet' -and
+    $provDefFlat -match 'type map : data/unit-type-map-52-aggregate\.json - declares AggregateTacticalLevel' -and
     $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
-$msAggOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ModelSet AggregateTacticalLevel 2>&1 | Out-String)
+$msAggOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ModelSet AggregateTacticalLevel @provR9Args 2>&1 | Out-String)
 $msAggExit = $LASTEXITCODE
 $msAggFlat = ($msAggOut -replace '\s+', ' ')
-Check '8y -ModelSet AggregateTacticalLevel on the default (entity) scenario is REFUSED at Stage 0 with exit 2 and a clear message' (
+Check '8y -ModelSet AggregateTacticalLevel on the R9 (entity) scenario is REFUSED at Stage 0 with exit 2 and a clear message' (
     $msAggExit -eq 2 -and $msAggFlat -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel' -and
     $msAggFlat -match 'loads EntityLevel' -and $msAggFlat -match 'NOTHING was launched') ("exit=$msAggExit")
 Check '8y ... and it selected the AGGREGATE map on its own (no -TypeMapFile given)' (
@@ -2465,22 +2535,41 @@ Check '8z runner: the variant the app would resolve itself (env > appsettings) i
 Check '8z runner: the manifest records the selection (the tasked units) and the composition pairing, 5.2 only' (
     $runnerText -match "\`$Manifest\.inputs\.modelSet\['selection'\] = \[ordered\]@\{" -and
     $runnerText -match "\`$Manifest\.inputs\.modelSet\['composition'\] = " -and $runnerText -match 'tasked\s+= @\(\$ModelSetSelection\.Tasked')
-# BEHAVIOUR ON THE REAL RUNNER (-DryRun). 8n's all-defaults run is the R9 pair - since RL-20260928-01 a company-only
-# order, so it runs at EntityLevel exactly as before D2. Then cut A and the overrides, each one dry run.
-Check '8z DRY RUN, all defaults (the R9 pair): EntityLevel <- auto, the 3 tasked units listed (1.BdeHQ as COY), nothing refused on the model set' (
-    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default' -and
-    $provDefFlat -match 'tasked : 3 unit\(s\) named by the PerformingEntity of 3 task\(s\) in R9_Mojave_UnitMove_Order\.xml' -and
-    $provDefFlat -match 'COY 1\.BdeHQ 670cfdb2-6c43-f267-ad7f-bd6e739def24' -and
-    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH' -and $provDefFlat -notmatch 'ABOVE BATTALION' -and $provDefFlat -notmatch 'MODEL SET:') "exit=$provDefCode"
+# BEHAVIOUR ON THE REAL RUNNER (-DryRun). 8n's R9 run is the R9 pair NAMED (the all-defaults run until 2026-09-28) -
+# since RL-20260928-01 a company-only order, so it runs at EntityLevel exactly as before D2. 8n's all-defaults run is
+# Iron Storm cut A on its aggregate fixture since 2026-09-28 (RL-20260920-01 item 1; audit 2026-09-28 fix 3). Then
+# cut A and the overrides, each one dry run.
+Check '8z DRY RUN, the R9 pair (named): EntityLevel <- auto, the 3 tasked units listed (1.BdeHQ as COY), nothing refused on the model set' (
+    $provR9Flat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default' -and
+    $provR9Flat -match 'tasked : 3 unit\(s\) named by the PerformingEntity of 3 task\(s\) in R9_Mojave_UnitMove_Order\.xml' -and
+    $provR9Flat -match 'COY 1\.BdeHQ 670cfdb2-6c43-f267-ad7f-bd6e739def24' -and
+    $provR9Flat -notmatch 'FIXTURE/TYPE-MAP MISMATCH' -and $provR9Flat -notmatch 'ABOVE BATTALION' -and $provR9Flat -notmatch 'MODEL SET:') "exit=$provR9Code"
+if ($provR9Flat -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8z R9 plan legs SKIPPED - that dry run did not reach the planned sequence in this checkout (no Release-5.2 binaries)' $true
+} else {
+    Check '8z DRY RUN, the R9 pair: exit 0, the entity map, Vrf__ModelSet=EntityLevel and NOTHING aggregate in the plan' (
+        $provR9Code -eq 0 -and $provR9Flat -match 'Vrf__ModelSet=EntityLevel' -and $provR9Flat -match 'Vrf__TypeMapFile=data/unit-type-map-52\.json' -and
+        $provR9Flat -notmatch 'Vrf__CompositionVariant' -and $provR9Flat -notmatch 'Vrf__CatalogueSms' -and $provR9Flat -notmatch 'composition :') "exit=$provR9Code"
+    Check '8z DRY RUN, the R9 pair: the plan exports Vrf__Scenario = the .scnx Stage 0 read (the named scenario here)' (
+        $provR9Flat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\Sample\\FirstExperience\\firstexperience\.scnx' -and
+        $provR9Flat -match 'Vrf__Scenario=\S*firstexperience\.scnx \(the \.scnx Stage 0 read')
+}
+Check '8z DRY RUN, ALL DEFAULTS = IRON STORM cut A: AggregateTacticalLevel <- auto (DIV), the 3 tasked units, the aggregate map, the catalogue variant, nothing refused' (
+    $provDefFlat -match 'model set : AggregateTacticalLevel <- auto \(RL-20260927-06\): highest TASKED echelon DIV \(28ID__FRIENDLY_INFANTRY_DIVISION\) is ABOVE BN' -and
+    $provDefFlat -match 'tasked : 3 unit\(s\) named by the PerformingEntity of 5 task\(s\) in IRONSTORM_CUTA_Order\.xml' -and
+    $provDefFlat -match 'type map : data/unit-type-map-52-aggregate\.json - declares AggregateTacticalLevel' -and
+    $provDefFlat -match 'composition : variant "catalogue" <- (appsettings\.json Vrf:CompositionVariant|the defaultVariant of )' -and
+    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH' -and $provDefFlat -notmatch 'ABOVE BATTALION IS AGGREGATE-ONLY' -and
+    $provDefFlat -notmatch 'COMPOSITION VARIANT/FIXTURE MISMATCH' -and $provDefFlat -notmatch 'clientId MISMATCH') "exit=$provDefCode"
 if ($provDefFlat -notmatch 'DRY RUN - the full planned sequence') {
     Check '8z all-defaults plan legs SKIPPED - that dry run did not reach the planned sequence in this checkout (no Release-5.2 binaries)' $true
 } else {
-    Check '8z DRY RUN, all defaults: exit 0, the entity map, Vrf__ModelSet=EntityLevel and NOTHING aggregate in the plan' (
-        $provDefCode -eq 0 -and $provDefFlat -match 'Vrf__ModelSet=EntityLevel' -and $provDefFlat -match 'Vrf__TypeMapFile=data/unit-type-map-52\.json' -and
-        $provDefFlat -notmatch 'Vrf__CompositionVariant' -and $provDefFlat -notmatch 'Vrf__CatalogueSms' -and $provDefFlat -notmatch 'composition :') "exit=$provDefCode"
-    Check '8z DRY RUN, all defaults: the plan exports Vrf__Scenario = the .scnx Stage 0 read (the default scenario here)' (
-        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\Sample\\FirstExperience\\firstexperience\.scnx' -and
-        $provDefFlat -match 'Vrf__Scenario=\S*firstexperience\.scnx \(the \.scnx Stage 0 read')
+    Check '8z DRY RUN, all defaults: exit 0, and the plan exports Vrf__ModelSet=AggregateTacticalLevel, the aggregate map, the Iron Storm .scnx and the catalogue variant' (
+        $provDefCode -eq 0 -and
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__ModelSet=AggregateTacticalLevel' -and
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__TypeMapFile=data/unit-type-map-52-aggregate\.json' -and
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\IronStorm_Centre_52_Aggregate\.scnx' -and
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__CompositionVariant=catalogue') "exit=$provDefCode"
 }
 $zRun = { param([string[]]$A) $o = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck @A 2>&1 | Out-String); return @($LASTEXITCODE, ($o -replace '\s+', ' ')) }
 $zCutArgs = @('-Init', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Initialization.xml'), '-Order', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Order.xml'), '-ClientId', 'Not Set')
@@ -2507,13 +2596,13 @@ if ($zAggRun[1] -match 'DRY RUN - the full planned sequence') {
 } else {
     Check '8z ... plan leg SKIPPED - that dry run did not reach the planned sequence in this checkout' $true
 }
-$zUpRun = & $zRun @('-ModelSet', 'AggregateTacticalLevel')
-Check '8z DRY RUN, OVERRIDE UP on the (company-only) R9 default: accepted by the selector (OVERRIDE UP), refused only by the entity scenario' (
+$zUpRun = & $zRun (@('-ModelSet', 'AggregateTacticalLevel') + $provR9Args)
+Check '8z DRY RUN, OVERRIDE UP on the (company-only) R9 pair, named: accepted by the selector (OVERRIDE UP), refused only by the entity scenario' (
     $zUpRun[0] -eq 2 -and $zUpRun[1] -match 'model set : AggregateTacticalLevel <- argument -ModelSet \(auto would choose EntityLevel\)' -and
     $zUpRun[1] -match 'OVERRIDE UP' -and $zUpRun[1] -notmatch 'ABOVE BATTALION IS AGGREGATE-ONLY' -and
     $zUpRun[1] -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel') "exit=$($zUpRun[0])"
-$zVarRun = & $zRun @('-CompositionVariant', 'authored')
-Check '8z DRY RUN, -CompositionVariant on an EntityLevel run: REFUSED at Stage 0 (exit 2)' (
+$zVarRun = & $zRun (@('-CompositionVariant', 'authored') + $provR9Args)
+Check '8z DRY RUN, -CompositionVariant on an EntityLevel run (the R9 pair, named): REFUSED at Stage 0 (exit 2)' (
     $zVarRun[0] -eq 2 -and $zVarRun[1] -match '-CompositionVariant authored was passed but the model set is EntityLevel') "exit=$($zVarRun[0])"
 # THE WRAPPER: --composition-variant passed ONLY when given; --model-set documents auto.
 Check '8z RunScenario.sh: --composition-variant is parsed and passed as -CompositionVariant ONLY when given; --model-set documents auto' (
