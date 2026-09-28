@@ -462,4 +462,233 @@ ASCII + CRLF.
 
 ## Result (written after the harvest, never from a live read)
 
-(pending)
+RESULT 2026-09-28: STOPPED AT THE W GATE - NO SCORED RUN. The pre-warm (run 20260928T225800Z_run, launched 22:57:59Z, runner
+exit 0 at 23:07:19Z) scored "W GATE: FAIL (branch A; H5, P-FALS(e)) - STOP before E" (g1_4_score.py --wgate, sha256
+8f7f5fd3...; scratch laneG1-4\W_gate_20260928T225800Z_run.txt). E was not launched: P0-P23 and H6 are NOT SCORED and the
+scored block 5281-5291 was never claimed. M3b's question is answered at n = 1 (below): the executor took every route. The two
+misses are not M3b's: one T14 member never moved off a lake shore (N1) and T02's member crossed its river 16 m from a road
+bridge by the scorer's chord (N2); the H5 limb that stopped the gate is one the seat's own W-MOVE decision had meant to confine
+(N3). By the stop rules (sec 4) nothing is patched or re-run under this registration; the successor is IRONSTORM_AGG_G1-2026-
+09-28-5 or later, with new numbers. Marks: [V] = checked by this lane after the run (the run directory, the runner log, the
+trace, the reports capture, the vendor script and settings, the OSM tile copy the scorer read, the machine - all read-only);
+[A] = the seat's record or an inference. The vendor sim log and C:\MAK\logs: counts, names, sizes and mtimes only.
+
+THE SEQUENCE AS RUN (by the seat under RL-20260928-01) [V: scratch laneG1-4 artefacts and the runner log
+runs/launch52/RunScenario-ironstorm-agg-g1-4-prewarm-20260928T225759Z.log, unless marked]:
+- A, 22:32:08Z: 1 check FAILED - 16 MSBuild.exe started 22:28:32Z (A_prelaunch.txt; idle build nodes of VS Code's C# Dev Kit,
+  /nodeReuse:true [A: the seat]), left to time out (HANDOFF_SEAT sec 3 item 4); gone by 22:56:28Z [A]. The federate list:
+  remoteControl 56380 (handle 2) the only join (A_federates.txt). A2 offline on the deployed exe: populate 199 PASS,
+  planned-move ALL PASS (A2_populate.txt, A2_plannedmove.txt).
+- C3, 22:32:58-22:33:29Z: PushInit exit 0, PushOrder exit 0 (C3_stdout.txt).
+- W: prelaunch at 22:56:42Z 0 FAILED (W_prelaunch.txt: the registered hashes and settings, 41 / 0 road tiles, cache 520 /
+  27c2117e, 56380 up with 243 min left, marker 5270); the sim cache listed 22:57:04Z; the dry run 22:57:26Z exit 0; the
+  pre-warm launched 22:57:59Z (g1_4_runner.stamps.txt): holder 56380 recognised PERSISTENT (runner log :89), block 5270-5280
+  claimed, marker 5270 -> 5281 (:131), Stage 2h holder pid 61064 on 5277 joined in 3 s (:162), back end pid 40228 on 5270
+  started 22:58:14.617Z (:187), the app pid 16272 on 5274 (:227), the oracle gate passed, the order on the bus 23:01:51.345Z
+  (:261), the 120 s window, every task terminal at t+120 s (4 TASKCMPLT + 1 TASKABRT, :273), the window ran 134.8 s (:277),
+  the app exit 0 - a clean resign (:285); StopVrf EXIT 6: the graceful close (taskkill without /F) was REFUSED for 120 s and
+  the run's own back end force-stopped - its windows were "NVOGLDC invisible" and "Default IME" only, no "Error
+  vrfSimHLA1516e.exe" modal (stopvrf.stdout.log); the registered gate accepts 0 or 6 (sec 3 W). The teardown ran; the
+  watchdog stood down 23:07:18Z (runner-watchdog.log). The sim cache listed 23:08:18Z. Scored by the seat [A].
+- The owner rebooted the machine afterwards: LastBootUpTime 2026-09-28T23:16:45Z [V]; at 23:30Z no rtiexec, rtiForwarder,
+  rtiAssistant, RtiProbe, vrfSim or MSBuild process exists [V]. Holder 56380 (appNo 5255) is gone. Not part of the run.
+THE CLOCKS [V]: trace t0 = WatchVrf join 23:00:56.973Z; T10 dispatched t=88.5 (SIM 404.1), T14 t=92.5 and T02 t=92.7 (SIM
+437.2); the last fix t=219.0 (23:04:36Z); the sim ran about 6.2 x wall (L64753: 70.6 WALL s = 438.7 SIM s). Reports
+(reports-captured.log): TASKSTRT T13 and T01 23:01:54.3Z, T10 23:02:25.5Z, T14 23:02:29.5Z, T02 23:02:29.7Z; TASKCMPLT T01
+and T13 23:02:29.0Z (the 300 s Duration, L26847, L26853), T10 23:03:39.4Z, T02 23:03:51.2Z; TASKABRT T14 23:04:21.5Z.
+
+WHAT HELD [V: the W gate output]: W0-W7 (1 / 5 / 17 of N attached and published); IDENTITY branch A, I1-I17 - 59 of 59
+created under the requested uuid and bound by it, the M3b short names as markings (C1d's guard, RL-20260928-02); H4 by those
+limbs (W1n, I2, I6, I8, I12, I13); M1-M9 and M12-M17 on all three movers (road layer 16 / 10 / 14 readable, 0 not; every leg
+NEAR -> MAK_ROAD on the offline table's ways 384833185, 372319246 / 367165904 / 1262103420, 783013873; the chains in
+order); M10 0 FAILED; H1 0 relayed "route does not exist" (G1-3: 15) and R-VEND 0 in the vendor log (count); H2 0 EXECUTOR
+REFUSED and 0 pre-M3b equivalent; H3 33 of 33 echoes exact (T10 5 x 3, T14 17, T02 1); R-REF 35 of 35 WHOLE - "<member>
+Path part <n>", n = 1 on every T10 and T14 line and n = 1, 2, 3 on T02's (L27575, L52031, L73145: its 5.3 km road path split
+at MAX_POINTS_PER_ROUTE 100, navigate-to-location.lua :31, :210-233); the move-along prints no "_<counter>" (the vendor
+save's counter is the route uuid's, not the printed name's); V-CRASH no signal for pid 40228 (no crash record in C:\MAK\logs
+by name [V: listing - only pid 3344's of 19:05Z], no modal, backends never 1 -> 0, the sim clock read to the end); W-MOVE PASS
+(T10 5 of 5 > 50 m; T02 1 of 1 and T14 16 of 17 RECORDED); the fixes-inside-water limb (0 fixes deeper than 25 m).
+THE MOVES [V: the app log, the trace]: T10 - vertex 1 closed 7 m from it, 1,453 m moved (L48635); vertex 2 10 m, 797 m
+(L61201); vertex 3 55 m (scorer R12); ARRIVAL EVIDENCE 70.6 WALL s after dispatch (L64753), held to the 450 s end time,
+TASKCMPLT (L66861); the container's final fix 1.7 m from the destination. T02 - its one vertex closed 6 m from it; OVERDUE at
+the end time (L57321, 331 of 300 s); ARRIVED 81.5 WALL s = 524.4 SIM s after dispatch, 5,036 m of a 5,341 m route (L74995),
+TASKCMPLT on arrival (L74999); final fix 0.5 m. T14 - 16 of 17 members' navigate-to-location COMPLETED at vertex 1 (L35555
+INF2HQ1 first, SIM 528.7, to L69777 INF3RIF3, SIM 917.8: "16 of 17 member(s) ended ... waiting for the rest"); the vertex never
+closed and vertex 2 was never issued; OVERDUE at the end time (L57323); STALL "no member moved more than 50 m in the last 360
+SIM s (max 19.9 m)" on the container's ONE POSITION (L94977), TASKABRT (L94979) at 23:04:21.5Z, about 36 wall s after the
+last mover came to rest. W-DONE: NOT REACHED - the seat's call.
+WHAT FAILED [V]: H5 - 48_IBCT.INF3WPN1 0.0 m at T14 vertex 1 (33 member-vertex pairs judged, 1 not moved; W gate output line
+135). P-FALS (e) / P11 / P14 - 28ID.HQ1 "crossed river 8011072 at 54.007560,23.236494 16 m from any drivable road bridge and
+drove on 2990 m" (line 136).
+
+N1 - 48_IBCT.INF3WPN1 NEVER MOVED [V]:
+(a) WHAT IT IS: slot 16 of 17 of 48_IBCT, template Mech CO (USA, M2), composition row C-USA-BDE-UCI/INF3/WPN1 (L616, L690) -
+    the same template as the eleven other Mech COs, every one of which moved (773.8-1,754.9 m); its mobility is the aggregate
+    sysdef's, mech / motor / tank alike ((d) below). Created under uuid b6c4756d-e5c1-5d13-a1c9-508222bee540 (L908), marking
+    exact (L912), altitude 135.96 m from the TERRAIN QUERY (L754).
+(b) WHERE IT WAS BORN: its ring slot lay IN OSM water 16373225, and the app moved it 75 m south-east to (54.022048, 23.309402),
+    "the nearest ground clear of OSM water and of OSM buildings within 10 m" (L690; VrfC2SimService.cs :3355-3369 - the 10 m
+    is the BUILDING clearance, Vrf:PreflightBuildingClearanceMeters; the water rule is "not inside the polygon", clearance 0,
+    ring step 25 m). On lane G1's copy of the deployed osm set - the tiles the scorer read - that point is 1.7 m OUTSIDE the
+    shoreline of 16373225 (natural=water, unnamed) and 1.7 m INSIDE landuse=forest 232776542; vertex 1 lies 1,664 m away at
+    bearing 120 deg, away from the lake (north-west of it); the container point 417 m at 135 deg [scratch laneG1-4\
+    harvest_geom.py, harvest_geom2.py]. THE CONTROL: three siblings were nudged the same way out of lake 197345448 (Jezioro
+    Wiersnie) - INF1RIF2 to 2.3 m from its shoreline (L666), INF1RIF3 to 5.5 m, inside forest 232776590 (L668), INF1WPN1 to
+    7.5 m, in that forest (L670) - and ALL THREE MOVED (1,156.0 / 870.5 / 773.8 m). OSM shoreline distance alone does not
+    predict the stop.
+(c) ITS CONSOLE, LINE FOR LINE AGAINST A SIBLING (INF3RIF3, the twin Mech CO): identical through the move-along's start -
+    "Navigate-to: pathQuery=MAK_ROAD" (L27371 / L27363), "obstacleQuery=MAK_OBSTACLE" (L27373 / L27365), the script
+    controller began navigate-to-location at SIM 440.662 (L27375 / L27367; all 17 at that stamp), the echo exact to the
+    vertex (L27377 / L27369), "Navigation: Initializing" (L27419 / L27387), ROE hold-fire (L27453 / L27421), the
+    aggregated-move-along-controller began the move-along subtask at SIM 441.196 / 441.229 (L27533 / L27537) on the WHOLE
+    reference "48_IBCT.INF3WPN1 Path part 1" / "48_IBCT.INF3RIF3 Path part 1" (L27535 / L27545). THEN THEY DIVERGE. INF3WPN1
+    printed ONE level-1 line, "Movement constrained by features" (L27577, within 0.4 SIM s of its subtask's start), and
+    nothing else to the end: no "Can't receive supplies while moving" (0; INF3RIF3 printed it 92 times from L27869 - the sim's
+    own sign of a unit in motion), only the stationary "Use Supplies ... No nearby supply units" (179 pairs), no subtask end,
+    no task end (INF3RIF3: subtask Completed SIM 917.524, task Completed 917.757; the 16 movers ended between 528.7 and
+    917.8). It is the run's only "Movement constrained" line (app log 1; vendor log count 1). No warning, failure or refusal
+    anywhere: 0 "route does not exist", 0 "Could not compute path" / "Invalid path computed" / "Cound not create route",
+    0 "Terrain too steep" (our log and the vendor's, by count). Its 81 trace fixes (t=56.3-219.0) are one point,
+    (54.022048, 23.309402, 135.0).
+(d) WHAT THE VENDOR SAYS: the aggregated-movement actuator sets speed by a terrain-mobility query at the unit's centre point -
+    AggregateLevelBase\vrfSim\systems\movement\tank-aggregated-movement.sysdef :112-131: MAK_TANK_UNRESTRICTED_TERRAIN
+    speed-factor 1, IMPASSABLE 0 (priority 200), RESTRICTED_L2 0.25, RESTRICTED_L1 0.65; appData\settings\featureconfig.txt
+    :269-272: MAK_TANK_IMPASSABLE_TERRAIN = MAK_WATERWAY OR ALPINE, RESTRICTED_L2 = FOREST OR URBAN OR MOUNTAIN (the MECH
+    and MOTOR rows :259-267 read the same); :412-413: MAK_WATERWAY = Waterway OR OCEAN OR COAST OR RIVER OR LAKE. UG52 27.1.4
+    p531: "Rivers and water bodies may stop a unit completely, although bridges allow them to cross"; "the center point of
+    the unit is used to determine what type of terrain the unit is on"; the detail is in "Configuring Aggregate-Level
+    Movement Restrictions" of the Adding Content manual, PDF only, unread (FINDING_GROUND_MOVEMENT_PRACTICE :178-179). The
+    text "Movement constrained by features" is in no installed script or header (0 hits in data\simulationModelSets and
+    include) and in none of the eight vendor txt files; G1-2 relayed it exactly three times, each for a member at water and
+    never for a Mech CO stopped by a building (G1-2 Result :851-853). The script side is silent: navigate-to-location.lua ends
+    only when its move-along stops (:252-259) and prints nothing while it runs.
+(e) THE READING [V for the observation; A for the feature]: INF3WPN1 was held at speed factor 0 from its first tick by a terrain
+    feature at its birth point - the mobility table's IMPASSABLE class, which in this run's data means MAK_WATERWAY (the sim's
+    Lake layer; ALPINE is not here). The route was planned, created and TAKEN - the subtask ran on the whole reference; the
+    executor refused nothing; the unit could not move. WHICH feature, and why the sim's water covers a point 1.7 m outside
+    one OSM polygon while INF1RIF2's point 2.3 m outside another was dry, is NOT settled: the actuator queries the sim's own
+    streamed features (VRFSIM.Aggregate.feature.model.xml maps OSM water to its Lake layer - FINDING_GROUND_MOVEMENT_PRACTICE
+    :184-190 [A]), not our cached tiles, and no feature query at that point is in the evidence. What the app did is settled:
+    its nudge stops at the OSM polygon's edge, so a member can be born a metre from a shoreline.
+THE COMPETITORS [V]: (i) the executor refused the route (G1-3's mechanism) - EXCLUDED: 0 refusals, the subtask began on the
+whole reference, 16 siblings moved on identical references. (ii) a planning failure - EXCLUDED: the script starts the
+subtask only after a path of two or more points and a route that passed its validity check (lua :177-186, :213-246), and 0
+failure lines. (iii) the building slope stop of G1-2 - EXCLUDED: 0 "Terrain too steep"; the nudge's own check found no OSM
+building within 10 m. (iv) the forest (factor 0.25) - not a stop by the table, and INF1RIF3 / INF1WPN1 sat in forest and
+moved. (v) the planned path's first leg led INTO the lake - not excluded (the path is not printed: DEBUG_DETAIL false, lua
+:17; the sysdef's debug-detail false), but it collapses into (e): at 0.0 m over 81 fixes the unit never left its birth cell,
+so the 0-factor terrain is AT the birth point. What would falsify (e): a sim-side feature query at (54.022048, 23.309402)
+returning no impassable feature, or the same line printed for a unit clear of water - neither seen.
+THE CONSEQUENCE FOR T14 (a design fact, not the vendor's): M3 waits for "the LAST of M" (M9); a member whose planning task
+never ends keeps the vertex open, and only the stall watchdog closes the task (an S5-shaped close). M3b (2) cannot see it:
+EXECUTOR REFUSED judges a vertex that CLOSES without movement, not one that never closes.
+
+N2 - T02's RIVER: ON THE BRIDGE BY EVERY FIX; THE 16 m IS THE CHORD [V: scratch laneG1-4\harvest_geom.py on the scorer's
+tiles and filters]:
+(a) THE RULE (g1_4_score.py): each chord between consecutive trace fixes is intersected with every river line (:1405-1421); the
+    crossing point's distance to the nearest DRIVABLE BRIDGE WAY (bridge not no / boardwalk, highway not in NoDriveHighway -
+    OsmFeatures.cs IsRoadBridge :416-424 as transcribed at :1357-1360) is measured (:1423-1432); a crossing is "OFF A BRIDGE"
+    when that distance exceeds BRIDGE_TOL_M = 15.0 (:1317) and the member then drove 50 m or more (:1604-1606); P-FALS (e) /
+    P11 / P14 fail on it (:1644-1663).
+(b) THE GROUND: river 8011072 (Czarna Hancza, waterway=river) passes 0.1 m from the scorer's crossing point. OSM 218414262 -
+    highway=unclassified, bridge=yes, layer=1, surface=wood, a 2-point way 57 m long from (54.007245, 23.236304) to
+    (54.007605, 23.236926) - CROSSES river 8011072 and lies 16.2 m from that point; it is the ONLY bridge-tagged way within
+    300 m. The approach is 218414261 (unclassified, unpaved), the far side 178824546 (track, gravel). T02's leg decided NEAR
+    (0 m) -> MAK_ROAD on 384833185 (scorer R8), so the member planned on the road network; its path is not printed.
+(c) THE FIXES (28ID.HQ1's 2-s trace fixes, 135-207 m apart on this leg): t=127.4 0.1 m from road 218414261; t=129.4 0.3 m from
+    it, 84 m short of the crossing point and 51.6 m from the bridge's south-west end; t=131.4 9.4 m from track 178824546,
+    61 m past the crossing and 42.3 m from the bridge's north-east end; from t=133.5 up the track. The chord t=129.4 -> 131.4
+    is 144.9 m long across a bend (road -> bridge -> track) and cuts the river at 54.007560, 23.236494 - 16.3 m from the
+    bridge way, 1.3 m over the tolerance. A member that entered the water would have stopped (MAK_WATERWAY is IMPASSABLE,
+    N1 (d)); this one drove on 2,990 m to its destination (0.5 m) with no "Movement constrained" line (0 for HQ1), and G1-2's
+    T02 member, on the straight line 162 m upstream, was held at this very river ("Movement constrained by features", G1-2
+    Result :761). READING [V for the fixes; A for the path]: the member crossed on bridge 218414262; the scorer's 16 m is the
+    fix chord's corner cut - inside fix-spacing error, outside the 15 m rule. The competitor, a ford beside the bridge, has no
+    fix and no line for it and would need the sim's river layer to have a gap where OSM has none; the fixes alone (145 m
+    apart) cannot exclude it, the mobility table does if the sim's river is continuous there.
+(d) THE RECORD ON THIS SPOT: G1-2 - T02's member stopped AT river 8011072 on the literal straight line (last fix 2.5 m from the
+    river point 54.0087722, 23.2351231; S5 / S6; G1-2 Result :758-762). G1-3 - T02 was never dispatched (the crash); its
+    registration sec 1(t) (:322-325) put the nearest drivable bridge 3,743 m away (OSM 307511217): its probe (scratch
+    u3\laneG1-3\river_probe_g1_3.py :76-79) counted a bridge only if one of its VERTICES lies within 15 m of the river line,
+    and bridge 218414262's two vertices sit about 28 m either side of the river, so it was missed [V: the probe read, the same
+    tile copy]. On the scorer's index that bridge is 175 m from G1-3's straight-line point. G1-4 is the first run in which
+    T02's member crossed the river and arrived.
+
+N3 - THE REGISTRATION FLAW (recorded, not re-scored) [V: this file and commit 5a400d3]: sec 3 W (:274-278) confines W-MOVE's
+per-member clause to T10 - "T14's and T02's member displacements are RECORDED in the W output, not gated - a far-shore member
+stuck at water, G1-2's INF1RIF2 at 13 m, is not M3b's question, and the scored run's H5 covers T14" - and the same sentence
+keeps "H5; the water falsifiers; V-CRASH" in the W gate's list (:278). H5's row (:343) reads "EVERY TASKED MEMBER MOVES at
+every vertex it is sent to ... = STOP" with no pre-warm exemption (sec 4 MEASURES :301-302; sec 8 item 3, :451), and the
+scorer's wgate() gates H5 over every tasked member (g1_4_score.py :1705-1707; W gate output line 135). So the pre-warm
+failed on H5 for a T14 member that the seat's W-MOVE decision had declared not M3b's question. Commit 5a400d3 changed
+:275-278 and :307 and left H5's row and the gate list as they were. The verdict as scored stands; whether its H5 limb binds
+is the seat's, then the owner's, call (NEXT (2)).
+
+M3b'S QUESTION AT n = 1 (measurement, then implication): 0 "route does not exist" against G1-3's 15 on the same order, fixture
+and settings; 35 of 35 references carried whole (G1-3: 5 of 5 cut at 35 + "r"); 22 of 23 tasked members moved on the
+script's routes; four planned vertices closed with the unit 6-55 m from them; two containers arrived. The name reading of
+G1-3 (i) is CONSISTENT with this run, and its falsifier - a whole reference still refused - did not fire. Sec 7 stands: n = 1
+does not exclude an intermittent (iii), and a pass says the M3b build moved these members on this order once. H2's branch (b)
+did not fire: no EXECUTOR REFUSED on a genuine move.
+
+THE CARRIED UNEXPLAINED ITEMS OF G1-3 [V]:
+- THE CRASH: did not recur (V MEDIUM held; 1 crash in 2 runs on this path). Peak working set 4,030 MB at 23:04:06Z
+  (thread-samples.csv; G1-3 3,668, G1-2 3,801 / 3,876), peak 3.60 cores at 23:02:56Z, WS-runaway alerts 930.6 MB/min at
+  22:59:25Z and 1,536.1 at 23:01:45Z (load-time, as before). The vendor's addGeometry comment (buffer > 0) was exercised with
+  buffer 10 on 35 routes without a crash. pid 3344's callstack stays unread (the owner's call).
+- "Pathr": gone - every reference whole (R-REF). WHERE the cut at 35 happens stays [A] (sec VENDOR CITATION).
+- VERTEX 2's "Cound not create route": 0 (P7c held). Consistent with the name reading of it; not proven.
+- O8: the init's 36 create altitudes came from the FALLBACK again (L281: "Terrain profile request 1 for task 'INIT PLACEMENT'
+  got no reply within 10 s"; L355: "0 of 36 ... 36 from the FALLBACK", 23:01:40.5Z) while the 23 members' came from the
+  TERRAIN QUERY (23 of 23; L708, L720, L754). Unchanged; nothing in M3b touches it.
+- HQ1 / RIF2 FIRST: on T10 the Stryker HHT (HQ1) returned first at all three vertices (L42597, L56125, L66005); the last was
+  WPN1, RIF2, RIF1 in turn. On T14 the four Stryker HHTs and CAV1 completed first (SIM 528.7-617.3) and the Mech COs from
+  629.0 to 917.8. Recorded; the two templates' speeds and slots are the obvious reading, not claimed.
+
+RECORDED [V]: O6 - 18 "No creator found" lines, the navigate-to-location twin at L25055 (as G1-3). P19 - 79 cache HITs,
+0 HTTP FETCH (L103983). THE SIM CACHE - ONE URI-cache entry added: __default\uri\26\a0927b0f7e311c767aa5fab66caa661644a25a
+.meta (700 B) and .osgb (151 B), both written 23:02:31.94Z (during T10's move); TOTAL 21,805 -> 21,807 files, 495,598,329 ->
+495,599,180 B (simcache_before / after_prewarm.txt; G1-3's pre-warm added nothing). StopVrf's exit 6 - the forced branch,
+first seen on this path; the stale-federate check the runner names for it is moot after the reboot. The back end's own log
+(C:\MAK\logs\...-185817-...-40228.log, 15,148,205 B, last written 23:04:37Z) is the vendor copy's twin - names, sizes and
+counts only. Vendor log counts: "Path part" 35, "48_IBCT.INF3WPN1" 13, "Movement constrained" 1, every failure text 0.
+The 5.2 command line was G1-3's byte for byte (the log name aside).
+
+WHAT IT MEANS (implication, not measurement): M3b (1) did what it was built for - the executor took the route on every
+member of every task; M3b (2) had nothing to refuse; M3b (3) had nothing to void. The pre-warm's two misses are a birth slot
+at a shoreline and a scorer chord across a bridge - neither is the M3 planner's or the executor's, and neither is M3b's.
+The W gate's FAIL rests on an H5 limb the seat had meant to confine (N3) and a P-FALS (e) reading the fixes contradict (N2);
+both are recorded here and neither is re-scored. A member born a metre from water and a vertex held open by a member that
+never ends are the two mechanisms this run adds to the record.
+
+NUMBERS [V: runner log :94-106, :131, :307; run-manifest.json]: block 5270-5280 claimed by the pre-warm, marker 5270 -> 5281
+(17b0859). 5270 (back end, pid 40228), 5272 (WatchVrf pre-check), 5273 (WatchVrf trace), 5274 (VrfC2SimApp, pid 16272,
+exit 0), 5275 (Stage 2c RtiProbe), 5277 (Stage 2h holder attempt 1, pid 61064) CONSUMED; 5271 (--no-gui), 5276 (the oracle
+gate passed), 5278-5280 BURNED. The scored block 5281-5291 was never claimed. Holder 56380 (appNo 5255) ended with the reboot
+at 23:16:45Z. A successor takes new numbers from 5281 under branch (b'): the holder claim 5281-5284 (marker -> 5285), the
+pre-warm 5285-5295 (-> 5296), the scored run 5296-5306 (-> 5307); Stage 2r starts a fresh rtiexec.
+
+NEXT, in order: (1) Fable's cold review of this Result (RL-20260928-04), then the owner. (2) RULE - the owner: whether the W
+gate's FAIL binds as scored (H5 on a T14 member, N3; P-FALS (e) as the chord read it, N2) or the successor's gate is
+corrected; pid 3344's callstack stays the owner's open call. (3) PREREG G1-5 on the same build and order, with: the scorer's
+bridge rule reading the fixes against the road and bridge WAYS (or interpolating along the road), not the chord; H5 confined
+as W-MOVE was, or gated by the seat's explicit choice; INF3WPN1's birth as a registered observation. (4) DESIGN - the seat's
+call, not under this registration: a WATER clearance for nudged slots (the building clearance is 10 m, the water clearance 0;
+VrfC2SimService.cs :3355-3369); a per-member hold on "the LAST of M" (a member whose task never ends holds the vertex open
+until the stall watchdog). (5) The doc updates of sec 6 - PLAN_MOVEMENT rows M3b and G1-4 and the step table, RUNBOOK 11o
+and 0.5.9, HANDOFF_SEAT sec 2, Appendix B annotated - after the review. (6) The Label follow-up (HANDOFF_SEAT sec 3 item 5)
+is unblocked.
+
+ADVERSARIAL REVIEW: (N1) the strongest competitor to "held by an impassable feature at its birth point" is a defect of the
+planned route itself - a first leg into the lake, or a move-along that never started its motion for a reason the console
+does not print; against it stand the one vendor line that exists, which names features, 0.0 m over 81 fixes (the 0-factor
+cell is the birth point), and sixteen siblings that moved on identical references. Unexplained and standing: WHICH feature
+(the sim's own layer, unread), and why 1.7 m from one lake stops a unit while 2.3 m from another does not - a falsifier of
+any rule that reads OSM distance alone, so none is claimed. (N2) the strongest competitor to "on the bridge" is a ford 16 m
+beside it; against it the fixes on the road network on both banks, the mobility table and G1-2's stop at this river; the
+planned path is unread, so the crossing is inferred from fixes and the model, not observed. (M3b) the pass is consistent
+with the name reading, not proof of it (n = 1, sec 7). Verified: the app-log lines, the trace, the runner log and manifest,
+the reports capture, the thread samples, the vendor log and C:\MAK\logs by count / name / mtime, the sim-cache listings and
+the URI entry, the OSM geometry on the scorer's tiles, the vendor sysdef, featureconfig and script lines, UG52 27.1.4, the
+machine's boot time and process table, this file's lines and the 5a400d3 diff. Assumed: the MSBuild source, that the sim's
+Lake layer is what held INF3WPN1, that the planned path followed the bridge.
