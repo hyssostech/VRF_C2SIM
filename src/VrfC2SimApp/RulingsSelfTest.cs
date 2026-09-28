@@ -22,7 +22,7 @@ namespace VrfC2SimApp;
 /// Every policy under test is PURE: no clock is read, no bridge is called, no report is sent,
 /// so the checks are decidable offline and a live run has nothing to prove about them.
 /// </summary>
-public static class RulingsSelfTest
+public static partial class RulingsSelfTest     // partial: the STP-850 section is RulingsSelfTest.StartAnchor.cs
 {
     public static int Run()
     {
@@ -53,6 +53,8 @@ public static class RulingsSelfTest
         failures += AggregateLeafSelfTest.Run();
         Console.WriteLine("=== RL-20260921-09 / RL-20260925-01 / RL-20260927-05: ONE anchor for the timer and the STREND gate, and a gate that waits for an unfinished mover ===");
         failures += TimerAnchorSelfTest.Run();
+        Console.WriteLine("=== STP-850: a SimulationTime offset is measured from ORDER RECEIPT - start = max(predecessor completion, receipt + offset) ===");
+        StartTimeAnchorChecks(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -2723,8 +2725,11 @@ public static class RulingsSelfTest
     private static ChainOutcome WalkChain(IReadOnlyList<ChainTask> tasks, double configured,
                                           double margin, double scale, double backstop,
                                           double stepSeconds, bool preFixPhase1 = false,
-                                          bool timedCompletion = true, bool? derivesFromDuration = null)
+                                          bool timedCompletion = true, bool? derivesFromDuration = null,
+                                          bool anchorAtReceipt = false)
     {
+        // anchorAtReceipt (STP-850): Vrf:StartTimeAnchor=Receipt. Every gate starts at clock 0, which IS
+        // order receipt here (HandleOrder's single foreach), so the anchor handed in is 0.
         var clock = new StepClock();
         var seq = new TaskSequencer();
         var timed = new TimedCompletionPolicy();
@@ -2745,10 +2750,11 @@ public static class RulingsSelfTest
             gates[t.Uuid] = seq.WaitForStartAsync(t.Pred,
                                                   TaskDispatchPolicy.ScaleOrderMs(t.StartDelayMs, scale),
                                                   0L, window, clock.AsTaskClock(), CancellationToken.None,
-                                                  phase1);
+                                                  phase1,
+                                                  startAnchorClock: anchorAtReceipt ? 0.0 : double.NaN);
         }
 
-        double horizon = LongestLeadSeconds(tasks, scale) + configured + margin + 4.0 * stepSeconds;
+        double horizon = LongestLeadSeconds(tasks, scale, anchorAtReceipt) + configured + margin + 4.0 * stepSeconds;
         bool signalled = true;      // t = 0: every root's gate is open before the walk starts
         while (true)
         {
@@ -2856,15 +2862,22 @@ public static class RulingsSelfTest
     /// TaskDispatchPolicy.LongestChainLeadSeconds - the same function the service logs at order
     /// receipt and the same one the backstop's justification quotes - so the suite's horizon and
     /// the operator's warning cannot drift apart (one re-implementation fewer; N5's family).</summary>
-    private static double LongestLeadSeconds(IReadOnlyList<ChainTask> tasks, double scale)
-        => TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(tasks), scale);
+    private static double LongestLeadSeconds(IReadOnlyList<ChainTask> tasks, double scale,
+                                             bool anchorAtReceipt = false)
+        => TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(tasks, anchorAtReceipt), scale);
 
-    /// <summary>The suite's chain shape as the production arithmetic takes it.</summary>
-    private static List<TaskDispatchPolicy.ChainNode> AsChainNodes(IReadOnlyList<ChainTask> tasks)
+    /// <summary>The suite's chain shape as the production arithmetic takes it. The suite's StartDelayMs is
+    /// what WalkChain hands the gate as the SimulationTime offset, so under Receipt it is anchored
+    /// (STP-850) through the same ChainNodeFor the service uses.</summary>
+    private static List<TaskDispatchPolicy.ChainNode> AsChainNodes(IReadOnlyList<ChainTask> tasks,
+                                                                   bool anchorAtReceipt = false)
     {
         var nodes = new List<TaskDispatchPolicy.ChainNode>(tasks.Count);
         foreach (var t in tasks)
-            nodes.Add(new TaskDispatchPolicy.ChainNode(t.Uuid, t.Pred, t.DurationMs, t.StartDelayMs));
+            nodes.Add(anchorAtReceipt
+                ? TaskDispatchPolicy.ChainNodeFor(t.Uuid, t.Pred, t.DurationMs, t.StartDelayMs, 0L,
+                                                  TaskDispatchPolicy.StartTimeAnchor.Receipt)
+                : new TaskDispatchPolicy.ChainNode(t.Uuid, t.Pred, t.DurationMs, t.StartDelayMs));
         return nodes;
     }
 

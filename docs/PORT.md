@@ -474,7 +474,10 @@ Do not re-add it.
   - Task sequencing DONE + offline-verified (2026-07-10): `TaskSequencer` replaces
     executeTask's busy-waits with async gating - a task awaits its startAfterTaskUuid
     predecessor (completed off `OnVrfTaskCompleted`), then its start delay, before the
-    bridge work is marshalled onto the tick thread (OnOrder -> RunTaskAsync). THE FIX for
+    bridge work is marshalled onto the tick thread (OnOrder -> RunTaskAsync). (STP-850,
+    2026-09-28: a SimulationTime offset is now measured from order receipt - start =
+    max(predecessor completion, receipt + offset); Vrf:StartTimeAnchor=PredecessorCompletion
+    keeps this parity order.) THE FIX for
     the sec-6 infinite busy-wait: the predecessor wait is bounded by
     Vrf:TaskPredecessorTimeoutSeconds (default 600 s). Not reproduced (behavior-neutral,
     golden = 0 timing): the C++ doubled-wait bug + time-multiple scaling.

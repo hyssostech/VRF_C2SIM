@@ -697,6 +697,19 @@ public class VrfSettings
     // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
     public string PredecessorTimeoutPolicy { get; set; } = "skip";
 
+    // STP-850: WHAT A StartTime/SimulationTime OFFSET IS MEASURED FROM (TaskDispatchPolicy.StartTimeAnchor
+    // has the rule and its evidence).
+    //   "Receipt"               (DEFAULT) the task starts at max(its predecessor's completion, order
+    //                           receipt + offset). Receipt is stamped once per order on the task clock
+    //                           (Vrf:TaskClock) and the offset is scaled by Vrf:DurationScale.
+    //   "PredecessorCompletion" the offset is a delay served AFTER the predecessor completes - the
+    //                           behaviour before STP-850 (the C++ oracle's order), kept for rollback. On
+    //                           an STP export (absolute slot offsets plus same-unit STREND links) it
+    //                           grows a unit's chain quadratically past Vrf:TaskChainBackstopSeconds.
+    // Unknown values fall back to "Receipt" with an ERROR at start-up. A relative (ActionTemporal-
+    // Relationship) delay is not affected by either value.
+    public string StartTimeAnchor { get; set; } = "Receipt";
+
     // COMPLETION ON START TIME + DURATION - the owner's TEMPORARY position (RL-20260921-09),
     // implemented 2026-09-25 (scope approved as RL-20260925-01; TimedCompletionPolicy has the
     // rule). A task with a C2SIM Duration ends at dispatch + Duration x Vrf:DurationScale: an

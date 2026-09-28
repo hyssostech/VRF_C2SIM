@@ -261,7 +261,8 @@ public static class TimerAnchorSelfTest
               "(t5) the timed walk advances with usingSim: true - the mode the anchor is registered in");
         string gateCall = Between(src, "var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid,",
                                   "if (gate != GateResult.Proceed)");
-        Check(ref failures, gateCall.Contains("() => TreatPredecessorAsOverdue(task, timeoutSeconds));")
+        // STP-850 appended startAnchorClock after the question, so the question no longer closes the call.
+        Check(ref failures, gateCall.Contains("() => TreatPredecessorAsOverdue(task, timeoutSeconds),")
                             && gateCall.Contains("_vrf.TaskChainBackstopSeconds,"),
               "(t5) RL-20260927-05: the service's STREND gate call hands WaitForStartAsync the chain backstop AND the " +
               "question (TreatPredecessorAsOverdue)");

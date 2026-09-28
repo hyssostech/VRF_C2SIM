@@ -914,6 +914,18 @@ public sealed class VrfC2SimService : BackgroundService
             _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
         }
 
+        // 0d-iii. Vrf:StartTimeAnchor (STP-850). Resolved once, like the two above.
+        _startTimeAnchor = TaskDispatchPolicy.ParseStartTimeAnchor(_vrf.StartTimeAnchor, out bool anchorValid);
+        if (!anchorValid)
+            _log.LogError("Vrf:StartTimeAnchor='{Bad}' is neither \"Receipt\" nor \"PredecessorCompletion\". " +
+                          "USING Receipt (the default) for this run.", _vrf.StartTimeAnchor);
+        _log.LogInformation("START TIME ANCHOR (STP-850): a task's StartTime/SimulationTime offset is measured " +
+                            "from {Anchor} (Vrf:StartTimeAnchor={Cfg}) - {Rule}.", _startTimeAnchor,
+                            _vrf.StartTimeAnchor,
+                            _startTimeAnchor == TaskDispatchPolicy.StartTimeAnchor.Receipt
+                                ? "a task starts at max(its predecessor's completion, order receipt + offset)"
+                                : "the offset is a delay AFTER the predecessor completes (the pre-STP-850 rule)");
+
         // 0d. TASK-CLOCK PRE-FLIGHT (R4/M2). THREE THINGS RIDE ON ONE CLOCK - the Duration that
         // ends a task, the StartTime delay that holds one back, and the STREND predecessor gate -
         // and which one that is decides whether a 42-task order runs or dies at its first gate.
@@ -4634,8 +4646,9 @@ public sealed class VrfC2SimService : BackgroundService
         {
             var chain = new List<TaskDispatchPolicy.ChainNode>();
             foreach (var t in order.Tasks)
-                chain.Add(new TaskDispatchPolicy.ChainNode(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
-                                                           Math.Max(t.SimulationStartMs, t.RelativeDelayMs)));
+                chain.Add(TaskDispatchPolicy.ChainNodeFor(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
+                                                          t.SimulationStartMs, t.RelativeDelayMs,
+                                                          _startTimeAnchor));    // STP-850
             double lead = TaskDispatchPolicy.LongestChainLeadSeconds(chain, _durationScale);
             double end = TaskDispatchPolicy.LongestChainEndSeconds(chain, _durationScale);
             double backstop = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(
@@ -4653,6 +4666,10 @@ public sealed class VrfC2SimService : BackgroundService
                                 "healthy the chain is. Raise Vrf:TaskChainBackstopSeconds above the lead, or " +
                                 "compress the order with Vrf:DurationScale (E4).", lead, backstop, backstop);
         }
+
+        // STP-850: ORDER RECEIPT, stamped ONCE for the whole order on the task clock every gate runs on, so
+        // same-slot tasks on different units measure their SimulationTime offset from the same instant.
+        double orderReceiptClock = TaskClockSeconds;
 
         foreach (var task in order.Tasks)
         {
@@ -4723,7 +4740,7 @@ public sealed class VrfC2SimService : BackgroundService
             }
             var t = task;
             var u = unit;
-            _ = RunTaskAsync(t, u);
+            _ = RunTaskAsync(t, u, orderReceiptClock);
         }
     }
 
@@ -4743,7 +4760,10 @@ public sealed class VrfC2SimService : BackgroundService
     // the gate derivation and quietly applied anyway.
     private double _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
 
-    private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
+    // The VALIDATED Vrf:StartTimeAnchor (STP-850). Resolved once in ExecuteAsync.
+    private TaskDispatchPolicy.StartTimeAnchor _startTimeAnchor = TaskDispatchPolicy.StartTimeAnchor.Receipt;
+
+    private async Task RunTaskAsync(OrderTask task, CreatedUnit unit, double orderReceiptClock)
     {
         try
         {
@@ -4813,11 +4833,19 @@ public sealed class VrfC2SimService : BackgroundService
             }
             long scaledStartMs = ScaleOrderMs(startMs);
             long scaledRelativeMs = ScaleOrderMs(task.RelativeDelayMs);
+            // STP-850: under Vrf:StartTimeAnchor=Receipt the SimulationTime offset is measured from order
+            // receipt and is a LOWER BOUND beside the predecessor's completion, not a delay after it.
+            double startAnchor = TaskDispatchPolicy.StartAnchorClock(_startTimeAnchor, orderReceiptClock);
             if (scaledStartMs > 0 || scaledRelativeMs > 0)
                 _log.LogInformation("Task '{Task}': start delay {S:F0} s (order says {O:F0} s; " +
-                                    "Vrf:DurationScale={Scale}) - it will not dispatch before then.",
+                                    "Vrf:DurationScale={Scale}), counted from {From} - it will not dispatch " +
+                                    "before then.",
                                     task.TaskName, Math.Max(scaledStartMs, scaledRelativeMs) / 1000.0,
-                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _durationScale);
+                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _durationScale,
+                                    scaledStartMs > 0 && double.IsFinite(startAnchor)
+                                        ? "ORDER RECEIPT (Vrf:StartTimeAnchor=Receipt, STP-850)"
+                                        : string.IsNullOrEmpty(task.StartAfterTaskUuid)
+                                            ? "order receipt" : "its predecessor's completion");
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
                                                           _taskClockAxis, _stoppingToken,
@@ -4828,7 +4856,10 @@ public sealed class VrfC2SimService : BackgroundService
                                                           _vrf.TaskChainBackstopSeconds,
                                                           // RL-20260927-05: and so is a mover the timed walk
                                                           // has not flagged yet - asked when the window expires.
-                                                          () => TreatPredecessorAsOverdue(task, timeoutSeconds));
+                                                          () => TreatPredecessorAsOverdue(task, timeoutSeconds),
+                                                          // STP-850: max(predecessor completion,
+                                                          // receipt + offset) under Receipt.
+                                                          startAnchorClock: startAnchor);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always

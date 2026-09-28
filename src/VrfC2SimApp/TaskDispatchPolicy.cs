@@ -557,9 +557,68 @@ public static class TaskDispatchPolicy
     public const double DefaultChainBackstopSeconds = 86400.0;
 
     /// <summary>One task as the CHAIN-LEAD arithmetic sees it: its uuid, its STREND predecessor
-    /// (null/empty for a root), and its authored Duration and start delay in milliseconds.</summary>
+    /// (null/empty for a root), and its authored Duration and start delay in milliseconds.
+    /// <paramref name="StartFromReceipt"/> (STP-850): the start delay is a SimulationTime offset measured
+    /// from ORDER RECEIPT (Vrf:StartTimeAnchor=Receipt), so the task's lead is max(offset, predecessor's
+    /// lead + Duration) rather than their sum. False (the default) = the pre-STP-850 sum.</summary>
     public readonly record struct ChainNode(string Uuid, string PredecessorUuid,
-                                            long DurationMs, long StartDelayMs);
+                                            long DurationMs, long StartDelayMs,
+                                            bool StartFromReceipt = false);
+
+    /// <summary>
+    /// STP-850 - WHAT A StartTime/SimulationTime OFFSET IS MEASURED FROM (Vrf:StartTimeAnchor).
+    ///
+    /// The schema defines the offset as "a time duration since the time instant of the scenario start"
+    /// (SimulationTimeType, C2SIM_SMX_LOX_CWIX2024.xsd:3634-3636 in the SDK), and STP exports every task with StartTime/SimulationTime = start slot x phase
+    /// duration: an ABSOLUTE offset, the same for same-slot tasks on different units, plus one same-unit
+    /// STREND relation to the unit's previous task as a LOWER BOUND. Serving the offset as a delay AFTER
+    /// the predecessor completes (the C++ oracle's order, reproduced by the port) adds every earlier
+    /// slot's offset again at every link: along one unit's chain the start grows quadratically (d = 60
+    /// min, ten back-to-back tasks: the last one at 54 h instead of 9 h), past the 86,400 s chain
+    /// backstop, and the tail is TASKABRT'd as never dispatched.
+    ///   Receipt               (DEFAULT) start = max(predecessor completion, order receipt + offset).
+    ///                         Receipt is stamped ONCE per order on the task clock the gate runs on.
+    ///   PredecessorCompletion start = predecessor completion + offset - the pre-STP-850 behaviour,
+    ///                         kept for rollback.
+    /// The scenario-start anchor is deliberately not offered: the interface has no scenario-start
+    /// instant it could stamp on the task clock. A relative (ActionTemporalRelationship) delay is not
+    /// affected - it stays a delay after the predecessor. Every order on disk whose tasks carry a
+    /// predecessor carries NO SimulationTime on those tasks, so for them the two values dispatch
+    /// identically (--rulings-selftest, STP-850 section).
+    /// </summary>
+    public enum StartTimeAnchor { Receipt, PredecessorCompletion }
+
+    /// <summary>STP-850: Vrf:StartTimeAnchor, parsed. Case-insensitive; blank means the default. An
+    /// unknown value is NOT valid and answers <see cref="StartTimeAnchor.Receipt"/> (the default) - the
+    /// caller says so once at start-up.</summary>
+    public static StartTimeAnchor ParseStartTimeAnchor(string value, out bool valid)
+    {
+        string v = (value ?? "").Trim();
+        valid = true;
+        if (v.Length == 0 || v.Equals("Receipt", StringComparison.OrdinalIgnoreCase)) return StartTimeAnchor.Receipt;
+        if (v.Equals("PredecessorCompletion", StringComparison.OrdinalIgnoreCase))
+            return StartTimeAnchor.PredecessorCompletion;
+        valid = false;
+        return StartTimeAnchor.Receipt;
+    }
+
+    /// <summary>STP-850: the anchor the gate is handed (TaskSequencer.WaitForStartAsync's
+    /// startAnchorClock): the order-receipt reading under Receipt, NaN (no anchor: the offset is served
+    /// after the predecessor) under PredecessorCompletion.</summary>
+    public static double StartAnchorClock(StartTimeAnchor anchor, double receiptClock)
+        => anchor == StartTimeAnchor.Receipt ? receiptClock : double.NaN;
+
+    /// <summary>STP-850: one order task as the chain-lead arithmetic sees it under this anchor. A
+    /// SimulationTime offset under Receipt is a lower bound from receipt; everything else keeps the
+    /// pre-STP-850 node (the larger of the two authored delays, added after the predecessor).</summary>
+    public static ChainNode ChainNodeFor(string uuid, string predecessorUuid, long durationMs,
+                                         long simulationStartMs, long relativeDelayMs, StartTimeAnchor anchor)
+    {
+        bool fromReceipt = anchor == StartTimeAnchor.Receipt && simulationStartMs > 0;
+        return new ChainNode(uuid, predecessorUuid, durationMs,
+                             fromReceipt ? simulationStartMs : Math.Max(simulationStartMs, relativeDelayMs),
+                             fromReceipt);
+    }
 
     /// <summary>
     /// E4 (cold-start review of `8db033e`, pass 3). HOW LONG AFTER ORDER RECEIPT THE DEEPEST CHAIN
@@ -600,8 +659,13 @@ public static class TaskDispatchPolicy
             memo[uuid] = 0.0;              // cycle guard: a task that reaches itself adds nothing
             double lead = ScaleOrderMs(t.StartDelayMs, durationScale) / 1000.0;
             if (!string.IsNullOrEmpty(t.PredecessorUuid) && byUuid.TryGetValue(t.PredecessorUuid, out var pred))
-                lead += Lead(t.PredecessorUuid, depth + 1)
-                      + ScaleOrderMs(pred.DurationMs, durationScale) / 1000.0;
+            {
+                double afterPred = Lead(t.PredecessorUuid, depth + 1)
+                                 + ScaleOrderMs(pred.DurationMs, durationScale) / 1000.0;
+                // STP-850: an offset measured from receipt is a LOWER BOUND beside the predecessor's end,
+                // not a delay after it.
+                lead = t.StartFromReceipt ? Math.Max(lead, afterPred) : lead + afterPred;
+            }
             memo[uuid] = lead;
             return lead;
         }

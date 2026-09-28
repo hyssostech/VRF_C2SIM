@@ -29,7 +29,7 @@ public record OrderTask
 
     // Timing. SimulationStartMs/StartAfterTaskUuid/RelativeDelayMs gate the DISPATCH
     // (TaskSequencer.WaitForStartAsync); DurationMs closes the task (R4, below).
-    public long SimulationStartMs { get; init; }             // StartTime/SimulationTime/DelayTimeAmount relative delay
+    public long SimulationStartMs { get; init; }             // StartTime/SimulationTime/DelayTimeAmount offset; STP-850: measured from order receipt (Vrf:StartTimeAnchor)
     public string StartAfterTaskUuid { get; init; } = "";    // ActionTemporalRelationship predecessor
     public long RelativeDelayMs { get; init; }               // ActionTemporalRelationship delay
 

@@ -2887,6 +2887,19 @@ no Duration and no geometry is malformed and is refused, not held (below).
   the gate covered the predecessor's Duration but not its LEAD TIME (its start delay plus its own
   gate wait); at a compressed `Vrf:DurationScale` the outcome was not even the same twice.
   Raising it is still harmless - it is a floor - and it is no longer necessary.
+- **A `StartTime/SimulationTime` offset is measured from ORDER RECEIPT since STP-850 (2026-09-28,
+  `Vrf:StartTimeAnchor`, default `Receipt`).** A task starts at max(its predecessor's completion, order
+  receipt + offset); receipt is stamped once per order on the task clock and the offset is scaled by
+  `Vrf:DurationScale`. Before, the offset was served as a delay AFTER the predecessor completed (the C++
+  oracle's order), and STP's export - absolute slot offsets plus one same-unit STREND lower bound - then
+  grew a unit's chain quadratically past `Vrf:TaskChainBackstopSeconds` (d = 60 min, ten tasks: the last
+  start at 54 h, the tail TASKABRT'd as never dispatched). Gate outcomes (dispatch window, completion
+  window, OVERDUE extension, abandon/backstop) and a RelativeTime delay are unchanged, and a successor is
+  still never dispatched while its predecessor is in flight. Lines to look for: start-up "START TIME
+  ANCHOR (STP-850)", per task "start delay ... counted from ORDER RECEIPT", and the "CHAIN DEPTH" lead now
+  follows the anchor. No order in `data/` carries a SimulationTime on a gated task, so they all dispatch
+  identically either way (`--rulings-selftest`, STP-850 section). Rollback:
+  `$env:Vrf__StartTimeAnchor = "PredecessorCompletion"`.
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
