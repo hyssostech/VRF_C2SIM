@@ -39,8 +39,8 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
   AggregateMovePlanner; the last vertex still goes to D-6; M1 lone platforms unchanged); (3) a crashed back end VOIDS the window
   (RunnerLib/RunC2SimScenario: crash record by name+mtime, the modal, the process gone, WatchVrf backends 1->0; StopVrf52 exit 8;
   the watchdog reads 8). Tests: planned-move 81, populate 199, rulings 615, RunnerTurnaround 777/0/2 in the lane's worktree.
-  NOT YET DEPLOYED: the deployed trees are still fde3ff2 - step 1 of sec 3 is the managed rebuild of the eleven from main 739cce2
-  (RtiProbe's code unchanged; its tree is held by the holder - leave it) and the redeploy of appsettings.json.
+  DEPLOYED 2026-09-28 21:20Z (Opus seat): ten consumers at 1.0.0+git.b0bad53.Release-5.2, all eleven trees at pin 03226dd0,
+  appsettings redeployed, 779/0/1 (RUNBOOK sec 9, "M3b DEPLOY" line); RtiProbe not rebuilt (held; code unchanged; optional).
   Unexplained, carried: the back-end crash (callstack unread; the owner's call); vertex 2's "Cound not create route" for two
   members. Next hypothesis if short names still fail in G1-4: buffer 10 (the vendor's save used 0).
 - The STP session (stp-live-picture-d8, STP-850) holds a PR #1 (fix/stp-850-start-at-max) on this repo: the task-start
@@ -49,7 +49,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
 ## 3. Next steps, in order
 
 1. (DONE by the Fable seat) M3b merged as 739cce2, suite green, pushed.
-2. Deploy: a managed rebuild of the ten consumers from main 739cce2 (RUNBOOK sec 9, the R4 line is the model; an ops
+2. (DONE 21:20Z by the Opus seat, RUNBOOK sec 9 "M3b DEPLOY") Deploy: a managed rebuild of the ten consumers from main 739cce2 (RUNBOOK sec 9, the R4 line is the model; an ops
    agent can run it); verify by the output trees; record the sec 9 line; RtiProbe stays as is while the holder runs.
 3. G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
