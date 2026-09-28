@@ -310,7 +310,7 @@ public static class OsmTileMath
     public static string FileName(int x, int tmsY) => FormattableString.Invariant($"{Zoom}_{x}_{tmsY}.pbf");
 }
 
-/// <summary>The two mbtiles sets the pre-flight reads, by their vr-theworld names.</summary>
+/// <summary>The mbtiles sets the pre-flight reads, by their vr-theworld names.</summary>
 public enum OsmSet
 {
     /// <summary>mbtiles/osm-water - the VRFSIM "Lake" layer (osm.features.water.xml:5-27) and the top
@@ -320,11 +320,26 @@ public enum OsmSet
     /// (buildings.worldwide.osm.online.xml), the aggregate River lines and land use
     /// (VRFSIM.Aggregate.feature.model.xml).</summary>
     All,
+    /// <summary>
+    /// mbtiles/osm-highways - "data:osm-highways" (osm.features.xml:35-42), the set the SIM builds its ROADS
+    /// layer from: osm.roads.model.xml :9-57 filters it into "data:vehicle-roads-linear" (mak_vrf_layer Roads,
+    /// vrfsim:enabled), which is what a planner's pathQuery MAK_ROAD plans on. M3 (RL-20260928-03) reads it for
+    /// the AUTO planner's per-leg road decision. The osm set above ALSO carries highway lines, but it is not the
+    /// sim's road source and it is not the same data: on T14's tile 14_9253_11124 (measured 2026-09-28, lane M3)
+    /// osm-highways held 16 vehicle-road ways and osm 14, the common ways agreeing to 0.3-1.3 m except one clipped
+    /// 100 m differently - so the road check reads the sim's own set, cached and fetched like the other two.
+    /// </summary>
+    Highways,
 }
 
 public static class OsmSets
 {
-    public static string Name(OsmSet s) => s == OsmSet.Water ? "osm-water" : "osm";
+    public static string Name(OsmSet s) => s switch
+    {
+        OsmSet.Water => "osm-water",
+        OsmSet.Highways => "osm-highways",
+        _ => "osm",
+    };
 }
 
 /// <summary>Aggregate RESTRICTED_L2 land use (speed-factor 0.25) the osm set carries.</summary>
@@ -412,6 +427,28 @@ public static class OsmVendor
     /// 8 m (:211).</summary>
     public static double RoadWidthMeters(IReadOnlyDictionary<string, object> props)
         => DataWidthMeters(props) ?? DefaultRoadWidthMeters;
+
+    /// <summary>The highway values osm.roads.model.xml's vehicle-road filter drops (:26-36). NOT the bridge
+    /// filter's <see cref="NoDriveHighway"/>: that one (osm.bridges.xml) also drops "construction", the road
+    /// model does not.</summary>
+    public static readonly IReadOnlyCollection<string> RoadModelSkippedHighways = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "path", "footway", "bridleway", "steps", "busway", "via_ferrata", "pedestrian", "cycleway", "raceway",
+    };
+
+    /// <summary>
+    /// A VEHICLE ROAD as the SIM loads it (M3, RL-20260928-03): osm.roads.model.xml "data:vehicle-roads-linear"
+    /// :17-39 - not an OSM node, not a polygon or geometry collection, a highway tag outside
+    /// <see cref="RoadModelSkippedHighways"/>. Those lines are mak_vrf_layer Roads (:55), the MAK_ROAD a
+    /// navigate-to-location pathQuery plans along. MVT lines only (a vector tile has no geometry collection).
+    /// </summary>
+    public static bool IsVehicleRoad(int geomType, IReadOnlyDictionary<string, object> props)
+    {
+        if (geomType != Mvt.GeomLine) return false;
+        if (Mvt.Prop(props, "@type") == "node") return false;
+        string hw = Mvt.Prop(props, "highway");
+        return hw != null && !RoadModelSkippedHighways.Contains(hw);
+    }
 
     /// <summary>
     /// A River LINE as the AGGREGATE terrain loads it: VRFSIM.Aggregate.feature.model.xml "RiverL"
@@ -562,6 +599,9 @@ public sealed class OsmTile
     public IReadOnlyList<OsmLine> Rivers { get; init; } = Array.Empty<OsmLine>();
     /// <summary>Drivable road bridges (<see cref="OsmVendor.IsRoadBridge"/>), WidthM = MAK_WIDTH.</summary>
     public IReadOnlyList<OsmLine> Bridges { get; init; } = Array.Empty<OsmLine>();
+    /// <summary>M3: the sim's vehicle roads (<see cref="OsmVendor.IsVehicleRoad"/>) - filled for the
+    /// <see cref="OsmSet.Highways"/> set only; Kind = "highway=&lt;class&gt;".</summary>
+    public IReadOnlyList<OsmLine> Roads { get; init; } = Array.Empty<OsmLine>();
 
     public string Name => $"{OsmSets.Name(Set)}/{OsmTileMath.FileName(X, TmsY)}";
 
@@ -576,11 +616,26 @@ public sealed class OsmTile
         var landUse = new List<OsmArea>();
         var rivers = new List<OsmLine>();
         var bridges = new List<OsmLine>();
+        var roads = new List<OsmLine>();
         foreach (var layer in layers ?? Array.Empty<Mvt.Layer>())
             foreach (var f in layer.Features)
             {
                 string id = Mvt.Prop(f.Props, "@id") ?? "?";
                 string name = Mvt.Prop(f.Props, "name") ?? "";
+                if (set == OsmSet.Highways)
+                {
+                    // M3: the sim's road source - its vehicle roads and nothing else.
+                    if (!OsmVendor.IsVehicleRoad(f.GeomType, f.Props)) continue;
+                    foreach (var part in f.Parts)
+                    {
+                        if (part.Count < 2) continue;
+                        var pts = part.Select(p => OsmTileMath.ToLatLon(OsmTileMath.Zoom, x, tmsY, p.X, p.Y, layer.Extent))
+                                      .ToList();
+                        roads.Add(new OsmLine(id, "highway=" + Mvt.Prop(f.Props, "highway"), OsmVendor.RoadWidthMeters(f.Props),
+                                              pts, GeoBox.Of(pts)));
+                    }
+                    continue;
+                }
                 if (set == OsmSet.Water)
                 {
                     // Polygons only: the osm-water set carries no lines (measured 2026-09-27 on the 128
@@ -640,7 +695,7 @@ public sealed class OsmTile
         return new OsmTile
         {
             Set = set, X = x, TmsY = tmsY, Known = true, State = state,
-            Water = water, Buildings = buildings, LandUse = landUse, Rivers = rivers, Bridges = bridges,
+            Water = water, Buildings = buildings, LandUse = landUse, Rivers = rivers, Bridges = bridges, Roads = roads,
         };
     }
 
@@ -884,7 +939,14 @@ public sealed record OsmLegFeatures
 }
 
 /// <summary>leg_check.py's --osm-buildings answer for one leg: the parity instrument, and an INFO line
-/// in the service. Buildings are NOT a leg flag on either profile (RL-20260927-01).</summary>
+/// in the service. Buildings are NOT a leg flag on either profile - that is still the code's behaviour (M2,
+/// under RL-20260927-01), but its old premise, "buildings cannot stop an aggregate", is REFUTED: the
+/// aggregate terrain hands the sim engine the OSM footprints AND simplified 3-D building models, a
+/// container's members are placed on the highest surface - roofs included - and the aggregated movement
+/// actuator's max-slope check refuses a member at a footprint edge ("Terrain too steep", 11 Mech COs in
+/// G1-2; docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 1 and 4(a)). The remedy
+/// on record is the TASK: a planned move round MAK_OBSTACLE (M3, RL-20260928-03); a building leg rule for a
+/// literally-driven leg is that finding's sec 4(a) proposal and is not built.</summary>
 public sealed record OsmLegBuildings(double ClearanceM, double? MinM, string MinId,
                                      IReadOnlyList<(string Id, double DistanceM)> Within, bool Flagged,
                                      int UnknownTiles);
@@ -1470,4 +1532,81 @@ public static class OsmQuery
         }
         return best;
     }
+
+    /// <summary>
+    /// The z14 tiles whose square comes within <paramref name="bandM"/> of the segment a-b - EXACT, not sampled:
+    /// every tile of the band's lat/lon box is kept only when its own square (in the local frame at a) lies
+    /// within the band of the segment. A band wider than a tile needs this - TilesAlong's three sample lines
+    /// can step over a whole tile once the half-width passes ~700 m.
+    /// </summary>
+    public static List<(int X, int TmsY)> TilesNear((double Lat, double Lon) a, (double Lat, double Lon) b, double bandM)
+    {
+        var f = OsmGeometry.Frame.At(a.Lat, a.Lon);
+        var A = f.Xy(a);
+        var B = f.Xy(b);
+        double reach = Math.Max(0.0, bandM) + TileMarginM;
+        double dLat = reach / OsmGeometry.MetresPerDegree;
+        double dLon = reach / (OsmGeometry.MetresPerDegree * Math.Max(0.01, Math.Cos(a.Lat * Math.PI / 180.0)));
+        double s = Math.Min(a.Lat, b.Lat) - dLat, n = Math.Max(a.Lat, b.Lat) + dLat;
+        double w = Math.Min(a.Lon, b.Lon) - dLon, e = Math.Max(a.Lon, b.Lon) + dLon;
+        var (x0, y0) = OsmTileMath.TileOf(s, w);   // tms y grows NORTHWARD
+        var (x1, y1) = OsmTileMath.TileOf(n, e);
+        var outp = new List<(int, int)>();
+        for (int x = Math.Min(x0, x1); x <= Math.Max(x0, x1); x++)
+            for (int y = Math.Min(y0, y1); y <= Math.Max(y0, y1); y++)
+            {
+                var nw = OsmTileMath.ToLatLon(OsmTileMath.Zoom, x, y, 0, 0, 4096);
+                var se = OsmTileMath.ToLatLon(OsmTileMath.Zoom, x, y, 4096, 4096, 4096);
+                var ring = new[]
+                {
+                    f.Xy(nw), f.Xy((nw.Lat, se.Lon)), f.Xy(se), f.Xy((se.Lat, nw.Lon)), f.Xy(nw),
+                };
+                if (OsmGeometry.SegmentPolygon(A, B, new[] { ring }).D <= reach) outp.Add((x, y));
+            }
+        return outp;
+    }
+
+    /// <summary>
+    /// M3 (RL-20260928-03): THE NEAREST SIM ROAD to the segment a-b, within <paramref name="bandM"/>. Reads the
+    /// <see cref="OsmSet.Highways"/> tiles (the sim's Roads source) of <see cref="TilesNear"/>; a tile that is not
+    /// KNOWN is counted, never read as "no road here". MinM = +infinity when no road lies within the band on the
+    /// readable tiles.
+    /// </summary>
+    public static OsmRoadProximity NearestRoad(OsmTileProvider tiles, (double Lat, double Lon) a, (double Lat, double Lon) b,
+                                               double bandM)
+    {
+        var f = OsmGeometry.Frame.At(a.Lat, a.Lon);
+        var A = f.Xy(a);
+        var B = f.Xy(b);
+        var box = GeoBox.Of(new[] { a, b });
+        int known = 0;
+        var unknown = new List<string>();
+        double best = double.PositiveInfinity;
+        string bestId = "", bestKind = "";
+        foreach (var (x, y) in TilesNear(a, b, bandM))
+        {
+            var t = tiles(OsmSet.Highways, x, y);
+            if (t == null || !t.Known) { unknown.Add(t?.Name ?? $"{OsmSets.Name(OsmSet.Highways)}/{OsmTileMath.FileName(x, y)}"); continue; }
+            known++;
+            foreach (var r in t.Roads)
+            {
+                if (!r.Box.Near(box, bandM + 1.0)) continue;
+                double d = OsmGeometry.SegmentPolyline(A, B, r.Points.Select(f.Xy).ToList()).D;
+                if (d < best) { best = d; bestId = r.Id; bestKind = r.Kind; }
+            }
+        }
+        return new OsmRoadProximity(bandM, best <= bandM ? best : double.PositiveInfinity,
+                                    best <= bandM ? bestId : "", best <= bandM ? bestKind : "", known, unknown.Count, unknown);
+    }
+}
+
+/// <summary>
+/// M3: what the sim's road layer holds near one leg - the nearest vehicle road within <see cref="BandM"/> of the leg's
+/// line (+infinity when none on the readable tiles), and how many of the tiles that band touches could NOT be read
+/// (unknown is never "no road").
+/// </summary>
+public sealed record OsmRoadProximity(double BandM, double MinM, string RoadId, string RoadKind, int KnownTiles,
+                                      int UnknownTiles, IReadOnlyList<string> UnknownTileNames)
+{
+    public bool Found => !double.IsPositiveInfinity(MinM);
 }

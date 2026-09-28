@@ -56,6 +56,16 @@ public sealed record RouteShiftOptions
     /// OSM water was not checked. A candidate with KNOWN OSM water on it is refused either way.
     /// </summary>
     public bool RequireFeaturesKnown { get; init; }
+
+    /// <summary>
+    /// M3 (RL-20260928-03; FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 5 item 4): non-empty = REPORT, DO NOT
+    /// DETOUR. The route is driven by a vendor PLANNING task that routes round MAK_OBSTACLE itself (a container under
+    /// Vrf:AggregateMovePlanner other than Literal), so a flagged leg is scored and reported exactly as before - every
+    /// leg line, the river-crossing report, the ObservationReports - but no lateral detour is spliced into it: the
+    /// planner, not a lateral offset, answers the obstacle. The text is the reason each such leg carries. Empty (the
+    /// default, and every entity-level and Literal route) = the lateral shift as it always was.
+    /// </summary>
+    public string ReportOnlyReason { get; init; } = "";
 }
 
 /// <summary>
@@ -133,6 +143,9 @@ public sealed record LegShift
     /// <summary>An endpoint of this leg is a vertex the VERTEX CHECK moved (reported separately), so
     /// "STP's own vertices are unchanged" would be false of this leg.</summary>
     public bool EndpointMoved { get; init; }
+    /// <summary>M3: the leg was flagged and REPORTED but deliberately not detoured - it is driven by a vendor
+    /// planning task (<see cref="RouteShiftOptions.ReportOnlyReason"/>, which <see cref="Note"/> carries).</summary>
+    public bool ReportOnly { get; init; }
 }
 
 /// <summary>
@@ -609,6 +622,25 @@ public static class RouteShift
             Note = FormattableString.Invariant(
                        $"RIVER CROSSING - the same OSM water lies on the line at BOTH ends of the +/-{opt.MaxMeters:F0} m lateral band ({probeNote}), ")
                    + "a river or water wider than the band, so no lateral detour can clear it: needs a road/bridge; STP authoring",
+        };
+
+    /// <summary>
+    /// M3 (RL-20260928-03): the REPORT-ONLY outcome for a flagged leg a vendor PLANNING task drives - scored and
+    /// reported, nothing searched, no detour; the reason (<see cref="RouteShiftOptions.ReportOnlyReason"/>) is its note.
+    /// </summary>
+    public static LegShift ReportOnlyShift(LegMetrics leg, RouteShiftOptions opt)
+        => new()
+        {
+            LegIndex = leg.Index,
+            Shifted = false,
+            ReportOnly = true,
+            FlagWater = leg.FlagWater,
+            FlagReason = leg.FlagReason,
+            BaseRatio = leg.Ratio,
+            ShiftedRatio = double.NaN,
+            BandMax = double.NaN,
+            BandSearchedMeters = 0.0,
+            Note = opt.ReportOnlyReason ?? "",
         };
 
     /// <summary>The chosen detour, packaged. <paramref name="extra"/> is empty for an ordinary

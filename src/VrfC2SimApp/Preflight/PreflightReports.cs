@@ -272,6 +272,11 @@ public static class PreflightReports
     /// <summary>The Marking of a flagged leg NO offset in the band could clear.</summary>
     public static string NoShiftMarking(string taskName, string unitName, LegShift s)
     {
+        // M3 (RL-20260928-03): a flagged leg a vendor planning task drives - reported, deliberately not detoured.
+        if (s.ReportOnly)
+            return $"ROUTE SHIFT NOT APPLIED - PLANNED LEG: task {taskName} ({unitName}) leg {s.LegIndex} - flagged " +
+                   $"({s.FlagReason}); {s.Note}. The authored vertices are dispatched and the planner chooses the path " +
+                   "between them.";
         if (s.RiverCrossing)
             return $"ROUTE SHIFT NOT APPLIED - RIVER CROSSING: task {taskName} ({unitName}) leg {s.LegIndex} - " +
                    $"{s.FlagReason}, and OSM water lies on the line at BOTH ends of the +/-{F(s.BandSearchedMeters, 0)} m " +

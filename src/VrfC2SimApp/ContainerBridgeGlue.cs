@@ -35,7 +35,8 @@ public static class PublishedCountReader
 }
 
 /// <summary>The bridge-free scripted-task variables, as the bridge's ScriptVar (the vendor's DtRw* bindings:
-/// Object -> "simulationobject", Flag -> "checkbox", Location -> "location"; VrfFacade.cpp addScriptVar).</summary>
+/// Object -> "simulationobject", Flag -> "checkbox", Location -> "location", Text -> "string", Number -> "double";
+/// VrfFacade.cpp addScriptVar).</summary>
 public static class ContainerScriptVars
 {
     public static List<ScriptVar> ToBridge(IReadOnlyList<ContainerTaskVar> vars)
@@ -47,6 +48,8 @@ public static class ContainerScriptVars
             {
                 ContainerTaskVarKind.Object => ScriptVar.Object(v.Name, v.Text ?? ""),
                 ContainerTaskVarKind.Flag => ScriptVar.Flag(v.Name, v.Flag),
+                ContainerTaskVarKind.Text => ScriptVar.Text(v.Name, v.Text ?? ""),
+                ContainerTaskVarKind.Number => ScriptVar.Number(v.Name, v.Number),
                 _ => ScriptVar.Place(v.Name, new Geodetic { LatDeg = v.Lat, LonDeg = v.Lon, AltMeters = v.Alt }),
             });
         return outp;

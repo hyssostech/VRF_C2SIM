@@ -3,16 +3,23 @@ using System.Globalization;
 namespace VrfC2SimApp;
 
 /// <summary>A scripted-task variable, bridge-free (so the population logic loads without VrfBridge.dll). The service
-/// converts each to the bridge's ScriptVar; --populate-selftest proves the conversion binds the vendor's types.</summary>
-public enum ContainerTaskVarKind { Object, Flag, Location }
+/// converts each to the bridge's ScriptVar; --populate-selftest proves the conversion binds the vendor's types.
+/// Text and Number (M3, RL-20260928-03) are the bridge's existing String and Real kinds (ScriptVar.Text / ScriptVar.Number,
+/// --scripted-task-selftest): navigate-to-location's obstacleQuery / pathQuery / query are strings and its buffer a
+/// number (base\scripts\navigate-to-location.xml; the vendor's own saved task carries DtRwString and DtRwReal for them,
+/// RoadToKaunasPhaseTwo.oob :109481-109500).</summary>
+public enum ContainerTaskVarKind { Object, Flag, Location, Text, Number }
 
 public readonly record struct ContainerTaskVar(string Name, ContainerTaskVarKind Kind, string Text = "",
-                                               bool Flag = false, double Lat = 0.0, double Lon = 0.0, double Alt = 0.0)
+                                               bool Flag = false, double Lat = 0.0, double Lon = 0.0, double Alt = 0.0,
+                                               double Number = 0.0)
 {
     public override string ToString() => Kind switch
     {
         ContainerTaskVarKind.Object => $"{Name}={Text}",
         ContainerTaskVarKind.Flag => $"{Name}={(Flag ? "true" : "false")}",
+        ContainerTaskVarKind.Text => $"{Name}=\"{Text}\"",
+        ContainerTaskVarKind.Number => FormattableString.Invariant($"{Name}={Number:0.###}"),
         _ => FormattableString.Invariant($"{Name}=({Lat:F6},{Lon:F6})"),
     };
 }
@@ -197,6 +204,27 @@ public sealed class ContainerPopulator
             if (!_byContainer.TryGetValue(container ?? "", out var p)) return Array.Empty<(string, string)>();
             var outp = p.Members.Select(m => (m.Name, p.CreatedUuid.TryGetValue(m.Name, out var u) ? u : "")).ToList();
             outp.AddRange(p.Existing);
+            return outp;
+        }
+    }
+
+    /// <summary>
+    /// M3 (RL-20260928-03): the members this container's population ATTACHED, in attach order, with the uuid their
+    /// ObjectCreated bound; FromTo = an existing STP TO sub-container (precedence 1), not a created warfare-model unit.
+    /// Empty until the population has attached. The per-member planners task exactly these.
+    /// </summary>
+    public IReadOnlyList<(string Name, string Uuid, bool FromTo)> AttachedMembersOf(string container)
+    {
+        lock (_lock)
+        {
+            if (!_byContainer.TryGetValue(container ?? "", out var p)) return Array.Empty<(string, string, bool)>();
+            var outp = new List<(string, string, bool)>(p.AttachedNames.Count);
+            foreach (var name in p.AttachedNames)
+            {
+                var existing = p.Existing.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+                if (existing.Name != null) outp.Add((name, existing.Uuid ?? "", true));
+                else outp.Add((name, p.CreatedUuid.TryGetValue(name, out var u) ? u ?? "" : "", false));
+            }
             return outp;
         }
     }
@@ -416,6 +444,21 @@ public sealed class ContainerPopulator
     {
         var v = MoveVerdict(container, now);
         if (v.Ready) bridge.RunScriptedTask(containerUuid, scriptId, vars);
+        return v;
+    }
+
+    /// <summary>
+    /// M3 (RL-20260928-03): a PER-MEMBER planned vertex - the same scripted task to each member, by the member's uuid, and
+    /// ONLY while the container may take a move (the same single gate as <see cref="TryIssueScriptedMove"/>). Returns the
+    /// verdict; nothing is issued when it is not Ready.
+    /// </summary>
+    public ContainerMoveVerdict TryIssueMemberMoves(string container, IReadOnlyList<string> memberUuids, string scriptId,
+                                                    IReadOnlyList<ContainerTaskVar> vars, DateTime now, IContainerBridge bridge)
+    {
+        var v = MoveVerdict(container, now);
+        if (!v.Ready) return v;
+        foreach (string memberUuid in memberUuids ?? Array.Empty<string>())
+            bridge.RunScriptedTask(memberUuid, scriptId, vars);
         return v;
     }
 

@@ -21,6 +21,10 @@ namespace VrfC2SimApp;
 ///   (d6)-(d9) the audit's own fix-2 list: Y-12 no Autonomous Actions send, Y-13 no road / navigation preference send,
 ///        C10 no sendVrfObjectCreateMsg + initialFormation, C6 + G3/G4 ReorganizeAggregate only in the opt-in
 ///        Vrf:AggregateFormation=auto handler.
+///   (d10) M3, RL-20260928-03: NO CONTAINER MOVE ISSUES PA_Move_Along_Route unless Vrf:AggregateMovePlanner=Literal - the
+///        planned arm (every other planner) returns before the container route arm's ContainerScripts.ForForm, and the
+///        script id lives nowhere else in the app. (Y-13 is untouched: a container's per-leg road use is the planner's
+///        pathQuery / useRoads task variable under RL-20260928-03, not an entity road or navigation preference.)
 ///   Each scanner is run on a DIRTY control first (a synthetic violation it must flag, and a comment/string mention it
 ///   must not).
 /// </summary>
@@ -37,6 +41,7 @@ public static class DoNotRulesSelfTest
         RtiUntouched(ref failures, repo);
         FanOut(ref failures, repo);
         AuditFix2(ref failures, repo);
+        PlannedContainerMove(ref failures, repo);
         return failures;
     }
 
@@ -346,6 +351,75 @@ public static class DoNotRulesSelfTest
               "(d9) C6 + G3/G4 - NO POST-ATTACH REORGANIZE: ReorganizeAggregate is called ONCE in the app, inside " +
               "OnVrfAvailableFormations and after its 'Vrf:AggregateFormation != auto -> return' guard (the opt-in repair; C4 " +
               "keeps it OFF)", $"calls {calls}, elsewhere {others}, handler {handler}, guard {guard}, call {call}");
+    }
+
+    // ----------------------------------------------------------------------------- (d10) ----
+    private static readonly Regex PlannedGate = new(
+        @"if\s*\(\s*moveForm\s*==\s*GroundMoveForm\.RouteTask\s*&&\s*unit\.IsContainer\s*&&\s*!patrol\s*&&\s*AggregateMovePolicy\.IsPlanned\(\s*_movePlanner\s*\)\s*\)");
+    private const string RouteArmForForm = "ContainerScripts.ForForm(moveForm, patrol)";
+
+    /// <summary>Does the planned-move gate come before the container route arm's ForForm, with a return in between?</summary>
+    private static bool PlannedGateGuardsRouteArm(string code)
+    {
+        var gate = PlannedGate.Match(code);
+        int arm = code.IndexOf(RouteArmForForm, StringComparison.Ordinal);
+        return gate.Success && arm > gate.Index
+               && code.Substring(gate.Index, arm - gate.Index).Contains("StartContainerPlannedMove(", StringComparison.Ordinal)
+               && code.Substring(gate.Index, arm - gate.Index).Contains("return;", StringComparison.Ordinal);
+    }
+
+    private static void PlannedContainerMove(ref int failures, string repo)
+    {
+        // DIRTY CONTROLS FIRST: C1's shape before M3 (the route arm reached with no planner gate), a gate that does not
+        // return, and the clean shape.
+        string dirtyNoGate = CodeText.Blank(
+            "if (moveForm == GroundMoveForm.MoveToPerVertex) { StartVertexChain(task, unit, vrfUuid, routeGeo, attackTargetVrf); return; }\n" +
+            "string containerScript = unit.IsContainer ? ContainerScripts.ForForm(moveForm, patrol) : null;\n", CodeText.Lang.CSharp);
+        string dirtyNoReturn = CodeText.Blank(
+            "if (moveForm == GroundMoveForm.RouteTask && unit.IsContainer && !patrol && AggregateMovePolicy.IsPlanned(_movePlanner))\n" +
+            "    StartContainerPlannedMove(task, unit, vrfUuid, routeGeo, containerMembers);\n" +
+            "string containerScript = unit.IsContainer ? ContainerScripts.ForForm(moveForm, patrol) : null;\n", CodeText.Lang.CSharp);
+        string clean = CodeText.Blank(
+            "if (moveForm == GroundMoveForm.RouteTask && unit.IsContainer && !patrol && AggregateMovePolicy.IsPlanned(_movePlanner))\n" +
+            "{\n    StartContainerPlannedMove(task, unit, vrfUuid, routeGeo, containerMembers);\n    return;\n}\n" +
+            "// ContainerScripts.ForForm(moveForm, patrol) in a comment\n" +
+            "string containerScript = unit.IsContainer ? ContainerScripts.ForForm(moveForm, patrol) : null;\n", CodeText.Lang.CSharp);
+        Check(ref failures, !PlannedGateGuardsRouteArm(dirtyNoGate) && !PlannedGateGuardsRouteArm(dirtyNoReturn)
+                            && PlannedGateGuardsRouteArm(clean),
+              "(d10) DIRTY CONTROLS: a container route arm reached with no planner gate, and a gate that does not return, are " +
+              "flagged; the gated shape (StartContainerPlannedMove; return; before ForForm) is not");
+
+        string svcCode = CodeText.Blank(Read(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs"), CodeText.Lang.CSharp);
+        int gates = PlannedGate.Matches(svcCode).Count;
+        int forForms = Regex.Matches(svcCode, @"\bContainerScripts\.ForForm\(").Count;
+        Check(ref failures, gates == 1 && PlannedGateGuardsRouteArm(svcCode) && forForms == 2
+                            && svcCode.Contains("ContainerScripts.ForForm(GroundMoveForm.SinglePointMoveTo, patrol: false)", StringComparison.Ordinal),
+              "(d10) M3, RL-20260928-03 - NO CONTAINER MOVE ISSUES PA_Move_Along_Route UNLESS Vrf:AggregateMovePlanner=Literal: " +
+              "ExecuteTaskOnTick's planned arm (moveForm RouteTask, a container, not a patrol, IsPlanned) calls " +
+              "StartContainerPlannedMove and RETURNS before the route arm's ContainerScripts.ForForm(moveForm, patrol) - the one " +
+              "place PA_Move_Along_Route is chosen (ForForm's other caller is the single-point PA_Move_To_Location_Direct)",
+              $"gates {gates}, ForForm calls {forForms}");
+
+        // No scripted-task issue in the app takes the literal script id directly - it arrives only through ForForm.
+        var direct = new List<string>();
+        foreach (string f in Directory.GetFiles(Path.Combine(repo, "src", "VrfC2SimApp"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (f.EndsWith("SelfTest.cs", StringComparison.Ordinal) || f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
+                || f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)) continue;
+            string code = CodeText.Blank(File.ReadAllText(f), CodeText.Lang.CSharp);
+            foreach (Match m in Regex.Matches(code, @"\b(RunScriptedTask|TryIssueScriptedMove|TryIssueMemberMoves)\("))
+                foreach (var a in TopLevelArgs(code, m.Index + m.Length))
+                    if (a.Contains("MoveAlongRoute", StringComparison.Ordinal)) direct.Add(Path.GetFileName(f) + ": " + m.Value + a.Trim());
+        }
+        Check(ref failures, direct.Count == 0,
+              "(d10) no RunScriptedTask / TryIssueScriptedMove / TryIssueMemberMoves call in the app names the move-along script " +
+              "directly - a container's route script is whatever ForForm answered behind the planner gate", string.Join(" | ", direct));
+
+        var planned = Enum.GetValues<AggregateMovePlanner>().Where(AggregateMovePolicy.IsPlanned).ToList();
+        Check(ref failures, planned.Count == Enum.GetValues<AggregateMovePlanner>().Length - 1
+                            && !AggregateMovePolicy.IsPlanned(AggregateMovePlanner.Literal),
+              "(d10) IsPlanned is true for EVERY Vrf:AggregateMovePlanner value but Literal (exhaustive), so only Literal reaches " +
+              "the route arm", string.Join(",", planned));
     }
 
     // --------------------------------------------------------------------------- helpers ----

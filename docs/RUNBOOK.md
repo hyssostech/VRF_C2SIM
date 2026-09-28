@@ -4162,6 +4162,41 @@ other defaults (no duration scale, no stall env, the 7200 s predecessor floor) a
 scored run still names its own (e.g. PREREG_IRONSTORM_AGG_G1-2 sec 3 E). The 5.0.2 profile keeps TropicTortoise + the R9
 pair. RTT 8n, 8y, 8z and 8v3 pin both the new default and the named R9 set.
 
+### 11o. A CONTAINER'S ROUTE IS DRIVEN BY THE VENDOR'S PLANNING TASK, PER VERTEX (M3, RL-20260928-03, 2026-09-28)
+
+Ruled RL-20260928-03 (owner, "AUTO it is"; basis docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md):
+on AggregateTacticalLevel a tasked container's ROUTE is no longer C1's PA_Move_Along_Route (every member on STP's straight
+line, nothing planned - G1-2's 11 Mech COs stopped on it in a building) but one vendor planning task per STP vertex, the
+next only when the previous COMPLETES, per `Vrf:AggregateMovePlanner`: `Auto` (default) = per member navigate-to-location
+[destination, obstacleQuery "MAK_OBSTACLE", pathQuery "MAK_ROAD"|"NONE", buffer 10, displayRoute false, query ""],
+pathQuery MAK_ROAD when the sim's road layer (the osm-highways set, osm.roads.model.xml) lies within
+`Vrf:RoadProximityMeters` (500) of the leg, else NONE; `Group` = Move (Group) `group_movement_simplified` [destination,
+useRoads=true] on the container; `GroupOffRoad` = the same with useRoads=false (a control; refused unless
+`Vrf:AllowLiteralMove=true`); `PerMemberOffRoad` = navigate-to-location per member, pathQuery NONE; `Literal` = C1's
+PA_Move_Along_Route byte for byte (rollback, G1-2 baseline). A vertex completes by Move (Group)'s own rule, which also
+aggregates a per-member vertex: every member's move ended, and at least one succeeded (roleNode.lua :169-282); none
+succeeded = FAILED -> TASKABRT with the reason. Arrival evidence, D-6 and the watchdog judge the last vertex; point moves,
+patrols and holds are unchanged; the pre-flight REPORTS a planned leg and never detours it (Literal keeps the shift). LINE
+SHAPES (G1-3 greps them): start-up `AGGREGATE MOVE PLANNER <P> (Vrf:AggregateMovePlanner; RL-20260928-03, the default is
+Auto): a CONTAINER's route is driven ...` (EntityLevel: `AGGREGATE MOVE PLANNER not in use ...`); dispatch `Task '<T>':
+PLANNED MOVE for CONTAINER <c> (<uuid>) - Vrf:AggregateMovePlanner=<P> (RL-20260928-03): <N> vertex(es), ...`; per leg
+(Auto) `PLANNED MOVE <c> vertex <k> of <N>: roads NEAR (<d> m) -> MAK_ROAD; obstacleQuery MAK_OBSTACLE buffer 10 m ...`,
+`roads FAR (<d> m) -> NONE; ...`, `roads FAR (> <2P> m) -> NONE; ...` or `roads UNKNOWN (<u> osm-highways tile(s) within
+<P> m NOT readable, ...) -> NONE; ...`; per vertex `PLANNED MOVE <c> vertex <k> of <N>: <script> issued (useRoads
+<true|false>) -> OUTSTANDING to (<lat>,<lon>) ...`, then `-> COMPLETED - ...; vertex <k+1> is issued next`, `-> LAST VERTEX
+COMPLETED - ...` or (WARN) `-> FAILED - ...`; per member `PLANNED MOVE <c> vertex <k> of <N>: member <m> navigate-to-location
+COMPLETED|FAILED - <i> of <n> member(s) ended ...` and `... the LAST of <n>: <s> succeeded, <f> failed -> the vertex
+SUCCEEDED|FAILED by the vendor's Move (Group) rule ...`; pre-flight `leg <k>: NO ROUTE SHIFT - the leg is driven by the
+vendor's planning task ...` (report marking `ROUTE SHIFT NOT APPLIED - PLANNED LEG: ...`) and `ROAD LAYER for the AUTO
+planner (RL-20260928-03) - <k> osm-highways tile(s) ... readable, <u> not`; a refusal `REFUSED: PLANNED MOVE for CONTAINER
+<c> under Vrf:AggregateMovePlanner=<P> - ...`. THE ROAD LAYER: the route-shift worker fetches the osm-highways tiles within
+2 x 500 m of the legs ONLINE (cached beside osm-water and osm); the dispatch reads the cache and never fetches, so an
+OFFLINE run on a cache without them decides every leg UNKNOWN -> NONE (today's deployed cache holds none). Offline proof:
+`--planned-move-selftest [cache]` (72; the cache argument prints the per-leg decision for the cut-A legs), `--rulings-
+selftest` d10 (no container move issues PA_Move_Along_Route unless Literal) and s12 (the default as shipped), `--osm-selftest`
+(the report-only pond and river), `--populate-selftest` p11 (the variables bind as DtRwVector / DtRwString / DtRwReal /
+DtRwBoolean). OFFLINE-PROVEN ONLY - not deployed, not live; the first registered run is G1-3.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS

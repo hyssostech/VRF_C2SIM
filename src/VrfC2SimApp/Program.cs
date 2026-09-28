@@ -175,6 +175,17 @@ if (args.Length > 0 && args[0] == "--initgraphics-selftest")
 if (args.Length > 0 && args[0] == "--populate-selftest")
     return ContainerSelfTest.Run();
 
+// M3 - THE PLANNED CONTAINER MOVE (RL-20260928-03): the planner selection, the per-vertex chain, the vendor's Move (Group)
+// completion rule, Literal byte-for-byte, the setting, the service glue, the vendor files (read-only) and the AUTO road
+// decision - the same checks --rulings-selftest runs. Optional 2nd arg = a tile cache holding osm-highways/: the AUTO
+// decision for the cut-A legs of G1-2 is then printed. Pure managed - no bridge, no network, no server.
+if (args.Length > 0 && args[0] == "--planned-move-selftest")
+{
+    int pm = PlannedMoveSelfTest.Run(args.Length >= 2 ? args[1] : null);
+    Console.WriteLine(pm == 0 ? "planned-move-selftest: ALL CHECKS PASSED" : $"planned-move-selftest: {pm} CHECK(S) FAILED");
+    return pm == 0 ? 0 : 1;
+}
+
 // THE REAL STP EXPORT through the offline intake path (2026-09-20): the ClientId diagnostic, the
 // order-borne + task-symbol graphics resolution, the precedence rule when a task carries both, and
 // the two verbs the export added. Pure managed - no bridge, no MAK, no network, no server.
@@ -196,6 +207,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--dispatch-readiness-selftest [--disabled], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
+                            "--planned-move-selftest [tile-cache-dir], " +
                             "--osm-selftest [real-osm-tile-dir], " +
                             "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +

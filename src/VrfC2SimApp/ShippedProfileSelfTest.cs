@@ -15,6 +15,7 @@ namespace VrfC2SimApp;
 ///   (s6)-(s7) RL-20260927-02 the hostile side RUS, in the settings and in the aggregate map (nation 260)
 ///   (s8) Y-2 the config-file identity      (s9) C1/C2 ComposeHierarchy          (s10) C4 AggregateFormation OFF
 ///   (s11) DIRTY CONTROLS: each demo pin, re-read with its one key flipped in memory, must FAIL.
+///   (s12) RL-20260928-03 the planned container move: Vrf:AggregateMovePlanner=Auto everywhere it ships (+ its dirty control).
 /// </summary>
 public static class ShippedProfileSelfTest
 {
@@ -144,6 +145,24 @@ public static class ShippedProfileSelfTest
               "flipped over them (TypeMappingMode, CreationPolicy, StallDetection, StallClock, ModelSet, OpposingNation, " +
               "ConfigFileIdentity, ComposeHierarchy, AggregateFormation) - the pins read the keys",
               $"clean {holdsClean.Count}, caught {string.Join(",", caught)}");
+
+        // (s12) RL-20260928-03 ("AUTO it is") - a tasked container's route is driven by the vendor's planning tasks per
+        // vertex, Auto by default; GroupOffRoad needs AllowLiteralMove; the road rule's proximity is 500 m. It ships in ALL
+        // THREE places, so this one agrees with its ruling in the base as well as the overlay.
+        Check(ref failures, compiled.AggregateMovePlanner == "Auto" && baseCfg["Vrf:AggregateMovePlanner"] == "Auto"
+                            && shipped.AggregateMovePlanner == "Auto" && demo.AggregateMovePlanner == "Auto"
+                            && !compiled.AllowLiteralMove && !shipped.AllowLiteralMove && !demo.AllowLiteralMove
+                            && compiled.RoadProximityMeters == 500.0 && demo.RoadProximityMeters == 500.0
+                            && !rsh.Contains("Vrf__AggregateMovePlanner", StringComparison.Ordinal),
+              "(s12) RL-20260928-03: Vrf:AggregateMovePlanner=Auto in VrfSettings.cs, as an explicit key in appsettings.json and " +
+              "through the Demo overlay; AllowLiteralMove false and RoadProximityMeters 500 in all three; RunScenario.sh exports " +
+              "no other planner",
+              $"compiled {compiled.AggregateMovePlanner}, base key '{baseCfg["Vrf:AggregateMovePlanner"]}', demo {demo.AggregateMovePlanner}");
+        var literal = new ConfigurationBuilder().AddJsonFile(appSettings, optional: false).AddJsonFile(demoSettings, optional: false)
+                          .AddInMemoryCollection(new Dictionary<string, string> { ["Vrf:AggregateMovePlanner"] = "Literal" })
+                          .Build().GetSection("Vrf").Get<VrfSettings>();
+        Check(ref failures, literal != null && literal.AggregateMovePlanner != "Auto",
+              "(s12) DIRTY CONTROL: Vrf:AggregateMovePlanner=Literal layered over the two files makes the pin FAIL - it reads the key");
         return failures;
     }
 
