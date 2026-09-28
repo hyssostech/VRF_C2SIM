@@ -64,7 +64,7 @@ C7 LEADER IDENTITY does not gate movement (V: platoon leader; expand: HQ leader;
 C8 VRF objects are addressed by their REAL VRF_UUID (from ObjectCreated), NEVER a name-as-DtUUID -
    SETTLED 2026-09-02 (PREREG_ROUTE_UUID_FIX; rwUUID.h 35-char marking blob; VrfC2SimService.cs:
    1908-1916). The name is only the in-app map KEY; all VRF calls use the real uuid (:1375). The
-   audit's "G5 name-correlation gap" re-discovered this settled rule and is NOT a gap.
+   audit's "G5 name-correlation gap" re-discovered this settled rule and is NOT a gap. REVERSED 2026-09-28 (RL-20260928-02): the name-keyed CREATE correlation is the gap; identity by startingUUID (PLAN_MOVEMENT row C1d).
 C9 There is NO vendor sample/source for the MSDL/ORBAT importer (headers only; importOrbat builds a
    DATA tree and does not create objects). The vendor's only worked aggregate sample = compose (C2).
 C10 sendVrfObjectCreateMsg + initialFormation is a real API but NOT a compose replacement for a

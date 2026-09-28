@@ -1,5 +1,15 @@
 # PLAN: ground movement per the vendor's model - two profiles, one pre-flight (2026-09-27)
 
+CLOSED - tripwires, one line each; the pointer is the record. A session that wants to reopen one writes a dissent line and proceeds under it.
+- IDENTITY of a VR-Forces object is its UUID: every create passes startingUUID (the C2SIM uuid; a derived uuid for members); names and
+  markings are DISPLAY ONLY, never a key. Name limits (entities 11 / units 31, returned 10 / 30, UG52 13.2 Table 21) are a display fact -> RL-20260928-02, C1d.
+- Ground movement: Move To per vertex for lone platforms; the aggregate profile for Iron Storm; one OSM pre-flight -> RL-20260927-01, FINDING_GROUND_MOVEMENT_PRACTICE.
+- Aggregate representation: POPULATED Aggregate Containers (TO / catalogue / authored table), not proxies; hostile side RUS -> RL-20260927-02, -04.
+- Init shows every unit as an empty container; only TASKED units are populated, in place -> RL-20260927-03.
+- Model set = the highest TASKED echelon: above BN aggregate-only; BN and below entity by default, overridable upward -> RL-20260927-06, RL-20260928-01.
+- Successor gate: an unfinished predecessor with a destination is OVERDUE when its window expires -> RL-20260927-05.
+- VRF objects are addressed by their real VRF_UUID, never a name-as-DtUUID -> DESIGN_ORBAT C8 (2026-09-02).
+
 Ruling: RL-20260927-01 ("Go" on the decision brief of 2026-09-27). Basis: docs/experiments/FINDING_GROUND_MOVEMENT_
 PRACTICE_2026-09-27.md (vendor citations, the stops read against them, the aggregate mobility table). Frame: Y-15
 (docs/VRF_5.2_DECISION_EVIDENCE.md) - EntityLevel for company-and-below orders, AggregateTacticalLevel for battalion-

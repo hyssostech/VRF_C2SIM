@@ -10,7 +10,7 @@ gaps re-graded against the anchors (vendor sample + installed UG52 + the determi
   completed 3/3: addToOrganization resolves the formation. Do not add a reorganize.
 - G4 (client formation-validity wait) - REFUTED. VRF-8977: the app waits; V moved with no client
   wait. Do not add one.
-- G5 (name-only correlation) - NOT A GAP; a SETTLED rule re-discovered. PREREG_ROUTE_UUID_FIX
+- G5 (name-only correlation) - REVERSED 2026-09-28 (RL-20260928-02): name-keyed correlation IS the gap and the FIX below (startingUUID) is package C1d. The refutation as written on 2026-09-06 follows: NOT A GAP; a SETTLED rule re-discovered. PREREG_ROUTE_UUID_FIX
   (2026-09-02) + VrfC2SimService.cs:1908-1916: never pass a NAME as a DtUUID (rwUUID.h 35-char
   blob); address by the real VRF_UUID from ObjectCreated - which the code does (name = in-app map
   KEY only; all VRF calls use the real uuid, :1375). The audit conflated the vendor's import-rename
