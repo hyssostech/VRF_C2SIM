@@ -29,6 +29,11 @@ namespace VrfC2SimApp;
 ///   (p13) C1b - THE COMPOSITION VARIANT AND THE DERIVED-SMS GUARD (package C2's integration, RL-20260927-04): one
 ///         variant selected (unknown = refused), the fixture's SMS read like the runner's Stage 0, the guard both ways
 ///         and its bypass controls, the type map's authoredRows read as fidelity Authored, the start-up line
+///   (p14) C1c - NAMES WITHIN THE 30 CHARACTERS VR-FORCES KEEPS OF AN AGGREGATE (run G1, 2026-09-28): the constant
+///         re-read from the installed VR-Link header; G1's three populations REPLAYED through the real NameRegistry -
+///         FAIL-FIRST the 34-character names reproduce G1 exactly (22 ambiguous, 17 rebinds refused, 1 of 23 bound),
+///         the 30-character names bind 23 of 23; two containers alike in their first N characters; synthesized
+///         sub-units; whole-name graphics; every shipped init unique within 30; the source guards
 /// VARIANTS (C1b): the composition file holds a "catalogue" and an "authored" variant. p1 walks the SELECTED variant
 /// (`--populate-selftest --variant authored`; default = the file's defaultVariant, catalogue) on ITS catalogue - the
 /// installed vendor set for catalogue, the DERIVED set for authored (`--derived-sms PATH`, else env
@@ -93,6 +98,7 @@ public static class ContainerSelfTest
         P11(home);
         P12(repo);
         P13(repo, home, cat, full, selected, derived, derivedSms);
+        P14(repo, cat, table);
         return Finish();
     }
 
@@ -1050,6 +1056,314 @@ public static class ContainerSelfTest
         Check(!gLoaded.Refused,
               "THE GUARD on the LOADED derived catalogue (its own RootSms) and the derived fixture -> accepted end to end",
               gLoaded.Refusal ?? derived.Describe);
+    }
+
+    // ----------------------------------------------------------------------------------------------- (p14) ----
+    // C1c. The three populations of run G1 (runs/20260928T102541Z_run/vrfc2simapp.log :540, :546, :552), their REAL
+    // container names and member suffixes, and the member names that run REQUESTED under the 34-character rule.
+    private static readonly (string Row, string Container, string[] Suffixes, string[] G1Names)[] G1Populations =
+    {
+        ("C-USA-DIV-UCI", "28ID__FRIENDLY_INFANTRY_DIVISION", new[] { "HQ1" },
+         new[] { "28ID__FRIENDLY_INFANTRY_DIVISI.HQ1" }),
+        ("C-USA-BN-UCI", "1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE",
+         new[] { "HQ1", "RIF1", "RIF2", "RIF3", "WPN1" },
+         new[] { "1-112_IN/28ID__FRIENDLY_INFANT.HQ1", "1-112_IN/28ID__FRIENDLY_INFAN.RIF1",
+                 "1-112_IN/28ID__FRIENDLY_INFAN.RIF2", "1-112_IN/28ID__FRIENDLY_INFAN.RIF3",
+                 "1-112_IN/28ID__FRIENDLY_INFAN.WPN1" }),
+        ("C-USA-BDE-UCI", "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+         new[] { "HQ1", "INF1HQ1", "INF1RIF1", "INF1RIF2", "INF1RIF3", "INF1WPN1", "INF2HQ1", "INF2RIF1", "INF2RIF2",
+                 "INF2RIF3", "INF2WPN1", "INF3HQ1", "INF3RIF1", "INF3RIF2", "INF3RIF3", "INF3WPN1", "CAV1" },
+         new[] { "48_IBCT/28ID__FRIENDLY_INFANTR.HQ1", "48_IBCT/28ID__FRIENDLY_INF.INF1HQ1",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF1RIF1", "48_IBCT/28ID__FRIENDLY_IN.INF1RIF2",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF1RIF3", "48_IBCT/28ID__FRIENDLY_IN.INF1WPN1",
+                 "48_IBCT/28ID__FRIENDLY_INF.INF2HQ1", "48_IBCT/28ID__FRIENDLY_IN.INF2RIF1",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF2RIF2", "48_IBCT/28ID__FRIENDLY_IN.INF2RIF3",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF2WPN1", "48_IBCT/28ID__FRIENDLY_INF.INF3HQ1",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF3RIF1", "48_IBCT/28ID__FRIENDLY_IN.INF3RIF2",
+                 "48_IBCT/28ID__FRIENDLY_IN.INF3RIF3", "48_IBCT/28ID__FRIENDLY_IN.INF3WPN1",
+                 "48_IBCT/28ID__FRIENDLY_INFANT.CAV1" }),
+    };
+
+    /// <summary>The member-name rule of main before C1c (PopulatePlanner.MemberName within 34), for the fail-first.</summary>
+    private static string OldMemberName34(string container, string suffix)
+    {
+        string s = "." + suffix;
+        int room = 34 - s.Length;
+        string p = container ?? "";
+        if (p.Length > room) p = p.Substring(0, Math.Max(1, room));
+        return p + s;
+    }
+
+    /// <summary>What the registry does with a population's callbacks, exactly as the service feeds it: the batch is
+    /// registered BEFORE any create (EnqueueCreates), then each member's ObjectCreated carries what VR-Forces returns of an
+    /// AGGREGATE's name (VrfNames.ReturnedAggregateName, the measured rule: whole up to 31, else the first 30).</summary>
+    private static (int Bound, int Ambiguous, int Refused, int Cut) ReplayCallbacks(NameRegistry reg, IReadOnlyList<string> members,
+                                                                                    ref int uuidSeq)
+    {
+        foreach (var m in members) reg.Requested(m);
+        int bound = 0, ambiguous = 0, refused = 0, cut = 0;
+        foreach (var m in members)
+        {
+            string uuid = "VRF_UUID:member-" + (uuidSeq++).ToString(CultureInfo.InvariantCulture);
+            var b = reg.Bind(VrfNames.ReturnedAggregateName(m), uuid);
+            if (b.Ambiguous) ambiguous++;
+            if (b.RefusedRebind) refused++;
+            if (b.Truncated) cut++;
+            if (reg.TryGetUuid(m, out var got) && got == uuid) bound++;
+        }
+        return (bound, ambiguous, refused, cut);
+    }
+
+    /// <summary>A registry holding an init the way the aggregate profile leaves it: every unit requested, then bound
+    /// under what VR-Forces returns for a CONTAINER (VrfNames.ReturnedAggregateName).</summary>
+    private static NameRegistry InitRegistry(IReadOnlyList<string> initNames)
+    {
+        var reg = new NameRegistry();
+        foreach (var n in initNames) reg.Requested(n);
+        int u = 0;
+        foreach (var n in initNames)
+            reg.Bind(VrfNames.ReturnedAggregateName(n), "VRF_UUID:init-" + (u++).ToString(CultureInfo.InvariantCulture));
+        return reg;
+    }
+
+    private static void P14(string repo, ResolverCatalogue cat, CompositionTable table)
+    {
+        Console.WriteLine("--- (p14) C1c: names within the 30 characters VR-Forces keeps of an aggregate (run G1) ---");
+        // (a) THE FIELD WIDTHS, from the vendor's own header (read-only; VR-Link 5.10 is the build's VR-Link), and the
+        //     measured cut: an overflowing name comes back as the field width LESS ONE (107 of 107 aggregates, 235 of 235
+        //     platforms over the 132 runs), a name that fits comes back whole (2 of 2 at 31, 26 of 26 at 11).
+        string vrl = Environment.GetEnvironmentVariable("MAK_VRLDIR") is { Length: > 0 } v ? v : @"C:\MAK\vrlink5.10";
+        string net = SafeRead(Path.Combine(vrl, "include", "vlpi", "netStructs.h"));
+        string asr = SafeRead(Path.Combine(vrl, "include", "vl", "aggregateStateRepository.h"));
+        if (net.Length == 0 || asr.Length == 0)
+            Skip("the marking widths re-read from VR-Link's vlpi/netStructs.h and vl/aggregateStateRepository.h",
+                 "headers not found under " + vrl);
+        else
+        {
+            var agg = Regex.Match(net, @"#define\s+DtMaxAggregateMarkingLength\s+(\d+)");
+            var ent = Regex.Match(net, @"#define\s+DtMaxEntityMarkingLength\s+(\d+)");
+            var sr = Regex.Match(asr, @"AGGREGATE_SR_MARKING_TEXT_LENGTH\s*=\s*(\d+)");
+            Check(agg.Success && ent.Success && sr.Success
+                  && int.Parse(agg.Groups[1].Value, CultureInfo.InvariantCulture) == VrfNames.AggregateMarkingField
+                  && int.Parse(sr.Groups[1].Value, CultureInfo.InvariantCulture) == VrfNames.AggregateMarkingField
+                  && int.Parse(ent.Groups[1].Value, CultureInfo.InvariantCulture) == VrfNames.EntityMarkingField
+                  && VrfNames.AggregateMarkingChars == VrfNames.AggregateMarkingField - 1
+                  && VrfNames.EntityMarkingChars == VrfNames.EntityMarkingField - 1
+                  && NameRegistry.MarkingTruncationWidth == VrfNames.EntityMarkingChars
+                  && PopulatePlanner.MaxNameChars == VrfNames.AggregateMarkingChars,
+                  "THE FIELD WIDTHS are the vendor's: DtMaxAggregateMarkingLength 31 (an overflowing aggregate name comes back " +
+                  "as its first 30 - the member limit), DtMaxEntityMarkingLength 11 (a platform's, as its first 10)",
+                  $"netStructs.h {agg.Groups[1].Value}/{ent.Groups[1].Value}, aggregateStateRepository.h {sr.Groups[1].Value}");
+        }
+        // The measured rule on G1's own two boundary cases (both runs): 31 characters came back WHOLE, 32 as the first 30.
+        Check(VrfNames.ReturnedAggregateName("4ID__FRIENDLY_INFANTRY_DIVISION") == "4ID__FRIENDLY_INFANTRY_DIVISION"
+              && VrfNames.ReturnedAggregateName("28ID__FRIENDLY_INFANTRY_DIVISION") == "28ID__FRIENDLY_INFANTRY_DIVISI"
+              && VrfNames.Key("4ID__FRIENDLY_INFANTRY_DIVISION") == "4ID__FRIENDLY_INFANTRY_DIVISIO",
+              "THE MEASURED RULE (VrfNames.ReturnedAggregateName): '4ID__FRIENDLY_INFANTRY_DIVISION' (31, fits the field) came " +
+              "back whole, '28ID__FRIENDLY_INFANTRY_DIVISION' (32) as '28ID__FRIENDLY_INFANTRY_DIVISI' - runs 20260928T101531Z " +
+              "and 20260928T102541Z; the interface's own check keys even the 31 at 30 (conservative)");
+
+        // (b) G1'S OWN COMPOSITIONS - the table rows the run used give the run's member suffixes.
+        foreach (var g in G1Populations)
+        {
+            var p = CompositionResolver.ExpandRow(table.ById(g.Row), table, cat);
+            Check(!p.Refused && p.Leaves.Select(l => l.Suffix).SequenceEqual(g.Suffixes),
+                  $"{g.Row}: the table gives run G1's {g.Suffixes.Length} member suffix(es), in the run's order",
+                  p.Refusal ?? string.Join(",", p.Leaves.Select(l => l.Suffix)));
+            Check(g.Suffixes.Select(s => OldMemberName34(g.Container, s)).SequenceEqual(g.G1Names),
+                  $"{g.Row}: the pre-C1c rule reproduces the {g.G1Names.Length} name(s) run G1 requested (the replay is that run's)");
+        }
+        var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
+        var initNames = init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude))
+                                  .Select(u => u.Name).ToList();
+        Check(initNames.Count == 36 && G1Populations.All(g => initNames.Contains(g.Container)),
+              "the replay's init is cut A's 36 created units, the three G1 containers among them", $"{initNames.Count} units");
+
+        // (b2) THE KEY ARM - G1's 23 real member names and nothing else (no registry, no ring): their 30-character keys.
+        var containerKeys = G1Populations.Select(g => VrfNames.Key(g.Container)).ToList();
+        var oldAll = G1Populations.SelectMany(g => g.G1Names.Select(n => (Pop: g, Name: n))).ToList();
+        var oldKeyCount = oldAll.GroupBy(x => VrfNames.Key(x.Name), StringComparer.Ordinal)
+                                .ToDictionary(gr => gr.Key, gr => gr.Count(), StringComparer.Ordinal);
+        int oldOnOwnContainer = oldAll.Count(x => VrfNames.Key(x.Name) == VrfNames.Key(x.Pop.Container));
+        int oldSiblingShared = oldAll.Count(x => oldKeyCount[VrfNames.Key(x.Name)] > 1);
+        var oldUnique = oldAll.Where(x => !containerKeys.Contains(VrfNames.Key(x.Name)) && oldKeyCount[VrfNames.Key(x.Name)] == 1)
+                              .Select(x => x.Name).ToList();
+        Check(oldAll.Count == 23 && oldAll.All(x => x.Name.Length > VrfNames.AggregateMarkingField)
+              && oldOnOwnContainer == 3 && oldSiblingShared == 19 && oldAll.Count - oldUnique.Count == 22
+              && oldUnique.SequenceEqual(new[] { "48_IBCT/28ID__FRIENDLY_INFANT.CAV1" }),
+              "FAIL-FIRST (the key arm): under the OLD 34-character planner all 23 of G1's member names overflow the field; at " +
+              "30 characters 3 EQUAL their own container's key (every HQ1) and 19 share a key with a sibling (1-112 IN 4, " +
+              "48 IBCT 3 HQs + 3 x 4 companies) - 22 of 23 collide, CAV1 alone is unique (G1 bound exactly that one)",
+              $"own-container {oldOnOwnContainer}, sibling-shared {oldSiblingShared}, unique [{string.Join(", ", oldUnique)}]");
+        var newAll = G1Populations
+            .SelectMany(g => PopulatePlanner.Plan(g.Container, 54.0, 23.3,
+                                                  CompositionResolver.ExpandRow(table.ById(g.Row), table, cat).Leaves, 0.0)
+                                            .Members.Select(m => m.Name))
+            .ToList();
+        Check(newAll.Count == 23 && newAll.All(n => n.Length <= VrfNames.AggregateMarkingChars)
+              && newAll.Distinct(StringComparer.Ordinal).Count() == 23 && newAll.All(n => !containerKeys.Contains(n)),
+              "THE FIX (the key arm): under the NEW planner all 23 are at most 30 characters (each fits the field and comes " +
+              "back exactly), all 23 distinct, and none equals any of the three containers' 30-character keys",
+              FormattableString.Invariant($"{newAll.Count} names, longest {newAll.Max(n => n.Length)}"));
+
+        // (c) FAIL-FIRST: G1'S NAMES THROUGH THE REAL REGISTRY give G1'S OUTCOME.
+        var oldReg = InitRegistry(initNames);
+        int seq = 0;
+        var oldResults = G1Populations.Select(g => ReplayCallbacks(oldReg, g.G1Names, ref seq)).ToList();
+        Check(oldResults[0].Bound == 0 && oldResults[1].Bound == 0 && oldResults[2].Bound == 1
+              && oldResults.Sum(r => r.Ambiguous) == 22 && oldResults.Sum(r => r.Refused) == 17,
+              "FAIL-FIRST: the 34-character names REPRODUCE RUN G1 - 28ID 0 of 1 and 1-112 IN 0 of 5 bound, 48 IBCT 1 of 17 " +
+              "(CAV1), 22 'MORE THAN ONE name' callbacks, 17 NAME REBIND REFUSED",
+              string.Join("; ", oldResults.Select((r, i) => $"{G1Populations[i].Row} bound {r.Bound}, ambiguous {r.Ambiguous}, refused {r.Refused}")));
+        var checkReg = InitRegistry(initNames);
+        var allOld = G1Populations.SelectMany(g => g.G1Names).ToList();
+        int flagged = allOld.Count(n => checkReg.KeyConflict(n, truncatable: true, allOld.Where(o => o != n)) != null);
+        Check(flagged == 22,
+              "FAIL-FIRST: the request-time check (NameRegistry.KeyConflict at 30) flags exactly the 22 G1 names that were " +
+              "lost - every one but CAV1", $"{flagged} of {allOld.Count} flagged");
+
+        // (d) THE 30-CHARACTER NAMES: planned by the service's own call (the planner + the registry's check), the same
+        //     callbacks bind 23 of 23 - by EXACT name, nothing cut, nothing ambiguous.
+        var newReg = InitRegistry(initNames);
+        var newNames = new List<string>();
+        var newResults = new List<(int Bound, int Ambiguous, int Refused, int Cut)>();
+        int seq2 = 0;
+        foreach (var g in G1Populations)
+        {
+            var p = CompositionResolver.ExpandRow(table.ById(g.Row), table, cat);
+            var lay = PopulatePlanner.Plan(g.Container, 54.0, 23.3, p.Leaves, 0.0, c => newReg.KeyConflict(c, truncatable: true));
+            var names = lay.Members.Select(m => m.Name).ToList();
+            string key = VrfNames.Key(g.Container);
+            Check(!lay.Refused && names.Count == g.Suffixes.Length && names.All(n => n.Length <= VrfNames.AggregateMarkingChars)
+                  && names.Distinct(StringComparer.Ordinal).Count() == names.Count && names.All(n => n != key)
+                  && lay.Members.All(m => m.NameNote == null)
+                  && names.Select((n, i) => n.EndsWith("." + g.Suffixes[i], StringComparison.Ordinal)).All(b => b),
+                  $"{g.Row}: {names.Count} member name(s) within 30, unique, none the container's own 30 characters " +
+                  $"('{key}'), every suffix whole, no tag needed",
+                  string.Join(", ", names));
+            newNames.AddRange(names);
+            newResults.Add(ReplayCallbacks(newReg, names, ref seq2));
+        }
+        Check(newResults.Select(r => r.Bound).SequenceEqual(new[] { 1, 5, 17 }) && newResults.Sum(r => r.Ambiguous) == 0
+              && newResults.Sum(r => r.Refused) == 0 && newResults.Sum(r => r.Cut) == 0,
+              "THE FIX: the same three populations bind 1 of 1, 5 of 5 and 17 of 17 - every callback EXACTLY the requested " +
+              "name, 0 ambiguous, 0 refused, 0 cut",
+              string.Join("; ", newResults.Select((r, i) => $"{G1Populations[i].Row} bound {r.Bound}")));
+        var allKeys = initNames.Select(VrfNames.Key).ToHashSet(StringComparer.Ordinal);
+        Check(newNames.Count == 23 && newNames.Distinct(StringComparer.Ordinal).Count() == 23
+              && newNames.All(n => !allKeys.Contains(n)),
+              "the 23 new names are unique across the three populations and none equals ANY init unit's 30 characters",
+              string.Join(" | ", newNames));
+
+        // (e) TWO CONTAINERS ALIKE IN THEIR FIRST N CHARACTERS.
+        const string a30 = "4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION", b30 = "4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION_REAR";
+        var twinReg = new NameRegistry();
+        var twinNames = new List<string>();
+        foreach (var n in new[] { a30, b30 })
+        {
+            string u = twinReg.UniqueTruncatable(n, twinNames, out _);
+            twinNames.Add(u);
+        }
+        foreach (var n in twinNames) twinReg.Requested(n);
+        var ba = twinReg.Bind(VrfNames.Key(twinNames[0]), "VRF_UUID:a");
+        var bb = twinReg.Bind(VrfNames.Key(twinNames[1]), "VRF_UUID:b");
+        var failReg = new NameRegistry();
+        failReg.Requested(a30);
+        failReg.Requested(b30);
+        Check(twinNames[0] == a30 && twinNames[1] == "4ID/III_Corps__FOUR_TH_US_IN~2" && ba.Name == a30 && !ba.Ambiguous
+              && bb.Name == twinNames[1] && !bb.Ambiguous && failReg.Bind(VrfNames.Key(a30), "VRF_UUID:x").Ambiguous,
+              "two UNIT names alike in their first 30: the second is requested as '4ID/III_Corps__FOUR_TH_US_IN~2' and both " +
+              "callbacks bind (FAIL-FIRST: requested as they are, the first callback is AMBIGUOUS)",
+              $"{twinNames[1]}; a -> {ba.Name}, b -> {bb.Name}");
+        const string c26 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_ALPHA_BATTALION", d26 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_BRAVO_BATTALION";
+        var pairReg = InitRegistry(new[] { c26, d26 });
+        var leaves1 = new[] { new PopulateLeaf("x/HQ", "HQ1", "HQ", new[] { 3, 11, 1, 225, 5, 5, 1, 30 }, "HQ", "T", 90.0, 5) };
+        var lc = PopulatePlanner.Plan(c26, 54.0, 23.3, leaves1, 0.0, c => pairReg.KeyConflict(c, truncatable: true));
+        foreach (var m in lc.Members) pairReg.Requested(m.Name);
+        var ld = PopulatePlanner.Plan(d26, 54.0, 23.3, leaves1, 0.0, c => pairReg.KeyConflict(c, truncatable: true));
+        int seq3 = 0;
+        var rc = ReplayCallbacks(pairReg, lc.Members.Select(m => m.Name).ToList(), ref seq3);
+        var rd = ReplayCallbacks(pairReg, ld.Members.Select(m => m.Name).ToList(), ref seq3);
+        Check(!lc.Refused && !ld.Refused && lc.Members[0].Name == "ABCDEFGHIJKLMNOPQRSTUVWXYZ.HQ1"
+              && ld.Members[0].Name == "ABCDEFGHIJKLMNOPQRSTUVWX~2.HQ1" && ld.Members[0].NameNote != null
+              && rc.Bound == 1 && rd.Bound == 1,
+              "two CONTAINERS different within 30 but alike in their first 26: the second's HQ takes the ~2 tag - " +
+              "deterministic, said once - and both members bind",
+              $"{lc.Members[0].Name} / {ld.Members[0].Name}: {ld.Members[0].NameNote}");
+
+        // (f) A SYNTHESIZED SUB-UNIT (VrfC2SimService.MakeChildName, the entity-level EXPAND path) - the same rule.
+        const string parent = "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE";
+        var old3 = new[] { 1, 2, 3 }.Select(i => OldMemberName34(parent, "PLT" + i)).ToList();
+        var kidReg = new NameRegistry();
+        kidReg.Requested(parent);
+        var kids = new List<string>();
+        foreach (var i in new[] { 1, 2, 3 })
+            kids.Add(VrfNames.UniqueChildName(parent, "PLT" + i,
+                c => kidReg.KeyConflict(c, true, kids) is string o ? "collides with '" + o + "'" : null, out _, out _));
+        Check(old3.Select(VrfNames.Key).Distinct().Count() == 1
+              && kids.All(k => k != null && k.Length <= 30) && kids.Distinct().Count() == 3
+              && kids[0] == "48_IBCT/28ID__FRIENDLY_IN.PLT1"
+              && VrfNames.ChildName("510/40~PXY", "HQ1") == "510/40~PXY.HQ1",
+              "a synthesized sub-unit is named within 30 too (FAIL-FIRST: three 34-character siblings share ONE 30-character " +
+              "name); a parent that already fits is unchanged ('510/40~PXY.HQ1', COA-STP1)",
+              $"34: {VrfNames.Key(old3[0])} x3; 30: {string.Join(", ", kids)}");
+
+        // (g) EVERY SHIPPED INIT: no two unit names alike in their first 30 - the init rename never fires on any of them.
+        int files = 0, clean = 0, renamedAnywhere = 0;
+        var dirty = new List<string>();
+        foreach (var f in Directory.GetFiles(Path.Combine(repo, "data"), "*Initialization*.xml").OrderBy(x => x, StringComparer.Ordinal))
+        {
+            InitData d;
+            try { d = InitParser.Parse(File.ReadAllText(f)); }
+            catch (Exception ex) { dirty.Add(Path.GetFileName(f) + " (parse: " + ex.Message + ")"); continue; }
+            files++;
+            var names = d.Units.Select(u => u.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal).ToList();
+            var r = new NameRegistry();
+            var planned = new List<string>();
+            int renamed = 0;
+            foreach (var n in names)
+            {
+                string u = r.UniqueTruncatable(n, planned, out _);
+                if (u != n) renamed++;
+                planned.Add(u ?? n);
+            }
+            renamedAnywhere += renamed;
+            if (renamed == 0 && names.Select(VrfNames.Key).Distinct(StringComparer.Ordinal).Count() == names.Count) clean++;
+            else dirty.Add(Path.GetFileName(f));
+        }
+        Check(files >= 13 && clean == files && renamedAnywhere == 0,
+              $"every shipped init ({files} files) is unique within 30 characters - the init-time rename changes NO name in " +
+              "any of them (the entity-level path is untouched by C1c on every shipped fixture)",
+              dirty.Count == 0 ? $"{clean} of {files} clean" : string.Join(", ", dirty));
+
+        // (h) THE SOURCE GUARDS: every request site goes through the rule.
+        string src = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs"));
+        Check(src.Contains("_names.UniqueTruncatable(before, toCreate.Select(p => p.Name), out string collidesWith,")
+              && src.Contains("lock (_memberNameLock)")
+              && src.Contains("c => _names.KeyConflict(c, truncatable: true));")
+              && src.Contains("else foreach (var m in layout.Members) _names.Requested(m.Name);")
+              && src.Contains("name = VrfNames.UniqueChildName(parent, suffix,")
+              && !src.Contains("int room = MaxVrfMarkingChars - suffix.Length;"),
+              "the service makes unit, member and sub-unit names unique within 30 BEFORE the request (init rename, member " +
+              "planning + reservation under one lock, MakeChildName)");
+        Check(CountOf(src, "RequestWholeName(") == 6
+              && src.Contains("RequestWholeName(routeName, \"route\");") && src.Contains("RequestWholeName(wptName, \"waypoint\");")
+              && src.Contains("RequestWholeName(name, \"control area\");")
+              && src.Contains("RequestWholeName(l.Name, \"init line\");") && src.Contains("RequestWholeName(p.Name, \"init point\");")
+              && !src.Contains("_names.Requested(routeName)") && !src.Contains("_names.Requested(wptName)")
+              && !src.Contains("_names.Requested(name);   // B3") && !src.Contains("_names.Requested(l.Name)")
+              && !src.Contains("foreach (var p in pointsToCreate) _names.Requested(p.Name);")
+              && src.Contains("foreach (var p in plans) _names.Requested(p.Name);"),
+              "routes, waypoints, control areas and init lines/points register WHOLE (5 sites + the helper); the unit batch " +
+              "and the member reservation stay truncatable (Requested)");
+        Check(src.Contains("if (_memberNameLogged.TryAdd(name, 0))")
+              && src.Contains("came back as EXACTLY that name \" +"),
+              "a member's requested-vs-returned name is logged ONCE per member ('came back as EXACTLY that name')");
+        Check(src.Contains("out string collidesWith,\r\n                                                         initWholeNames);")
+                 | src.Contains("out string collidesWith,\n                                                         initWholeNames);")
+              && src.Contains("if (name != null) _names.Requested(name);"),
+              "the init rename also sees the SAME init's graphic names (registered after the units on the terrain-query " +
+              "path), and MakeChildName reserves its choice under the member lock (no two expansions pick one name)");
     }
 
     // ---------------------------------------------------------------------------------------------- helpers ----

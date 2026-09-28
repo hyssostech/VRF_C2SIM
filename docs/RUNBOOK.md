@@ -3945,6 +3945,40 @@ that origin can NOT close on ARRIVAL EVIDENCE (SF-1), only on the vendor complet
 `Can't create data of type pa_move_along_route. No creator found.` prints once, raw, as the scripted task is issued -
 benign, like the same line for other scripted types (E2-2 printed it for two).
 
+NAMES: 30 CHARACTERS, NOT 34 (C1c, 2026-09-28, run G1; branch `fix/container-member-names`; RL-20260927-03). VR-Forces
+returns an object under its DIS MARKING, not the name we sent, and the marking is a fixed field (VR-Link
+`vlpi/netStructs.h:43`, `:51`): 31 characters for an AGGREGATE (`DtMaxAggregateMarkingLength`), 11 for a PLATFORM
+(`DtMaxEntityMarkingLength`). Measured requested-against-returned over the 132 app logs in `runs/`: a name that FITS
+comes back whole (an aggregate of 31: 2 of 2, `4ID__FRIENDLY_INFANTRY_DIVISION` in both G1 runs; a platform of 11: 26 of
+26); a name that OVERFLOWS comes back as the field width less one - an aggregate as its first 30 (107 of 107 cut names,
+32 to 63 characters), a platform as its first 10 (235 of 235); 237 route names of 31 to 206 characters and control areas
+of up to 46 came back WHOLE (a route, waypoint or area has no marking). G1 (`runs/20260928T102541Z_run`) built its
+members within 34 (`<container>.<suffix>`), so 22 of its 23 came back under a 30-character name shared with a sibling or
+with their own container (`48_IBCT/28ID__FRIENDLY_IN.INF1` for four of them; `28ID__FRIENDLY_INFANTRY_DIVISI` for the
+division's HQ): 22 `... truncation of MORE THAN ONE name we requested ...`, 17 `NAME REBIND REFUSED`, 28ID and
+1-112 IN `POPULATE TIMED OUT after 70 s` (their moves REFUSED, TASKABRT), 48 IBCT bound 1 of 17 (CAV1, unique at 30) -
+and with that one member the chain ran end to end (published, `PA_Move_Along_Route`, TASKCMPLT). THE RULE NOW: every
+name the interface asks for is unique within its first 30 characters (`NameRegistry.KeyConflict`, checked before the
+request; a name of exactly 31, which fits, is keyed the same way - conservative), and every name it MAKES - a
+container's member, a synthesized sub-unit (`MakeChildName`, reserved as it is chosen) - is at most 30
+(`VrfNames.ChildName`: the container cut to 30 - 1 - suffix length, e.g. `48_IBCT/28ID__FRIENDL.INF1RIF1`), so VR-Forces
+returns it EXACTLY and no prefix match is ever needed. A collision takes a deterministic `~k` tag (a member or sub-unit:
+`<container cut>~2.<suffix>`; a C2SIM unit: its first 28 characters + `~2`) and is said once at WARN,
+`NAME DISAMBIGUATED (C1c): ...`; with no tag free it is `NAME COLLISION (C1c): ...` at ERROR. Routes, waypoints, control
+areas and init lines/points register WHOLE, so they are never a candidate for a unit's cut name; one named EXACTLY like
+a unit's 30 characters is `NAME COLLISION (C1c): ...` at ERROR (a unit whose 30 characters equal a graphic of its own
+init is renamed instead). Each member says once, at INFO, `POPULATE <container>: member '<name>' (<n> chars) came back
+as EXACTLY that name (<uuid>) ...`. No shipped init has two unit names alike in their first 30 (13 of 13 files), so the
+unit rename changes nothing on any of them. Proof offline: `--populate-selftest` p14 takes G1's 23 real member names -
+under the old 34-character planner 3 equal their own container's 30-character key and 19 share a key with a sibling
+(22 of 23; CAV1 alone unique), under the new one all 23 are at most 30, distinct and none a container key - and replays
+G1's three populations through the real NameRegistry: the 34-character names reproduce G1 exactly (22 ambiguous, 17
+refused, 1 of 23 bound), the 30-character names bind 23 of 23; `--name-selftest` pins the registry rules. A re-run of
+cut A should show 23 `came back as EXACTLY that name` lines, no `NAME DISAMBIGUATED (C1c)`, no `NAME COLLISION (C1c)`,
+no `MORE THAN ONE`, no `NAME REBIND REFUSED`, and `PUBLISHES <N> subordinate(s) (expected <N>)` with N = 1, 5 and 17.
+NOT covered: a platform is still cut at 10 (the `NAME PRE-FLIGHT` advisory); the widths are VR-Forces 5.2d's (VR-Link
+5.10) - re-measure on another version.
+
 ### 11j. WHICH MODEL SET A RUN USES - CHOSEN FROM THE ORDER'S TASKED UNITS (D2, RL-20260927-06, 2026-09-27)
 
 Ruling RL-20260927-06 (docs/RULINGS.md; the dated Y-15 note in docs/VRF_5.2_DECISION_EVIDENCE.md), plan row D2. The

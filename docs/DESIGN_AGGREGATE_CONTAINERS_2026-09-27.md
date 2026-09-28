@@ -22,6 +22,18 @@ are sent in their XML case (PA_Move_Along_Route), which the vendor's own Lua als
 UG52 36.2.1 p753: ids are lower-cased internally). (f) No Vrf:AggregateNesting: FLAT only (D-8); Nested stays a follow-up.
 (g) No runner Stage 0 pairing of Vrf:CompositionFile; the app validates and logs every row at start-up instead.
 
+STATUS 2026-09-28: C1 merged (5561d90) and the bridge rebuilt with PublishedSubordinateCount (pin 5198ac45, 2094c56) -
+deviation (b) is closed. G1 ran (runs/20260928T102541Z_run; merge bee3753): the container mechanism worked live on ONE
+member (48 IBCT's CAV1: published, PA_Move_Along_Route, TASKCMPLT), and 22 of the 23 members were lost to their NAMES.
+VR-Forces returns an aggregate name that overflows its 31-character marking field (DtMaxAggregateMarkingLength, VR-Link
+vlpi/netStructs.h:51) as its first 30 (107 of 107 cut names over 132 runs; one that fits comes back whole), so sec 8
+item 2's "unique names within 34 chars" was the wrong width: siblings and their own container shared one 30-character
+name. C1c (fix/container-member-names,
+RL-20260927-03): every member and synthesized sub-unit name is at most 30 (VrfNames.ChildName), every requested name is
+unique within 30 before the request (NameRegistry.KeyConflict, a deterministic ~k tag on collision), and routes,
+waypoints and graphics register whole; `--populate-selftest` p14 replays G1's three populations - 23 of 23 bound, where
+the 34-character names reproduce G1's 1 of 23. Offline only; RUNBOOK sec 11i.
+
 ## 1. The five questions
 
 (1) ONLY A CONTAINER HOLDS SUBORDINATES. UG52 72.2.1 p1419: "the aggregate-level simulation objects that are configured

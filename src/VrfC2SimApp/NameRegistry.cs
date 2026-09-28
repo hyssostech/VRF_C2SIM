@@ -69,6 +69,23 @@ namespace VrfC2SimApp;
 /// sec 6 tells STP to cap unit names at 10 (C2SIMxmlHandler.cpp:2365) for exactly this reason; this
 /// interface's own MaxVrfMarkingChars is 34, i.e. three times the sim's.
 ///
+/// C1c (2026-09-28, run G1): AN AGGREGATE IS CUT AT 30, NOT 34. VR-Forces returns an aggregate name that overflows its
+/// 31-character marking field (DtMaxAggregateMarkingLength) as its first <see cref="VrfNames.AggregateMarkingChars"/>
+/// characters - 107 of 107 cut names; one that fits comes back whole - see <see cref="VrfNames"/> - and G1's container
+/// members, built within 34, lost 22 of 23 to exactly the ambiguity below. What closes it BY CONSTRUCTION rather than
+/// by a warning:
+///   - <see cref="KeyConflict"/>: every name the interface asks for is checked against every name already asked for
+///     (and the rest of its own batch) at the 30-character key, and a collision is resolved BEFORE the create - a made
+///     name takes a ~k tag (VrfNames.UniqueChildName), a C2SIM unit name its unique 30-character form
+///     (<see cref="UniqueTruncatable"/>). The ambiguity guard in <see cref="ScanForRequested"/> stays, and becomes
+///     unreachable for anything the interface requested: no two truncatable names share a key.
+///   - <see cref="RequestedWhole"/>: a route, waypoint, control area or line/point graphic comes back WHOLE (237 of 237
+///     route names of 31-206 characters), so it can never be the source of a truncated callback. It is still an
+///     exact-match target but never a prefix-scan CANDIDATE - so a long graphic name that shares a unit's first 30
+///     characters can no longer make that unit's callback ambiguous.
+/// Platforms are still returned at <see cref="MarkingTruncationWidth"/> (10): unique-at-30 is necessary for them, not
+/// sufficient, and the 10-character hazard stays the advisory PrefixPairs / NAME PRE-FLIGHT line it always was.
+///
 /// Both spellings end up bound to the uuid: the requested name (what the rest of the interface
 /// asks for) and the returned one (what the sim's own callbacks - completions, POSITION text
 /// reports, console rows - carry). The reverse map holds the RESOLVED name, because that is the
@@ -128,12 +145,19 @@ public sealed class NameRegistry
     private readonly ConcurrentDictionary<string, string> _requestedByReturned = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _ambiguous = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _rebindAllowed = new(StringComparer.Ordinal);
+    // C1c: requested names VR-Forces returns WHOLE (routes, waypoints, control areas, line/point graphics).
+    private readonly ConcurrentDictionary<string, byte> _whole = new(StringComparer.Ordinal);
 
     /// <summary>Register a name we are ASKING VR-Forces to create (unit, route, waypoint). Call it
     /// before the create is enqueued - the callback can arrive as soon as the create is sent.</summary>
     public void Requested(string name)
     {
-        if (string.IsNullOrEmpty(name) || !_requested.TryAdd(name, 0)) return;
+        if (string.IsNullOrEmpty(name)) return;
+        bool added = _requested.TryAdd(name, 0);
+        // C1c: a TRUNCATABLE request wins over an earlier whole one (the conservative reading), and then it can change
+        // a cached answer like any new name.
+        bool wasWhole = _whole.TryRemove(name, out _);
+        if (!added && !wasWhole) return;
         // Review finding 3: a cached resolution was computed against the candidate set AS IT STOOD.
         // A name registered later that shares a cached returned-name's prefix would have made that
         // scan ambiguous, so the cached answer is no longer entitled to stand. EnqueueCreates now
@@ -143,6 +167,90 @@ public sealed class NameRegistry
         foreach (var key in _requestedByReturned.Keys)
             if (name.Length > key.Length && name.StartsWith(key, StringComparison.Ordinal))
                 _requestedByReturned.TryRemove(key, out _);
+    }
+
+    /// <summary>
+    /// C1c: register a name VR-Forces returns WHOLE - a route, waypoint, control area or line/point graphic (no DIS
+    /// marking; 237 route names of 31-206 characters came back intact over 132 runs, <see cref="VrfNames"/>). Its own
+    /// ObjectCreated is an EXACT match like any requested name's, but it can never be the source of a TRUNCATED
+    /// callback, so it is never a prefix-scan candidate and never invalidates a cached truncation. A name already
+    /// registered through <see cref="Requested"/> stays truncatable (the conservative reading).
+    /// </summary>
+    public void RequestedWhole(string name)
+    {
+        if (string.IsNullOrEmpty(name) || !_requested.TryAdd(name, 0)) return;
+        _whole.TryAdd(name, 0);
+    }
+
+    /// <summary>True when <paramref name="name"/> was registered through <see cref="RequestedWhole"/>.</summary>
+    public bool IsWhole(string name) => !string.IsNullOrEmpty(name) && _whole.ContainsKey(name);
+
+    /// <summary>
+    /// C1c - THE REQUEST-TIME CHECK that keeps every callback attributable. Would asking VR-Forces for
+    /// <paramref name="name"/> make any ObjectCreated - its own or another's - unattributable, given that a TRUNCATABLE
+    /// name (a unit, a container member, a synthesized sub-unit) longer than 30 may come back as its first
+    /// <see cref="VrfNames.AggregateMarkingChars"/> (it does whenever it overflows the 31-character aggregate field; a
+    /// name of exactly 31 fits and comes back whole, and is treated the same way here - conservatively), while a WHOLE
+    /// name (<see cref="RequestedWhole"/>) comes back intact? Checked against every requested name,
+    /// <paramref name="alsoPlanned"/> (names of the same batch not registered yet, truncatable) and
+    /// <paramref name="alsoWhole"/> (the same batch's graphics, whole). Returns the name it collides with, or null. The
+    /// cases, one per way a callback goes wrong:
+    ///   - the same name twice (except two WHOLE names: a duplicate route name is the FIFO case of _pendingRouteTasks);
+    ///   - two truncatable names with the same first 30 characters when either is longer than 30 - the cut callback
+    ///     is AMBIGUOUS (two candidates) or HIJACKED (an exact name equal to it);
+    ///   - a whole name EQUAL to a truncatable name's 30-character form - the cut callback exact-matches the graphic.
+    /// Platforms are cut at 10, not 30: this check is necessary for them, not sufficient (the PrefixPairs advisory).
+    /// </summary>
+    public string KeyConflict(string name, bool truncatable, IEnumerable<string> alsoPlanned = null,
+                              IEnumerable<string> alsoWhole = null)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        string key = VrfNames.Key(name);
+        bool nameCut = truncatable && name.Length > VrfNames.AggregateMarkingChars;
+        foreach (var x in _requested.Keys)
+            if (Collides(x, !_whole.ContainsKey(x))) return x;
+        if (alsoPlanned != null)
+            foreach (var x in alsoPlanned)
+                if (Collides(x, true)) return x;
+        if (alsoWhole != null)
+            foreach (var x in alsoWhole)
+                if (Collides(x, false)) return x;
+        return null;
+
+        bool Collides(string x, bool xTruncatable)
+        {
+            if (string.IsNullOrEmpty(x)) return false;
+            if (string.Equals(x, name, StringComparison.Ordinal)) return truncatable || xTruncatable;
+            bool xCut = xTruncatable && x.Length > VrfNames.AggregateMarkingChars;
+            if (truncatable && xTruncatable)
+                return (nameCut || xCut) && string.Equals(key, VrfNames.Key(x), StringComparison.Ordinal);
+            if (truncatable) return nameCut && string.Equals(x, key, StringComparison.Ordinal);
+            if (xTruncatable) return xCut && string.Equals(name, VrfNames.Key(x), StringComparison.Ordinal);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// C1c: a C2SIM UNIT name made unique within 30 characters BEFORE it is requested - <paramref name="desired"/>
+    /// itself when <see cref="KeyConflict"/> clears it (every shipped init: 13 of 13 files have no two unit names alike
+    /// in their first 30), else the first <see cref="VrfNames.Disambiguated"/>(desired, k), k = 2 .. 99, that clears.
+    /// <paramref name="alsoWhole"/> are the same init's graphic names, which are registered AFTER its units on some
+    /// paths and so are not in the registry yet. <paramref name="collidesWith"/> names what the desired name met (null
+    /// when it met nothing). Null when all 98 tags are taken.
+    /// </summary>
+    public string UniqueTruncatable(string desired, IEnumerable<string> alsoPlanned, out string collidesWith,
+                                    IEnumerable<string> alsoWhole = null)
+    {
+        var planned = alsoPlanned?.ToList();
+        var whole = alsoWhole?.ToList();
+        collidesWith = KeyConflict(desired, true, planned, whole);
+        if (collidesWith == null) return desired;
+        for (int k = 2; k <= VrfNames.MaxDisambiguator; k++)
+        {
+            string candidate = VrfNames.Disambiguated(desired, k);
+            if (KeyConflict(candidate, true, planned, whole) == null) return candidate;
+        }
+        return null;
     }
 
     /// <summary>
@@ -219,12 +327,15 @@ public sealed class NameRegistry
     }
 
     /// <summary>Every requested name that has <paramref name="returned"/> as a STRICT prefix, in no
-    /// particular order. O(requested) and called at most twice per ObjectCreated.</summary>
+    /// particular order. O(requested) and called at most twice per ObjectCreated. C1c: a WHOLE name
+    /// (<see cref="RequestedWhole"/>) is never a candidate - VR-Forces does not cut it, so it cannot be what a
+    /// truncated callback came from.</summary>
     private List<string> LongerRequested(string returned)
     {
         var hits = new List<string>();
         foreach (var candidate in _requested.Keys)
-            if (candidate.Length > returned.Length && candidate.StartsWith(returned, StringComparison.Ordinal))
+            if (candidate.Length > returned.Length && candidate.StartsWith(returned, StringComparison.Ordinal)
+                && !_whole.ContainsKey(candidate))
                 hits.Add(candidate);
         return hits;
     }
