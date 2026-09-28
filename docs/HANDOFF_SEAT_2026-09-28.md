@@ -13,6 +13,12 @@ The seat runs on Opus 5.5. Before any cause claim or design brief reaches the ow
 COLD-START REVIEWER on the evidence only (the run's app log lines, the vendor citations, the brief - not this session).
 Use Fable for the judgment-heavy lanes (vendor-mechanism research, a crash reading if the owner authorises it). Measure the
 seat by the owner's corrections per day (2026-09-28: six - all seat mechanism claims made without the record or the docs).
+THE OPS TIER (owner, 2026-09-28 20:20Z, "Is even Opus overkill for the seat?"): the seat keeps the decisions - briefs, the adversarial
+reading of reports, merge order and conflicts, the owner's rulings - and hands the MECHANICAL sequences to a cheap ops agent
+(Agent, model haiku or sonnet) driven by the scripted procedures that exist: merge -> suite -> push (push only on 0 failed);
+the go-live A/C3/D/W/E/F command lines; the ASCII/CRLF/13c checks; the sim-cache listings; RUNBOOK sec 9 rebuild lines. One-line
+task in, one-line result out, so the seat's own context stays small - the seat's cost is its context re-read, not its price.
+A Sonnet seat is untested here; if the owner wants that data, take it on a docs-only day, never on a go-live day.
 
 ## 2. State at the handoff (2026-09-28 ~20:05Z)
 
