@@ -1082,7 +1082,8 @@ if (-not (Test-Path -LiteralPath $sampleBash)) {
 Write-Host '--- 8i-2. a direct SampleThreads.ps1 invocation against a throwaway process ---'
 $samplerTestDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sampler-test-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $samplerTestDir -Force | Out-Null
-$samplerTargetExe = Join-Path $samplerTestDir 'RunnerTurnaroundSamplerTarget.exe'
+$samplerTargetName = 'RunnerTurnaroundSamplerTarget_' + $PID   # unique per suite run: two suites at once (a lane's worktree and main, 2026-09-28) made the sampler pick the OTHER run's throwaway
+$samplerTargetExe = Join-Path $samplerTestDir ($samplerTargetName + '.exe')
 $samplerCsvPath   = Join-Path $samplerTestDir 'thread-samples.csv'
 $samplerTargetProc = $null
 try {
@@ -1091,7 +1092,7 @@ try {
     Start-Sleep -Seconds 1
     & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -ExecutionPolicy Bypass `
         -File (Join-Path $RepoRoot 'scripts\SampleThreads.ps1') `
-        -ProcessName 'RunnerTurnaroundSamplerTarget' -OutFile $samplerCsvPath -MaxSec 19 -IntervalSec 5 | Out-Null
+        -ProcessName $samplerTargetName -OutFile $samplerCsvPath -MaxSec 19 -IntervalSec 5 | Out-Null
     $samplerRows = @()
     if (Test-Path -LiteralPath $samplerCsvPath) { $samplerRows = @(Get-Content -LiteralPath $samplerCsvPath) }
     Check '8i-2 the csv header is the documented column set' (
