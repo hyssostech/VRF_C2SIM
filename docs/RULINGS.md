@@ -2,39 +2,13 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01). Archived (cap): -08, 0914-02 on 09-26;
-#   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28.
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -03). Archived (cap): -08, 0914-02 on 09-26;
+#   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
-
-RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
-  Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
-    research. Record shape: session c3b364bd line 536, a mid-turn owner message (type=attachment, queued_command,
-    kind=human) - there is no type=user copy of it, so a type=user-only search would miss it.
-  A (owner, S536): "And the doctrinal and vendor doc research is on you buddy - not me. For now, pending this research,
-    let's take the temporary position that completion is based on  start time + duration. Tasks involving units may still
-    arrive late. If they arrive after the expected start time + duration, they complete immediatelly. Follow-on tasks still
-    are permitted to take their whole specified duration, even if they were forced to start late. Mark this is as
-    temporary, as a measure to let us move forward on this until we have better data."
-  A (owner, S569, typed, correcting an earlier supervisor reading of this same entry): "On task completion [...]: "a unit that never
-    arrives" - isn't there ruling already for units that get stuck? That's the only way a unit can "never arrive". "patrol and
-    follow" - yes, there's plenty of tasks that involve no movement, as discussed repeatedly. And there is ruling for thoise as
-    well -  they are completed when their duration elapses. "an effect that has not been achieved by end time" - it is uncertain
-    whether there is a way to ascertain the effect - that is the thrust of the research. For this temporary ruling, we ignore that
-    part and complete based on time. Again it is bizarre that you bring this up given the discussion. [...]"
-  supervisor reading: every task ends at start time + Duration; a unit still travelling at that moment is reported complete when it
-    arrives; a unit that gets stuck is already ruled (RL-20260914-01, archive: abort is the code STP sees; that a later arrival still
-    reports complete is a supervisor position, see that entry's scope note); tasks with no destination end when their Duration elapses
-    (RL-20260914-02); whether an effect was achieved is IGNORED under the temporary position - that is the research question, not a gap;
-    each follow-on task gets its full Duration from its actual start. The research is the seat's job.
-  IMPLEMENTATION FACT (supervisor note, updated 2026-09-25): until the completion unit (branch feat/completion-temporary-position,
-    docs\CORRECTIONS_LOG.md F-4; live confirmation owed) main ended a task on its Duration timer even when the unit had not arrived
-    (since 746c091) and stall detection shipped OFF. That unit builds this position; stall detection is ON in the demo profile and OFF
-    elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
-  pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
 
 RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
   Q (as put, P5695, the seat's A1 report; its "Two decisions for you before G1"): "1. Hostile side: RUS (107 units, branch-correct stand-ins for every
@@ -118,3 +92,16 @@ RL-20260928-02 | 2026-09-28 | VERBATIM
     ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this fix for units and its refutation called it optional - reversed) and correlates
     ObjectCreated by uuid; members get a derived uuid; names are display only. C1c (84c4f62) is demoted to a secondary key; C1d does it.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1c, C1d, G1-2; CORRECTIONS_LOG "Name-keyed identity" (2026-09-28); UG52 13.2 p362-363.
+RL-20260928-03 | 2026-09-28 | VERBATIM
+  Q (seat, P9695, after the owner's P9693 "What does the documentation say for regions with no roads. Are you basing the default to use
+    roads just on the Kaunas sample?"): "no global default. An AUTO mode decides per leg the way the manual tells an operator to: every
+    member plans with obstacleQuery MAK_OBSTACLE and a 10 m buffer regardless [...]; pathQuery MAK_ROAD when the OSM road network lies
+    within a proximity setting of the leg's line (default 500 m, from the manual's 'fairly wide area'), otherwise NONE [...]. Your
+    ruling then confirms AUTO as the default or picks an explicit mode"
+  A (owner, P9739): "AUTO it is"
+  supervisor reading: a tasked container moves by the vendor's PLANNING tasks per STP vertex (FINDING_AGGREGATE_MOVEMENT_OBSTACLES
+    _2026-09-28; UG52 35.5.11 p735, 30.5 p587): per member navigate-to-location, obstacleQuery MAK_OBSTACLE, buffer 10 m, pathQuery
+    MAK_ROAD where roads lie within Vrf:RoadProximityMeters (500) of the leg, else NONE; Vrf:AggregateMovePlanner=Auto is the default;
+    Group, PerMemberOffRoad and Literal stay selectable for registered comparisons; the pre-flight is report + fallback; the first
+    registered run is G1-3 on T14's line. Y-11/Y-13 (entity-level Ignore Roads) are untouched.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows M3, G1-3; feat/aggregate-planned-move; appsettings.json _AggregateMovePlanner.

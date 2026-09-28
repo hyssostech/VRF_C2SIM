@@ -12,6 +12,7 @@
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl, same line rule (RL-20260925-01; moved here 2026-09-27, unchanged, to make room for RL-20260927-01).
 #   RL-20260921-05 moved here 2026-09-27, unchanged, to make room for RL-20260927-02 (read it with RL-20260921-09, which stays live).
+#   RL-20260921-09 moved here 2026-09-28, unchanged, to make room for RL-20260928-03 (the TEMPORARY completion position; live pointers keep citing it).
 #   RL-20260926-01 (engage doctrine, P-lines) moved here 2026-09-27, unchanged, to make room for RL-20260927-04.
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
@@ -437,4 +438,30 @@ RL-20260927-01 | 2026-09-27 | status VERBATIM - P5338, one TYPED word
     (AGGREGATE_CATALOGUE_2026-09-27; CORRECTIONS_LOG). The decision itself is unchanged and still his.]
   pointer: docs/PLAN_MOVEMENT_2026-09-27.md; docs/experiments/FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27.md secs 5, 7, 8; branches
     feat/movement-moveto-per-vertex, feat/preflight-osm-features, feat/aggregate-profile.
+
+RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
+  Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
+    research. Record shape: session c3b364bd line 536, a mid-turn owner message (type=attachment, queued_command,
+    kind=human) - there is no type=user copy of it, so a type=user-only search would miss it.
+  A (owner, S536): "And the doctrinal and vendor doc research is on you buddy - not me. For now, pending this research,
+    let's take the temporary position that completion is based on  start time + duration. Tasks involving units may still
+    arrive late. If they arrive after the expected start time + duration, they complete immediatelly. Follow-on tasks still
+    are permitted to take their whole specified duration, even if they were forced to start late. Mark this is as
+    temporary, as a measure to let us move forward on this until we have better data."
+  A (owner, S569, typed, correcting an earlier supervisor reading of this same entry): "On task completion [...]: "a unit that never
+    arrives" - isn't there ruling already for units that get stuck? That's the only way a unit can "never arrive". "patrol and
+    follow" - yes, there's plenty of tasks that involve no movement, as discussed repeatedly. And there is ruling for thoise as
+    well -  they are completed when their duration elapses. "an effect that has not been achieved by end time" - it is uncertain
+    whether there is a way to ascertain the effect - that is the thrust of the research. For this temporary ruling, we ignore that
+    part and complete based on time. Again it is bizarre that you bring this up given the discussion. [...]"
+  supervisor reading: every task ends at start time + Duration; a unit still travelling at that moment is reported complete when it
+    arrives; a unit that gets stuck is already ruled (RL-20260914-01, archive: abort is the code STP sees; that a later arrival still
+    reports complete is a supervisor position, see that entry's scope note); tasks with no destination end when their Duration elapses
+    (RL-20260914-02); whether an effect was achieved is IGNORED under the temporary position - that is the research question, not a gap;
+    each follow-on task gets its full Duration from its actual start. The research is the seat's job.
+  IMPLEMENTATION FACT (supervisor note, updated 2026-09-25): until the completion unit (branch feat/completion-temporary-position,
+    docs\CORRECTIONS_LOG.md F-4; live confirmation owed) main ended a task on its Duration timer even when the unit had not arrived
+    (since 746c091) and stall detection shipped OFF. That unit builds this position; stall detection is ON in the demo profile and OFF
+    elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
+  pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
 
