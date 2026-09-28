@@ -625,5 +625,6 @@ FidelityTable, a single M1A2 under RealTemplates) with DIS category 5 = company;
 which made the R9 order aggregate-only under RL-20260927-06. The TEST DATA now codes it COY (data/R9_Mojave_Lean_
 Initialization.xml, its _NoComments twin, R9_Mojave_Initialization.xml, GA_LeafCompany_Initialization.xml); SIDC and DIS are
 untouched and every planned creation is unchanged (deployed build: --parse-init, UnitTranslator.Plan on three entity maps,
---destack-selftest, --parse-selftest). The golden-trace init keeps BDE as a record; L2/L3 are open (RUNBOOK sec 11j). The
-sec 4.3 DIS slip (153:3 for 153:5) is that doc's own item 6.
+--destack-selftest, --parse-selftest). L2_Infantry / L3_CpProxy code it COYG, which keeps them unchanged where COY would
+not (RUNBOOK sec 11j); the golden-trace init keeps BDE as a record. The sec 4.3 DIS slip (153:3 for 153:5) is that doc's
+own item 6.

@@ -3987,10 +3987,12 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
   build with `--parse-init`, UnitTranslator.Plan on three entity maps, `--destack-selftest` and `--parse-selftest`.
   The no-argument 5.2 default, DEMO Way A, COMPLETION_CONFIRM and the N3 GA line all choose EntityLevel <- auto.
   (b) The E1/E2/E2-2 cut-A entity lines (28ID DIV and 48 IBCT BDE tasked, entity fixture) stay REFUSED: cut A keeps
-  no entity-level regression run; E1/E2 stay as records. (c) NOT re-coded: `data/L2_Infantry_Initialization.xml`
-  and `data/L3_CpProxy_Initialization.xml`, whose 1.BdeHQ has SIDC SFGPUCI---EH--- - there COY WOULD change it (map
-  key (c) lands Infantry Platoon (USA Army), an aggregate) while COYG keeps it; until that is decided they are
-  aggregate-only with the R9 order. The golden-trace init under `docs/golden-trace/` is a record and keeps BDE.
+  no entity-level regression run; E1/E2 stay as records. (c) `data/L2_Infantry_Initialization.xml` and
+  `data/L3_CpProxy_Initialization.xml` code 1.BdeHQ COYG, not COY (the seat's decision under RL-20260928-01): their
+  1.BdeHQ has SIDC SFGPUCI---EH--- and a zeroed DIS type, so the map reaches key (c) on the EchelonCode, where COY
+  would land Infantry Platoon (USA Army), an aggregate; COYG (company group, ranks with COY) matches no row and keeps
+  the key-(d) M577A2 command post exactly - checked the same way as the four. The R9 order on them is EntityLevel.
+  The golden-trace init under `docs/golden-trace/` is a record and keeps BDE.
   Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default) run exactly as before; the 5.0.2
   profile is not touched (no aggregate model set there).
 

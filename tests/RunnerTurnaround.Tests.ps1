@@ -2195,6 +2195,25 @@ Check '8z the other R9 lines are EntityLevel too: the FULL R9 init, the NoCommen
     $zR9Full.Choice -eq 'EntityLevel' -and $zR9Nc.Choice -eq 'EntityLevel' -and $zR9Cc.Choice -eq 'EntityLevel' -and
     $zR9Full.Highest -eq 'COY' -and $zR9Nc.Highest -eq 'COY' -and $zR9Cc.Highest -eq 'COY') (
     "full=$($zR9Full.Choice)/$($zR9Full.Highest) nocomments=$($zR9Nc.Choice) completion=$($zR9Cc.Choice)")
+# L2 / L3 (the 2026-09-06 probe inits, run with the same R9 order): their 1.BdeHQ has SIDC SFGPUCI---EH--- and a
+# zeroed DIS type, so the fidelity table reaches key (c) - functionId + EchelonCode - where COY would land row F-UCI-E,
+# an Infantry Platoon AGGREGATE. COYG ("company group", a C2SIM EchelonCodeType value that ranks with COY) matches no
+# row there, so it keeps the key-(d) M577A2 command post exactly; the seat's decision under RL-20260928-01 (verified on
+# the deployed build as for the four: --parse-init and UnitTranslator.Plan unchanged in every mode and map).
+$zLFiles = @('L2_Infantry_Initialization.xml', 'L3_CpProxy_Initialization.xml')
+$zLUnits = @($zLFiles | ForEach-Object { Get-D2UnitCodes -Text (Read-D2Fixture ('data\' + $_)) -Uuid '670cfdb2-6c43-f267-ad7f-bd6e739def24' })
+Check '8z L2 / L3 carry 1.BdeHQ as COYG (seat, under RL-20260928-01; it was BDE), SIDC SFGPUCI---EH--- and DIS 0.0.0.0.0.0.0 unchanged' (
+    (@($zLUnits | ForEach-Object { $_.Echelon }) -join ',') -eq 'COYG,COYG' -and
+    @($zLUnits | Where-Object { $_.Sidc -eq 'SFGPUCI---EH---' -and $_.Dis -eq '0.0.0.0.0.0.0' }).Count -eq 2) (
+    (@($zLUnits | ForEach-Object { $_.Echelon + ' ' + $_.Sidc + '/' + $_.Dis }) -join ', '))
+$zL2 = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\L2_Infantry_Initialization.xml')
+$zL3 = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\L3_CpProxy_Initialization.xml')
+# (L3 codes 1222.MechPlt BN on purpose - it was the BN -> HQ-section proxy probe - so its highest tasked echelon is BN.)
+Check '8z the R9 order on L2 (highest COY; COYG ranks with COY) and on L3 (highest BN, its 1222.MechPlt) -> EntityLevel, nothing to warn' (
+    $zL2.Choice -eq 'EntityLevel' -and $zL3.Choice -eq 'EntityLevel' -and $zL2.Highest -eq 'COY' -and $zL3.Highest -eq 'BN' -and
+    (@($zL2.Tasked | Where-Object { $_.Name -eq '1.BdeHQ' } | ForEach-Object { $_.Canonical + '/' + $_.Rank }) -join '') -eq 'COYG/5' -and
+    @($zL2.Warnings).Count -eq 0 -and @($zL3.Warnings).Count -eq 0) (
+    "L2=$($zL2.Choice)/$($zL2.Highest) L3=$($zL3.Choice)/$($zL3.Highest)")
 # THE OVERRIDES.
 $zUp   = Select-ModelSetByEchelon -Requested 'AggregateTacticalLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
 $zDown = Select-ModelSetByEchelon -Requested 'EntityLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml') -OrderLabel 'the order IRONSTORM_CUTA_Order.xml'
