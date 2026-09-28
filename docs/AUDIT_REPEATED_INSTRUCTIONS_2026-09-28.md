@@ -1,6 +1,6 @@
 # AUDIT: instructions the owner had to repeat (2026-09-01 .. 2026-09-28)
 
-Ordered by the owner 2026-09-28 (P8612: "Do an audit of the things I repeated multiple times. Show me the list").
+Requested on 2026-09-28 at P8612 ("Do an audit of the things I repeated multiple times. Show me the list").
 Source: every owner-typed message in the nine session transcripts of this project on this machine - 319 messages,
 extracted by scratch tool extract_owner_msgs.py (type=user records, tool results and injections excluded). Refs are
 session:line as the ledger uses them (L = a7f6a276 09-01..09-21; S = c3b364bd 09-21; P = 5fc25950 09-25..09-28;
@@ -79,8 +79,8 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
     finding (the 1 m completion trigger at a multiple; "2a ok on the multipliers for now"). IN CODE: Vrf:TimeMultiplier
     exists, default 1; the runner never sets it; no registered run since has raised it. STATUS: parked; the owner has not been asked
     whether to revisit it on 5.2d.
-14. DE-STACKING AT START-UP: excluded earlier (L20584 "the de stacking BS you ruled out ages ago"), then ACCEPTED by the owner
-    on 09-07 (L22041, "bite my tongue") on the triangular-position evidence. RECORDED: appsettings C14 text,
+14. DE-STACKING AT START-UP: excluded earlier (L20584 "the de stacking BS you ruled out ages ago"), then accepted at L22041 (RL-20260907-02)
+    on 09-07 ("bite my tongue") on the triangular-position evidence. RECORDED: appsettings C14 text,
     PREREG_ASSEMBLY_LAYOUT. IN CODE: yes (Vrf:DeStackCreates). A reversal, listed for completeness.
 15. C2SIM RICH TASKING beyond "move" (STP's task factory). 4 times: L7203, L7265, L19586, L28191. RECORDED:
     TASK_VOCABULARY_ASSESSMENT 09-14, RL-20260926-01. IN CODE: partly (scripted tasks, hold-in-place, ATTACK).
@@ -92,7 +92,7 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
 18. MODEL FALLBACK TO OPUS MID-SESSION caused regressions: B323, L17865, L17884, L20676 ("went straight into crazy
     mode"), S569 ("one of the cheap models pretending to be Fable"). Root cause behind items 3, 5 and 7's
     re-derivations on 09-04, 09-06 and 09-21. Option A (disable auto-switching, ask instead) was implemented 09-06
-    (L20738); whether it survived the 09-25 machine rebuild is unverified.
+    (L20738); VERIFIED 2026-09-28: switchModelsOnFlag=false is present in ~/.claude/settings.json (written 09-26, after the rebuild).
 
 ## Structural causes, from the pattern
 
