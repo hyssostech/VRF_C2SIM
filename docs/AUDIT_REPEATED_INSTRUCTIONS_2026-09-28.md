@@ -5,7 +5,7 @@ Source: every owner-typed message in the nine session transcripts of this projec
 extracted by scratch tool extract_owner_msgs.py (type=user records, tool results and injections excluded). Refs are
 session:line as the ledger uses them (L = a7f6a276 09-01..09-21; S = c3b364bd 09-21; P = 5fc25950 09-25..09-28;
 B = be8c4cc4 09-03). The July-August sessions are NOT on this rebuilt machine: repeats before 09-01 are visible only
-through the record's own citations (MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14, the R8 ruling of 07-13). "IN CODE" was
+through the record's own citations (MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14, the R8 record of 07-13). "IN CODE" was
 verified on main 16c7e4b today, not taken from docs.
 
 Counting rule: a message counts when it restates, redirects to, or rebukes the absence of a decision already given.
@@ -67,7 +67,7 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
     the vendor's expected practice. About 6 times: L13577 ("Don't forget the whole shift towards having units have
     autonomy to navigate, avoid obstacles"), L25453, P4705, P4723, P4769, P5258. RECORDED:
     FINDING_GROUND_MOVEMENT_PRACTICE, RL-20260927-01. IN CODE: yes since 09-27 (M1 Move To per vertex; E1/E2-2 proven).
-    WHY: Y-10 ("keep Move Along Route", a seat recommendation recorded as if ruled) held for three weeks against L13577.
+    WHY: Y-10 ("keep Move Along Route", a seat recommendation recorded as if settled) held for three weeks against L13577.
 11. VR-FORCES IS NOT BROKEN; a suspected bug means we misuse it. 4 times: L1600, L11619, L20763, L20839. RECORDED:
     nowhere as a rule until today's CLOSED list. IN CODE: n/a.
 12. THE DEMO IS IRON STORM (Suwalki); Mojave preserved, no new effort. 4 times: L39984, P3345, P3363 ("a full day
@@ -77,9 +77,9 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
 13. FASTER RUNS: run at a multiple; use the faster probes. About 8 times: L1662, L1678, L1835, L2233, L3558-L3810
     ("When are we going to take advantage of the faster probes?"), L21955, L21968. RECORDED: the 09-02 fixed-frame
     finding (the 1 m completion trigger at a multiple; "2a ok on the multipliers for now"). IN CODE: Vrf:TimeMultiplier
-    exists, default 1; the runner never sets it; no registered run since has raised it. STATUS: parked, not ruled -
-    an owner decision whether to revisit on 5.2d.
-14. DE-STACKING AT START-UP: ruled out (L20584 "the de stacking BS you ruled out ages ago"), then ACCEPTED by the owner
+    exists, default 1; the runner never sets it; no registered run since has raised it. STATUS: parked; the owner has not been asked
+    whether to revisit it on 5.2d.
+14. DE-STACKING AT START-UP: excluded earlier (L20584 "the de stacking BS you ruled out ages ago"), then ACCEPTED by the owner
     on 09-07 (L22041, "bite my tongue") on the triangular-position evidence. RECORDED: appsettings C14 text,
     PREREG_ASSEMBLY_LAYOUT. IN CODE: yes (Vrf:DeStackCreates). A reversal, listed for completeness.
 15. C2SIM RICH TASKING beyond "move" (STP's task factory). 4 times: L7203, L7265, L19586, L28191. RECORDED:
@@ -98,7 +98,7 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
 
 - Answers given in chat and never ledgered (9, 11, the 09-04 movement instruction 10): the ledger started 09-02 and
   was applied to explicit AskUserQuestion exchanges, not to redirections typed in passing.
-- Settlements recorded with the wrong status (2: G5 "optional"; 10: Y-10 as if ruled; 7: C10 "parked").
+- Settlements recorded with the wrong status (2: G5 "optional"; 10: Y-10 as if settled; 7: C10 "parked").
 - No CLOSED tripwire list until 2026-09-28; the handoff docs carried status, not settlements.
 - Model fallback and compaction restart a session from instinct (18); the seat then approves a lane's confident
   measurement without the record grep (2, 09-27 and 09-28).
@@ -107,5 +107,5 @@ Counting rule: a message counts when it restates, redirects to, or rebukes the a
 
 CLOSED tripwire list at the top of PLAN_MOVEMENT_2026-09-27 (items 2, 5, 6, 7, 8, 9, 10, 11 covered); REVERSED
 markers at the line in ORBAT_LOADING_REQUIREMENTS G5 and DESIGN_ORBAT C8; RL-20260928-02; package C1d with a source
-guard (every create passes a uuid); memory rule extended to lane approvals. Open for the owner: item 13 (a ruling),
+guard (every create passes a uuid); memory rule extended to lane approvals. Open for the owner: item 13 (needs an answer),
 item 12 (make Iron Storm the runner default), item 18 (verify Option A survived the rebuild).
