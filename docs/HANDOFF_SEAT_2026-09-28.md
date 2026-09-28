@@ -61,6 +61,14 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    scratchpad\laneG1-4\ (W_gate_20260928T225800Z_run.txt). NEXT: the Result by a read-only harvest lane -> Fable cold ->
    owner; then G1-5; the Label follow-up (5) is unblocked. Holder 56380 ends at the owner's reboot: next launch claims a
    holder from 5281 (branch b').
+   RESULT HARVESTED (Fable lane, 2026-09-28 ~23:55Z): LOCAL branch result/g1-4 at 1184663 (worktree .claude\worktrees\
+   result-g1-4), NOT merged, NOT yet cold-reviewed. Its readings, each [A] until reviewed: INF3WPN1 held by an impassable
+   feature at its nudged birth point (1.7 m outside OSM lake 16373225; "Movement constrained by features" L27577; which
+   feature unsettled - siblings 2.3-7.5 m from another lake moved); T02 HQ1 crossed ON wooden bridge OSM 218414262 (the 16 m
+   is the fix-chord corner cut vs scorer BRIDGE_TOL_M 15). Owner stopped the session here (~23:58Z). NEXT, in order: Fable
+   cold review of the Result -> owner (RULE: does the W FAIL bind as scored, given N3 = the H5/T14 registration flaw);
+   merge; then G1-5 per the Result's NEXT. Numbers after the reboot (branch b'): holder 5281-5284, pre-warm 5285-5295,
+   scored 5296-5306, marker -> 5307. RTI trio down since the reboot (23:16:45Z).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
