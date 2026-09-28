@@ -114,7 +114,7 @@ Notes:
 | RL-20260914-01 | 09-14 | TASKABRT is what STP sees for a stalled unit | Svc | E | RST:670-685 (t4), :704-715 (t6) |
 | RL-20260914-02 | 09-14 | R1 MapGraphicID; R2 performer's position; R3 objective; item 4 | TaskGeometryResolver.cs | E | :167; RST:1957, :1799, :1903, :296 |
 | RL-20260914-03 | 09-14 | R1 embedded Location (V4b); R5 entity first + user option | TaskGeometryInterpretation.cs | E | :58, RST:68; VS:1166, RTT:1979 |
-| RL-20260914-04 | 09-14 | R6: test the vendor filter, then fan battalions out to companies | Svc, VS | X | VS:617 SubordinateFanOut=false, set nowhere +n |
+| RL-20260914-04 | 09-14 | R6: test the vendor filter, then fan battalions out to companies | Svc, VS | X (OFF pinned 4d488ab; retire or build: owner) | VS:617 SubordinateFanOut=false, set nowhere +n |
 | RL-20260914-05 | 09-14 | Q1 supersede aborts; Q2 sim clock; Q4 malformed; Q5; Q7 | TDP, SimClockTracker.cs | E | TDP:331, :437; RST:2294, :1836, :1412 +n |
 | RL-20260914-06 | 09-14 | STP-809 back-end state; E3 task cycles refused with an abort | VrfFacade.h, TDP | E | VrfFacade.h:406-415, TDP:368; RST:1366, :2553 |
 | RL-20260915-01 | 09-15 | convert the four 5.0.2-only tools to 5.2 | tools/*.csproj | E | BridgeConfig; tools/ResetVrf/Program.cs:113 |
@@ -187,8 +187,8 @@ Notes:
 | Y-9 | 09-03 | golden runs: blockOnAsynchronousOperations ON + a pinned seed | LV52, fixture | X | 0 hits in scripts, src, tools/FixtureGen, config |
 | Y-10 | 09-03 | keep MoveAlongRoute for every MOVE - a SEAT RECOMMENDATION | - | S | by RL-20260927-01; unit limb VCS:54 (v1) +n |
 | Y-11 | 09-03 | accept unit Move To -> Maneuver To; no per-entity moves on a unit | VertexChain.cs | E | :88; VCS:41-64 (v1) |
-| Y-12 | 09-03 | Autonomous Actions left ON | Svc | P-pin | 0 hits for AutonomousActions in src; no guard |
-| Y-13 | 09-03 | SMS road defaults; no road preference unless an order asks | Svc | P-pin | 0 hits for a navigation-preference send; no guard |
+| Y-12 | 09-03 | Autonomous Actions left ON | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits for AutonomousActions in src; no guard |
+| Y-13 | 09-03 | SMS road defaults; no road preference unless an order asks | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits for a navigation-preference send; no guard |
 | Y-14 | 09-03 | no batch mode for interface runs; evaluate SQLite logging | - | P-code | batch 0 hits; SQLite 0 hits (never evaluated) |
 | Y-15 | 09-03 | two profiles by echelon; authored doctrinal Lua for company and below | runner, Lua | P-code | RLib:2143 (8y, 8z); 0 .lua files tracked +n |
 | Y-16 | 09-03 | HLA 4 is its own phase; gates run on HLA 1516e | VrfBridge.vcxproj | E | vcxproj:21-22, :56-62; RTT:960-975, :487 |
@@ -224,11 +224,11 @@ roadmap's T10, T14 and T18 - and DIFF sec G adopted two instruments (5.b, 5.d). 
 | C1, C2, G1 | 09-06 | compose per the vendor sample, ON by default | Svc, VS | P-pin (default pinned 9999b35; flow unpinned) | Svc:2439-2471; VS:136, AJ:34; order pinned only +n |
 | C3, C5 | 09-06 | no template higher-unit for company+; expand pure higher-units | ComposeOrder.cs | E | :11; :44 (--compose 9/0) |
 | C4 | 09-06 | AggregateFormation stays OFF | VS | P-pin CLOSED 2026-09-28 by 9999b35 | VS:120; used only when set (Svc:5645, :9497) |
-| C6, G3, G4 | 09-06 | no post-attach reorganize; no client formation wait | Svc | P-pin | Svc:2439-2471 attaches only; opt-in :9497-9512 |
+| C6, G3, G4 | 09-06 | no post-attach reorganize; no client formation wait | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | Svc:2439-2471 attaches only; opt-in :9497-9512 |
 | C7, G2 | 09-06 | attach in the declared Subordinate order | ComposeOrder.cs | E | --compose "declared order wins" |
-| C8 | 09-02 | address by the real VRF_UUID, never a name as a DtUUID | Svc | P-pin | Svc:6740-6758; no self-test; RTT:2680 parses logs |
+| C8 | 09-02 | address by the real VRF_UUID, never a name as a DtUUID | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | Svc:6740-6758; no self-test; RTT:2680 parses logs |
 | C9 | 09-06 | no vendor importer sample exists | - | A | a fact |
-| C10 | 09-06 | never build sendVrfObjectCreateMsg + initialFormation | Svc, Fac | P-pin | 0 hits in src; no guard |
+| C10 | 09-06 | never build sendVrfObjectCreateMsg + initialFormation | Svc, Fac | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits in src; no guard |
 | C11 | 09-06 | the object console at level 4 is the first instrument | VS, lint | E | VS:505; tests/RecordChecks.ps1:675-677 (13d) |
 | C12 | 09-06 | lifeforms need the DI-Guy data installed | env | A | installed by him |
 

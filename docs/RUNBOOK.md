@@ -4132,6 +4132,19 @@ window ships as 240 WALL s against the 120 simulated s approved in RL-20260913-0
 owner's open question (audit sec 5). `scripts/RunC2SimScenario.ps1 -VrfProfile` now DEFAULTS TO 5.2 (audit row
 5.0.2-ARCHIVE); `-VrfProfile 5.0.2` still selects the historical path (RTT 8b pins the default, 8k/8l the 5.0.2 leg).
 
+### 11m. THE "DO NOT" RULES, PINNED BY SOURCE GUARDS (audit 2026-09-28 fix 2)
+
+`--rulings-selftest` section "AUDIT 2026-09-28 fix 2" (`src/VrfC2SimApp/DoNotRulesSelfTest.cs`) turns the rules kept
+only by absence into checks over the checkout, with comments and strings blanked by a small lexer and every scanner
+proven on a dirty control first: C8 - no DtUUID in the facade or bridge is built from a name, and no id argument of a
+bridge call in the app reads like a name or marking; RTI-UNTOUCHED - the kill statements in `scripts/` and `tools/` are
+EXACTLY LaunchVrf52's own crashed back end and StopVrf52's taskkill without /F and identity-gated force, all by pid, and
+no text there carries a kill-by-name form (a NEW kill statement fails until it is reviewed and added to the inventory in
+that file); SubordinateFanOut OFF (RL-20260914-04 as it stands); no Autonomous Actions send (Y-12), no road preference
+(Y-13), no sendVrfObjectCreateMsg (C10), ReorganizeAggregate only in the opt-in `AggregateFormation=auto` handler (C6).
+The 10000 m birth and the uuid on every create are CITED, not duplicated (`--placement-selftest`, `--populate-selftest`
+p15 (e)).
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
