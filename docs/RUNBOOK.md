@@ -4030,8 +4030,9 @@ C2SIM uuid, and 23 members), 0 `not one we requested`, `IDENTITY: 36 of 36 objec
 initialization's own objects, at READY TO TASK; ...)` and the three population lines `1 of 1`, `5 of 5`, `17 of 17`.
 OFFLINE PROOF: `--populate-selftest` p15 replays G1's 23 members with their OLD 34-character names, every callback cut to
 30, through `BindCreated`: by uuid 23 of 23 bind (0 ambiguous, 0 refused), by name alone 1 of 23 (22 ambiguous - G1);
-the 23 derived uuids are distinct, stable and what `MemberPlan` sends; every `_bridge.CreateEntity`/`CreateAggregate`
-call passes a uuid (source guard); the linked bridge carries the overloads. `--name-selftest` pins the v5 derivation
+the 23 derived uuids are distinct, stable and what `MemberPlan` sends; every shipped init (13 of 13) has one object per
+uuid - each unit's C2SIM uuid well-formed, unique and no graphic's; every `_bridge.CreateEntity`/`CreateAggregate` call
+passes a uuid (source guard); the linked bridge carries the overloads. `--name-selftest` pins the v5 derivation
 against Python's uuid5 values, the fallback, the line shapes and the marking resolution. NOT PROVEN - LIVE-OWED (G1-2):
 that VR-Forces returns the REQUESTED uuid for ENTITIES and AGGREGATES as it does for control areas. If it does not, every
 unit prints the `not one we requested` WARN, the summary reads `0 of 36 ... by uuid`, and the name rule (C1c) still binds
