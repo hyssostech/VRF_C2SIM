@@ -73,7 +73,7 @@ the evidence is in that decision's note under its table.
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
 | RL-20260921-09 | 09-21 | TEMPORARY: end at start + Duration; a late unit completes on arrival | TCP | E | TCP:75-350; RST:600 (t1-t21); TAS:141-237 |
-| RL-20260927-02 | 09-27 | (1) hostile side RUS; (2) populate containers, not proxies | VS, CPop | P-pin | CPop:138 + CST; RUS only VS:90, AJ:30 +n |
+| RL-20260927-02 | 09-27 | (1) hostile side RUS; (2) populate containers, not proxies | VS, CPop | P-pin CLOSED 2026-09-28 by 9999b35 | CPop:138 + CST; RUS only VS:90, AJ:30 +n |
 | RL-20260927-03 | 09-27 | init: every unit an empty container on the map; tasked ones filled | Svc | E | Svc:2906-2908, :1763-1797; CST:361-390, :649-655 +n |
 | RL-20260927-04 | 09-27 | D-1..D-8 as recommended; D-2: author the missing US types (C2) | CComp, CPop, data | E | CST:222, :575-589, :645, :780-796 +n |
 | RL-20260927-05 | 09-27 | "Q1 a": an unfinished mover is OVERDUE when the gate window expires | TCP, TDP | E | TCP:253, TDP:458; TAS:141-166 (t4) |
@@ -102,15 +102,15 @@ Notes:
 
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
-| RL-20260902-01 | 09-02 | best fidelity: every unit as its correct VR-Forces type | UTM, VS, AJ | P-code | UTM:77, TMS 610/0; base default RealTemplates +n |
+| RL-20260902-01 | 09-02 | best fidelity: every unit as its correct VR-Forces type | UTM, VS, AJ | P-code (overlay pinned 9999b35; base open) | UTM:77, TMS 610/0; base default RealTemplates +n |
 | RL-20260903-01 | 09-03 | all the tasking STP can represent, not only move | VerbMapping.cs | P-code | :110-122, --verb 51/0; hold family bare-moves +n |
 | RL-20260906-01 | 09-06 | a demo app that runs without the test harness | MakRuntime.cs, SI52 | E | MakRuntime.cs:29; Program.cs:210-218; RTT:3425-3440 |
-| RL-20260906-02, C13 | 09-06 | simulate only the taskees; the init is ORBAT context | VS, AD, RSh | P-code | VS:205 AtInit; AtOrder only AD:28, RSh:333 +n |
+| RL-20260906-02, C13 | 09-06 | simulate only the taskees; the init is ORBAT context | VS, AD, RSh | P-code (overlay pinned 9999b35; base open) | VS:205 AtInit; AtOrder only AD:28, RSh:333 +n |
 | RL-20260907-01, C15 | 09-07 | a unit's completion from its own arrival evidence | ArrivalPolicy.cs | E | :230-280; pin :294 (--arrival 74/0) |
 | RL-20260907-02, C14 | 09-07 | spread co-located units at startup, 700 m rings | DeStacker.cs, AJ | E | :54, AJ:38-39; RST:3001-3004; --destack 141/0 |
 | RL-20260913-01 | 09-13 | leg checks reach users as C2 reports, not logs | Preflight/ | E | PreflightReports.cs; ROS:383-389; OSS:594 +n |
 | RL-20260913-02 | 09-13 | customisations survive a VR-Forces reinstall | tools/sms | P-pin | Deploy-C2SimSms.ps1:1-14 (C:\C2SIM\vrf-sms); no pin |
-| RL-20260913-03, C16 | 09-13 | stall: report + abort, N = 120 SIMULATED s, no re-tasking | StallPolicy.cs | P-code | :50, --stall 66/0; window 240 wall s +n |
+| RL-20260913-03, C16 | 09-13 | stall: report + abort, N = 120 SIMULATED s, no re-tasking | StallPolicy.cs | P-code (shipped window pinned 9999b35; number open) | :50, --stall 66/0; window 240 wall s +n |
 | RL-20260914-01 | 09-14 | TASKABRT is what STP sees for a stalled unit | Svc | E | RST:670-685 (t4), :704-715 (t6) |
 | RL-20260914-02 | 09-14 | R1 MapGraphicID; R2 performer's position; R3 objective; item 4 | TaskGeometryResolver.cs | E | :167; RST:1957, :1799, :1903, :296 |
 | RL-20260914-03 | 09-14 | R1 embedded Location (V4b); R5 entity first + user option | TaskGeometryInterpretation.cs | E | :58, RST:68; VS:1166, RTT:1979 |
@@ -128,7 +128,7 @@ Notes:
 | RL-20260921-06 | 09-21 | the placement re-clamp stays; its gate and tally were the defect | PlacementReclampPolicy.cs | E | :75, :207; PRS:291-474; RTT:1443 |
 | RL-20260921-07 | 09-21 | a movement task whose unit stays put aborts; not every task moves | Svc | E | Svc:6366-6456; RST:961-981 (t21) +n |
 | RL-20260921-08 | 09-21 | no rule: plain words; read the record before asking | - | A | process |
-| RL-20260925-01 | 09-25 | Q1 scope; Q2 abandon a stuck unit's follow-ons; Q3 stall ON in demo; Q4 | TCP, AD | P-pin | RST:600-767, TAS; Q3 only AD:49 +n |
+| RL-20260925-01 | 09-25 | Q1 scope; Q2 abandon a stuck unit's follow-ons; Q3 stall ON in demo; Q4 | TCP, AD | P-pin CLOSED 2026-09-28 by 9999b35 | RST:600-767, TAS; Q3 only AD:49 +n |
 | RL-20260926-01 | 09-26 | unit ATTACK = advance + fire at will; BREACH not simulated; CNFPSL held | TDP | E | TDP:128, :165; EDS:30-71, :117-166 |
 | RL-20260927-01 | 09-27 | lone platform Move To per vertex; one OSM pre-flight per set | VertexChain.cs, Preflight/ | E | VCS:41-64, :451-466; OSS:148-155 +n |
 | RL-UNVERIFIED-DIGUY01 | - | claimed: dropping DI-Guy rows is a fidelity regression | - | not a ruling | no owner words |
@@ -178,7 +178,7 @@ Notes:
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
 | Y-1, Y-5 | 09-03 | launch vrfSimHLA1516e from bin64; LaunchVrf52 replaces the launcher | LV52 | E | LV52:1-11, :1045-1046; RTT:960-975 (8g) |
-| Y-2 | 09-03 | join via the MAK-ONE-2025 config; C# FomModules emptied | Svc, AJ | P-code | Svc:1388-1403 only if ConfigFileIdentity +n |
+| Y-2 | 09-03 | join via the MAK-ONE-2025 config; C# FomModules emptied | Svc, AJ | P-code (overlay pinned 9999b35; base open) | Svc:1388-1403 only if ConfigFileIdentity +n |
 | Y-3 | 09-03 | no C:\MAK edit: --notifyLevel and a repo-held --settingsFile | LV52 | P-code | LV52:1046, RTT:966; --settingsFile 0 hits |
 | Y-4 | 09-03 | keep the bin64 sim log via --logFileName | - | S | never pass it: LV52:1047-1052; RTT:766-800 (8f) |
 | Y-6 | 09-03 | facade loop per the sample: no setSimTime; monitor back-end state | Fac | P-pin | Fac:659-662, :756-763; native, no offline check |
@@ -221,9 +221,9 @@ roadmap's T10, T14 and T18 - and DIFF sec G adopted two instruments (5.b, 5.d). 
 
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
-| C1, C2, G1 | 09-06 | compose per the vendor sample, ON by default | Svc, VS | P-pin | Svc:2439-2471; VS:136, AJ:34; order pinned only +n |
+| C1, C2, G1 | 09-06 | compose per the vendor sample, ON by default | Svc, VS | P-pin (default pinned 9999b35; flow unpinned) | Svc:2439-2471; VS:136, AJ:34; order pinned only +n |
 | C3, C5 | 09-06 | no template higher-unit for company+; expand pure higher-units | ComposeOrder.cs | E | :11; :44 (--compose 9/0) |
-| C4 | 09-06 | AggregateFormation stays OFF | VS | P-pin | VS:120; used only when set (Svc:5645, :9497) |
+| C4 | 09-06 | AggregateFormation stays OFF | VS | P-pin CLOSED 2026-09-28 by 9999b35 | VS:120; used only when set (Svc:5645, :9497) |
 | C6, G3, G4 | 09-06 | no post-attach reorganize; no client formation wait | Svc | P-pin | Svc:2439-2471 attaches only; opt-in :9497-9512 |
 | C7, G2 | 09-06 | attach in the declared Subordinate order | ComposeOrder.cs | E | --compose "declared order wins" |
 | C8 | 09-02 | address by the real VRF_UUID, never a name as a DtUUID | Svc | P-pin | Svc:6740-6758; no self-test; RTT:2680 parses logs |
@@ -277,7 +277,7 @@ RL-20260927-05, C8, R-HOSTILE-NATION and RL-20260920-01.
 | JC-1 | 09-02 | the init's type wins only where the table covers it | UTM | E | UTM:66-69; TypeMapSelfTest.cs:259-287 +n |
 | JC-2 | 09-02 | a nation with no content refuses to start | UTM | E | UTM:301-342; TMS:319 +n |
 | NO-OLD-BITS | 09-03 | 5.2 runs on MAK RTI 5.0.1 | RCS, vcxproj | E | RCS:906, vcxproj:50; RTT:487, :520 (8b) |
-| 5.0.2-ARCHIVE | 09-04 | nothing on the live path launches 5.0.2 | RCS | P-code | RCS:400-401 defaults to 5.0.2 +n |
+| 5.0.2-ARCHIVE | 09-04 | nothing on the live path launches 5.0.2 | RCS | P-code CLOSED 2026-09-28 by 9999b35 | RCS:400-401 defaults to 5.0.2 +n |
 | MULTIPLIER | 09-02 | NOT COUNTED - parked, "ok on the multipliers for now" | VS | - | VS:653 = 1; no runner sets it +n |
 
 Notes:

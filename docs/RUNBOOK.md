@@ -4119,6 +4119,19 @@ AGGREGATE-ONLY`. To run Iron Storm by hand, start the interface with `Vrf:ModelS
 aggregate type map and an aggregate fixture. No 5.0.2 twin is needed: the 5.0.2 app has not compiled from this source
 since the container bridge members. OFFLINE-PROVEN ONLY (b5c6d02; not deployed, not live).
 
+### 11l. THE SHIPPED PROFILE, PINNED - AND WHERE THE BASE STILL DISAGREES (audit 2026-09-28 fix 1)
+
+`--rulings-selftest` section "AUDIT 2026-09-28 fix 1" (`src/VrfC2SimApp/ShippedProfileSelfTest.cs`) reads both shipped
+json files through the real configuration stack, RunScenario.sh's exports and the aggregate type map, and fails when a
+settled value moves: TypeMappingMode=FidelityTable (RL-20260902-01) and CreationPolicy=AtOrder (RL-20260906-02) in the
+Demo overlay and the wrapper; StallDetection ON in the demo only (RL-20260925-01 Q3); ModelSet EntityLevel
+(RL-20260927-06); OpposingNation RUS, and RUS = DIS 260 in the aggregate map (RL-20260927-02); ConfigFileIdentity (Y-2);
+ComposeHierarchy ON (C1/C2); AggregateFormation OFF (C4). It pins what SHIPS and chooses nothing: the base
+appsettings.json / VrfSettings.cs still default to RealTemplates, AtInit and the CWIX-2024 identity, and the stall
+window ships as 240 WALL s against the 120 simulated s approved in RL-20260913-03 - each is named in its check as the
+owner's open question (audit sec 5). `scripts/RunC2SimScenario.ps1 -VrfProfile` now DEFAULTS TO 5.2 (audit row
+5.0.2-ARCHIVE); `-VrfProfile 5.0.2` still selects the historical path (RTT 8b pins the default, 8k/8l the 5.0.2 leg).
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
