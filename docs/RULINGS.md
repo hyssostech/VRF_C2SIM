@@ -108,3 +108,13 @@ RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
     run - E1/E2 stay as records. (2) "Go for the server" authorises the private validation server push (127.0.0.1:18080 / 61614) for G1 and its
     successors; the operator's 8080/61613 server stays out of bounds as before.
   pointer: PLAN_MOVEMENT_2026-09-27 rows D2, G1; PREREG_IRONSTORM_AGG_G1_2026-09-28 sec 3 (C3); feat/modelset-selector.
+RL-20260928-02 | 2026-09-28 | VERBATIM
+  Q (seat, P8236): the seat reported C1c merged - "member names are built within the 30 characters VR-Forces keeps, every requested name is
+    checked for uniqueness at 30 before the create" - and G1-2 being registered on it.
+  A (owner, P8241): "Looks like you fell again on a very old trap and are rediscovering the name limit. Look at the record!!!! This field is
+    supposed to carry the uuid not the human name"
+  supervisor reading: object identity is the UUID field (UG52 13.2 Table 21 p362-363: UUID unique; Name length-limited, NOT unique; Label
+    unlimited). The interface passes a startingUUID on every create (the unit's C2SIM uuid - already done for every tactical graphic; G5 of
+    ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this fix for units and its refutation called it optional - reversed) and correlates
+    ObjectCreated by uuid; members get a derived uuid; names are display only. C1c (84c4f62) is demoted to a secondary key; C1d does it.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows C1c, C1d, G1-2; CORRECTIONS_LOG "Name-keyed identity" (2026-09-28); UG52 13.2 p362-363.

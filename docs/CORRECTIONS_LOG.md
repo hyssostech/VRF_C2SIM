@@ -628,3 +628,17 @@ untouched and every planned creation is unchanged (deployed build: --parse-init,
 --destack-selftest, --parse-selftest). L2_Infantry / L3_CpProxy code it COYG, which keeps them unchanged where COY would
 not (RUNBOOK sec 11j); the golden-trace init keeps BDE as a record. The sec 4.3 DIS slip (153:3 for 153:5) is that doc's
 own item 6.
+
+## Name-keyed identity: C1c "unique within 30 characters" approved as the fix for G1's lost members (2026-09-28)
+Claimed (seat, the C1c brief and merge 84c4f62; RUNBOOK sec 11i "NAMES: 30 CHARACTERS, NOT 34"): the members were lost because their
+names collided at 30 characters, so the fix is to plan every name unique within 30 and bind by name.
+Corrected (RL-20260928-02): the collision is real but the frame is wrong - the interface keys identity on the NAME, a field VR-Forces
+documents as length-limited and NOT unique (UG52 13.2 Table 21 p362-363: entities 11, units 31), while the identity field is the UUID:
+every create call takes a startingUUID (vrfRemoteController.h 5.2 :1267-1335 createEntity/createAggregate), the facade passes
+DtUUID::nullUUID() for units (VrfFacade.cpp:943) and the C2SIM uuid for every tactical graphic (BUFFALO came back as
+VRF_UUID:6f8a4647-6201-3058-9b85-e598476a0781, its own init uuid, run 20260928T102541Z app log L203). The record had it:
+MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14 item 1 (name-keyed callback correlation can bind the wrong uuid; the original author's
+README limits callback names to 10) and ORBAT_LOADING_REQUIREMENTS_2026-09-06 G5 (FIX: pass the C2SIM UUID as startingUUID; re-key
+correlation on UUID), whose refutation ("OPTIONAL simplification") this entry reverses. C1c stays merged as the secondary (marking)
+key; package C1d makes the uuid primary. The seat approved the lane's frame without grepping the record for name/uuid - the same
+failure as 2026-09-27 (memory feedback-read-ledger-before-asking), now applied to lane designs, not only to questions.
