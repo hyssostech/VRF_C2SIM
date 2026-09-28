@@ -55,6 +55,14 @@ public static partial class RulingsSelfTest     // partial: the STP-850 section 
         failures += TimerAnchorSelfTest.Run();
         Console.WriteLine("=== STP-850: a SimulationTime offset is measured from ORDER RECEIPT - Receipt: start = max(predecessor completion, receipt + (offset - the order's minOffset)); ReceiptAbsolute: receipt + offset; PredecessorCompletion: offset after the predecessor ===");
         StartTimeAnchorChecks(ref failures);
+        Console.WriteLine("=== D2b (RL-20260927-06, RL-20260928-01): the model-set rule at order receipt - above BN on EntityLevel is REFUSED ===");
+        failures += ModelSetGuardSelfTest.Run();
+        Console.WriteLine("=== AUDIT 2026-09-28 fix 1: the overlay-only settlements, pinned where they ship (base disagreements named, not chosen) ===");
+        failures += ShippedProfileSelfTest.Run();
+        Console.WriteLine("=== AUDIT 2026-09-28 fix 2: the \"do not\" rules kept only by absence, pinned by source guards ===");
+        failures += DoNotRulesSelfTest.Run();
+        Console.WriteLine("=== M3 (RL-20260928-03): a tasked container's route is driven by the vendor's PLANNING task per vertex (Auto by default) ===");
+        failures += PlannedMoveSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

@@ -737,7 +737,8 @@ public static class ContainerSelfTest
               && VertexChainPolicy.FormFor(true, true, false, 5, true) == GroundMoveForm.RouteTask
               && VertexChainPolicy.FormFor(true, true, false, 1, true) == GroundMoveForm.SinglePointMoveTo,
               "the script follows the entity path's own form: one point -> direct, a route -> along, a patrol -> patrol; a " +
-              "container (an aggregate) never gets a vertex chain");
+              "container (an aggregate) never gets M1's Move To chain (its planned per-vertex chain is M3's, RL-20260928-03 - " +
+              "--planned-move-selftest; PA_Move_Along_Route is then Vrf:AggregateMovePlanner=Literal's)");
         var lines = VrfBridge.DescribeScriptVars(ContainerScriptVars.ToBridge(
             ContainerScripts.AlongRoute("VRF_UUID:route").Concat(ContainerScripts.ToLocation(54.0268, 23.3172, 0.0)).ToList()));
         string joined = string.Join(" ; ", lines);
@@ -746,6 +747,28 @@ public static class ContainerSelfTest
               && lines[2].Contains("|checkbox|false") && lines[3].StartsWith("location|") && lines[3].Contains("|location|54.026800,23.317200")
               && lines[4].Contains("|checkbox|false"),
               "the bridge binds them as the vendor's types (a real DtScriptedTaskTask, nothing sent)", joined);
+        // M3 (RL-20260928-03): the planners' variables through the SAME marshalling - Move (Group)'s destination + useRoads,
+        // and navigate-to-location's six, whose strings and buffer are the new Text / Number kinds (DtRwString, DtRwReal:
+        // the classes the vendor's own saved navigate-to-location task carries, RoadToKaunasPhaseTwo.oob :109481-109500).
+        var group = VrfBridge.DescribeScriptVars(ContainerScriptVars.ToBridge(AggregateMovePolicy.ForVertex(
+            AggregateMovePlanner.Group, 54.040348, 23.324206, default).Vars));
+        var nav = VrfBridge.DescribeScriptVars(ContainerScriptVars.ToBridge(AggregateMovePolicy.NavigateVars(54.040348, 23.324206, "MAK_ROAD")));
+        string gj = string.Join(" ; ", group), nj = string.Join(" ; ", nav);
+        static bool AtZero(string line)
+        {
+            var parts = line.Split('|');
+            var f = parts.Length == 4 ? parts[3].Split(',') : Array.Empty<string>();
+            return f.Length == 3 && f[0] == "54.040348" && f[1] == "23.324206"
+                   && double.TryParse(f[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double alt) && Math.Abs(alt) < 0.01;
+        }
+        Check(group.Count == 2 && group[0].StartsWith("destination|") && group[0].Contains("|location|") && AtZero(group[0])
+              && group[1].StartsWith("useRoads|") && group[1].Contains("|checkbox|true"),
+              "M3: Move (Group)'s [destination, useRoads] bind as location (a geocentric vector at altitude 0) and checkbox", gj);
+        Check(nav.Count == 6 && nav[0].Contains("|location|") && AtZero(nav[0]) && nav[1].StartsWith("obstacleQuery|")
+              && nav[1].Contains("|string|MAK_OBSTACLE") && nav[2].StartsWith("pathQuery|") && nav[2].Contains("|string|MAK_ROAD")
+              && nav[3].StartsWith("buffer|") && nav[3].Contains("|double|10.000000") && nav[4].Contains("|checkbox|false")
+              && nav[5].StartsWith("query|") && nav[5].EndsWith("|string|"),
+              "M3: navigate-to-location's six bind as location, string, string, double, checkbox, string - the vendor's classes", nj);
     }
 
     private static string VarType(string xml, string name)

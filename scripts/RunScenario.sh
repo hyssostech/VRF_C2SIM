@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # RunScenario.sh - the ONLY supported way to launch scripts/RunC2SimScenario.ps1 for a
-# live run. It is a TEMPLATE: the defaults below are the G6 configuration, every one of
-# them is overridable on the command line, and anything after "--" is passed straight
-# through to the runner.
+# live run. It is a TEMPLATE: the defaults below are the G6 configuration (except the
+# scenario/init/order trio, Iron Storm cut A since 2026-09-28), every one of them is
+# overridable on the command line, and anything after "--" is passed straight through to
+# the runner.
 #
 # WHY THIS FILE EXISTS (2026-09-14; docs/experiments/RUNNER_HARDENING_2026-09-14.md).
 # The G6 run of 2026-09-14 was launched by an ad-hoc two-line wrapper and three separate
@@ -36,13 +37,16 @@ cd "$REPO" || { echo "cannot cd to repo root"; exit 1; }
 # ---- the 64-bit host, pinned by full path -----------------------------------
 PWSH64='/c/Program Files/PowerShell/7/pwsh.exe'
 
-# ---- defaults (the G6 configuration) ----------------------------------------
+# ---- defaults (the G6 configuration; the AO trio is Iron Storm since 2026-09-28) ----
 PROFILE='5.2'
 NOGUI=1
-# THE NEXT THREE ARE AO-SPECIFIC DEFAULTS (STP-802), and they are marked as such because the
-# demo AO is no longer the Mojave: the scenario names a MOJAVE fixture and the init/order are
-# the MOJAVE COA-STP1 pair. Run another AO by passing --scenario/--init/--order, or by exporting
-# C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER - the command line still wins over the environment.
+# THE NEXT THREE ARE AO-SPECIFIC DEFAULTS (STP-802). THE DEMO IS IRON STORM (RL-20260920-01 item
+# 1), so since 2026-09-28 they are the Iron Storm cut-A pair on its aggregate fixture - the model set
+# then follows the order (auto -> AggregateTacticalLevel, RL-20260927-06). Until then they named the
+# MOJAVE set (R9_Mojave_Empty_52_NavAO + the COA-STP1 pair), which stays selectable EXACTLY as before
+# by naming all three (the clientId then defaults to C2SIM, as it did). Run another AO by passing
+# --scenario/--init/--order, or by exporting C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER - the command
+# line still wins over the environment.
 # Do NOT mix: a Suwalki scenario with a Mojave order authors legs on another continent (the V6c-
 # V6f defect, memory lessons-order-coordinates-vs-init).
 # Each of the three also records WHERE IT CAME FROM, and the runner does the same (review F6,
@@ -59,12 +63,18 @@ NOGUI=1
 # DIFFERENT AO from this script's - the silent AO substitution this whole item exists to close.
 nonblank() { [ -n "$(printf '%s' "${1:-}" | tr -d '[:space:]')" ]; }
 if nonblank "${C2SIM_SCENARIO:-}"; then SCENARIO="$C2SIM_SCENARIO"; SCENARIO_SRC='env var C2SIM_SCENARIO'
-else SCENARIO='R9_Mojave_Empty_52_NavAO';           SCENARIO_SRC='built-in default'; fi
+else SCENARIO='IronStorm_Centre_52_Aggregate';      SCENARIO_SRC='built-in default'; fi
 if nonblank "${C2SIM_INIT:-}";     then INIT="$C2SIM_INIT";         INIT_SRC='env var C2SIM_INIT'
-else INIT='data/COA-STP1_Initialization.xml';       INIT_SRC='built-in default'; fi
+else INIT='data/IRONSTORM_CUTA_Initialization.xml'; INIT_SRC='built-in default'; fi
 if nonblank "${C2SIM_ORDER:-}";    then ORDER="$C2SIM_ORDER";       ORDER_SRC='env var C2SIM_ORDER'
-else ORDER='data/COA-STP1_Order.xml';               ORDER_SRC='built-in default'; fi
-CLIENT_ID='C2SIM'
+else ORDER='data/IRONSTORM_CUTA_Order.xml';         ORDER_SRC='built-in default'; fi
+# THE clientId FOLLOWS THE INIT (RUNBOOK sec 2: it MUST equal the init's SystemName or 0 units are
+# created). Not given: 'Not Set' with the built-in Iron Storm init (the SystemName
+# IRONSTORM_CUTA_Initialization.xml declares), 'C2SIM' with any other init - the default before
+# 2026-09-28, so a command line that names its init (COA-STP1, the Mojave set) runs exactly as it did.
+# Resolved after the options are parsed; --client-id always wins.
+CLIENT_ID=''
+CLIENT_ID_SET=0
 TYPEMAP=''
 # THE MODEL SET (the aggregate-level profile, RL-20260927-01). EMPTY = not passed: the runner's
 # own default, auto (D2, RL-20260927-06) - the highest echelon among the ORDER's tasked units
@@ -113,13 +123,17 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
 
   --profile 5.2|5.0.2       VR-Forces profile                 (default 5.2)
   --gui | --no-gui          front end on/off (5.2 only)       (default --no-gui)
-  --scenario NAME           scenario name                     (default R9_Mojave_Empty_52_NavAO,
-                            a MOJAVE fixture; or export C2SIM_SCENARIO)
-  --init PATH               C2SIM initialization xml          (default data/COA-STP1_Initialization.xml,
-                            a MOJAVE init; or export C2SIM_INIT)
-  --order PATH              C2SIM order xml                   (default data/COA-STP1_Order.xml,
-                            a MOJAVE order; or export C2SIM_ORDER)
-  --client-id ID            must equal the init's SystemName  (default C2SIM)
+  --scenario NAME           scenario name                     (default IronStorm_Centre_52_Aggregate,
+                            the IRON STORM aggregate fixture; or export C2SIM_SCENARIO)
+  --init PATH               C2SIM initialization xml          (default data/IRONSTORM_CUTA_Initialization.xml,
+                            Iron Storm cut A; or export C2SIM_INIT)
+  --order PATH              C2SIM order xml                   (default data/IRONSTORM_CUTA_Order.xml,
+                            Iron Storm cut A; or export C2SIM_ORDER). The MOJAVE set that was the
+                            default until 2026-09-28 stays selectable by naming all three:
+                            --scenario R9_Mojave_Empty_52_NavAO --init data/COA-STP1_Initialization.xml
+                            --order data/COA-STP1_Order.xml
+  --client-id ID            must equal the init's SystemName  (default: Not Set with the built-in
+                            Iron Storm init, C2SIM with any other init - as before)
   --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map for the model set)
   --model-set NAME          auto | EntityLevel | AggregateTacticalLevel (default: not passed = auto:
                             the highest echelon among the ORDER's tasked units decides - above BN
@@ -195,7 +209,7 @@ while [ $# -gt 0 ]; do
         --scenario)             SCENARIO="$2"; SCENARIO_SRC='argument --scenario'; shift 2 ;;
         --init)                 INIT="$2";     INIT_SRC='argument --init';         shift 2 ;;
         --order)                ORDER="$2";    ORDER_SRC='argument --order';       shift 2 ;;
-        --client-id)            CLIENT_ID="$2"; shift 2 ;;
+        --client-id)            CLIENT_ID="$2"; CLIENT_ID_SET=1; shift 2 ;;
         --type-map)             TYPEMAP="$2"; shift 2 ;;
         --model-set)            MODEL_SET="$2"; shift 2 ;;
         --composition-variant)  COMPOSITION_VARIANT="$2"; shift 2 ;;
@@ -225,6 +239,11 @@ while [ $# -gt 0 ]; do
         *)                      echo "unknown option: $1"; echo; usage; exit 2 ;;
     esac
 done
+
+# The clientId that goes with the init (see CLIENT_ID above): only when --client-id was not given.
+if [ "$CLIENT_ID_SET" -eq 0 ]; then
+    if [ "$INIT_SRC" = 'built-in default' ]; then CLIENT_ID='Not Set'; else CLIENT_ID='C2SIM'; fi
+fi
 
 # ---- GATE: the 64-bit host, checked before anything is launched --------------
 # The runner refuses a 32-bit host itself (exit 2); this is the same gate one layer

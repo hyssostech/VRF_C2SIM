@@ -130,7 +130,8 @@ and lakes, and they do nothing for the next feature class nobody has mapped yet.
 
 1. Iron Storm on the aggregate-level profile, as already planned (Y-15, RL-20260920-02 "B"): the vendor's model
    set for brigades and divisions, with BDE (11) and Group (10) templates in the catalogue and Move Along Route
-   at 35.5.7. Buildings and vehicles cannot trap an aggregate (27.1.4); water still stops one, so leg_check
+   at 35.5.7. Buildings and vehicles cannot trap an aggregate (27.1.4) [REFUTED 2026-09-28 for BUILDINGS - see the
+   note below this item]; water still stops one, so leg_check
    --osm-water stays as the pre-flight report and a route through a lake is an STP/CoaRenderer authoring defect
    to report, not something to hide. First gated run per the plan: one leaf unit on cut A's T14 line (the
    original, no (i)/(j)/(k)); prediction: arrives unless the line crosses water.
@@ -138,6 +139,13 @@ and lakes, and they do nothing for the next feature class nobody has mapped yet.
    Containers - no nation has a warfare-model unit above BN, and an EMPTY container's Move Along Route ends at once -
    so a brigade is a PROXY leaf (battalion-size or smaller). And on main a leaf's water stop gets no C16 report
    (the watchdog skips an aggregate with no members, sec 6.1 there).]
+   [REFUTED 2026-09-28, "buildings cannot trap an aggregate": in G1-2 11 of 48 IBCT's Mech COs stopped inside one OSM
+   building of the -2 hamlet ("Terrain too steep"). MAK Earth Aggregate (online) gives the sim engine the OSM footprints
+   AND simplified 3-D building models; a container's members ride the highest surface, roofs included, and the
+   aggregated movement actuator's max-slope check refuses a member at a footprint edge. 27.1.4 does not describe that
+   interaction. Record: docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 1 and 4(a);
+   PREREG_IRONSTORM_AGG_G1-2_2026-09-28.md Result N1. The remedy on record is the task: a container's route is driven
+   by the vendor's planning task per vertex (M3, RL-20260928-03; RUNBOOK sec 11o).]
 2. Entity-level profile (company-and-below COAs, Mojave): a lone platform gets the planning task per STP vertex -
    Move To to each vertex in sequence (facade MoveToLocation exists; the vendor's move_along_route_and_continue
    .lua is the pattern); units keep the unit Move Along Route (they already plan per vertex). Arrival stays on
@@ -179,11 +187,16 @@ URBAN, MOUNTAIN) 0.25; IMPASSABLE (MAK_WATERWAY OR ALPINE) 0. featureconfig.txt 
 features OR OCEAN OR COAST OR RIVER OR LAKE. The aggregate terrain (MAK Earth Aggregate (online).earth) loads OSM oceans, OSM
 water and OSM land-use features; VRFSIM.Aggregate.feature.model.xml maps them to the Lake / River / Forest (landuse forest,
 orchard) / Municipal (residential, commercial, industrial) / Cultivated layers. So on the aggregate profile: a lake or river on
-the line STOPS a brigade (factor 0); a hamlet or forest slows it to a quarter speed; buildings never trap it; the nav mesh plays
+the line STOPS a brigade (factor 0); a hamlet or forest slows it to a quarter speed; buildings never trap it [REFUTED
+2026-09-28: the sim places a container's members on its 3-D building models, roofs included, and the aggregated movement
+actuator's max-slope check stopped 11 of 48 IBCT's Mech COs at one building of the -2 hamlet in G1-2 - docs/experiments/
+FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 1 and 4(a)]; the nav mesh plays
 no part; Halt_Movement_Before_Obstacles is a reactive task that is OFF by default and asks the GUI user (headless: leave off).
 The vendor's aggregate planning task is Move to Location (Plan Along Roads) (UG 35.5.11): AggregateLevelBase\scripts\
 Move_To_Location_Plan_Path.lua starts navigate-to-location with pathQuery MAK_ROAD and obstacleQuery MAK_OBSTACLE (which
-includes MAK_WATERWAY) - [A] so it plans on roads and round water; it is a destination task, not a route task.
+includes MAK_WATERWAY) - [A] so it plans on roads and round water; it is a destination task, not a route task [SUPERSEDED
+2026-09-28: used once PER STP VERTEX, as M1 uses Move To, it serves a route - the FINDING_AGGREGATE_MOVEMENT_OBSTACLES
+sec 6 review item 4; built as M3 under RL-20260928-03, RUNBOOK sec 11o].
 
 What the route-shift machinery is [V]: RouteShift.cs inserts FOUR points per flagged leg (two on the authored line, two
 offset), keeps STP's vertices in order, re-scores the shifted line, reports the detour to C2; offsets 25..600 m either side
@@ -201,7 +214,8 @@ reads OSM water and buildings (opt-in, tested); the C# port is the missing piece
 Answer 2 - the lake as things stand: NO. T14's line was dry on CLCplus and wet on OSM (FINDING_IRONSTORM_T14_STOP), so the
 pre-flight would not flag it, insert nothing, and a brigade would stop at the same edge. Even flagged, the fix is a lateral
 band: the detour that worked stood about 1.25 km off the line (waypoint (i)); a smaller westward shift may clear the lake for
-an aggregate (buildings and nav sectors no longer matter there) - not measured. A RIVER across a leg cannot be shifted round at
+an aggregate (buildings and nav sectors no longer matter there [REFUTED 2026-09-28 for buildings - see the note above;
+FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 1]) - not measured. A RIVER across a leg cannot be shifted round at
 all; it needs a bridge, i.e. a road crossing, which is what the vendor's road planner provides and a lateral shift never will.
 
 ## 7. Decisions owed to the owner

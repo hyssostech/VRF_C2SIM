@@ -1244,4 +1244,28 @@ public class VrfSettings
     // + 15 s of slack = 85 s at the shipped values. The last CompositionTimeoutSeconds of it is the publication
     // window: members that have not been created by then are left out, and the rest are attached and awaited.
     public double ContainerPopulateTimeoutSeconds { get; set; } = 0.0;
+
+    // ============== THE PLANNED CONTAINER MOVE (M3) =====================================================================
+    // RULED 2026-09-28, RL-20260928-03 (owner, "AUTO it is"): a tasked container moves by the vendor's PLANNING tasks per STP
+    // vertex, and Auto is the default. docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md secs 2, 4, 5;
+    // AggregateMovePlanner.cs says what each value issues. Read only on the aggregate model set (ModelSet above).
+    //   "Auto"             (DEFAULT, RL-20260928-03) per vertex, per member, navigate-to-location, obstacleQuery MAK_OBSTACLE,
+    //                      buffer 10 m, pathQuery MAK_ROAD where the sim's roads lie within RoadProximityMeters of the leg,
+    //                      else NONE;
+    //   "Group"            Move (Group) on the container, useRoads=true (the vendor's default);
+    //   "GroupOffRoad"     Move (Group), useRoads=false - DIRECT member moves, a control only, refused unless
+    //                      AllowLiteralMove=true;
+    //   "PerMemberOffRoad" per vertex, per member, navigate-to-location with pathQuery NONE everywhere;
+    //   "Literal"          PA_Move_Along_Route on STP's straight line, as C1 shipped it - the rollback and the G1-2 baseline.
+    // An unknown value REFUSES TO START on the aggregate model set.
+    public string AggregateMovePlanner { get; set; } = VrfC2SimApp.AggregateMovePolicy.Default.ToString();
+
+    // The switch that lets a DIRECT (unplanned) container move variant run: GroupOffRoad is refused at start-up unless this
+    // is true. Literal needs no switch - it is today's behaviour and the rollback.
+    public bool AllowLiteralMove { get; set; } = false;
+
+    // Auto's per-leg road rule (RL-20260928-03): pathQuery MAK_ROAD when the sim's road network (the osm-highways set) lies
+    // within this many metres of the leg's line, else NONE. 500 m reads UG52 30.5 p587 - roads are looked for "over a
+    // fairly wide area", and "If there are no roads close to the route ... do not select this option".
+    public double RoadProximityMeters { get; set; } = VrfC2SimApp.AggregateMovePolicy.DefaultRoadProximityMeters;
 }

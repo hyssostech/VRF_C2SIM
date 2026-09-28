@@ -341,6 +341,9 @@ public sealed class PreflightService : IDisposable
         var opt = rules.UseSlope ? shiftOptions : shiftOptions with { ClearFormationBand = false };
         // OSM readers off (every parity run): EXACTLY the pre-RL-20260927-01 scorer and flag.
         var scorer = _opt.OsmFeatures ? CandidateScorer(limitRaw) : WorstRatioScorer(limitRaw);
+        // M3 (RL-20260928-03): a route a vendor PLANNING task drives is REPORTED, never detoured - every flagged leg
+        // keeps its row (and a river crossing its report), but no lateral search runs and nothing is spliced in.
+        bool reportOnly = !string.IsNullOrEmpty(opt.ReportOnlyReason);
         foreach (var leg in legs)
         {
             if (!leg.ShiftFlagged) continue;
@@ -348,6 +351,7 @@ public sealed class PreflightService : IDisposable
             if (i < 0 || i + 1 >= route.Count) continue;
             if (!leg.FlagWater)
             {
+                if (reportOnly) { shifts.Add(RouteShift.ReportOnlyShift(leg, opt)); continue; }
                 // Flagged for slope alone: the pre-OSM search, except that a candidate with KNOWN
                 // OSM water on it is refused (a detour is never driven into a known lake).
                 shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, opt, scorer));
@@ -364,6 +368,7 @@ public sealed class PreflightService : IDisposable
                 shifts.Add(RouteShift.RiverCrossingShift(leg, legOpt, probe));
                 continue;
             }
+            if (reportOnly) { shifts.Add(RouteShift.ReportOnlyShift(leg, opt)); continue; }
             shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, legOpt, scorer, DetourSpan(leg)));
         }
         var applied = RouteShift.Apply(route, shifts);
@@ -533,6 +538,29 @@ public sealed class PreflightService : IDisposable
                                                   ? s with { EndpointMoved = true } : s).ToList(),
             };
         return new PreDispatchOutcome(vertices, checkedRoute, shift);
+    }
+
+    /// <summary>
+    /// M3 (RL-20260928-03): TOUCH every tile of one OSM set within <paramref name="bandM"/> of each leg of the route,
+    /// through this service's own provider - so an ONLINE run fetches and caches what it lacks, exactly as the water
+    /// and building reads do, and an offline run (Vrf:PreflightOffline) reads only its cache. The AUTO planner calls it
+    /// for the sim's road set (<see cref="OsmSet.Highways"/>) so that the dispatch-time road check, which never
+    /// fetches (OsmCacheReader, on the tick thread), finds the tiles on disk. Returns (known, unknown) tile counts.
+    /// *** NEVER FROM THE VR-FORCES TICK THREAD *** - it may fetch.
+    /// </summary>
+    public (int Known, int Unknown) WarmOsm(OsmSet set, IReadOnlyList<(double Lat, double Lon)> route, double bandM)
+    {
+        int known = 0, unknown = 0;
+        var seen = new HashSet<(int, int)>();
+        if (route == null) return (0, 0);
+        for (int i = 0; i + 1 < route.Count; i++)
+            foreach (var key in OsmQuery.TilesNear(route[i], route[i + 1], bandM))
+            {
+                if (!seen.Add(key)) continue;
+                var t = _osm(set, key.X, key.TmsY);
+                if (t != null && t.Known) known++; else unknown++;
+            }
+        return (known, unknown);
     }
 
     /// <summary>

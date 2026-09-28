@@ -666,6 +666,10 @@ public static class OsmSelfTest
         var route = new List<(double Lat, double Lon)> { a, b };
         using (var agg = Service(noRaster, ModelSet.AggregateTacticalLevel, river))
         {
+            // M3: a river crossing is a REPORT, so a planned leg keeps it (only the detour search is skipped).
+            var plannedRiver = agg.ShiftRoute(route, 1.0, new RouteShiftOptions { ReportOnlyReason = "PLANNED (test)" }).Shifts.Single();
+            Check(plannedRiver.RiverCrossing && !plannedRiver.ReportOnly && !plannedRiver.Shifted,
+                  "M3: under ReportOnlyReason a river crossing is still REPORTED as one (a report, not a detour)");
             var o = agg.ShiftRoute(route, 1.0, new RouteShiftOptions());
             var leg = o.Legs.Single();
             Check(leg.Osm.Water && leg.Osm.WaterIsRiverLine && leg.ShiftFlagged && leg.FlagWater,
@@ -723,6 +727,19 @@ public static class OsmSelfTest
             string mark = PreflightReports.ShiftMarking("T9", "unit", s);
             Check(mark.Contains("clear of OSM water") && mark.Contains("vertices are unchanged"),
                   "the report says the detour clears OSM water, and that STP's vertices are unchanged");
+            // M3 (RL-20260928-03; FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 5 item 4): THE SAME LEG, driven by a
+            // vendor PLANNING task - REPORTED, NOT DETOURED. The shift above (default options) is this check's fail-first arm.
+            var planned = agg.ShiftRoute(route, 1.0, new RouteShiftOptions { ReportOnlyReason = "PLANNED (test)" });
+            var ps = planned.Shifts.Single();
+            var pleg = planned.Legs.Single();
+            Check(pleg.ShiftFlagged && pleg.FlagWater && ps.ReportOnly && !ps.Shifted && ps.Tried.Count == 0
+                  && ps.Note == "PLANNED (test)" && !planned.Changed && planned.Route.SequenceEqual(route),
+                  "M3: with RouteShiftOptions.ReportOnlyReason the SAME pond leg is still FLAGGED and gets its row, but nothing is " +
+                  "searched and nothing inserted - the authored line is kept point for point (the default arm above shifts it 150 m)");
+            string pmark = PreflightReports.NoShiftMarking("T9", "unit", ps);
+            Check(pmark.StartsWith("ROUTE SHIFT NOT APPLIED - PLANNED LEG: task T9 (unit) leg 1 - flagged (", StringComparison.Ordinal)
+                  && pmark.Contains("PLANNED (test)") && pmark.Contains("the planner chooses the path"),
+                  $"M3: the C2 side is told the leg is PLANNED, not detoured ({pmark})");
         }
         // A LAKE DISTRICT: the pond on the leg, and two OTHER ponds sitting exactly on the +/-600 m band
         // ends. "Water at both band ends" is true and is NOT a river crossing - the search runs and
