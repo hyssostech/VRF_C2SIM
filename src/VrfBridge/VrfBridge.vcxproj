@@ -3,7 +3,7 @@
   <!--
     Three configurations, one per MAK stack (docs/VRF_5.2_MIGRATION_DIFF.md sec G, Y-1/Y-16):
       Release            vrforces5.0.2 / vrlink5.8  / makRti4.6b   HLA 1516e   build\Release\          (frozen baseline)
-      Release-5.2        vrforces5.2d  / vrlink5.10 / makRti4.6.1  HLA 1516e   build\Release-5.2\      (migration gates)
+      Release-5.2        vrforces5.2d  / vrlink5.10 / makRti5.0.1  HLA 1516e   build\Release-5.2\      (migration gates)
       Release-5.2-HLA4   vrforces5.2d  / vrlink5.10 / makRti5.0.1  HLA 4       build\Release-5.2-HLA4\ (own phase)
     The 5.2 configurations define VRF_API_52=1 (VrfFacade.cpp) and compile remoteControlInit52.*
     (the 5.2d sample) instead of remoteControlInit.* (the 5.0.2 sample). Never build one
