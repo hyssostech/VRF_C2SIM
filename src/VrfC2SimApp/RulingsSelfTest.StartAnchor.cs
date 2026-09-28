@@ -10,8 +10,11 @@ namespace VrfC2SimApp;
 /// relation to that unit's previous task, as a lower bound. The gate used to serve the offset as a delay
 /// AFTER the predecessor completed, so along one unit's chain the start grew quadratically and the tail
 /// fell past Vrf:TaskChainBackstopSeconds. Under Receipt (the default) a task starts at
-/// max(predecessor completion, receipt + offset); PredecessorCompletion keeps the old rule for rollback
-/// and is the FAIL-FIRST control of every case below.
+/// max(predecessor completion, receipt + (offset - minOffset)), minOffset = the smallest SimulationTime
+/// offset over the tasks of THIS order that carry one (0 for a full plan); ReceiptAbsolute is
+/// max(predecessor completion, receipt + offset), not rebased; PredecessorCompletion keeps the old rule
+/// (the offset served after the predecessor completes) for rollback. Each FAIL-FIRST line below names
+/// the value it runs under.
 ///
 ///   (a) same-slot tasks on two units start together;
 ///   (b) an on-time chained task starts at its offset - no stretch;
@@ -233,13 +236,16 @@ public static partial class RulingsSelfTest
                 Check(ref failures, Stp850CountOf(src, "double orderReceiptClock = TaskClockSeconds;") == 1
                                     && src.Contains("_ = RunTaskAsync(t, u, orderReceiptClock, orderMinOffsetMs);")
                                     && Stp850CountOf(src, "long orderMinOffsetMs = TaskDispatchPolicy.MinSimulationOffsetMs(") == 1
-                                    && Stp850CountOf(src, "TaskDispatchPolicy.RebasedSimulationOffsetMs(") == 2
+                                    && Stp850CountOf(src, "TaskDispatchPolicy.RebasedSimulationOffsetMs(") == 1
+                                    && Stp850CountOf(src, "long startMs = TaskDispatchPolicy.TaskStartOffsetMs(") == 1
+                                    && Stp850CountOf(src, "TaskDispatchPolicy.StartOffsetMs(") == 0
                                     && src.Contains("TaskDispatchPolicy.StartAnchorClock(_startTimeAnchor, orderReceiptClock)")
                                     && gateCall.StartsWith("var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,",
                                                            StringComparison.Ordinal)
                                     && gateCall.Contains("startAnchorClock: startAnchor"),
-                      "(g) the service stamps receipt and the order's minimum offset ONCE per order, rebases each offset " +
-                      "(dispatch AND the chain-lead line) through the same policy call, and the gate gets the " +
+                      "(g) the service stamps receipt and the order's minimum offset ONCE per order, rebases the " +
+                      "chain-lead line's offsets through RebasedSimulationOffsetMs and each dispatch's through " +
+                      "TaskStartOffsetMs (rebase THEN DateTime conversion, never StartOffsetMs alone), and the gate gets the " +
                       "DurationScale-scaled rebased offset (scaledStartMs) with the receipt anchor");
             }
         }
@@ -355,15 +361,26 @@ public static partial class RulingsSelfTest
                           $"FAIL-FIRST (i) PredecessorCompletion: the same DateTime start is served AFTER the predecessor " +
                           $"- opens at {opened[0]:F0} s and {opened[1]:F0} s, never at the instant");
             }
-            Check(ref failures,
-                  TaskDispatchPolicy.RebasedSimulationOffsetMs(0L, false, (long)(3.0 * D * 1000.0),
-                                                               TaskDispatchPolicy.StartTimeAnchor.Receipt) == 0L
-                  && TaskDispatchPolicy.StartOffsetMs(
-                         TaskDispatchPolicy.RebasedSimulationOffsetMs(0L, false, (long)(3.0 * D * 1000.0),
-                                                                      TaskDispatchPolicy.StartTimeAnchor.Receipt),
-                         receiptUtc.AddSeconds(D), receiptUtc) == (long)(D * 1000.0),
-                  "(i) SPLIT ORDERS: a DateTime start is an INSTANT - the Receipt rebase never touches it (still " +
-                  $"{D:F0} s after receipt with the order's minimum at {3.0 * D:F0} s)");
+            // SPLIT ORDERS, through the service's ONE per-task call (TaskDispatchPolicy.TaskStartOffsetMs:
+            // rebase, then DateTime conversion). An order whose minimum is 3D (a SimulationTime task at 3D and
+            // one at 4D) also carries a DateTime task D after receipt: the SimulationTime tasks are rebased to
+            // 0 and D, the DateTime task stays at D - it is an instant. A rebase that reached the converted
+            // DateTime offset would clamp it to max(0, D - 3D) = 0 and dispatch it at receipt.
+            long minMs = (long)(3.0 * D * 1000.0);
+            long Start(long simMs, bool hasSim, DateTime? at, TaskDispatchPolicy.StartTimeAnchor a)
+                => TaskDispatchPolicy.TaskStartOffsetMs(simMs, hasSim, at, minMs, a, receiptUtc);
+            var rcpt = TaskDispatchPolicy.StartTimeAnchor.Receipt;
+            var rabs = TaskDispatchPolicy.StartTimeAnchor.ReceiptAbsolute;
+            long dtRec = Start(0L, false, receiptUtc.AddSeconds(D), rcpt);
+            long dtAbs = Start(0L, false, receiptUtc.AddSeconds(D), rabs);
+            long s3Rec = Start(minMs, true, null, rcpt), s4Rec = Start((long)(4.0 * D * 1000.0), true, null, rcpt);
+            long s4Abs = Start((long)(4.0 * D * 1000.0), true, null, rabs);
+            Check(ref failures, dtRec == (long)(D * 1000.0) && dtAbs == dtRec
+                                && s3Rec == 0L && s4Rec == (long)(D * 1000.0) && s4Abs == (long)(4.0 * D * 1000.0),
+                  $"(i) SPLIT ORDERS (TaskStartOffsetMs, the service's per-task call): in an order whose minimum is " +
+                  $"{3.0 * D:F0} s a DateTime start {D:F0} s after receipt stays at {dtRec / 1000} s under Receipt " +
+                  $"({dtAbs / 1000} s under ReceiptAbsolute) - never rebased - while its SimulationTime siblings at " +
+                  $"{3.0 * D:F0}/{4.0 * D:F0} s ARE ({s3Rec / 1000}/{s4Rec / 1000} s; {s4Abs / 1000} s un-rebased)");
         }
 
         // ------------------------------------------------------------------ (j) ----

@@ -659,6 +659,18 @@ public static class TaskDispatchPolicy
         return (long)Math.Max(0.0, (at - nowUtc).TotalMilliseconds);
     }
 
+    /// <summary>STP-850: THE per-task start offset RunTaskAsync hands the gate (before Vrf:DurationScale) -
+    /// the Receipt rebase of a carried SimulationTime offset (<see cref="RebasedSimulationOffsetMs"/>), THEN
+    /// the DateTime conversion (<see cref="StartOffsetMs"/>). One function so the self-test drives exactly
+    /// what the service does. A DateTime start is an instant and is never rebased. Two things keep it so,
+    /// each sufficient alone: it carries no SimulationTime (hasSimulationStart false, so the rebase passes
+    /// it through), and the conversion runs AFTER the rebase (so the rebase only sees the 0 a DateTime task
+    /// carries). --rulings-selftest STP-850 (i) pins the result.</summary>
+    public static long TaskStartOffsetMs(long simulationStartMs, bool hasSimulationStart, DateTime? absoluteStartUtc,
+                                         long orderMinOffsetMs, StartTimeAnchor anchor, DateTime nowUtc)
+        => StartOffsetMs(RebasedSimulationOffsetMs(simulationStartMs, hasSimulationStart, orderMinOffsetMs, anchor),
+                         absoluteStartUtc, nowUtc);
+
     /// <summary>STP-850: one order task as the chain-lead arithmetic sees it under this anchor. A
     /// SimulationTime offset under Receipt / ReceiptAbsolute is a lower bound from receipt (the caller passes
     /// the offset the gate gets - REBASED under Receipt); everything else keeps the pre-STP-850 node (the

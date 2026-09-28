@@ -4847,14 +4847,14 @@ public sealed class VrfC2SimService : BackgroundService
             //     delaying them is no longer dispatched immediately;
             //   - Vrf:DurationScale compresses the wait exactly as it compresses the Duration, so a
             //     demo that shortens a 2 h task does not then wait 3h20m for its successor.
-            // STP-850: the conversion is TaskDispatchPolicy.StartOffsetMs, so the self-test drives the same one.
-            // Split orders: under Receipt a carried SimulationTime offset is first REBASED on the order's
-            // smallest one (a DateTime start is an instant and is never rebased); DurationScale then applies
-            // to the rebased value.
-            long startMs = TaskDispatchPolicy.StartOffsetMs(
-                TaskDispatchPolicy.RebasedSimulationOffsetMs(task.SimulationStartMs, task.HasSimulationStart,
-                                                             orderMinOffsetMs, _startTimeAnchor),
-                task.AbsoluteStartUtc, DateTime.UtcNow);
+            // STP-850: rebase + DateTime conversion are ONE policy call, TaskDispatchPolicy.TaskStartOffsetMs,
+            // so the self-test drives the same one. Split orders: under Receipt a carried SimulationTime offset
+            // is REBASED on the order's smallest one (offset - minOffset); under ReceiptAbsolute and
+            // PredecessorCompletion it goes on as authored. A DateTime start is an instant and is never
+            // rebased under any value. DurationScale then applies to the result.
+            long startMs = TaskDispatchPolicy.TaskStartOffsetMs(task.SimulationStartMs, task.HasSimulationStart,
+                                                                task.AbsoluteStartUtc, orderMinOffsetMs,
+                                                                _startTimeAnchor, DateTime.UtcNow);
             if (task.SimulationStartMs == 0 && task.AbsoluteStartUtc is DateTime absoluteStart)
             {
                 _log.LogInformation("Task '{Task}': StartTime is the ABSOLUTE form ({At:O}) - dispatching " +
@@ -4862,23 +4862,36 @@ public sealed class VrfC2SimService : BackgroundService
             }
             long scaledStartMs = ScaleOrderMs(startMs);
             long scaledRelativeMs = ScaleOrderMs(task.RelativeDelayMs);
-            // STP-850: under Vrf:StartTimeAnchor=Receipt the SimulationTime offset is measured from order
-            // receipt and is a LOWER BOUND beside the predecessor's completion, not a delay after it.
+            // STP-850: under Vrf:StartTimeAnchor=Receipt the start offset is (offset - the order's minOffset)
+            // from order receipt, under ReceiptAbsolute the authored offset from receipt - both a LOWER BOUND
+            // beside the predecessor's completion; under PredecessorCompletion a delay AFTER that completion.
             double startAnchor = TaskDispatchPolicy.StartAnchorClock(_startTimeAnchor, orderReceiptClock);
             if (scaledStartMs > 0 || scaledRelativeMs > 0)
+            {
+                // The AUTHORED offset ("order says") and what the gate gets are printed separately; only a
+                // carried SimulationTime offset can be rebased - a DateTime start never is.
+                string startBasis = task.HasSimulationStart
+                    ? $"authored SimulationTime offset {task.SimulationStartMs / 1000.0:F0} s -> offset used " +
+                      $"{startMs / 1000.0:F0} s" +
+                      (_startTimeAnchor == TaskDispatchPolicy.StartTimeAnchor.Receipt
+                          ? $", rebased on the order's smallest offset {orderMinOffsetMs / 1000.0:F0} s"
+                          : ", not rebased")
+                    : task.AbsoluteStartUtc.HasValue
+                        ? $"DateTime start, {startMs / 1000.0:F0} s after receipt - an instant, never rebased"
+                        : "no StartTime offset";
+                if (task.RelativeDelayMs > 0)
+                    startBasis += $"; relative delay {task.RelativeDelayMs / 1000.0:F0} s";
+                long authoredMs = task.HasSimulationStart ? task.SimulationStartMs : startMs;
                 _log.LogInformation("Task '{Task}': start delay {S:F0} s (order says {O:F0} s; " +
-                                    "Vrf:DurationScale={Scale}), counted from {From} - it will not dispatch " +
-                                    "before then.",
+                                    "Vrf:DurationScale={Scale}; {Basis}), counted from {From} - it will not " +
+                                    "dispatch before then.",
                                     task.TaskName, Math.Max(scaledStartMs, scaledRelativeMs) / 1000.0,
-                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _durationScale,
+                                    Math.Max(authoredMs, task.RelativeDelayMs) / 1000.0, _durationScale, startBasis,
                                     scaledStartMs > 0 && double.IsFinite(startAnchor)
-                                        ? $"ORDER RECEIPT (Vrf:StartTimeAnchor={_startTimeAnchor}, STP-850" +
-                                          (_startTimeAnchor == TaskDispatchPolicy.StartTimeAnchor.Receipt
-                                              ? $"; authored offset {task.SimulationStartMs / 1000.0:F0} s rebased " +
-                                                $"on the order's {orderMinOffsetMs / 1000.0:F0} s)"
-                                              : ")")
+                                        ? $"ORDER RECEIPT (Vrf:StartTimeAnchor={_startTimeAnchor}, STP-850)"
                                         : string.IsNullOrEmpty(task.StartAfterTaskUuid)
                                             ? "order receipt" : "its predecessor's completion");
+            }
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
                                                           _taskClockAxis, _stoppingToken,
@@ -4890,8 +4903,10 @@ public sealed class VrfC2SimService : BackgroundService
                                                           // RL-20260927-05: and so is a mover the timed walk
                                                           // has not flagged yet - asked when the window expires.
                                                           () => TreatPredecessorAsOverdue(task, timeoutSeconds),
-                                                          // STP-850: max(predecessor completion,
-                                                          // receipt + offset) under Receipt.
+                                                          // STP-850: max(predecessor completion, receipt +
+                                                          // scaledStartMs) under Receipt (offset - minOffset)
+                                                          // and ReceiptAbsolute (the offset as authored); no
+                                                          // anchor (NaN) under PredecessorCompletion.
                                                           startAnchorClock: startAnchor);
             if (gate != GateResult.Proceed)
             {

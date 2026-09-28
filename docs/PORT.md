@@ -475,8 +475,10 @@ Do not re-add it.
     executeTask's busy-waits with async gating - a task awaits its startAfterTaskUuid
     predecessor (completed off `OnVrfTaskCompleted`), then its start delay, before the
     bridge work is marshalled onto the tick thread (OnOrder -> RunTaskAsync). (STP-850,
-    2026-09-28: a SimulationTime offset is now measured from order receipt - start =
-    max(predecessor completion, receipt + offset); Vrf:StartTimeAnchor=PredecessorCompletion
+    2026-09-28: a SimulationTime offset is now measured from order receipt - under
+    Vrf:StartTimeAnchor=Receipt start = max(predecessor completion, receipt + (offset -
+    the order's minOffset)), under ReceiptAbsolute max(predecessor completion, receipt +
+    offset); Vrf:StartTimeAnchor=PredecessorCompletion
     keeps this parity order.) THE FIX for
     the sec-6 infinite busy-wait: the predecessor wait is bounded by
     Vrf:TaskPredecessorTimeoutSeconds (default 600 s). Not reproduced (behavior-neutral,

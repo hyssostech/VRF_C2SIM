@@ -53,7 +53,7 @@ public static partial class RulingsSelfTest     // partial: the STP-850 section 
         failures += AggregateLeafSelfTest.Run();
         Console.WriteLine("=== RL-20260921-09 / RL-20260925-01 / RL-20260927-05: ONE anchor for the timer and the STREND gate, and a gate that waits for an unfinished mover ===");
         failures += TimerAnchorSelfTest.Run();
-        Console.WriteLine("=== STP-850: a SimulationTime offset is measured from ORDER RECEIPT - start = max(predecessor completion, receipt + offset) ===");
+        Console.WriteLine("=== STP-850: a SimulationTime offset is measured from ORDER RECEIPT - Receipt: start = max(predecessor completion, receipt + (offset - the order's minOffset)); ReceiptAbsolute: receipt + offset; PredecessorCompletion: offset after the predecessor ===");
         StartTimeAnchorChecks(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;

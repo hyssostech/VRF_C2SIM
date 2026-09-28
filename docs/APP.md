@@ -157,10 +157,13 @@ Task sequencing - DONE + VERIFIED offline (2026-07-10):
   then any absolute (SimulationTime) or relative start delay, before dispatching. OnOrder
   now runs each task via `RunTaskAsync` (off-thread await of the gate) and only marshals the
   bridge work onto the tick thread once the gate opens - so nothing blocks the tick loop.
-  SUPERSEDED FOR SimulationTime BY STP-850 (2026-09-28): the absolute offset is now measured
-  from ORDER RECEIPT, so a task starts at max(predecessor completion, receipt + offset);
-  `Vrf:StartTimeAnchor=PredecessorCompletion` restores the order above. The relative delay
-  is unchanged. RUNBOOK sec 11 has the rule.
+  SUPERSEDED FOR SimulationTime BY STP-850 (2026-09-28): the offset is now measured from
+  ORDER RECEIPT. `Vrf:StartTimeAnchor=Receipt` (default): a task starts at max(predecessor
+  completion, receipt + (offset - minOffset)), minOffset = the smallest SimulationTime offset
+  over this order's tasks that carry one (split-order waves start on their own receipt);
+  `ReceiptAbsolute`: max(predecessor completion, receipt + offset), not rebased;
+  `PredecessorCompletion` restores the order above. A DateTime start is never rebased. The
+  relative delay is unchanged. RUNBOOK sec 11 has the rule.
 - Completion signal: `OnVrfTaskCompleted` calls `_sequencer.CompleteTask(currentTaskUuid)`,
   releasing any successor (parity: setTaskIsComplete unblocking getTaskIsComplete).
 - THE FIX for the C++ infinite busy-wait (PORT.md sec 6): the predecessor wait is bounded by

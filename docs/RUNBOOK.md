@@ -2895,7 +2895,13 @@ no Duration and no geometry is malformed and is refused, not held (below).
   FOR SPLIT ORDERS: STP rehearsals send one order per phase wave and keep ABSOLUTE slots across waves
   (SitaWare places the same order's offsets absolutely), so wave 2 - U1's slots 3-4 - would otherwise idle
   three phases after receipt; a full-plan order has minOffset 0 and is unchanged. `ReceiptAbsolute` is
-  the un-rebased rule (the first STP-850 build). LIMITS: separately pushed orders (blue, red) are each
+  the un-rebased rule (the first STP-850 build). ASSUMPTION of the rebase: each wave's order is pushed
+  AT THAT WAVE'S START and carries ONLY that wave's tasks (STP: the operator selects them - the Task
+  pane's confirm toggle); pushing several waves at once, or cumulative waves (each order repeating the
+  earlier ones), breaks it - use `ReceiptAbsolute` there, and note a cumulative wave re-sends the
+  earlier waves' tasks.
+  `--parse-order` prints each task's `hasSimulationStart` and the order's `minOffset` beforehand.
+  LIMITS: separately pushed orders (blue, red) are each
   anchored at their own receipt; a full plan with no slot-0 task starts early in VRF only; a one-task
   order's delay is rebased away - the N2c probe `PROBE_RIDGE_1-35_DELAYED_Order.xml` needs
   `ReceiptAbsolute` to keep its 300 s; STP emits no STREND to a task of an earlier order (STP-886), so a

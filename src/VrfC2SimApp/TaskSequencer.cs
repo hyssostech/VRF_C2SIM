@@ -92,7 +92,7 @@ public enum GateResult
 /// predecessor grew a unit's chain quadratically past the chain backstop. The gate outcomes above
 /// are unchanged; what changed is only what the offset is measured from - the caller's
 /// startAnchorClock (order receipt under Vrf:StartTimeAnchor=Receipt, the default), giving
-/// start = max(predecessor completion, receipt + offset). NaN keeps the oracle's order
+/// start = max(predecessor completion, receipt + the offset it is handed). NaN keeps the oracle's order
 /// (Vrf:StartTimeAnchor=PredecessorCompletion). The relative delay keeps it always. SPLIT ORDERS:
 /// under Receipt the service hands in the offset REBASED on its order's smallest SimulationTime
 /// offset, so a phase-wave order with STP's absolute slots starts on its own receipt
