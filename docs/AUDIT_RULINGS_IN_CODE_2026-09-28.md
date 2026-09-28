@@ -73,27 +73,28 @@ the evidence is in that decision's note under its table.
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
 | RL-20260921-09 | 09-21 | TEMPORARY: end at start + Duration; a late unit completes on arrival | TCP | E | TCP:75-350; RST:600 (t1-t21); TAS:141-237 |
-| RL-20260927-02 | 09-27 | (1) hostile side RUS; (2) populate containers, not proxies | VS, CPop | P-pin | CPop:138 + CST; RUS only VS:90, AJ:30 +n |
+| RL-20260927-02 | 09-27 | (1) hostile side RUS; (2) populate containers, not proxies | VS, CPop | P-pin CLOSED 2026-09-28 by 9999b35 | CPop:138 + CST; RUS only VS:90, AJ:30 +n |
 | RL-20260927-03 | 09-27 | init: every unit an empty container on the map; tasked ones filled | Svc | E | Svc:2906-2908, :1763-1797; CST:361-390, :649-655 +n |
 | RL-20260927-04 | 09-27 | D-1..D-8 as recommended; D-2: author the missing US types (C2) | CComp, CPop, data | E | CST:222, :575-589, :645, :780-796 +n |
 | RL-20260927-05 | 09-27 | "Q1 a": an unfinished mover is OVERDUE when the gate window expires | TCP, TDP | E | TCP:253, TDP:458; TAS:141-166 (t4) |
-| RL-20260927-06 | 09-27 | model set by the highest TASKED echelon; above BN aggregate | RLib, app | P-code | RLib:2143, RTT:2123 (8z); not in app/SI52 +n |
-| RL-20260928-01 | 09-28 | D2 as recommended: no downward override; test HQ re-coded COY | RLib, data | P-code | RLib:2143, RTT:2123-2160; demo path none +n |
+| RL-20260927-06 | 09-27 | model set by the highest TASKED echelon; above BN aggregate | RLib, app | P-code CLOSED 2026-09-28 by b5c6d02 | RLib:2143, RTT:2123 (8z); not in app/SI52 +n |
+| RL-20260928-01 | 09-28 | D2 as recommended: no downward override; test HQ re-coded COY | RLib, data | P-code CLOSED 2026-09-28 by b5c6d02 | RLib:2143, RTT:2123-2160; demo path none +n |
 | RL-20260928-02 | 09-28 | identity = uuid: create under startingUUID, bind ObjectCreated by uuid | Fac, Svc | I | branch fix/identity-by-uuid (C1d) +n |
 
 Notes:
 - RL-20260927-02: (2) ContainerPopulator CPop:138, pinned by CST p1-p15. (1) RUS is the compiled and base default (VS:90,
   AJ:30) and no test reads it; data/unit-type-map-52-aggregate.json holds 19 RUS and 19 BLR hostile rows and its note
-  (:12) still says the hostile nation is "not decided here".
+  (:12) still says the hostile nation is "not decided here". Since 9999b35 the note names RL-20260927-02 and the shipped-profile pins read it.
 - RL-20260927-03: on the aggregate set the start refuses without AtOrder (Svc:2906-2908); at entity level the same rule
   is RL-20260906-02's, which only the overlays apply - counted there, not twice.
 - RL-20260927-04: CComp:186 (variants and the C1b guard), CComp:499 (resolver); D-6 CPop:517; D-1 in
   data/unit-composition-52-aggregate.json:30-38. Pins: CST:222 (D-8), :575-589 (D-6), :645 (D-5), :780-796 (p13). The
   authored variant (C2) is off by default (AJ:115) and not live (G1b queued).
 - RL-20260927-06: the app has no echelon rule (0 hits in src), SI52 sets no model set and AD:12 says EntityLevel, so an
-  STP-driven Iron Storm order (brigades, a division) is simulated at entity level.
+  STP-driven Iron Storm order (brigades, a division) is simulated at entity level. Since b5c6d02 (D2b): the app refuses
+  that order at receipt (RUNBOOK sec 11k).
 - RL-20260928-01: RTT:2123 (8z) pins the refusal and RTT:2156-2160 the re-coded 1.BdeHQ; nothing refuses on the demo
-  path (AD:12). "Go for the server" is an authorisation (process).
+  path (AD:12). "Go for the server" is an authorisation (process). Since b5c6d02 (D2b): OnOrder refuses it.
 - RL-20260928-02: at ff60f6f units are created without a startingUUID (Fac:928-944) and bound by name. The lane merged to main at
   699552c during this audit with its pins (CST p15, NameSelfTest); not deployed (the exe is 84c4f62); G1-2 owed.
 
@@ -101,23 +102,23 @@ Notes:
 
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
-| RL-20260902-01 | 09-02 | best fidelity: every unit as its correct VR-Forces type | UTM, VS, AJ | P-code | UTM:77, TMS 610/0; base default RealTemplates +n |
+| RL-20260902-01 | 09-02 | best fidelity: every unit as its correct VR-Forces type | UTM, VS, AJ | P-code (overlay pinned 9999b35; base open) | UTM:77, TMS 610/0; base default RealTemplates +n |
 | RL-20260903-01 | 09-03 | all the tasking STP can represent, not only move | VerbMapping.cs | P-code | :110-122, --verb 51/0; hold family bare-moves +n |
 | RL-20260906-01 | 09-06 | a demo app that runs without the test harness | MakRuntime.cs, SI52 | E | MakRuntime.cs:29; Program.cs:210-218; RTT:3425-3440 |
-| RL-20260906-02, C13 | 09-06 | simulate only the taskees; the init is ORBAT context | VS, AD, RSh | P-code | VS:205 AtInit; AtOrder only AD:28, RSh:333 +n |
+| RL-20260906-02, C13 | 09-06 | simulate only the taskees; the init is ORBAT context | VS, AD, RSh | P-code (overlay pinned 9999b35; base open) | VS:205 AtInit; AtOrder only AD:28, RSh:333 +n |
 | RL-20260907-01, C15 | 09-07 | a unit's completion from its own arrival evidence | ArrivalPolicy.cs | E | :230-280; pin :294 (--arrival 74/0) |
 | RL-20260907-02, C14 | 09-07 | spread co-located units at startup, 700 m rings | DeStacker.cs, AJ | E | :54, AJ:38-39; RST:3001-3004; --destack 141/0 |
 | RL-20260913-01 | 09-13 | leg checks reach users as C2 reports, not logs | Preflight/ | E | PreflightReports.cs; ROS:383-389; OSS:594 +n |
 | RL-20260913-02 | 09-13 | customisations survive a VR-Forces reinstall | tools/sms | P-pin | Deploy-C2SimSms.ps1:1-14 (C:\C2SIM\vrf-sms); no pin |
-| RL-20260913-03, C16 | 09-13 | stall: report + abort, N = 120 SIMULATED s, no re-tasking | StallPolicy.cs | P-code | :50, --stall 66/0; window 240 wall s +n |
+| RL-20260913-03, C16 | 09-13 | stall: report + abort, N = 120 SIMULATED s, no re-tasking | StallPolicy.cs | P-code (shipped window pinned 9999b35; number open) | :50, --stall 66/0; window 240 wall s +n |
 | RL-20260914-01 | 09-14 | TASKABRT is what STP sees for a stalled unit | Svc | E | RST:670-685 (t4), :704-715 (t6) |
 | RL-20260914-02 | 09-14 | R1 MapGraphicID; R2 performer's position; R3 objective; item 4 | TaskGeometryResolver.cs | E | :167; RST:1957, :1799, :1903, :296 |
 | RL-20260914-03 | 09-14 | R1 embedded Location (V4b); R5 entity first + user option | TaskGeometryInterpretation.cs | E | :58, RST:68; VS:1166, RTT:1979 |
-| RL-20260914-04 | 09-14 | R6: test the vendor filter, then fan battalions out to companies | Svc, VS | X | VS:617 SubordinateFanOut=false, set nowhere +n |
+| RL-20260914-04 | 09-14 | R6: test the vendor filter, then fan battalions out to companies | Svc, VS | X (OFF pinned 4d488ab; retire or build: owner) | VS:617 SubordinateFanOut=false, set nowhere +n |
 | RL-20260914-05 | 09-14 | Q1 supersede aborts; Q2 sim clock; Q4 malformed; Q5; Q7 | TDP, SimClockTracker.cs | E | TDP:331, :437; RST:2294, :1836, :1412 +n |
 | RL-20260914-06 | 09-14 | STP-809 back-end state; E3 task cycles refused with an abort | VrfFacade.h, TDP | E | VrfFacade.h:406-415, TDP:368; RST:1366, :2553 |
 | RL-20260915-01 | 09-15 | convert the four 5.0.2-only tools to 5.2 | tools/*.csproj | E | BridgeConfig; tools/ResetVrf/Program.cs:113 |
-| RL-20260920-01 | 09-20 | 1 Iron Storm; 2 8080/61613; 3 route shift; 4 extent; 6 quit | runner, SI52, VS | P-code | item 1: Mojave defaults; 2-6 pinned +n |
+| RL-20260920-01 | 09-20 | 1 Iron Storm; 2 8080/61613; 3 route shift; 4 extent; 6 quit | runner, SI52, VS | P-code CLOSED 2026-09-28 by c3cfec6 | item 1: Mojave defaults; 2-6 pinned +n |
 | RL-20260920-02 | 09-20 | Iron Storm: A, a demo-scale cut, then B, the aggregate profile | data, Svc | E | IRONSTORM_CUTA_*.xml, C1; --stpexport, --populate |
 | RL-20260921-01 | 09-21 | de-stack A + C; T14 800 m nudge (not the 0.9 nav bar) | DeStacker.cs, data | P-code | RST:2960-3045; ring 350 m vs "about 300 m" +n |
 | RL-20260921-02 | 09-21 | close rtiAssistant; path A; demo clock FAST; callstack; MAK case | ops, fixture | A | actions +n |
@@ -127,7 +128,7 @@ Notes:
 | RL-20260921-06 | 09-21 | the placement re-clamp stays; its gate and tally were the defect | PlacementReclampPolicy.cs | E | :75, :207; PRS:291-474; RTT:1443 |
 | RL-20260921-07 | 09-21 | a movement task whose unit stays put aborts; not every task moves | Svc | E | Svc:6366-6456; RST:961-981 (t21) +n |
 | RL-20260921-08 | 09-21 | no rule: plain words; read the record before asking | - | A | process |
-| RL-20260925-01 | 09-25 | Q1 scope; Q2 abandon a stuck unit's follow-ons; Q3 stall ON in demo; Q4 | TCP, AD | P-pin | RST:600-767, TAS; Q3 only AD:49 +n |
+| RL-20260925-01 | 09-25 | Q1 scope; Q2 abandon a stuck unit's follow-ons; Q3 stall ON in demo; Q4 | TCP, AD | P-pin CLOSED 2026-09-28 by 9999b35 | RST:600-767, TAS; Q3 only AD:49 +n |
 | RL-20260926-01 | 09-26 | unit ATTACK = advance + fire at will; BREACH not simulated; CNFPSL held | TDP | E | TDP:128, :165; EDS:30-71, :117-166 |
 | RL-20260927-01 | 09-27 | lone platform Move To per vertex; one OSM pre-flight per set | VertexChain.cs, Preflight/ | E | VCS:41-64, :451-466; OSS:148-155 +n |
 | RL-UNVERIFIED-DIGUY01 | - | claimed: dropping DI-Guy rows is a fidelity regression | - | not a ruling | no owner words |
@@ -154,7 +155,7 @@ Notes:
   record past TASK_VOCABULARY_ASSESSMENT_2026-09-14.md:1271. Probably overtaken by RL-20260926-01 and RL-20260927-06.
 - RL-20260914-05: SimClockTracker.cs:206 (TaskClockAxis); VS:757 sim clock, :774 TASKABRT; Q7 rollback pinned RST:1623.
 - RL-20260920-01: item 1 - RSh:61-66 defaults to R9_Mojave_Empty_52_NavAO with the COA-STP1 Mojave pair; RCS:918,
-  :1065, :1074 to firstexperience with the R9 Mojave pair. Items 2-6 pinned: RTT:3609-3618 (11i), ROS:478-498,
+  :1065, :1074 to firstexperience with the R9 Mojave pair. Since c3cfec6: Iron Storm cut A in both (RUNBOOK sec 11n). Items 2-6 pinned: RTT:3609-3618 (11i), ROS:478-498,
   RouteExtentSelfTest.cs:61, RTT:2813 (10).
 - RL-20260921-01: A + C pinned by RST:2960-3045 and --destack; the nudge is data/IRONSTORM_CUTA_CHANGES.md:150 (kept at
   :494). The platoon ring is 350 m (EchelonSpacing.cs:97, derived from a 320.9 m formation span) against the approved
@@ -165,7 +166,7 @@ Notes:
   is still unanswered.
 - RL-20260921-07: per the ledger, the Jira STP-857 correction is drafted and not posted (process, awaiting him).
 - RL-20260925-01: Q1 RST:600-725 and TAS; Q2 RST:704-715; Q4 RST:760-767; the re-clamp limb PRS. Q3 lives only in AD:49
-  (VS:411 is false) and no test reads it.
+  (VS:411 is false) and no test reads it. Since 9999b35: pinned (--rulings-selftest, shipped profile s3).
 - RL-20260927-01: VertexChain.cs:88, VS:600, AJ:77; Preflight/OsmFeatures.cs, VertexNudge.cs, ModelSetRules.cs. Pins:
   VCS:41-64 (v1), :451-466 (v5 reads AJ and AD), OSS:148-155 (shipped defaults), RTT:2715 (9b).
 - RL-UNVERIFIED-MAK01: HANDOFF_2026-09-01_R9_COMPLETE.md:160-161 still states the prohibition.
@@ -177,7 +178,7 @@ Notes:
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
 | Y-1, Y-5 | 09-03 | launch vrfSimHLA1516e from bin64; LaunchVrf52 replaces the launcher | LV52 | E | LV52:1-11, :1045-1046; RTT:960-975 (8g) |
-| Y-2 | 09-03 | join via the MAK-ONE-2025 config; C# FomModules emptied | Svc, AJ | P-code | Svc:1388-1403 only if ConfigFileIdentity +n |
+| Y-2 | 09-03 | join via the MAK-ONE-2025 config; C# FomModules emptied | Svc, AJ | P-code (overlay pinned 9999b35; base open) | Svc:1388-1403 only if ConfigFileIdentity +n |
 | Y-3 | 09-03 | no C:\MAK edit: --notifyLevel and a repo-held --settingsFile | LV52 | P-code | LV52:1046, RTT:966; --settingsFile 0 hits |
 | Y-4 | 09-03 | keep the bin64 sim log via --logFileName | - | S | never pass it: LV52:1047-1052; RTT:766-800 (8f) |
 | Y-6 | 09-03 | facade loop per the sample: no setSimTime; monitor back-end state | Fac | P-pin | Fac:659-662, :756-763; native, no offline check |
@@ -186,8 +187,8 @@ Notes:
 | Y-9 | 09-03 | golden runs: blockOnAsynchronousOperations ON + a pinned seed | LV52, fixture | X | 0 hits in scripts, src, tools/FixtureGen, config |
 | Y-10 | 09-03 | keep MoveAlongRoute for every MOVE - a SEAT RECOMMENDATION | - | S | by RL-20260927-01; unit limb VCS:54 (v1) +n |
 | Y-11 | 09-03 | accept unit Move To -> Maneuver To; no per-entity moves on a unit | VertexChain.cs | E | :88; VCS:41-64 (v1) |
-| Y-12 | 09-03 | Autonomous Actions left ON | Svc | P-pin | 0 hits for AutonomousActions in src; no guard |
-| Y-13 | 09-03 | SMS road defaults; no road preference unless an order asks | Svc | P-pin | 0 hits for a navigation-preference send; no guard |
+| Y-12 | 09-03 | Autonomous Actions left ON | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits for AutonomousActions in src; no guard |
+| Y-13 | 09-03 | SMS road defaults; no road preference unless an order asks | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits for a navigation-preference send; no guard |
 | Y-14 | 09-03 | no batch mode for interface runs; evaluate SQLite logging | - | P-code | batch 0 hits; SQLite 0 hits (never evaluated) |
 | Y-15 | 09-03 | two profiles by echelon; authored doctrinal Lua for company and below | runner, Lua | P-code | RLib:2143 (8y, 8z); 0 .lua files tracked +n |
 | Y-16 | 09-03 | HLA 4 is its own phase; gates run on HLA 1516e | VrfBridge.vcxproj | E | vcxproj:21-22, :56-62; RTT:960-975, :487 |
@@ -220,14 +221,14 @@ roadmap's T10, T14 and T18 - and DIFF sec G adopted two instruments (5.b, 5.d). 
 
 | id | date | what the code must do | where | STATUS | evidence |
 |---|---|---|---|---|---|
-| C1, C2, G1 | 09-06 | compose per the vendor sample, ON by default | Svc, VS | P-pin | Svc:2439-2471; VS:136, AJ:34; order pinned only +n |
+| C1, C2, G1 | 09-06 | compose per the vendor sample, ON by default | Svc, VS | P-pin (default pinned 9999b35; flow unpinned) | Svc:2439-2471; VS:136, AJ:34; order pinned only +n |
 | C3, C5 | 09-06 | no template higher-unit for company+; expand pure higher-units | ComposeOrder.cs | E | :11; :44 (--compose 9/0) |
-| C4 | 09-06 | AggregateFormation stays OFF | VS | P-pin | VS:120; used only when set (Svc:5645, :9497) |
-| C6, G3, G4 | 09-06 | no post-attach reorganize; no client formation wait | Svc | P-pin | Svc:2439-2471 attaches only; opt-in :9497-9512 |
+| C4 | 09-06 | AggregateFormation stays OFF | VS | P-pin CLOSED 2026-09-28 by 9999b35 | VS:120; used only when set (Svc:5645, :9497) |
+| C6, G3, G4 | 09-06 | no post-attach reorganize; no client formation wait | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | Svc:2439-2471 attaches only; opt-in :9497-9512 |
 | C7, G2 | 09-06 | attach in the declared Subordinate order | ComposeOrder.cs | E | --compose "declared order wins" |
-| C8 | 09-02 | address by the real VRF_UUID, never a name as a DtUUID | Svc | P-pin | Svc:6740-6758; no self-test; RTT:2680 parses logs |
+| C8 | 09-02 | address by the real VRF_UUID, never a name as a DtUUID | Svc | P-pin CLOSED 2026-09-28 by 4d488ab | Svc:6740-6758; no self-test; RTT:2680 parses logs |
 | C9 | 09-06 | no vendor importer sample exists | - | A | a fact |
-| C10 | 09-06 | never build sendVrfObjectCreateMsg + initialFormation | Svc, Fac | P-pin | 0 hits in src; no guard |
+| C10 | 09-06 | never build sendVrfObjectCreateMsg + initialFormation | Svc, Fac | P-pin CLOSED 2026-09-28 by 4d488ab | 0 hits in src; no guard |
 | C11 | 09-06 | the object console at level 4 is the first instrument | VS, lint | E | VS:505; tests/RecordChecks.ps1:675-677 (13d) |
 | C12 | 09-06 | lifeforms need the DI-Guy data installed | env | A | installed by him |
 
@@ -276,7 +277,7 @@ RL-20260927-05, C8, R-HOSTILE-NATION and RL-20260920-01.
 | JC-1 | 09-02 | the init's type wins only where the table covers it | UTM | E | UTM:66-69; TypeMapSelfTest.cs:259-287 +n |
 | JC-2 | 09-02 | a nation with no content refuses to start | UTM | E | UTM:301-342; TMS:319 +n |
 | NO-OLD-BITS | 09-03 | 5.2 runs on MAK RTI 5.0.1 | RCS, vcxproj | E | RCS:906, vcxproj:50; RTT:487, :520 (8b) |
-| 5.0.2-ARCHIVE | 09-04 | nothing on the live path launches 5.0.2 | RCS | P-code | RCS:400-401 defaults to 5.0.2 +n |
+| 5.0.2-ARCHIVE | 09-04 | nothing on the live path launches 5.0.2 | RCS | P-code CLOSED 2026-09-28 by 9999b35 | RCS:400-401 defaults to 5.0.2 +n |
 | MULTIPLIER | 09-02 | NOT COUNTED - parked, "ok on the multipliers for now" | VS | - | VS:653 = 1; no runner sets it +n |
 
 Notes:
@@ -287,7 +288,7 @@ Notes:
   content (TMS:319) - the Chinese preference waits on 5.g.
 - SETTLE-EVIDENCE: author not recorded. JC-1, JC-2: the supervisor's provisional calls, never put to him.
 - 5.0.2-ARCHIVE: RCS:400-401 -VrfProfile still defaults to 5.0.2 (RSh:40 is 5.2) and nothing refuses a live 5.0.2 run;
-  the 5.0.2 install is gone from this machine.
+  the 5.0.2 install is gone from this machine. Since 9999b35 the default is 5.2 (5.0.2 selectable by name).
 - MULTIPLIER: VS:653 is 1 and applied only above 1 (Svc:1050-1051). PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02:194 and
   RUNG2:163 record 1x as settled; AUDIT_REPEATED item 13 records it parked. Not counted.
 
@@ -368,3 +369,5 @@ parse 19, sequencer 12, compose 9, and terrain, placement, placement-reclamp, ro
 PASS); --populate-selftest 173 PASS / 1 FAIL / 4 SKIP, the FAIL being the checkout-reading source check of sec 3 item 4
 (the committed ff60f6f source holds the string it looks for); the three --disabled arms exit 1 as designed.
 Nothing joined a federation; no VR-Forces process was started; nothing under C:\MAK was written.
+
+ADDENDUM 2026-09-28 (fix/d2b-and-audit-fixes: b5c6d02, 9999b35, 4d488ab, c3cfec6; offline, not deployed): 12 rows CLOSED - P-code RL-20260927-06, RL-20260928-01, 5.0.2-ARCHIVE, RL-20260920-01; P-pin RL-20260927-02, RL-20260925-01, C4, C8, C10, C6+G3/G4, Y-12, Y-13. On sec 1's 699552c basis (38 E, 0 I) the tally is 50 E, 11 P-code, 4 P-pin, 6 X, 0 I, 10 S, 11 A: of the 71 code-binding decisions 17 are not fully in the code (11 P-code, 6 X) - 24 percent, was 31.

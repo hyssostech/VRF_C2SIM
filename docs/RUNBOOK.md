@@ -3194,7 +3194,7 @@ the STP-837 traversal bar in D3.
 
 KNOWN CONSEQUENCE: a taskee that is ITSELF a composed child DOES move one echelon ring (R9
 FULL: 1222.MechPlt, 350 m - but R9 FULL is on NO current demo path: neither RUNBOOK.md nor
-DEMO_RUNBOOK.md references it, the runner's default init is the LEAN file, and
+DEMO_RUNBOOK.md references it, the runner's default init was the LEAN file (Iron Storm cut A since 2026-09-28, sec 11n), and
 RESUME_PROMPT.md explicitly says not to use it). The de-stack runs at init and cannot know
 what an order will task. `Vrf:DropOriginVertexMeters` (100 m) is what stops the order's
 leading "from here" vertex dragging it back to the authored point.
@@ -4082,14 +4082,15 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
   line per unit (code, name, UUID, task count); `composition : variant "<v>" <- ...`; `catalogue : ...`.
   Manifest: `inputs.modelSet.selection` (every tasked unit and its echelon), `inputs.modelSet.composition`.
 - OLD COMMAND LINES - RULED 2026-09-28 (RL-20260928-01, "D2 as recommended"): the rule stands, with NO downward
-  override. (a) The R9 lines run at EntityLevel again. The runner's default order `data/R9_Mojave_UnitMove_Order.xml`
+  override. (a) The R9 lines run at EntityLevel again. The runner's default order until 2026-09-28 (sec 11n) `data/R9_Mojave_UnitMove_Order.xml`
   tasks `1.BdeHQ`, a brigade HEADQUARTERS element (one command-post vehicle, DIS category 5 = company) that the test
   data had coded BDE; it is re-coded BDE -> COY in `data/R9_Mojave_Lean_Initialization.xml`, its `_NoComments` twin,
   `data/R9_Mojave_Initialization.xml` and `data/GA_LeafCompany_Initialization.xml`. Its SIDC (SFGPUCIZ--EH---) and DIS
   type are untouched, so nothing it creates changes: FidelityTable still lands M577A2_Command_Post (row F-UCIZ-H, keyed
   on the SIDC; the EchelonCode is never read for it), RealTemplates still a single M1A2 - checked on the deployed
   build with `--parse-init`, UnitTranslator.Plan on three entity maps, `--destack-selftest` and `--parse-selftest`.
-  The no-argument 5.2 default, DEMO Way A, COMPLETION_CONFIRM and the N3 GA line all choose EntityLevel <- auto.
+  The R9 set (the no-argument 5.2 default until 2026-09-28, named since - sec 11n), DEMO Way A, COMPLETION_CONFIRM and
+  the N3 GA line all choose EntityLevel <- auto.
   (b) The E1/E2/E2-2 cut-A entity lines (28ID DIV and 48 IBCT BDE tasked, entity fixture) stay REFUSED: cut A keeps
   no entity-level regression run; E1/E2 stay as records. (c) `data/L2_Infantry_Initialization.xml` and
   `data/L3_CpProxy_Initialization.xml` code 1.BdeHQ COYG, not COY (the seat's decision under RL-20260928-01): their
@@ -4097,8 +4098,69 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
   would land Infantry Platoon (USA Army), an aggregate; COYG (company group, ranks with COY) matches no row and keeps
   the key-(d) M577A2 command post exactly - checked the same way as the four. The R9 order on them is EntityLevel.
   The golden-trace init under `docs/golden-trace/` is a record and keeps BDE.
-  Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default) run exactly as before; the 5.0.2
+  Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default until 2026-09-28) run exactly as before; the 5.0.2
   profile is not touched (no aggregate model set there).
+
+### 11k. THE SAME RULE INSIDE THE APP - AN ABOVE-BN ORDER ON EntityLevel IS REFUSED (D2b, RL-20260927-06, RL-20260928-01, 2026-09-28)
+
+The runner CHOOSES the model set (11j); an interface started by hand (`scripts/StartInterface52.ps1`, Demo overlay
+`Vrf:ModelSet=EntityLevel`) cannot, because VR-Forces has loaded its model set before an order arrives. So the app
+applies the rule of RL-20260927-06 / RL-20260928-01 as a GUARD in `OnOrder`, before anything of the order is registered
+or dispatched, on the runner's own ladder (`EchelonLadder`, `src/VrfC2SimApp/ModelSetGuard.cs`; held equal to
+RunnerLib's by `--rulings-selftest` (g1) and RTT 8z). The highest TASKED echelon (init `EchelonCode` read from the RAW
+text - the typed parse turns an absent code into "AG") above BN on EntityLevel -> the order is REFUSED: one ERROR line,
+every task `TASKABRT`, nothing dispatched. Above BN on AggregateTacticalLevel, and BN-and-below on either set, run (the
+latter on aggregate as `OVERRIDE UP`). Lines: at start-up `MODEL SET RULE (D2b; RL-20260927-06, RL-20260928-01):
+Vrf:ModelSet=<v> -> <set>. ...`; per order ONE `MODEL SET RULE (D2b): ...` line - ERROR `ORDER REFUSED - ABOVE
+BATTALION IS AGGREGATE-ONLY (RL-20260927-06; no downward override, RL-20260928-01). This order's highest TASKED echelon
+DIV (28ID__FRIENDLY_INFANTRY_DIVISION) is ABOVE BN - it tasks ... - and this interface runs Vrf:ModelSet=EntityLevel.
+NONE of its 5 task(s) is executed ...`, INFO `allowed` / `OVERRIDE UP - allowed`, WARN when an EntityLevel order tasks
+a NOS, unknown or missing echelon (named). The TASKABRT reason starts `REFUSED (D2b): ABOVE BATTALION IS
+AGGREGATE-ONLY`. To run Iron Storm by hand, start the interface with `Vrf:ModelSet=AggregateTacticalLevel`, the
+aggregate type map and an aggregate fixture. No 5.0.2 twin is needed: the 5.0.2 app has not compiled from this source
+since the container bridge members. OFFLINE-PROVEN ONLY (b5c6d02; not deployed, not live).
+
+### 11l. THE SHIPPED PROFILE, PINNED - AND WHERE THE BASE STILL DISAGREES (audit 2026-09-28 fix 1)
+
+`--rulings-selftest` section "AUDIT 2026-09-28 fix 1" (`src/VrfC2SimApp/ShippedProfileSelfTest.cs`) reads both shipped
+json files through the real configuration stack, RunScenario.sh's exports and the aggregate type map, and fails when a
+settled value moves: TypeMappingMode=FidelityTable (RL-20260902-01) and CreationPolicy=AtOrder (RL-20260906-02) in the
+Demo overlay and the wrapper; StallDetection ON in the demo only (RL-20260925-01 Q3); ModelSet EntityLevel
+(RL-20260927-06); OpposingNation RUS, and RUS = DIS 260 in the aggregate map (RL-20260927-02); ConfigFileIdentity (Y-2);
+ComposeHierarchy ON (C1/C2); AggregateFormation OFF (C4). It pins what SHIPS and chooses nothing: the base
+appsettings.json / VrfSettings.cs still default to RealTemplates, AtInit and the CWIX-2024 identity, and the stall
+window ships as 240 WALL s against the 120 simulated s approved in RL-20260913-03 - each is named in its check as the
+owner's open question (audit sec 5). `scripts/RunC2SimScenario.ps1 -VrfProfile` now DEFAULTS TO 5.2 (audit row
+5.0.2-ARCHIVE); `-VrfProfile 5.0.2` still selects the historical path (RTT 8b pins the default, 8k/8l the 5.0.2 leg).
+
+### 11m. THE "DO NOT" RULES, PINNED BY SOURCE GUARDS (audit 2026-09-28 fix 2)
+
+`--rulings-selftest` section "AUDIT 2026-09-28 fix 2" (`src/VrfC2SimApp/DoNotRulesSelfTest.cs`) turns the rules kept
+only by absence into checks over the checkout, with comments and strings blanked by a small lexer and every scanner
+proven on a dirty control first: C8 - no DtUUID in the facade or bridge is built from a name, and no id argument of a
+bridge call in the app reads like a name or marking; RTI-UNTOUCHED - the kill statements in `scripts/` and `tools/` are
+EXACTLY LaunchVrf52's own crashed back end and StopVrf52's taskkill without /F and identity-gated force, all by pid, and
+no text there carries a kill-by-name form (a NEW kill statement fails until it is reviewed and added to the inventory in
+that file); SubordinateFanOut OFF (RL-20260914-04 as it stands); no Autonomous Actions send (Y-12), no road preference
+(Y-13), no sendVrfObjectCreateMsg (C10), ReorganizeAggregate only in the opt-in `AggregateFormation=auto` handler (C6).
+The 10000 m birth and the uuid on every create are CITED, not duplicated (`--placement-selftest`, `--populate-selftest`
+p15 (e)).
+
+### 11n. THE RUNNER'S DEFAULT IS IRON STORM (audit 2026-09-28 fix 3; RL-20260920-01 item 1)
+
+Since c3cfec6 a run that names no scenario, init or order - wrapper or runner, on 5.2 - is Iron Storm cut A:
+`IronStorm_Centre_52_Aggregate` + `data/IRONSTORM_CUTA_Initialization.xml` / `data/IRONSTORM_CUTA_Order.xml`, which
+`-ModelSet` auto takes to AggregateTacticalLevel (11j) with the aggregate map and the catalogue variant. The clientId
+follows the init: the built-in init declares SystemName "Not Set", which the runner applies - said as `clientId : Not
+Set (built-in default ...)`, exported and restored like `-ClientId` - only when nothing names one (an inherited
+`Vrf__ClientId` still wins); the wrapper passes "Not Set" with its built-in init and C2SIM with any named init. The
+Mojave sets stay selectable EXACTLY as before by naming all three: runner `-Scenario
+'Sample\FirstExperience\firstexperience' -Init data\R9_Mojave_Lean_Initialization.xml -Order
+data\R9_Mojave_UnitMove_Order.xml` (clientId from appsettings.json), wrapper `--scenario R9_Mojave_Empty_52_NavAO --init
+data/COA-STP1_Initialization.xml --order data/COA-STP1_Order.xml` (clientId C2SIM). Nothing else changed: the wrapper's
+other defaults (no duration scale, no stall env, the 7200 s predecessor floor) are not an Iron Storm registration's, so a
+scored run still names its own (e.g. PREREG_IRONSTORM_AGG_G1-2 sec 3 E). The 5.0.2 profile keeps TropicTortoise + the R9
+pair. RTT 8n, 8y, 8z and 8v3 pin both the new default and the named R9 set.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

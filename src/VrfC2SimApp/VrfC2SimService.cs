@@ -108,6 +108,12 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly bool _modelSetRecognised;
     private readonly bool _aggregateModelSet;
 
+    // D2b (RL-20260927-06, RL-20260928-01): every initialization's Units with their EchelonCode AS AUTHORED, keyed by
+    // lower-case uuid (first delivery wins), and the other uuid-bearing elements - the input of the model-set rule that
+    // OnOrder applies before anything of an order is dispatched (ModelSetGuard; RUNBOOK sec 11k).
+    private readonly ConcurrentDictionary<string, InitEchelonUnit> _initEchelonUnits = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _initEchelonOther = new(StringComparer.Ordinal);
+
     // ============ POPULATED AGGREGATE CONTAINERS (C1) ============
     // RL-20260927-02 (hostile RUS; populate the containers, not proxies), RL-20260927-03 (every unit an EMPTY container
     // at init at its authored position; ONLY a tasked unit populated, in place, when its order arrives), RL-20260927-04
@@ -840,6 +846,9 @@ public sealed class VrfC2SimService : BackgroundService
         string modelSetLine = UnitPositionPolicy.StartupLine(_modelSetRaw, _modelSetRecognised, _aggregateModelSet);
         if (_modelSetRecognised) _log.LogInformation("{Line}", modelSetLine);
         else _log.LogWarning("{Line}", modelSetLine);
+        // 0c-ii-d. D2b (RL-20260927-06, RL-20260928-01): the active model set and the rule OnOrder applies under it -
+        // said once, in both states, from the same Vrf:ModelSet read.
+        _log.LogInformation("{Line}", ModelSetGuard.StartupLine(_modelSetRaw, _aggregateModelSet));
 
         // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
         // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
@@ -1493,6 +1502,17 @@ public sealed class VrfC2SimService : BackgroundService
         InitData init;
         try { init = InitParser.Parse(body); }
         catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
+
+        // D2b (RL-20260927-06, RL-20260928-01): every Unit's EchelonCode AS AUTHORED, for the model-set rule at order
+        // receipt - read from the raw text, NOT from InitUnit.EchelonCode: the typed parse turns an ABSENT EchelonCode
+        // into the enum's first member "AG" (InitParser.cs CAVEAT), rank 12, which would refuse an order the runner's rule
+        // counts below BN. All Units, whatever their SystemName - as the runner reads them. First delivery wins.
+        var rawEchelons = ModelSetGuard.ReadInit(body);
+        if (!rawEchelons.Parsed)
+            _log.LogWarning("MODEL SET RULE (D2b): the initialization's EchelonCodes could not be read ({Why}) - every " +
+                            "tasked unit of a later order counts as BELOW BN (RL-20260927-06).", rawEchelons.Error);
+        foreach (var kv in rawEchelons.Units) _initEchelonUnits.TryAdd(kv.Key, kv.Value);
+        foreach (var kv in rawEchelons.Other) _initEchelonOther.TryAdd(kv.Key, kv.Value);
 
         int planned = 0, matched = 0, duplicates = 0;
         // R9 type-mapping fix (docs/experiments/PREREG_TYPEFIX_CONFIRMING_RUN.md). "GoldenParity"
@@ -4489,6 +4509,30 @@ public sealed class VrfC2SimService : BackgroundService
 
         foreach (var w in order.Warnings)
             _log.LogWarning("Order parse: {Warning}", w);
+
+        // ---- D2b: THE MODEL-SET RULE, BEFORE ANYTHING OF THIS ORDER IS REGISTERED OR DISPATCHED ----
+        // RL-20260927-06 ("Higher echelons can only be run at aggregate level because of vrf limitations") and
+        // RL-20260928-01 (D2 as recommended: no downward override). The runner CHOOSES the model set from the order at
+        // Stage 0 (RunnerLib Select-ModelSetByEchelon); an interface started by hand (scripts/StartInterface52.ps1 with the
+        // Demo overlay, Vrf:ModelSet=EntityLevel) chooses nothing, and VR-Forces loaded its model set before this order
+        // arrived. So the app's twin of the rule is this GUARD: an order that tasks a unit ABOVE BN on EntityLevel is
+        // REFUSED - one ERROR line, every task TASKABRT - and never run at entity level in silence. The ladder and the
+        // threshold are the runner's (EchelonLadder; --rulings-selftest (g1) and RunnerTurnaround 8z hold them equal).
+        var modelSetCheck = ModelSetGuard.Decide(_aggregateModelSet, _modelSetRaw,
+                                                 order.Tasks.Select(t => t.TaskeeUuid).ToList(),
+                                                 _initEchelonUnits, _initEchelonOther);
+        if (modelSetCheck.Kind == ModelSetCheckKind.Refused)
+        {
+            _log.LogError("{Line}", modelSetCheck.Line);
+            foreach (var task in order.Tasks)
+            {
+                _sequencer.NotifyAbandoned(task.TaskUuid);   // a successor in a later order fails fast, not slow
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, modelSetCheck.AbortReason);
+            }
+            return;
+        }
+        if (modelSetCheck.Warn) _log.LogWarning("{Line}", modelSetCheck.Line);
+        else _log.LogInformation("{Line}", modelSetCheck.Line);
 
         // ---- THE ORDER'S OWN GRAPHICS, REGISTERED BEFORE ANY TASK IS TRANSLATED (2026-09-20) ----
         //

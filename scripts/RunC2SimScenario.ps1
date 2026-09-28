@@ -121,20 +121,26 @@
         rule was written from.
 
 .PARAMETER Init
-    C2SIM initialization XML. Default data/R9_Mojave_Lean_Initialization.xml.
-    HEADLESS_RUN_PLAN 4a.0: the LEAN file (6 units) supersedes sec 3's full file
-    (158 unit/actor references); both contain all three taskee UUIDs, the lean one
-    keeps 152 irrelevant units out of the trace.
+    C2SIM initialization XML. Default on 5.2 (since 2026-09-28, RL-20260920-01 item 1):
+    data/IRONSTORM_CUTA_Initialization.xml, the Iron Storm cut A (40 units). On 5.0.2, and
+    before 2026-09-28 on 5.2: data/R9_Mojave_Lean_Initialization.xml (HEADLESS_RUN_PLAN 4a.0:
+    the LEAN file, 6 units, supersedes sec 3's full file) - still selectable by name.
     Resolved as: -Init, else $env:C2SIM_INIT, else that default (see -Scenario).
 
 .PARAMETER Order
-    C2SIM order XML. Default data/R9_Mojave_UnitMove_Order.xml. Three MOVE tasks
-    against three taskees (4a.0), legs ~556-578 m.
+    C2SIM order XML. Default on 5.2: data/IRONSTORM_CUTA_Order.xml (5 tasks; 28ID DIV,
+    48 IBCT BDE, 1-112 IN BN tasked - so -ModelSet Auto chooses AggregateTacticalLevel). On
+    5.0.2, and before 2026-09-28 on 5.2: data/R9_Mojave_UnitMove_Order.xml (three MOVE tasks
+    against three taskees, 4a.0, legs ~556-578 m) - still selectable by name.
     Resolved as: -Order, else $env:C2SIM_ORDER, else that default (see -Scenario).
 
 .PARAMETER Scenario
-    The VR-Forces scenario to load. Default 'TropicTortoise' on the 5.0.2 profile and
-    'Sample\FirstExperience\firstexperience' on 5.2.
+    The VR-Forces scenario to load. Default 'TropicTortoise' on the 5.0.2 profile and, on 5.2,
+    'IronStorm_Centre_52_Aggregate' (the Iron Storm aggregate fixture; it was
+    'Sample\FirstExperience\firstexperience', the R9 pair's, until 2026-09-28). The Mojave R9
+    set stays selectable exactly as before by naming all three:
+    -Scenario 'Sample\FirstExperience\firstexperience' -Init data\R9_Mojave_Lean_Initialization.xml
+    -Order data\R9_Mojave_UnitMove_Order.xml.
     Resolved as: -Scenario, else $env:C2SIM_SCENARIO, else that default - the SAME
     precedence as -Init and -Order, and the same as scripts\RunScenario.sh (review F6,
     2026-09-20; before that this script read the other two variables but not this one,
@@ -145,8 +151,10 @@
     THE THREE MUST COME FROM ONE AO (STP-823).
 
 .PARAMETER VrfProfile
-    WHICH VR-FORCES STACK the whole pipeline runs on: '5.0.2' (default, the historical
-    path - unchanged in every observable way) or '5.2'. It is the ONLY selector, and it
+    WHICH VR-FORCES STACK the whole pipeline runs on: '5.2' (the DEFAULT since 2026-09-28 -
+    audit row 5.0.2-ARCHIVE: the wrapper, every registered run and the only install on this
+    machine are 5.2) or '5.0.2' (the historical path, still selectable and unchanged in every
+    observable way when asked for by name). It is the ONLY selector, and it
     derives: the roots (vrforces5.2d + vrlink5.10 + makRti5.0.1), the per-process
     environment (5.2 PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, the SHARED rtiexec
     rid config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE), the launch and stop
@@ -397,8 +405,10 @@ param(
     # is REFUSED at validation (a half-5.2 environment is the DLL-name-binding trap: MAK
     # libraries bind BY NAME on PATH, so a 5.2 exe under a 5.0.2 PATH silently loads the
     # wrong stack - docs/VRF_5.2_MIGRATION_DIFF.md sec H).
+    # DEFAULT 5.2 since 2026-09-28 (AUDIT_RULINGS_IN_CODE_2026-09-28 row 5.0.2-ARCHIVE, "nothing on
+    # the live path launches 5.0.2"); -VrfProfile 5.0.2 still selects the historical path.
     [ValidateSet('5.0.2','5.2')]
-    [string] $VrfProfile = '5.0.2',
+    [string] $VrfProfile = '5.2',
 
     # 5.2 ONLY: launch the back end WITHOUT vrfGui (LaunchVrf52.ps1 -NoGui). Default OFF -
     # the GUI stays ON during the migration because it is the only channel that shows
@@ -456,8 +466,10 @@ param(
 
     # The app's C2SIM clientId (Vrf:ClientId), which MUST equal the init's SystemName (RUNBOOK sec 2,
     # LIMITATION 6). EMPTY (default) = whatever the deployed appsettings.json pins ("STP" - the R9
-    # inits). Pass e.g. -ClientId C2SIM for data\COA-STP1_Initialization.xml: the value is exported
-    # as Vrf__ClientId to the app (env overrides appsettings) and validated against the init here.
+    # inits) - EXCEPT with the 5.2 built-in init (Iron Storm cut A, 2026-09-28), whose own SystemName
+    # "Not Set" is then used and said to be the built-in default. Pass e.g. -ClientId C2SIM for
+    # data\COA-STP1_Initialization.xml: the value is exported as Vrf__ClientId to the app (env
+    # overrides appsettings) and validated against the init here.
     # Before 2026-09-06 this needed a hand edit of appsettings.json per init (d1f2e10 / 7963aed).
     [string] $ClientId = '',
 
@@ -915,7 +927,9 @@ if ($Is52) {
     # so that $env:C2SIM_SCENARIO can sit between the argument and this default exactly as
     # $env:C2SIM_INIT and $env:C2SIM_ORDER already do (review F6). A -Scenario that WAS typed
     # still wins, so every recorded 5.2 command line resolves to what it resolved to before.
-    $ScenarioBuiltin = 'Sample\FirstExperience\firstexperience'
+    # IRON STORM since 2026-09-28 (RL-20260920-01 item 1): the aggregate fixture the cut-A pair
+    # below runs on (it was Sample\FirstExperience\firstexperience, the Mojave R9 pair's).
+    $ScenarioBuiltin = 'IronStorm_Centre_52_Aggregate'
 }
 
 $LaunchVrf = Join-Path $PSScriptRoot $(if ($Is52) { 'LaunchVrf52.ps1' } else { 'LaunchVrf.ps1' })
@@ -1030,11 +1044,26 @@ if ($Is52) {
     $ProfileEnv['RTI_ASSISTANT_DISABLE']= '1'
 }
 
-# AO-SPECIFIC DEFAULTS (STP-802). All three name a MOJAVE set, which was the only AO until the
-# 2026-09-20 ruling that the demo is Iron Storm over the Suwalki Gap. They stay the defaults so
-# every recorded run reproduces, but they are explicit and overridable without editing this file.
+# AO-SPECIFIC DEFAULTS (STP-802). THE DEMO IS IRON STORM (RL-20260920-01 item 1; the owner on
+# 2026-09-26: "You are supposed to be prepping a demo for the iron Storm scenario"), so since
+# 2026-09-28 the 5.2 built-in default is the Iron Storm cut-A pair (data\IRONSTORM_CUTA_*.xml) on
+# its aggregate fixture IronStorm_Centre_52_Aggregate, and the model set follows the order on its
+# own (auto -> AggregateTacticalLevel, RL-20260927-06). Until then all three named the MOJAVE R9
+# set; it stays selectable EXACTLY as before by naming it:
+#   -Scenario 'Sample\FirstExperience\firstexperience' -Init data\R9_Mojave_Lean_Initialization.xml
+#   -Order data\R9_Mojave_UnitMove_Order.xml       (clientId from appsettings.json, STP, as always)
+# The 5.0.2 profile keeps TropicTortoise + the R9 pair: it has no aggregate model set.
 # THE THREE MUST COME FROM ONE AO. A Suwalki init with a Mojave order authors an 8,769 km leg and
 # the back end's path job never returns (memory lessons-order-coordinates-vs-init, STP-823).
+$InitBuiltin  = Join-Path $DataDir $(if ($Is52) { 'IRONSTORM_CUTA_Initialization.xml' } else { 'R9_Mojave_Lean_Initialization.xml' })
+$OrderBuiltin = Join-Path $DataDir $(if ($Is52) { 'IRONSTORM_CUTA_Order.xml' } else { 'R9_Mojave_UnitMove_Order.xml' })
+# THE clientId THAT GOES WITH THE BUILT-IN 5.2 INIT: IRONSTORM_CUTA_Initialization.xml declares
+# SystemName "Not Set" (the STP export's own value; every registered Iron Storm run passed
+# --client-id "Not Set"), and RUNBOOK sec 2 says the two MUST match or the interface creates 0
+# units. Applied at Stage 0 ONLY when the init IS that built-in default and neither -ClientId nor an
+# inherited Vrf__ClientId names one - a named init keeps exactly the old resolution. On 5.0.2 the
+# built-in R9 init declares STP, which appsettings.json already carries, so nothing is applied.
+$ClientIdBuiltin = $(if ($Is52) { 'Not Set' } else { '' })
 #
 # ONE PRECEDENCE FOR ALL THREE (review F6, 2026-09-20): argument > environment > built-in default,
 # the same order scripts\RunScenario.sh uses. Until this block was written the ps1 read
@@ -1062,7 +1091,7 @@ if (-not [string]::IsNullOrWhiteSpace($Init)) {
     $Init = $env:C2SIM_INIT
     $InputSource['init'] = 'env var C2SIM_INIT'
 } else {
-    $Init = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml'
+    $Init = $InitBuiltin
     $InputSource['init'] = 'built-in default'
 }
 if (-not [string]::IsNullOrWhiteSpace($Order)) {
@@ -1071,7 +1100,7 @@ if (-not [string]::IsNullOrWhiteSpace($Order)) {
     $Order = $env:C2SIM_ORDER
     $InputSource['order'] = 'env var C2SIM_ORDER'
 } else {
-    $Order = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml'
+    $Order = $OrderBuiltin
     $InputSource['order'] = 'built-in default'
 }
 # The ones that came from the environment, for the Stage 0 warning and the manifest.
@@ -2482,7 +2511,7 @@ if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
 }
 
-# ---- PROFILE integrity (nothing here can fire on the 5.0.2 default) ----------
+# ---- PROFILE integrity (nothing here can fire on the 5.0.2 profile) ----------
 # -VrfProfile is the ONLY stack selector. A hand-passed root/federation beside it would
 # produce a MIXED environment, and the failure mode is silent: MAK DLLs bind by NAME on
 # PATH, so a 5.2 binary under a 5.0.2 prefix loads 5.0.2 and reports it only in the app's
@@ -2661,11 +2690,23 @@ if ($Is52 -and $CompositionVerdict.Applied) {
 $appSettingsClientId  = $appClientId              # what the deployed appsettings.json says
 $ClientIdEnvBefore    = [Environment]::GetEnvironmentVariable('Vrf__ClientId')
 $ClientIdSource       = ''
+# THE BUILT-IN PAIR'S clientId (2026-09-28, with the Iron Storm default - see $ClientIdBuiltin at the
+# AO defaults): the built-in 5.2 init declares SystemName "Not Set", so when the init IS that default
+# and nothing else names a clientId, the one that goes with it is used - exported and restored exactly
+# like -ClientId, and SAID to be the built-in default. An inherited Vrf__ClientId still wins (the
+# environment beats a built-in default, as for the init itself), and a named init never gets it.
+$ClientIdFromBuiltin = $false
+if (-not $ClientId -and -not $ClientIdEnvBefore -and $ClientIdBuiltin -and $InputSource['init'] -eq 'built-in default') {
+    $ClientId            = $ClientIdBuiltin
+    $ClientIdFromBuiltin = $true
+}
 if ($ClientId) {
     # -ClientId wins over appsettings: the app reads Vrf__ClientId from its environment (the standard
     # env-override mechanism every other Vrf__ setting uses). Exported here so the app inherits it.
     $appClientId    = $ClientId
-    $ClientIdSource = '-ClientId -> Vrf__ClientId (beats appsettings.json)'
+    $ClientIdSource = $(if ($ClientIdFromBuiltin) {
+                          'built-in default - the SystemName of the built-in init ' + (Split-Path -Leaf $Init) + ' -> Vrf__ClientId (beats appsettings.json)'
+                      } else { '-ClientId -> Vrf__ClientId (beats appsettings.json)' })
     $env:Vrf__ClientId = $ClientId
 } elseif ($ClientIdEnvBefore) {
     # NOT passed, but the shell already carries one. The app reads it and it BEATS
@@ -2721,7 +2762,8 @@ $Manifest.inputs.durationScale = [ordered]@{
     note            = 'Vrf:DurationScale. -DurationScale 0 (the default) exports NOTHING and the app keeps its own value. Anything positive is exported as Vrf__DurationScale, which beats appsettings.json. It scales BOTH halves of the order clock (the Duration that ends a task and the StartTime delay that holds one back) and NOT movement, so a scaled run''s wall-clock length changes but its kinematics do not. The app REFUSES a non-positive scale and falls back to 1.0; this runner refuses one before anything is launched.'
 }
 # SF-R4: THE CHECK IS AGAINST THE VALUE THE APP WILL ACTUALLY USE. $appClientId is now the
-# EFFECTIVE clientId (-ClientId, else an inherited Vrf__ClientId, else appsettings.json) and the
+# EFFECTIVE clientId (-ClientId, else an inherited Vrf__ClientId, else the built-in init's own
+# SystemName when the init is the 5.2 built-in default, else appsettings.json) and the
 # message names WHICH of the three it came from. Checking the losing source checks nothing: a
 # shell carrying a stale Vrf__ClientId that disagrees with the init creates 0 UNITS, and that is
 # precisely the failure this gate exists to refuse before anything is launched.
@@ -3125,11 +3167,12 @@ $Manifest.inputs.stompUrl      = $StompUrl
 $Manifest.inputs.clientId      = $appClientId
 $Manifest.inputs.clientIdSource = $ClientIdSource
 $Manifest.inputs.clientIdDetail = [ordered]@{
-    switch          = $(if ($ClientId) { $ClientId } else { '(not passed)' })
+    switch          = $(if ($ClientId -and -not $ClientIdFromBuiltin) { $ClientId } else { '(not passed)' })
+    builtinDefault  = $(if ($ClientIdFromBuiltin) { $ClientId } else { '(not applied)' })
     appSettings     = $(if ($appSettingsClientId) { $appSettingsClientId } else { '(key absent)' })
     envValueBefore  = $(if ($ClientIdEnvBefore) { $ClientIdEnvBefore } else { '(unset)' })
     exported        = [bool]$ClientId
-    note            = 'The app resolves Vrf__ClientId (environment) OVER Vrf:ClientId (appsettings.json), like every other Vrf__ setting. effective = -ClientId, else an inherited Vrf__ClientId, else appsettings.json - and that is the value the SystemName cross-check uses. When this runner exports one it puts envValueBefore back on EVERY exit path (SF-R4, the mechanism SF-D built); before 2026-09-21 it restored nothing, so a -ClientId run left its value in the operator''s shell and the NEXT run silently inherited it while the banner credited appsettings.json.'
+    note            = 'The app resolves Vrf__ClientId (environment) OVER Vrf:ClientId (appsettings.json), like every other Vrf__ setting. effective = -ClientId, else an inherited Vrf__ClientId, else - only when the init is the 5.2 built-in default (Iron Storm cut A, 2026-09-28) - that init''s own SystemName "Not Set", else appsettings.json - and that is the value the SystemName cross-check uses. When this runner exports one it puts envValueBefore back on EVERY exit path (SF-R4, the mechanism SF-D built); before 2026-09-21 it restored nothing, so a -ClientId run left its value in the operator''s shell and the NEXT run silently inherited it while the banner credited appsettings.json.'
 }
 $Manifest.inputs.initSystemName= ($initSystemNames -join ',')
 
