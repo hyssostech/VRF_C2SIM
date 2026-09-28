@@ -3927,6 +3927,23 @@ Offline: `VrfC2SimApp --populate-selftest` walks the catalogue variant on the ve
 the reason) and pins the guard both ways; `--populate-selftest --variant authored` walks the authored variant on the
 derived set (`--derived-sms PATH` or env C2SIM_AGGREGATE_SMS for another deployment) and FAILS if it is not deployed.
 
+LIVE 2026-09-28 (G1, `docs/experiments/PREREG_IRONSTORM_AGG_G1_2026-09-28.md` Result, STOPPED at P3). WORDING SURPRISE -
+THE 30-CHARACTER NAME: VR-Forces 5.2 returns an aggregate-level object's name cut to 30 characters whenever the requested
+name is longer than 31 (58 of 58 returns; a 31-character name came back whole). VR-Link sizes the aggregate marking at 31
+bytes (`vl/aggregateStateRepository.h:34`). The interface's 34 (`MaxVrfMarkingChars`, `PopulatePlanner.MaxNameChars`) is
+5.0.2's UUID blob, so member names `<container, trimmed>.<suffix>` collide at 30 with their container and with each
+other: the log shows `VRF returned created object '<30 chars>' (...), which is the truncation of MORE THAN ONE name we
+requested` and `NAME REBIND REFUSED: ...`, and the member stays in the sim, on its slot, unattached and untasked. The
+population then ends at the CREATE deadline - 70 s, the 85 s bound less its 15 s publication window - with `POPULATE
+<unit>: POPULATE TIMED OUT after 70 s: NONE of its N member(s) was created - its MOVE tasks are REFUSED (TASKABRT)` or,
+when some bound, `only n of N member(s) were created 70 s after the population began - the n that exist are ATTACHED`.
+Until C1c, every aggregate-level name (container, member, `~PXY` tag) must be unique within 30 characters. Also seen
+live, with one attached member: the container's own position is its members' centroid - it jumps onto a lone member
+at the attach, and the route origin moves with it; a route whose last vertex is less than half the route's length from
+that origin can NOT close on ARRIVAL EVIDENCE (SF-1), only on the vendor completion (D-6 hands it on within 100 m); and
+`Can't create data of type pa_move_along_route. No creator found.` prints once, raw, as the scripted task is issued -
+benign, like the same line for other scripted types (E2-2 printed it for two).
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
