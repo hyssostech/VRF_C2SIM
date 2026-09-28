@@ -1,6 +1,11 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-2: G1 re-run on the C1d build (IDENTITY BY UUID) - the ruled cut-A order on POPULATED AGGREGATE CONTAINERS (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered by lane G1-2 (session 5fc25950; the registration
+STATUS: STOPPED at P12 (HIGH) - scored 2026-09-28 from run 20260928T142731Z_run, holder branch (a) (Result below):
+identity by uuid HELD live (P3; RL-20260928-02) - 59 of 59 objects created under the requested uuid and bound by it,
+all 23 members attributed, every population published in 1.7 s; T10 arrived and T02 stopped at its river, as
+predicted; T14 did not arrive - 11 of 48 IBCT's 12 Mech COs stopped inside an OSM building of the -2 hamlet on the
+vendor's slope check and the watchdog closed T14 771 m short (a HIGH miss by the letter; MEDIUM misses P12b, P13,
+P23). WAS: REGISTERED - LAUNCH PENDING (seat's go-live). Registered by lane G1-2 (session 5fc25950; the registration
 commit's own time is the stamp) on branch run/ironstorm-agg-g1-2-c1d from main 699552c, BEFORE any order push, holder
 action or launch. (The branch name run/ironstorm-agg-g1-2 is held by the stopped first attempt's worktree
 agent-ab30be5806cc7f1f3 at 84c4f62 - an ancestor of 699552c with no commit of its own, stopped at RL-20260928-02; this lane
@@ -663,3 +668,197 @@ RUNBOOK sec 11i ("LIVE-OWED" -> what was seen); Appendix B annotated from the ma
   re-create (their derived uuids: 0 EXPAND / re-create lines predicted).
 - That a completion's marking can never be ambiguous: C1c's names keep markings apart for the names the interface requests;
   a marking two uuid-bound objects share would still be unattributable (the RUNBOOK 11i residual).
+
+## Result (written after the harvest, never from a live read)
+
+Written 2026-09-28 ~15:15Z by lane G1-2 (session 5fc25950) from the harvested files of the scored run 20260928T142731Z_run
+and the pre-warm 20260928T141734Z_run (main checkout runs\): vrfc2simapp.log (232,949 lines; L = its line numbers; PL =
+the pre-warm's), reports-captured.log (C = record number; 1,326 records), run-manifest.json, watchvrf-trace.csv (t =
+trace seconds from the WatchVrf join at 14:30:04.515Z), the runner logs runs\launch52\RunScenario-ironstorm-agg-g1-2-
+20260928T142730Z.log (R) and ...-prewarm-20260928T141733Z.log (RW), and the rtiexec log (count-grep only). Instruments,
+scratch u3\laneG1-2: g1_2_score.py (score_20260928T142731Z_run.txt and W_gate_20260928T141734Z_run.txt, run by the seat;
+score_prewarm_full_20260928T141734Z_run.txt), g1_2_harvest.py (lane G1's g1_harvest.py plus a G1-2 tail;
+harvest_scored.txt, harvest_prewarm.txt), lane G1's capture_census.py (capture_scored.txt), t14_members.py,
+mech_stop_check.py, member_console_census.py, console_members_check.py, o1_intervals.py, sim_at_line.py (the SIM clock at
+a log line, bracketed by the relayed vendor console stamps, which lead the app's own clock reading by 0-21 SIM s here),
+rtiexec_count_g1_2.py (counts only) and appendixb_diff.py; the seat's go-live outputs (D_prelaunch_a.txt 14:16:12Z,
+D_prelaunch_E.txt 14:26:53Z, F_check.txt 14:39:51Z, the C3 files, simcache_after_prewarm.txt, simcache_after_scored.txt).
+Vendor sim logs (runs\*\vendor, runs\launch52\vrfSim_*) were not opened; every vendor console text quoted below is the
+app's own relay of it in vrfc2simapp.log. "reg. L" = the row's line in the registration as committed (7918ab2), before the
+STATUS edit and this Result. [V] = checked in the harvest; [A] = taken from the seat or inferred.
+
+GO-LIVE, as sec 3 wrote it, HOLDER BRANCH (a), with these differences [V unless marked]:
+- A: golive_checks_g1_2 -Phase prelaunch -HolderPid 33476 -MarkerWant 5233 -Branch a -MinHoldLeftMin 20, run by the seat
+  at 14:16:12Z: 0 FAILED - exe 7824483a, dll bb7e6361, appsettings 0f600f0e, bridge 03226dd0 in the app, WatchVrf and
+  CreateOne trees, 5198ac45 in the RtiProbe tree (the branch (a) DEVIATION), PV 1.0.0+git.699552c.Release-5.2, fixture
+  804e2c39, order 7a986137, init 2000e856, type map c546edbe, composition 9684e945, cache 682bdea4 / 479 files, REST 200,
+  the RTI trio and holder 33476 up (239 min of hold left), marker 5233; main at 7c13441 (this registration merged), `git
+  diff 699552c main -- src` empty. A2 was not re-run: the NEW PIN record's p15 PASS stands [A], and the live start printed
+  0 IDENTITY REFUSING (P3 I1).
+- C3, run by the seat 14:15:41-14:16:12Z under RL-20260928-01 (c3_push_g1_2.sh unchanged): PushInit "QUERYINIT : 40
+  Units, SystemName=[Not Set]", PushOrder one "[14:15:42.223] ORDER (69670 chars)"; the bus log carries 5
+  ManeuverWarfareTask, 5 Duration and CNFPSL/ATTACK/CRESRV/CNFPSL/FOLSPT; exit 0 / 0.
+- D0 and D not run (branch (a)); no hand claim.
+- W, run by the seat under RL-20260928-01: dry run 14:17:16Z exit 0 (block 5233-5243, "marker would advance to: 5244",
+  holder 33476 PERSISTENT, the D2 lines); the pre-warm launched 14:17:33Z, its ORDER on the bus 14:21:01.653Z (RW260),
+  window 120.6 s of its 120 s cap (RW273), app exit 0 (RW281), StopVrf exit 6 (RW290), end 14:26:08Z (RW304). THE W GATE
+  HELD: W_gate_20260928T141734Z_run.txt "W GATE: PASS" (identity branch A; W0-W7 and I1-I17 PASS; the full score adds I18,
+  26 of 26); the E check at 14:26:53Z (0 FAILED) saw only the RTI trio, holder 33476 and the pre-warm's Stage 2h holder
+  34140, cache 682bdea4 / 479, marker 5244. DEVIATION: the "before W" sim-cache listing was not taken; the prep listing
+  (13:59:58Z) stands for it - nothing was launched in between, and the three listings are identical (P23).
+- E, run by the seat: dry run 14:27:14Z exit 0 (block 5244-5254, marker -> 5255, holders 33476 and 34140 PERSISTENT); THE
+  RUN launched 14:27:30Z (runner start 14:27:31.3Z), its ORDER on the bus 14:30:38.923Z (R260), the window closed EARLY at
+  14:36:33.8Z (R280; 324.8 s of the 2,700 s cap, R281), runner exit 0, end 14:39:09Z (R312) - why so short: THE 12-MINUTE
+  RUN below.
+- F, by the seat at 14:39:51Z: 0 FAILED - every hash and the cache manifest unchanged; up: the RTI trio, holder 33476 (215
+  min left) and the run's own Stage 2h holder 51272 (inside its 900 s hold); 34140 had left after its own hold; marker
+  5255. Sim cache listed 14:39:57Z.
+
+### VERDICT: STOPPED at P12 (HIGH), by the letter. T14 did not arrive: the watchdog closed it with TASKABRT (L170139 / L170141) while 48 IBCT's own fix rested 770.9 m short of its destination - 11 of its 12 Mech CO members stopped together inside an OSM building of the -2 hamlet on the vendor's slope check ("Terrain too steep, slope: 408.844% max: 78.5398%", once per member, N1) and the far-shore member never left its slot, while P10a held (16 of 17 moved), so T14's arrival limb is scored HIGH and the S5 escape of P12 does not apply. The mechanism proved out around that miss: IDENTITY BY UUID HELD LIVE (P3; RL-20260928-02) - 59 of 59 objects created under the requested uuid and bound by it in both runs, all 23 members attributed; every population published N of N 1.7 s after it began; the three container scripts ran; T10 ARRIVED on its arrival evidence; T02 stopped at its river and the watchdog closed it, as predicted; the time rules held T14 OVERDUE with no premature TASKCMPLT. MEDIUM misses: P12b (T14's path), P13 (771 m, not 100-250 m), P23 (the pre-warm's init took its altitudes from the FALLBACK with the sim cache warm). P-FALS did not fire. Every other HIGH row held; P15 was NOT EXERCISED (no D-6 line), which its letter says is not a miss.
+
+| # | Reg. | Verdict | Evidence |
+|---|---|---|---|
+| P0 | L515 | PASS | (i) R89 holder 33476 "a PERSISTENT FEDERATION HOLDER" (RW89; R90 also the pre-warm's 2h holder 34140); rtiexec count-grep 10:27:30-10:39:15 local: 12 federation creates refused as already existing, 0 created, 12 JoinConfirm (pre-warm 10:17:33-10:26:14: 12 / 0 / 12); L67 "READY - joined the federation" once. (ii) L12 "BUILD IDENTITY: git 699552c"; every hash and the cache manifest identical at 14:16:12Z, 14:26:53Z and 14:39:51Z. (iii) R19 "model set   : AggregateTacticalLevel <- auto (RL-20260927-06): highest TASKED echelon DIV (28ID__FRIENDLY_INFANTRY_DIVISION) is ABOVE BN - aggregate-only; exported to the app as Vrf__ModelSet", R28 the pairing line "... matches the chosen model set.", R32 "catalogue   : not exported - the app keeps the default "" (the model set's own SMS)", R21-R23 DIV / BN / BDE (RW19-RW32 the same); manifest inputs.modelSet.modelSet AggregateTacticalLevel, selection.highestEchelon DIV. (iv) 0 REFUSING TO START, 0 "AGGREGATE CONTAINERS off", L32 L-IDENTITY-ON once. (v) L50 "Vrf:TaskPredecessorTimeoutSeconds=600 s"; L560 (T02) and L576 (T14) "and then 600 s to COMPLETE". (vi) the W gate held (GO-LIVE above). |
+| P1 | L516 | PASS | L14 L-FIDELITY (62 rows); L16 L-CAT (705 templates, 3 model-set dirs, root AggregateTacticalLevel, C:\MAK\vrforces5.2d); L18 L-VARIANT ("5 of the 8 row(s)", "SMS: the fixture C:\MAK\vrforces5.2d\userData\scenarios\IronStorm_Centre_52_Aggregate.scnx loads $(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms.", "7 authoredRows type(s) ... NOT in use") - the D2 clause, where G1 read "Vrf:Scenario is not set."; L20-L28 five L-ROW 1/0, 17/3, 5/0, 26/6, 8/1, 0 REFUSED; L30 L-CON-ON ("hostile nation RUS", "(5 row(s) resolve, 0 refused)", "85 s", "100 m"); L32 L-IDENTITY-ON (namespace 485b28e7-1cc7-534b-b6a6-9beddf07a1b1); L44 L-MODELSET; L42 L-M1-ON; L34 L-WDOG-ON (360 s, SIMULATION, 50 m); L50 L-CLOCK (SIMULATION, 0.25, 600, 60, 86400); L40 L-SHIFT-ON; L578 L-OSMSET once (osm-water 225 tile files, 0 empty; \osm 225, 0), after the first L-POP (L554) and before the first L-DISP (L1036); 0 "is not EntityLevel or AggregateTacticalLevel". L79 and L580 are other lines (the init's type-mapping line; "ROUTE PRE-FLIGHT enabled"), not repeats. |
+| P2 | L517 | PASS | (a) 36 TYPE MAP ... CONTAINER lines L83-L173: 29 Exact, 7 Proxy "NEAREST branch"; L167 48 IBCT -> BDE (11.1.225.8.3.1.1), L125 1-112 IN -> BN, Light Infantry (11.1.225.6.3.1.0), L91 28ID -> DIV, Mech Infantry (11.1.225.9.4.1.0) Proxy; 11 of 11 hostile containers nation 260. (b) 0 L-NOCONT, 0 NAME DISAMBIGUATED (C1c), 0 NAME COLLISION (C1c). (c) 7 L-PXYTAG (L81-L169). (d) L181 "36 container(s) ... 0 other aggregate shell(s); 0 platform(s)", no entity census; L191 "36 object(s) ... (36 empty shell(s))"; L199 "36 units + 5 areas"; L197 "7 PROXY substitution(s)". (e) the 36 container names bound by L-BIND before the order (L546) - L301-L447, the two "(res)" names at L325 and L386 included - each under VRF_UUID:<its own C2SIM uuid> (I17); 0 member names before it (the 5 areas are bound too, L203-L211). (f) 0 DELETE-family lines before L232865 "Application is shutting down..."; the shutdown's L232869 "Cleanup: deleting 67 created VR-Forces objects before resign..." and L232943 "Cleanup: 67 deletes dispatched" are excluded by name. (g) 0 L-TRUNC. RECORDED: L452 READY TO TASK "36 of 36 ... after 7.8 s"; L287 "36 of 36 create altitude(s) came from the TERRAIN QUERY"; 0 ORDER BEFORE READY TO TASK. |
+| P2b | L518 | PASS | L177 / L426 28ID/III_Corps... "will attach 9 declared child unit(s)" / "composed - 9/9"; L179 / L404 278_Armored_Cavalry_Regiment... 1 / "1/1". |
+| P3 | L519 | PASS - THE LIVE-OWED CLAIM HOLDS for aggregates | Branch A, I1-I18 all PASS (score lines 152-174): (I1) L32 once, 0 IDENTITY REFUSING; (I2) 59 L-ID-CREATED at INFO - the 36 init containers L299-L444 under their C2SIM uuids, the 23 members L714-L868 under the derived uuids of sec 1(i); (I3) 35 cut markings, L444 4ID__FRIENDLY_INFANTRY_DIVISION whole, every member its own name; (I4) 0 L-ID-NOTREQ; (I5) L454 "IDENTITY: 36 of 36 objects bound by uuid, 0 by name (the initialization's own objects, at READY TO TASK; RL-20260928-02)" at INFO after L452; (I6) L556 / L564 / L572 exactly the derivation; (I7) L722 "1 of 1", L756 "5 of 5", L876 "17 of 17 objects bound by uuid, 0 by name"; (I8) 23 L-MEMBER L718-L872 "...; bound by its uuid (C1d)."; (I9-I16) 0 of each; (I17) all 59 L-BIND under VRF_UUID:<the requested uuid>; (I18) the WatchVrf trace has POS rows under the requested uuids of the 3 performers and the 23 members, 26 of 26. The pre-warm read the same (W gate; I18 26 of 26). S7 did not fire. The strongest competing hypothesis the row named (the bare string treated as a marking lookup) is falsified by I2, I4 and I18. |
+| P3a | L520 | PASS | One L-POP each at order receipt: L554 28ID (task 'T1_...' performer; source 3, C-USA-DIV-UCI / F-UCI-I, 1, radius 0 m), L562 1-112 IN ('T10_...'; C-USA-BN-UCI / F-UCI-F, 5, 153 m), L570 48 IBCT ('T13_...'; C-USA-BDE-UCI / F-UCI-H, 17, 490 m, 3 sub-containers flattened); the member lists are sec 1(i)'s names in slot order; N L-SLOT lines each (L598; L602-L610; L614-L646); one L-ISSUED each (L600, L612, L648); one L-ATTACHED each - L720 "1 of 1 ... (28ID__FRIENDLY_INFANTRY_DI.HQ1 first)", L754 "5 of 5 ... (1-112_IN/28ID__FRIENDLY_IN.HQ1 first)", L874 "17 of 17 ... (48_IBCT/28ID__FRIENDLY_INF.HQ1 first)"; one L-PUB each - L1016 "PUBLISHES 1 subordinate(s) (expected 1)", L1018 5 (5), L1020 17 (17); one L-REANNOUNCE each (L558, L566, L574 "composed from 1 / 5 / 17 sub-unit(s)"); all 23 member names bound (L716-L870); 0 REFUSED, TIMED OUT, partial, late-member or slot-check-late lines. RECORDED: L-POP order 28ID, 1-112 IN, 48 IBCT; no HELD or deferred population (L650-L654 are the members' terrain-profile requests); L-PUB 1.7 s after each population began (1.0 / 1.0 / 0.3 s after the attach; G1 70.5 s); member placements L662 (1 of 1), L674 (5 of 5), L712 (17 of 17) from the TERRAIN QUERY. |
+| P3b | L521 | PASS | 28ID L598 clear; 1-112 IN L602-L610 5 clear; 48 IBCT 13 clear + slot 4 L620 "SLOT MOVED 125 m north-west" (OSM 197345448; INF1RIF2 at 54.022284, 23.319544), slot 5 L622 "125 m south-west", slot 6 L624 "25 m south" (both 197345448), slot 16 L644 "75 m south-east" (OSM 16373225); 0 KEPT, 0 UNVERIFIED. |
+| P3c | L522 | PASS | L1016 (28ID) before T01 L1036 and T02 L29395; L1018 (1-112 IN) before T10 L21364; L1020 (48 IBCT) before T13 L1064 and T14 L29255; "(expected N)" = N; 0 memberless-move refusals. |
+| P3e | L523 | PASS | 0 "is NOT populated - D-5"; three L-POP only - 116_ABCT/... has none. |
+| P4 | L524 | PASS | T01: L-DISP L1036 (hold-in-place) after L-PUB L1016; L1042 L-CNFPSL; L1044 L-INPLACE; L1040 armed 300 "no destination"; C49 STP-866; L29021 TASKCMPLT "(300 s after dispatch)". T13: L1064 after L1020; L1070; L1072; L1068; C48; L29015. 0 routes or scripts for a hold, 0 OVERDUE for a hold, one TASKCMPLT each. RECORDED: L1072 48 IBCT in place at (54.01939,23.31390) - the container's own point (L570 "round its point (54.019389,23.313902)"), 8.1 m from its members' centroid: T13 dispatched before the container's fix moved onto its members' mean (it had by T14's dispatch, origin fix 54.019341, 23.313809). The holds served 330 of 300 s (L29011, L29017; G1 300) - UNEXPLAINED item 4. |
+| P5 | L525 | PASS | 5 SENT TASKSTRT (L1038 T01, L1066 T13, L21366 T10, L29257 T14, L29397 T02); T02's L-DISP L29395 after T01's TASKCMPLT L29021; T14's L29255 after T13's L29015; L568 "Task 'T10_...': start delay 300 s (order says 1200 s; Vrf:DurationScale=0.25)" and T10's L-DISP L21364 after it; 0 SKIPPED; 0 gate-expiry lines. RECORDED: T10 dispatched first (14:31:06.612Z, SIM 317.5), then T14 (14:31:17.952Z, SIM 410.5) and T02 (14:31:18.199Z, SIM 410.5). |
+| P6 | L526 | PASS | L29049 "(2 vertices)" T02, L20970 "(4 vertices)" T10, L29039 "(3 vertices)" T14; L-VCHECK L29231 1 / L21224 3 / L29179 2 checked, "0 moved, 0 kept on bad ground, 0 unverified"; L-ELEV L29233 L12 x1, L21226 x3, L29181 x2; L-SLOW L29239 3370 of 5342 m; L21234-L21238 805/1451, 103/804, 369/516 m; L29187-L29189 1270/1270, 1663/2902 m; L29237 "OSM 8011072 (waterway=river (MAK_WIDTH 5 m))", first at (54.00877,23.23512) 2.40 km along; L29241 RIVER CROSSING; L21240 (T10) and L29191 (T14) L-NOFLAG; 0 VERTEX MOVED / NOT MOVED / UNVERIFIED, 0 "could NOT be read", 0 ROUTE SHIFTED, 0 "NO CLEARED LINE", 0 PRE-DISPATCH, 0 land-cover "WATER ON THE LINE"; the capture holds exactly 8 pre-flight ObservationReports (C123-C125, C201-C205). |
+| P7 | L527 | PASS | L21370 "(4 pts) for CONTAINER 1-112_IN/... - 5 published member(s); RunScriptedTask PA_Move_Along_Route deferred to route-created", L29261 "(3 pts) ... 48_IBCT/... - 17", L29401 "(2 pts) ... 28ID__FRIENDLY_INFANTRY_DIVISION - 1"; L21465, L29311, L29593 "RunScriptedTask PA_Move_Along_Route issued for CONTAINER <c> (VRF_UUID:<its C2SIM uuid>) with [route=VRF_UUID:..., reverseDirection=false, startAtClosestVertex=false] - 5 / 17 / 1 published member(s)"; L-DISP kind PA_Move_Along_Route (L21364, L29255, L29395); 0 "was NOT issued", 0 PA_Move_To_Location_Direct, 0 MoveAlongRoute, 0 MOVE TO PER VERTEX, 0 formation lines for a container. L-CONSOLE-MEMBERS: 11 lines, each 1 / 5 / 17 distinct members under their derived uuids (console_members_scored.txt: 0 mismatches); passes T01 1, T13 1, T10 3, T14 3, T02 3. |
+| P8 | L528 | PASS | T02: one L-FAW (L29393, on its last pass) and the R3 line once per pass (L29047, L29269, L29391 - passes L29045, L29267, L29389); T14: L29253 L-FOLSPT "('ROEHold')"; T10: L-BARE L20966, L21256, L21362, one per pass; 0 L-FAW for another task. |
+| P9 | L529 | PASS | L21483 (T10, 328.663), L29409 (T14, 420.129), L29603 (T02, 420.729) "Init of aggregate move along." on the container's console; 23 "Sub. <m> starting move-along." (L21485-L21493, L29415-L29463, L29605), each under the member's WHOLE C1c name; 0 "starting pa_move_along_route". RECORDED: "has completed move task." x10 - 1-112 IN 5 (HQ1 644.127, RIF1 and RIF2 1072.223, WPN1 1073.756, RIF3 1080.989), 48 IBCT 5 (INF1HQ1 1049.723, HQ1 1058.623, INF3HQ1 1061.689, CAV1 1064.789, INF2HQ1 1067.323); "has completed final move." x9 - 1-112 IN 5 (HQ1 696.326, WPN1 1196.988, RIF2 1199.055, RIF1 1200.621, RIF3 1202.121), 48 IBCT 4 (INF1HQ1 1103.722, HQ1 1119.755, CAV1 1133.022, INF2HQ1 1139.722); none from 28ID's member or from any 48 IBCT Mech CO. |
+| P10 | L530 | PASS | Containers displaced after their L-DISP: 28ID 2,396.4 m, 1-112 IN 2,646.1 m, 48 IBCT 1,750.0 m; members > 50 m: 1 of 1, 5 of 5, 16 of 17. |
+| P10a | L531 | PASS | Exactly 16 of 17, all but 48_IBCT/28ID__FRIENDL.INF1RIF2 (6.7 m); the near-water first legs passed (first within 50 m of vertex 0: INF1RIF1 t=98.5, INF1RIF3 t=100.5, INF3WPN1 t=100.5, INF1WPN1 t=104.6). |
+| P10b | L532 | PASS | At the last common instant (t=387.1) each container's fix lies 0.0 m from its members' unweighted mean (all three). |
+| P11 | L533 | PASS | INF1RIF2 never nearer than 490.8 m to (54.019341, 23.313809); outcome (a): it stayed within 6.7 m of its slot, and L29881 relays its vendor console "Movement constrained by features" at SIM ~423, 12 SIM s after T14's dispatch. |
+| P12 | L534 | MISS (HIGH) - STOP | T14 closed on L-STALL, not L-ARRIVE: L170139 "STALL: unit 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE task T14_...: no member moved more than 50 m in the last 360 SIM s (max 39.6 m); TASKABRT reported. ONE POSITION: ..." and L170141 TASKABRT "STALLED (C16 progress watchdog) - report only: ..." (C1002, 14:35:03.830Z; SIM ~2017), 0 ARRIVAL EVIDENCE for T14. P10a held, so by the row's own words T14's arrival limb is scored HIGH and "closing on L-STALL instead is RECORDED as S5" does not apply: that clause was written for members held on their first legs by water; here 11 members moved > 50 m and were held later, on the line, by a building (N1) - a case the registration did not name. Held: T10 L74355 ARRIVAL EVIDENCE "1/1 member(s) within 500 m of the last vertex (nearest 319 m) AND past their OWN traversal bar ... ONE POSITION: ...", then L74359 TASKCMPLT; T02 L94613 L-STALL (max 0.0 m; ONE POSITION) and L94615 TASKABRT "STALLED (C16 progress watchdog) ..." (S5, as predicted); every judge read the container's own reflected position ("1/1", the ONE POSITION suffix on all three lines); 0 L-CANNOT; 0 VACUOUS; exactly one terminal report per task, 5 in all. |
+| P12b | L535 | MISS (MEDIUM) | T14: L57139 OVERDUE ("307 s of a 300 s Duration served ... NOT ARRIVED: OVERDUE"), then the stall (L170139), not an arrival. Held: T10 L62991 OVERDUE ("467 s of a 450 s"), L74355 L-ARRIVE, L74357 "was OVERDUE and the unit has now ARRIVED", L74359 TASKCMPLT "arrived after its task's end time (start time + Duration) - complete on arrival."; T02 L57137 OVERDUE ("307 s of a 300 s"), then the stall (L94613). |
+| P13 | L536 | MISS (MEDIUM) | T14's container came no nearer than 770.8 m (final 770.9 m, from t=263.2), not 100-250 m: its fix is the mean of 11 Mech COs 1,092.5 m short, 5 Strykers 446.6-496.5 m from the destination and INF1RIF2 2,036.7 m away (t14_members_scored.txt). The P11 outcome, (a), is the far-shore member's 1/17 pull the row assumed; the stop of 11 of 17 (N1) is what it did not. |
+| P13b | L537 | PASS | T10's container came within 100 m of PassagePoint_48_IBCT_SLOT0 at t=163.4 and rests 0.1 m from it. |
+| P14 | L538 | PASS (HIGH); PASS (MEDIUM) | 28ID's container never nearer than 2,944.2 m to its destination; its last fix (54.008761, 23.235090) is 2.5 m from the river point, 2,399 m along (<= 2,450); the stall's max 0.0 m (L94613). |
+| P15 | L539 | NOT EXERCISED (not a miss, by its letter) | 0 L-D6 lines, either limb: T10's vendor completion came after its arrival evidence and was swallowed (L100817) as predicted; T14's and T02's scripts never ended, so there was no vendor completion to judge. The withhold limb (ii) stays UNSEEN. |
+| P16 | L540 | PASS | T14's container reported no completion; T10's one: L100815 "VRF task complete: 1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE / pa_move_along_route (success=True)" - the full name, resolved from the 30-character marking - and L100817 "VRF completion for 1-112_IN/... after the arrival-evidence report of task 9aab7fe6-... - swallowed." after L74355. RECORDED: the literal type "pa_move_along_route"; 0 "attribution anomaly". |
+| P17 | L541 | PASS | 0 SUPPRESSED; 0 task=(none); all 10 SENT lines' taskees are the three performers (200d3a3f x4, dd3d21b2 x4, 8d5b2ba6 x2); 0 member TaskStatus; capture = log (10 TaskStatus, C47-C1002; 1,326 records) and L232945 "Reports this run: 1326 delivered, 0 FAILED". RECORDED: exactly 20 ObservationReports, the expectation - 7 init PROXY (C1-C7), 3 re-announcements (C44-C46), 2 STP-866 (C48, C49), 8 pre-flight (C123-C125, C201-C205). |
+| P18 | L542 | PASS | 0 Fire Weapon / FireAtTarget lines. |
+| P19 | L543 | PASS | L232947 "49 cache HIT(s), 0 HTTP FETCH(es), 0 tile(s) given up on after 3 attempts, 0 undecodable body(ies)" (the pre-warm PL104999 the same 49); the cache manifest 682bdea4 / 479 at 14:16:12Z, 14:26:53Z and 14:39:51Z. RECORDED: 49 hits = the harness's 49 route reads; its 12 slot reads are not in the total [A: whether the slot check's reads are counted there is not read]. |
+| P20 | L544 | PASS | 0 BACK END LOST, 0 "Tick phase ... FAILED", 0 NO PERFORMING UNIT; runner exit 0; R289 "VrfC2SimApp exited with code 0 (clean resign)"; 0 .dmp / .callstack.log under C:\MAK\logs or C:\MAK\vrforces5.2d newer than 14:10Z (names only); the RTI trio (30240, 47980, 50740) and holder 33476 untouched at every check. RECORDED: the thread sampler raised BACK-END WS RUNAWAY in both runs during the load (pre-warm 1045.4 MB/min at 14:18:59Z, 2417 MB, pid 40344; scored 746.3 MB/min at 14:28:57Z, 2561 MB, pid 39208; manifest backendWsRunaway=true) - an alert, not an exit, as in G1; the one fail-level line is L232948-L232949 "STOMP block reading cancelled", after the shutdown, as in G1 and the pre-warm. |
+| P21 | L545 | PASS | R298 StopVrf EXIT=6: FORCED by identity (pid 39208) after the graceful close was refused; R303 "no VR-Forces processes remain", R304 "no WatchVrf / ListenReports observer remains"; F 14:39:51Z: no sim, app or observer. |
+| P22 | L546 | RECORDED | L-RATIO 7.555 (L35045, sim 458.0 s), 6.630 (L71323, 856.1), 6.414 (L106169, 1241.0), 7.088 (L144319, 1673.3), 9.021 (L187267, 2221.3), 8.352 (L229923, 2730.5); L-DISP SIM stamps T01 / T13 80.6 s, T10 317.5 s, T14 / T02 410.5 s; every population 1.7 s from L-POP to L-PUB (the seconds predicted; G1 70.5 s). Dispatch to judge: T10 571.5 SIM s to L-ARRIVE (317.5 -> 889.0; sec 1(j) guessed 800-950); T02 ~306 SIM s to its river stop (console SIM ~717, L56719) and ~722 to L-STALL (SIM ~1132); T14 ~1,245 SIM s to the first Mech CO stop (SIM ~1655, L140151) and ~1,607 to L-STALL (SIM ~2017; sec 1(j) guessed ~1,800 to its route end). The holds served 330 of 300 s (L29011, L29017), the movers' OVERDUE 307 of 300 (T02, T14) and 467 of 450 (T10). No dormancy warning. |
+| P23 | L547 | RECORDED; MEDIUM MISS on the pre-warm's L-PLACE | Pre-warm / scored: LaunchVrf (Stage 3) 70.4 s / 55.4 s to READY and "scenario LOAD CONFIRMED"; app start to order push 21.3 s / 16.3 s; oracle gate 72 / 72 real-coordinate POS lines across 36 uuids; READY TO TASK after 12.9 s (PL590) / 7.8 s (L452); init L-PLACE PL351 "0 of 36 create altitude(s) came from the TERRAIN QUERY, 36 from the FALLBACK" - PL277 "Terrain profile request 1 for task 'INIT PLACEMENT' got no reply within 10 s" - / L287 36 of 36 from the TERRAIN QUERY (the MISS: both were predicted TERRAIN QUERY); every L-PUB 1.8 / 1.7 / 1.7 s (pre-warm) and 1.7 / 1.7 / 1.7 s. Sim cache: 25 layer directories, 21,805 files, 495,598,329 B at 13:59:58Z, 14:26:53Z and 14:39:57Z - no layer directory and no file added (that limb held). N3. |
+| P-FALS | L548 | NOT FIRED | (a) no silent stop: T14's and T02's containers stopped and the watchdog reported each (L170139, L94613); no dormancy. (b) no move "completed" within 60 SIM s of dispatch: T10's TASKCMPLT came 571.5 SIM s after it, 2,646 m displaced; T02 and T14 had no vendor completion. (c) 0 DELETE-family lines before L232865; the three performers' uuids are their C2SIM uuids throughout (L-BIND, L-SCRIPT, the trace). (d) 0 member TaskStatus. |
+
+BRANCHES (reg. L575-L593): S1 not seen. S2, S3 and S4 not seen - every population published N of N. S5 SEEN twice: T02
+(predicted; L94613 / L94615, max 0.0 m) and T14 (NOT predicted; L170139 / L170141, max 39.6 m), the held members named -
+the 11 Mech COs 48_IBCT/28ID__FRIENDL.INF1RIF1, .INF1RIF3, .INF1WPN1, .INF2RIF1, .INF2RIF2, .INF2RIF3, .INF2WPN1,
+.INF3RIF1, .INF3RIF2, .INF3RIF3 and .INF3WPN1 at one point 1,092 m short (N1), and .INF1RIF2 on its slot across lake
+197345448; per the branch rule a branch other than S5 / S6 on T02 is also a miss of the row it contradicts - P12. S6 SEEN
+as predicted: T02's member at river 8011072 (last fix 2.5 m from the river point; L56719 relays "Movement constrained by
+features" at SIM ~717; the pre-flight's RIVER CROSSING and OSM WATER reports on the bus, C203-C204; its script never ended,
+so no L-D6) and INF1RIF2 at lake 197345448 (L29881, the same line); and a third, which sec 1(i) foresaw but S6 did not
+list: INF3HQ1 short of its unpack target in lake 197345447 (L93535, SIM ~1121; 34.6 m from the target, no "has completed
+final move."). S7 not seen.
+
+OBSERVATIONS (reg. L550-L573):
+- O1 48 IBCT'S CONVERGENCE: three Stryker HHTs and the Stryker Cavalry SQDN came within 50 m of vertex 0 first (t=84.3-86.4;
+  INF3HQ1 passed it at 53.7 m), the 11 moving Mech COs next (t=98.5-104.6); INF1RIF2 never (490.8 m). The container's fix
+  moved less than 50 m for at most 18.3 s at the convergence (t=74.1-92.4) and 22.5 s on the Mech COs' last stretch
+  (t=222.4-244.9), then not again from t=257.1. Branches: no queue at vertex 0; one member never reached it (the lake);
+  none took another way (the 11 Mech COs ended on the line, offset 0-1 m).
+- O2 T02 AT SPEED FACTOR 0: branch (a) - the move ran on: no vendor completion and no failure; OVERDUE at 307 of 300 s
+  (L57137); the member stopped 2.5 m from the river point at SIM ~717 (L56719); the watchdog's TASKABRT at SIM ~1132
+  (L94613 / L94615); the script was still running at the shutdown.
+- O3 1-112 IN ON T10: 4 of 5 members within 50 m of vertex 0 at t=64.0-66.1 (HQ1 nearest 85.4 m); arrival evidence 571.5
+  SIM s after dispatch (L74355, the per-member relaxation APPLIED); the unpack - HQ1's final move at SIM 696.3, the other
+  four at 1197.0-1202.1 - each member 0.0-0.5 m from its unpack target, 152.5-153.0 m from the destination, the container
+  0.1 m from it; the vendor completion (L100815) right after the last final move (L100809), swallowed (L100817).
+- O4 THE CONTAINER'S FIX WHILE MOVING, against its members' unweighted mean: T02 max 432.3 m at t=116.8 (its one member
+  reaching the river; the fix caught up within ~2 s), mean 18.4 m; T10 max 76.3 m at t=161.4, mean 9.1 m; T14 max 132.5 m
+  at t=246.9, mean 23.3 m; 0.0 m at rest for all three (G1: 150.2 m, one member).
+- O5 A MEMBER'S OWN TASKSTATUS: 0.
+- O6 "No creator found": 18 (G1 18), L380-L770 and L21463 "Can't create data of type pa_move_along_route.  No creator
+  found.  Only time this warning will be issued." (as G1's L81507); benign, counted.
+- O7 COMPLETIONS BY MARKING: 1 INFO "VRF task complete" naming a performer by its full name (L100815), 0 naming anything
+  else, 0 L-ID-MARK, 0 "no C2SIM uuid known".
+
+N1 - WHY T14 DID NOT ARRIVE [V]. Measurement: of 48 IBCT's 17 members (t14_members_scored.txt, mech_stop_check.txt), the
+four Stryker HHTs and the Stryker Cavalry SQDN drove the route and unpacked 446.6-496.5 m from the destination (last moves
+t=179.7-183.7); INF1RIF2 never left its far-shore slot; and the other 11 Mech COs all stopped on the route line at ONE
+point, (54.030655, 23.326944) - spread 0.1 m, 3,084 of 4,177 m along, 1,092.5 m from the destination, 18.6 m short of
+E2's -2 hamlet stop (54.030807, 23.327063) and INSIDE an OSM building footprint (lane E2's reader on lane G1's copy of the
+deployed tile cache: hit 'building'; no water or waterway within 200 m). Each of the 11 relayed exactly one vendor console
+line, in the order they stopped - L140151 (INF1RIF1, SIM ~1655, last move t=257.1) to L143597 (INF2RIF2, SIM ~1695,
+t=263.2): "Terrain too steep, slope: 408.844% max: 78.5398%". Two Strykers were sampled 3.6 m and 4.4 m from that point
+(INF1HQ1 t=151.3, INF3HQ1 t=153.3) and went on. The three member types carry the same max-slope, 0.7853981633974 (Mech CO
+(USA, M2).entity:438, Stryker  HHT (USA).entity:408, Stryker Cavalry SQDN (USA).entity:492 [V, read-only]); max-speed
+differs (11.1 vs 26.9 m/s, :439 / :409 / :493) and so does the movement system (mech- vs motorized-aggregated-
+movement.sysdef, :96 / :74 / :157). No command reached 48 IBCT after its script (L29311). The container's fix - the mean of
+its members - made its last 50 m of progress by t=257.1 (SIM ~1655) and rested 770.9 m from the destination from t=263.2;
+the watchdog reported 360 SIM s after that last progress (L170139, SIM ~2017, max 39.6 m).
+Implication: the container mechanism, the publication gate, the time rules and the watchdog did what they were built to
+do; the arrival was lost to the ground, not to the interface. On the aggregate model set an OSM building on a leg can stop
+Mech CO units on the vendor's slope check - FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27 sec 8's "buildings never trap it"
+does not hold for them - and the aggregate pre-flight flags a leg for OSM water only, with the slope ratio OFF (L578), so
+nothing reported this leg before dispatch. The same hamlet stopped the entity-level literal executor in -2, 18.6 m away.
+How G1-3 treats T14's line (a pre-flight rule for buildings on aggregate legs, a different line, or the stop accepted) is
+the owner's call.
+
+N2 - IDENTITY BY UUID, LIVE [V, P3]. Measurement: in both runs VR-Forces created all 36 init containers and all 23
+members under the uuid the interface requested - the containers under their C2SIM uuids, the members under the v5 uuids
+derived offline (expected_identity.txt) - and an independent federate saw them under those uuids. Implication: C1d's
+live-owed claim is answered for AGGREGATES (RL-20260928-02); an ENTITY (platform) create, a synthesized sub-unit and a
+template re-create stay unproven live (sec 7).
+
+N3 - THE FIRST LOAD, AGAIN [V, P23]. Measurement: with the sim cache warm and unchanged (G1's pre-warm made its layers), the
+pre-warm's init terrain query still got no reply within 10 s and its 36 containers were created at the FALLBACK altitudes;
+the scored run, 10 minutes later, got its reply. Implication: G1's N4 reading - the cold sim cache - does not explain the
+first launch's fallback; a pre-warm is still needed before a scored run (UNEXPLAINED item 2).
+
+THE 12-MINUTE RUN [V]: launch 14:27:31Z to the ORDER on the bus 14:30:38.923Z (3 min 8 s: LaunchVrf 55.4 s, the 45 s
+settle, the oracle pre-check, the observers' 20 s pre-roll, PushInit, the app start 16.3 s before the push); the window,
+5 min 55 s; teardown to 14:39:09Z, 2 min 35 s (StopIface, the app's resign, a 22 s trail, the observers, StopVrf's forced
+exit 6). The window closed on -StopWhenComplete once every task had a terminal report: T01 and T13 TASKCMPLT at +38.7 s
+(C199 / C200, 14:31:17.59Z), T10 TASKCMPLT at +113.5 s (C460, 14:32:32.449Z), T02 TASKABRT at +148.8 s (C605,
+14:33:07.759Z) and - the last - T14 TASKABRT at +264.9 s (C1002, 14:35:03.830Z); the runner saw them at +41 / +116 / +152 /
++269 s (R265-R275), had post-completion position evidence for all three taskees at +291 s (R276), held its 60 s settle
+(63.9 s) and closed at +355 s (R280). It was short because every end time, delay and the stall window run on the
+SIMULATION clock, which ran 6.4-9.0 times real time (P22): T14's ~1,607 SIM s from dispatch to its stall verdict took 226
+wall s. The registration expected the close about a minute after the later of T02's stall and T14's arrival; with T14
+stalled instead, it came 90 s after T14's TASKABRT.
+
+UNEXPLAINED OR ASSUMED:
+1. Why the terrain reads a 408.8% slope inside that building, and why five Strykers with the same max-slope passed within
+   a few metres of the point where all eleven Mech COs were refused [A: the vendor's slope sampling and how the aggregate
+   terrain represents a building are not read; the speed or the movement system may matter - untested].
+2. Why the pre-warm's first terrain query timed out with the sim cache warm (N3) [A: the back end's first terrain load
+   after its start, or the OS file cache - neither measured].
+3. T02's one-member container trailed its member by 432.3 m before catching up in ~2 s (O4; G1 150.2 m) [A: the vendor's
+   aggregate publication or dead-reckoning rate].
+4. The holds served 330 s of 300 (G1 300; the pre-warm 304): the end-time check runs every 1.0 wall s
+   (VrfC2SimService.cs:229, TimedCheckSeconds), yet the TIMED lines came 30 SIM s after the end time - ~3.4 wall s at
+   the 8.9x of that minute [A: the tick or the sim-clock reading lagged; not measured]. Reports only; no row depends on
+   it.
+5. The relayed vendor console stamps lead the app's own SIM clock reading by 0-21 SIM s (L74355: app 889.0, console
+   910.5-911.3), so the console-bracketed SIM figures above are +/- 21 SIM s.
+
+ADVERSARIAL REVIEW (N1 is a cause claim). The strongest competing hypothesis: the Mech COs were held by a terrain FEATURE
+(the mobility table's speed-factor 0, the way the lake, the river and the in-water unpack target held three others) and
+the slope line is incidental. Falsifier checked: the vendor's feature line, "Movement constrained by features", printed
+exactly three times - INF1RIF2 (lake), 28ID's member (river), INF3HQ1 (lake) - and never for a Mech CO; no OSM water or
+waterway lies within 200 m of the stop; each Mech CO printed exactly one "Terrain too steep" line, in the order and within
+the SIM seconds of its own stop. Second hypothesis, congestion: footprint overlap lowers only maximum speed (UG52 27.1.4),
+and the first Mech CO to stop (INF1RIF1) had no Mech CO ahead of it. Third, the interface stopped them: no command reached
+48 IBCT after L29311, and the watchdog is report-only and fired after the stops. Verified: the stop point, its building,
+the eleven slope lines, their order and timing, the equal max-slope in the three entity files. Assumed: why the slope is
+408.8% there and why the Strykers passed (UNEXPLAINED 1). No symptom is left without a named reading.
+
+RECORDS: this Result and the STATUS line; PLAN_MOVEMENT_2026-09-27 rows C1, C1d and G1-2 (sec 1), G1-2 (sec 2), sec 3's G1
+bullet and sec 5; RUNBOOK sec 11i (LIVE-OWED -> SEEN for aggregates); DESIGN_AGGREGATE_CONTAINERS' C1d status (the owed
+sentence); Appendix B - the runner's blocks 5233-5243 and 5244-5254 carried from the main checkout's working tree with two
+RESULT lines, marker 5255. Nothing was patched or re-run (STOP RULES): the next aggregate run is IRONSTORM_AGG_G1-<date>-3,
+a new registration with new numbers from 5255.
