@@ -379,6 +379,23 @@ public:
                                  createSubordinates);
     }
 
+    // C1d (RL-20260928-02) - IDENTITY BY UUID: the two creates UNDER A UUID the caller chose (the
+    // vendor's startingUUID; VrfFacade.h). uuid is the BARE 8-4-4-4-12 string (the form every tactical
+    // graphic already passes); null/empty -> nullUUID, i.e. exactly the overload without it. The
+    // ObjectCreated event then carries "VRF_UUID:<uuid>" - the object the app binds by that uuid.
+    void CreateEntity(EntityTypeSpec type, Geodetic pos, Force force,
+                      double headingDeg, String^ name, String^ uuid) {
+        _facade->CreateEntity(ToNative(type), ToNative(pos), ToNative(force),
+                              headingDeg, ToStd(name), ToStd(uuid));
+    }
+    void CreateAggregate(EntityTypeSpec type, Geodetic pos, Force force,
+                         double headingDeg, String^ name,
+                         AggregateState state, bool createSubordinates, String^ uuid) {
+        _facade->CreateAggregate(ToNative(type), ToNative(pos), ToNative(force),
+                                 headingDeg, ToStd(name), ToNative(state),
+                                 createSubordinates, ToStd(uuid));
+    }
+
     // uuid empty/null -> nullUUID (the pre-V3 behaviour and what the 2-argument overload
     // gives). V3 passes a C2SIM Point graphic's own uuid so it is addressable by it.
     void CreateWaypoint(Geodetic pos, String^ name) {

@@ -45,7 +45,10 @@ C2SIM in:
 - `StatusChangedReceived`  -> on UNINITIALIZED, clean stop (RUNBOOK sec 4).
 
 VRF out:
-- `ObjectCreated`  -> correlate name -> VRF uuid (`_vrfUuidByName`).
+- `ObjectCreated`  -> bind the object by the UUID it was created under (C1d, RL-20260928-02: every
+  entity/aggregate is created with a startingUUID - its C2SIM uuid, or an RFC 4122 v5 uuid derived from
+  its parent's - and `NameRegistry.BindCreated` binds that uuid's requested name exactly); the name rule
+  (the old `_vrfUuidByName` correlation, now `NameRegistry`) only for a uuid that was not requested.
 - `TaskCompleted`  -> C2SIM status report (TASKCMPLT).
 - `TextReport`     -> C2SIM position report.
 - `ScenarioClosed` -> clean stop.
@@ -121,7 +124,11 @@ Order translation (bare movement) - DONE + VERIFIED offline (2026-07-10):
   aggregate) confirmation still pends the live run. (b) taskee resolution shares
   `_vrfUuidByName` with the create correlation - if VRF truncates markings to 10 chars
   while plan.Name is the full name, names >10 chars would miss (the STP scenario pins
-  max-name-length to 10, so golden is safe).
+  max-name-length to 10, so golden is safe). CORRECTED 2026-09-28 (C1d, RL-20260928-02):
+  the create correlation is by UUID - every entity/aggregate is created under a uuid and
+  bound by it whatever marking comes back (UG52 13.2 Table 21: the name is length-limited
+  and NOT unique) - so the marking width no longer decides whether a taskee is found; the
+  name is the interface's own map key (RUNBOOK sec 11i, IDENTITY BY UUID).
 
 Reports out - DONE + VERIFIED offline (2026-07-10):
 - `ReportBuilder` (pure) CONSTRUCTS the SDK schema types (ReportBodyType with a TaskStatus

@@ -34,6 +34,11 @@ namespace VrfC2SimApp;
 ///         FAIL-FIRST the 34-character names reproduce G1 exactly (22 ambiguous, 17 rebinds refused, 1 of 23 bound),
 ///         the 30-character names bind 23 of 23; two containers alike in their first N characters; synthesized
 ///         sub-units; whole-name graphics; every shipped init unique within 30; the source guards
+///   (p15) C1d - IDENTITY BY UUID (RL-20260928-02): G1's 23 members with their OLD 34-character names replayed through
+///         the create callback's binding (NameRegistry.BindCreated) - by uuid 23 of 23 bind, by name only 1 (the fail-first
+///         arm) - on the init bound by its C2SIM uuids; the member uuids PopulatePlanner derives (distinct, deterministic,
+///         what MemberPlan sends); the completion markings - the residual that is C1c's; the source guards (every create
+///         passes a uuid); the linked VrfBridge.dll CARRIES the uuid overloads (else the start is refused)
 /// VARIANTS (C1b): the composition file holds a "catalogue" and an "authored" variant. p1 walks the SELECTED variant
 /// (`--populate-selftest --variant authored`; default = the file's defaultVariant, catalogue) on ITS catalogue - the
 /// installed vendor set for catalogue, the DERIVED set for authored (`--derived-sms PATH`, else env
@@ -99,6 +104,7 @@ public static class ContainerSelfTest
         P12(repo);
         P13(repo, home, cat, full, selected, derived, derivedSms);
         P14(repo, cat, table);
+        P15(repo, cat, table);
         return Finish();
     }
 
@@ -643,8 +649,9 @@ public static class ContainerSelfTest
               && src.Contains("if (_containerMode && !string.IsNullOrEmpty(marking) && _containers.IsMember(marking, out var memberOf))")
               && src.Contains("=> _containerMode && !string.IsNullOrEmpty(name) && _containerByName.ContainsKey(name);"),
               "the init rule, the population, D-5, the sweep, the member completions and IsContainerUnit are all behind _containerMode");
-        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates);")
-              && !src.Contains("AggregateState.Disaggregated, p.CreateSubordinates);"),
+        // C1d: the call now also passes the plan's uuid (p15 guards that); the state still comes from the plan.
+        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates, p.StartingUuid);")
+              && !src.Contains("AggregateState.Disaggregated, p.CreateSubordinates"),
               "EnqueueCreates takes the state from the plan (Disaggregated unless a container member asks)");
         Check(src.Contains("\"CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their \" +")
               && src.Contains("\"authored positions ({Flipped} flipped to empty here, {Composed} already an empty \" +")
@@ -1364,6 +1371,222 @@ public static class ContainerSelfTest
               && src.Contains("if (name != null) _names.Requested(name);"),
               "the init rename also sees the SAME init's graphic names (registered after the units on the terrain-query " +
               "path), and MakeChildName reserves its choice under the member lock (no two expansions pick one name)");
+    }
+
+    // ----------------------------------------------------------------------------------------------- (p15) ----
+    // C1d (RL-20260928-02). Two stand-ins for the bridge's create surface, for the reflection check's negative control.
+    private sealed class OldCreateSurface
+    {
+        public void CreateEntity(EntityTypeSpec t, Geodetic p, Force f, double h, string n) { }
+        public void CreateAggregate(EntityTypeSpec t, Geodetic p, Force f, double h, string n, AggregateState s, bool c) { }
+    }
+    private sealed class NewCreateSurface
+    {
+        public void CreateEntity(EntityTypeSpec t, Geodetic p, Force f, double h, string n, string u) { }
+        public void CreateAggregate(EntityTypeSpec t, Geodetic p, Force f, double h, string n, AggregateState s, bool c, string u) { }
+    }
+
+    /// <summary>The top-level argument count of every "<paramref name="call"/>(...);" in <paramref name="src"/>.</summary>
+    private static List<(int Args, string Text)> CallArgs(string src, string call)
+    {
+        var outp = new List<(int, string)>();
+        for (int i = src.IndexOf(call, StringComparison.Ordinal); i >= 0; i = src.IndexOf(call, i + 1, StringComparison.Ordinal))
+        {
+            int depth = 0, args = 1, j = i + call.Length;
+            for (; j < src.Length; j++)
+            {
+                char ch = src[j];
+                if (ch == '(') depth++;
+                else if (ch == ')') { if (depth == 0) break; depth--; }
+                else if (ch == ',' && depth == 0) args++;
+            }
+            outp.Add((args, Regex.Replace(src.Substring(i, Math.Min(j + 1, src.Length) - i), @"\s+", " ")));
+        }
+        return outp;
+    }
+
+    private static void P15(string repo, ResolverCatalogue cat, CompositionTable table)
+    {
+        Console.WriteLine("--- (p15) C1d: identity by uuid - G1's 23 members through the create callback (RL-20260928-02) ---");
+        var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
+        var created = init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)).ToList();
+        var c2simUuidOf = created.GroupBy(u => u.Name, StringComparer.Ordinal)
+                                 .ToDictionary(g => g.Key, g => IdentityUuid.ForC2SimUnit(g.First().Uuid), StringComparer.Ordinal);
+        Check(created.Count == 36 && created.All(u => IdentityUuid.ForC2SimUnit(u.Uuid).Length == 36)
+              && created.Select(u => IdentityUuid.ForC2SimUnit(u.Uuid)).Distinct().Count() == 36
+              && G1Populations.All(g => c2simUuidOf.ContainsKey(g.Container)),
+              "cut A's 36 created units each carry a C2SIM uuid of the 8-4-4-4-12 form, all distinct - what each is created under",
+              string.Join(", ", G1Populations.Select(g => $"{g.Row}: {c2simUuidOf.GetValueOrDefault(g.Container)}")));
+
+        // (a) THE UUID ARM - the registry as C1d leaves it: every init unit requested and BOUND by its C2SIM uuid (each
+        //     callback carrying what VR-Forces returns of an aggregate's name, VrfNames.ReturnedAggregateName), then G1's
+        //     OLD 34-character member names, each requested under its DERIVED uuid, their callbacks cut to 30.
+        var uuidReg = new NameRegistry();
+        foreach (var u in created) { uuidReg.Requested(u.Name); uuidReg.RequestedUuid(u.Name, c2simUuidOf[u.Name]); }
+        foreach (var u in created)
+            uuidReg.BindCreated(VrfNames.ReturnedAggregateName(u.Name), "VRF_UUID:" + c2simUuidOf[u.Name]);
+        var initCensus = uuidReg.IdentityCensus(created.Select(u => u.Name));
+        int bound = 0, ambiguous = 0, refused = 0, byName = 0, cut = 0;
+        var memberUuids = new List<string>();
+        foreach (var g in G1Populations)
+        {
+            string cu = c2simUuidOf[g.Container];
+            var derived = g.Suffixes.Select(s => IdentityUuid.Derive(cu, s)).ToList();
+            memberUuids.AddRange(derived);
+            for (int i = 0; i < g.G1Names.Length; i++) { uuidReg.Requested(g.G1Names[i]); uuidReg.RequestedUuid(g.G1Names[i], derived[i]); }
+            for (int i = 0; i < g.G1Names.Length; i++)
+            {
+                var b = uuidReg.BindCreated(VrfNames.ReturnedAggregateName(g.G1Names[i]), "VRF_UUID:" + derived[i]);
+                if (b.Ambiguous) ambiguous++;
+                if (b.RefusedRebind) refused++;
+                if (!b.ByUuid) byName++;
+                if (b.Truncated) cut++;
+                if (uuidReg.TryGetUuid(g.G1Names[i], out var got) && got == "VRF_UUID:" + derived[i]
+                    && uuidReg.IsBoundByUuid(g.G1Names[i])) bound++;
+            }
+        }
+        // THE NAME ARM - the pre-C1d binding (NameRegistry.Bind, name only), the p14 fail-first on the same names.
+        var initNames = created.Select(u => u.Name).ToList();
+        var nameReg = InitRegistry(initNames);
+        int seq = 0;
+        var nameResults = G1Populations.Select(g => ReplayCallbacks(nameReg, g.G1Names, ref seq)).ToList();
+        Check(bound == 23 && ambiguous == 0 && refused == 0 && byName == 0 && cut == 23
+              && nameResults.Sum(r => r.Bound) == 1 && nameResults.Sum(r => r.Ambiguous) == 22,
+              "FAIL-FIRST, BOTH ARMS, G1's OWN 23 MEMBERS with the OLD 34-character names, every callback cut to 30: BY UUID all " +
+              "23 bind to their own names (0 ambiguous, 0 refused, 0 by name) - the names no longer matter to the create; BY NAME " +
+              "only (the pre-C1d binding) 1 of 23 binds and 22 are ambiguous - run G1",
+              $"uuid arm: bound {bound}, ambiguous {ambiguous}, refused {refused}, by name {byName}, cut {cut}; name arm: bound " +
+              $"{nameResults.Sum(r => r.Bound)}, ambiguous {nameResults.Sum(r => r.Ambiguous)}");
+        Check(initCensus.ByUuid == 36 && initCensus.ByName == 0 && initCensus.Unbound == 0,
+              "the same run's 36 init containers are ALL bound by their C2SIM uuids (the READY TO TASK summary would read " +
+              "'IDENTITY: 36 of 36 objects bound by uuid, 0 by name')",
+              $"{initCensus.ByUuid} / {initCensus.ByName} / {initCensus.Unbound}");
+
+        // (a2) THE MEMBER UUIDS PopulatePlanner derives: what IssueMemberCreates sends (MemberPlan.StartingUuid).
+        var allC2Sim = new HashSet<string>(c2simUuidOf.Values, StringComparer.Ordinal);
+        var planned = new List<string>();
+        bool sameTwice = true, plansCarry = true, matchReplay = true;
+        foreach (var g in G1Populations)
+        {
+            string cu = c2simUuidOf[g.Container];
+            var leaves = CompositionResolver.ExpandRow(table.ById(g.Row), table, cat).Leaves;
+            var lay = PopulatePlanner.Plan(g.Container, 54.0, 23.3, leaves, 0.0, containerUuid: cu);
+            var again = PopulatePlanner.Plan(g.Container, 54.0, 23.3, leaves, 0.0, containerUuid: cu);
+            sameTwice &= lay.Members.Select(m => m.Uuid).SequenceEqual(again.Members.Select(m => m.Uuid));
+            plansCarry &= lay.Members.All(m => ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg).StartingUuid == m.Uuid
+                                               && m.UuidName == cu + "/" + m.Leaf.Suffix);
+            matchReplay &= lay.Members.Select(m => m.Uuid).SequenceEqual(g.Suffixes.Select(s => IdentityUuid.Derive(cu, s)));
+            planned.AddRange(lay.Members.Select(m => m.Uuid));
+        }
+        Check(planned.Count == 23 && planned.Distinct(StringComparer.Ordinal).Count() == 23 && planned.All(u => !allC2Sim.Contains(u))
+              && planned.All(u => IdentityUuid.VersionOf(u) == '5') && sameTwice && plansCarry && matchReplay
+              && PopulatePlanner.Plan("X", 54.0, 23.3, CompositionResolver.ExpandRow(table.ById("C-USA-BN-UCI"), table, cat).Leaves, 0.0)
+                                .Members.All(m => m.Uuid == ""),
+              "PopulatePlanner gives G1's 23 members 23 DISTINCT v5 uuids (none a C2SIM uuid of the init), the SAME on a second " +
+              "plan, derived from '<container uuid>/<suffix>', and MemberPlan sends exactly that uuid; a plan given no container " +
+              "uuid derives none", string.Join(" ", planned.Take(3)) + " ...");
+        var dupLeaves = new[]
+        {
+            new PopulateLeaf("x/INF1", "INF1", "INF", new[] { 3, 11, 1, 225, 3, 1, 0, 0 }, "T", "T", 90.0, 3),
+            new PopulateLeaf("x/INF1", "INF1", "INF", new[] { 3, 11, 1, 225, 3, 1, 0, 0 }, "T", "T", 90.0, 3),
+        };
+        var dup = PopulatePlanner.Plan("DUP_CONTAINER", 54.0, 23.3, dupLeaves, 0.0, containerUuid: c2simUuidOf[G1Populations[0].Container]);
+        Check(!dup.Refused && dup.Members.Count == 2 && dup.Members[0].Uuid != dup.Members[1].Uuid
+              && dup.Members[1].UuidName.EndsWith("/INF1@2", StringComparison.Ordinal),
+              "a suffix repeated within one population is made unique by its slot ('INF1@2') - every member its own uuid",
+              string.Join(", ", dup.Members.Select(m => m.UuidName)));
+
+        // (d) THE COMPLETION MARKINGS - the residual. A completion carries only the marking VR-Forces holds.
+        int oldAttributable = G1Populations.SelectMany(g => g.G1Names)
+            .Count(n => uuidReg.ResolveMarking(VrfNames.ReturnedAggregateName(n)) is { Via: NameRegistry.MarkingVia.Uuid } r && r.Name == n);
+        int oldContainersShared = G1Populations.Count(g =>
+            uuidReg.ResolveMarking(VrfNames.ReturnedAggregateName(g.Container)).Via == NameRegistry.MarkingVia.AmbiguousUuid);
+        var newReg = new NameRegistry();
+        foreach (var u in created) { newReg.Requested(u.Name); newReg.RequestedUuid(u.Name, c2simUuidOf[u.Name]); }
+        foreach (var u in created) newReg.BindCreated(VrfNames.ReturnedAggregateName(u.Name), "VRF_UUID:" + c2simUuidOf[u.Name]);
+        var newNames = new List<string>();
+        foreach (var g in G1Populations)
+        {
+            string cu = c2simUuidOf[g.Container];
+            var lay = PopulatePlanner.Plan(g.Container, 54.0, 23.3, CompositionResolver.ExpandRow(table.ById(g.Row), table, cat).Leaves,
+                                           0.0, containerUuid: cu, conflictOf: c => newReg.KeyConflict(c, truncatable: true));
+            foreach (var m in lay.Members) { newReg.Requested(m.Name); newReg.RequestedUuid(m.Name, m.Uuid); newNames.Add(m.Name); }
+            foreach (var m in lay.Members) newReg.BindCreated(VrfNames.ReturnedAggregateName(m.Name), "VRF_UUID:" + m.Uuid);
+        }
+        int newAttributable = newNames.Count(n =>
+            newReg.ResolveMarking(VrfNames.ReturnedAggregateName(n)) is { Via: NameRegistry.MarkingVia.Uuid } r && r.Name == n);
+        int newContainersShared = G1Populations.Count(g =>
+            newReg.ResolveMarking(VrfNames.ReturnedAggregateName(g.Container)).Via == NameRegistry.MarkingVia.AmbiguousUuid);
+        Check(oldAttributable == 1 && oldContainersShared == 3 && newNames.Count == 23 && newAttributable == 23 && newContainersShared == 0,
+              "THE RESIDUAL, stated on G1's data: a completion carries only a marking, so under the OLD names only 1 of 23 member " +
+              "markings (CAV1) - and 0 of the 3 CONTAINERS', each shared with its own HQ1 - resolve to one object; under C1c's " +
+              "30-character names all 23 and all 3 do. C1d binds the creates; C1c's names keep the report markings apart - both " +
+              "stay", $"old: {oldAttributable} of 23 members, {oldContainersShared} of 3 containers shared; new: {newAttributable} of " +
+                      $"{newNames.Count}, {newContainersShared} shared");
+
+        // (e) THE SOURCE GUARDS: every create passes a uuid; every plan source sets one; the binding and the report paths.
+        string svcPath = Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs");
+        string src = SafeRead(svcPath);
+        var creates = new List<(string File, int Args, string Text, string Kind)>();
+        foreach (var f in Directory.GetFiles(Path.Combine(repo, "src", "VrfC2SimApp"), "*.cs"))
+        {
+            if (Path.GetFileName(f).EndsWith("SelfTest.cs", StringComparison.Ordinal)) continue;
+            string text = File.ReadAllText(f);
+            foreach (var c in CallArgs(text, "_bridge.CreateEntity(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "entity"));
+            foreach (var c in CallArgs(text, "_bridge.CreateAggregate(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "aggregate"));
+        }
+        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 6 : c.Args == 8)
+              && creates.All(c => c.Text.EndsWith(", p.StartingUuid)", StringComparison.Ordinal)),
+              "EVERY _bridge.CreateEntity / CreateAggregate call site in the app passes a uuid - the plan's StartingUuid, as the " +
+              "LAST argument of the 6- / 8-argument overload (the self-tests excluded)",
+              string.Join(" | ", creates.Select(c => $"{c.File}: {c.Args} args: {c.Text}")));
+        string catSrc = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "ContainerCatalogue.cs"));
+        Check(src.Contains("plan = plan with { StartingUuid = IdentityUuid.ForC2SimUnit(unit.Uuid) };")
+              && src.Contains("{ CreateSubordinates = true, StartingUuid = childUuid };")
+              && src.Contains("toCreate[0] = toCreate[0] with { StartingUuid = recreateUuid };")
+              && src.Contains("containerUuid: d.Plan.StartingUuid,")
+              && catSrc.Contains("StartingUuid = member.Uuid ?? \"\" };")
+              && src.Contains("foreach (var p in plans) RequestIdentity(p);"),
+              "every plan source sets the uuid it is created under - an init unit its C2SIM uuid, a synthesized sub-unit, a " +
+              "member (MemberPlan) and a template re-create a derived one - and EnqueueCreates registers each before the create");
+        string created0 = Between(src, "private void OnVrfObjectCreated(", "private bool TryResolveVrfUuid(");
+        Check(created0.Contains("var bind = _names.BindCreated(e.Name, e.Uuid);") && !created0.Contains("_names.Bind(e.Name, e.Uuid)")
+              && created0.Contains("IdentityLines.CreatedAs(name, NameRegistry.BareUuid(e.Uuid), e.Name)")
+              && created0.Contains("IdentityLines.NotRequested("),
+              "OnVrfObjectCreated binds by uuid FIRST (NameRegistry.BindCreated - never the bare name rule) and says each " +
+              "object's binding: IDENTITY ... created as uuid ... (requested), or the WARN");
+        Check(src.Contains("string marking = ResolveReportMarking(e.UnitMarking ?? \"\", \"task-completion\");")
+              && src.Contains("objectName = ResolveReportMarking(objectName, \"POSITION text report\");")
+              && !src.Contains("_names.Resolve("),
+              "the report paths (task completion, POSITION text report) resolve marking -> uuid -> name first; no bare " +
+              "_names.Resolve( is left in the service");
+        Check(src.Contains("if (!IdentityBridge.Present(_bridge.GetType()))") && src.Contains("IDENTITY (C1d, RL-20260928-02) - REFUSING TO START")
+              && src.Contains("IdentityLines.Summary(identity.ByUuid, planned, identity.ByName, identity.Unbound,"),
+              "the start is REFUSED on a bridge without the uuid overloads, and READY TO TASK is followed by the identity summary");
+        string fac = SafeRead(Path.Combine(repo, "src", "VrfFacade", "VrfFacade.cpp"));
+        string hdr = SafeRead(Path.Combine(repo, "src", "VrfFacade", "VrfFacade.h"));
+        string brg = SafeRead(Path.Combine(repo, "src", "VrfBridge", "VrfBridge.cpp"));
+        Check(CountOf(fac, "DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());") == 4
+              && fac.Contains("DtString::nullString(), DtSimSendToAll, true, startingUuid);")
+              && fac.Contains("DtString::nullString(), DtSimSendToAll, st, startingUuid, createSubordinates);")
+              && fac.Contains("DtString::nullString(), DtSimSendToAll, st, DtUUID::nullUUID(), createSubordinates);")
+              && hdr.Contains("const std::string& uuid);")
+              && brg.Contains("double headingDeg, String^ name, String^ uuid) {")
+              && brg.Contains("AggregateState state, bool createSubordinates, String^ uuid) {"),
+              "the native overloads are in the source: the facade passes startingUUID exactly as CreateWaypoint/CreateRoute do " +
+              "(empty -> nullUUID), the old overloads kept; the bridge has the two managed overloads");
+
+        // (f) THE LINKED BRIDGE - the p12 pattern, but a hard check: the service calls the overloads directly (a build
+        //     against a bridge without them does not compile) and refuses to start on a bridge without them.
+        Check(!IdentityBridge.Present(typeof(OldCreateSurface)) && IdentityBridge.Present(typeof(NewCreateSurface))
+              && !IdentityBridge.Present(null) && !IdentityBridge.Present(typeof(object)),
+              "IdentityBridge.Present finds the two uuid overloads by their exact signatures and nothing else (negative controls: " +
+              "the old create surface, object, null)");
+        bool linked = IdentityBridge.Present(typeof(VrfBridge));
+        Check(linked,
+              "the LINKED VrfBridge.dll CARRIES CreateEntity(..., String uuid) and CreateAggregate(..., Boolean, String uuid) - a " +
+              "bridge rebuilt for C1d (a stale pin would not even compile the app, and the service REFUSES TO START on one)",
+              typeof(VrfBridge).Assembly.Location);
     }
 
     // ---------------------------------------------------------------------------------------------- helpers ----
