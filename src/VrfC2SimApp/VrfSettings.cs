@@ -706,8 +706,10 @@ public class VrfSettings
     //                           behaviour before STP-850 (the C++ oracle's order), kept for rollback. On
     //                           an STP export (absolute slot offsets plus same-unit STREND links) it
     //                           grows a unit's chain quadratically past Vrf:TaskChainBackstopSeconds.
-    // Unknown values fall back to "Receipt" with an ERROR at start-up. A relative (ActionTemporal-
-    // Relationship) delay is not affected by either value.
+    // A DateTime StartTime is converted to an offset from receipt and anchored the same way (Receipt:
+    // start = max(predecessor completion, that instant)). Unknown values fall back to "Receipt" with an
+    // ERROR at start-up. The ActionTemporalRelationship/Duration relative delay is not affected by either
+    // value (StartTime/RelativeTime is not honoured at all).
     public string StartTimeAnchor { get; set; } = "Receipt";
 
     // COMPLETION ON START TIME + DURATION - the owner's TEMPORARY position (RL-20260921-09),

@@ -16,12 +16,14 @@ namespace VrfC2SimApp;
 ///   (a) same-slot tasks on two units start together;
 ///   (b) an on-time chained task starts at its offset - no stretch;
 ///   (c) a late predecessor delays its successor until it completes, not before;
-///   (d) back to back [0,1) -> [1,2): the successor dispatches only after the predecessor ends and
-///       its unit is idle then - not refused as busy (SF4), supersedes nothing (Q1);
+///   (d) back to back [0,1) -> [1,2): the successor opens on the predecessor's Completed signal, not on
+///       its offset (unit idleness at that moment is NOT covered offline - see the case's comment);
 ///   (e) a 10-task chain at d = 60 min completes inside the backstop (no quadratic growth);
 ///   (f) Vrf:DurationScale 0.25 scales the offset exactly as it scales the Duration;
 ///   (g) the setting round-trips (parse, default, shipped json, override) and the service wiring;
-///   (h) PARITY: every order in data/ dispatches identically under both values.
+///   (h) PARITY: every order in data/ and docs/golden-trace/orders/ parses and dispatches identically
+///       under both values;
+///   (i) a gated DateTime StartTime is anchored too: start = max(predecessor completion, that instant).
 /// Everything runs on the signalled StepClock - task-clock seconds, no wall time.
 /// </summary>
 public static partial class RulingsSelfTest
@@ -99,32 +101,28 @@ public static partial class RulingsSelfTest
 
         // ------------------------------------------------------------------ (d) ----
         {
-            // Back to back on ONE unit: A1 is a hold in [0, 1), A2 a hold in [1, 2). The offset is reached at
-            // D, but A1's completion is OBSERVED two seconds later (the clock staircase + the timed walk). The
-            // service's completion funnels pop the in-flight record BEFORE CompleteTask (the m9 in-place pop
-            // in the timed walk; SynthesizeUnitCompletion's TryComplete), and this rig does the same.
-            const string unit = "1-1 AR";
+            // Back to back on ONE unit: A1 in [0, 1), A2 in [1, 2). The offset is reached at D, but A1's
+            // Completed signal is OBSERVED two seconds later (the clock staircase + the timed walk). What this
+            // checks is the GATE's invariant only: under Receipt the successor opens on the predecessor's
+            // Completed signal and not on its offset. NOT COVERED OFFLINE (the funnels are private service
+            // methods that need the bridge): whether the unit is idle at that moment. It is for the hold-in-place
+            // pop and SynthesizeUnitCompletion's TryComplete, which clear the in-flight record before
+            // CompleteTask; it is NOT for a platform ATTACK, whose engage is re-recorded in flight by
+            // IssueEngage AFTER CompleteTask, nor for a timed completion of a non-hold task, which releases
+            // successors without popping - RUNBOOK sec 11 names that exposure (pre-existing, more frequent
+            // under Receipt).
             var r = new AnchorRig(receipt: true);
-            var tracker = new InFlightTracker();
-            tracker.RecordDispatch(unit, new InFlightTracker.InFlight("A1", "hold A1", "hold-in-place", DateTime.UtcNow));
             r.Dispatch("A1", 0.0);
             var a2 = r.Gate("A1", D, window: D + 60.0);
             r.StepTo(D + 1.0);
-            bool shutWhileInFlight = !a2.IsCompleted && tracker.IsBusy(unit);
+            bool shutPastOffset = !a2.IsCompleted;
             r.StepTo(D + 2.0);
-            bool popped = tracker.TryCompleteIfCurrent(unit, "A1", out _);
             r.Complete("A1");
             double opened = r.RunUntilOpen(a2, 3.0 * D);
-            bool busy = tracker.TryGetCurrent(unit, out var cur);
-            bool refused = TaskDispatchPolicy.HoldInPlaceMustRefuse(busy, cur.TaskUuid, "A2");
-            var superseded = tracker.RecordDispatch(unit, new InFlightTracker.InFlight("A2", "hold A2", "hold-in-place",
-                                                                                      DateTime.UtcNow));
-            Check(ref failures, shutWhileInFlight && popped && a2.Result == GateResult.Proceed && opened == D + 2.0,
-                  $"(d) STP-850 Receipt, back to back: with the offset reached at {D:F0} s and A1 STILL IN FLIGHT the gate " +
-                  $"stays shut; it opens when A1's completion lands ({opened:F0} s) - never onto a busy unit");
-            Check(ref failures, !busy && !refused && superseded == null,
-                  "(d) ... and at that moment the unit is IDLE: the SF4 hold refusal does not fire " +
-                  $"(HoldInPlaceMustRefuse={refused}) and the dispatch supersedes nothing (Q1 arm not reached)");
+            Check(ref failures, shutPastOffset && a2.Result == GateResult.Proceed && opened == D + 2.0,
+                  $"(d) STP-850 Receipt, back to back: with the offset reached at {D:F0} s and A1 NOT YET COMPLETED the " +
+                  $"gate stays shut; it opens on A1's Completed signal ({opened:F0} s), not on the offset (unit " +
+                  "idleness at that moment is not covered offline - see the comment)");
         }
 
         // ------------------------------------------------------------------ (e) ----
@@ -227,16 +225,24 @@ public static partial class RulingsSelfTest
         {
             string repo = FindRulingsRepoRoot();
             string data = repo == null ? null : Path.Combine(repo, "data");
-            var files = data != null && Directory.Exists(data)
-                      ? Directory.GetFiles(data, "*Order*.xml").OrderBy(f => f, StringComparer.Ordinal).ToArray()
-                      : Array.Empty<string>();
+            string golden = repo == null ? null : Path.Combine(repo, "docs", "golden-trace", "orders");
+            var files = new List<string>();
+            if (data != null && Directory.Exists(data)) files.AddRange(Directory.GetFiles(data, "*Order*.xml"));
+            if (golden != null && Directory.Exists(golden)) files.AddRange(Directory.GetFiles(golden, "*.xml"));
+            files.Sort(StringComparer.Ordinal);
+            int dataFiles = files.Count(f => Path.GetDirectoryName(f) == data);
+            int goldenFiles = files.Count - dataFiles;
             int parsed = 0, gatedTasks = 0, gatedWithOffset = 0, leadDiffers = 0;
+            var unparsed = new List<string>();
             var ironstormOffsets = new List<string>();
             foreach (var f in files)
             {
-                OrderData order;
-                try { order = OrderParser.Parse(File.ReadAllText(f)); } catch { continue; }
-                if (order == null || order.Tasks.Count == 0) continue;
+                // EVERY file must parse to at least one task: OrderParser swallows a deserialize failure and
+                // returns an EMPTY order, so zero tasks is a parse failure here, and it is named, not skipped.
+                OrderData order = null;
+                try { order = OrderParser.Parse(File.ReadAllText(f)); }
+                catch (Exception ex) { unparsed.Add($"{Path.GetFileName(f)} ({ex.GetType().Name})"); continue; }
+                if (order == null || order.Tasks.Count == 0) { unparsed.Add($"{Path.GetFileName(f)} (no tasks)"); continue; }
                 parsed++;
                 var nodesOld = new List<TaskDispatchPolicy.ChainNode>();
                 var nodesNew = new List<TaskDispatchPolicy.ChainNode>();
@@ -258,8 +264,11 @@ public static partial class RulingsSelfTest
                 if (TaskDispatchPolicy.LongestChainLeadSeconds(nodesOld, 1.0)
                     != TaskDispatchPolicy.LongestChainLeadSeconds(nodesNew, 1.0)) leadDiffers++;
             }
-            Check(ref failures, parsed >= 20 && gatedTasks > 0 && gatedWithOffset == 0 && leadDiffers == 0,
-                  $"(h) PARITY: {parsed} orders in data/ parse; their {gatedTasks} gated tasks carry NO SimulationTime " +
+            Check(ref failures, dataFiles > 0 && goldenFiles > 0 && unparsed.Count == 0,
+                  $"(h) every order file parses to at least one task - {dataFiles} in data/, {goldenFiles} in " +
+                  $"docs/golden-trace/orders/ ({(unparsed.Count == 0 ? "none failed" : "FAILED: " + string.Join(", ", unparsed))})");
+            Check(ref failures, parsed == files.Count && gatedTasks > 0 && gatedWithOffset == 0 && leadDiffers == 0,
+                  $"(h) PARITY: {parsed} orders parse; their {gatedTasks} gated tasks carry NO SimulationTime " +
                   $"or DateTime start ({gatedWithOffset} do), so the anchor never reaches them, and the logged chain " +
                   $"lead is identical under both values ({leadDiffers} orders differ)");
             Check(ref failures, ironstormOffsets.Count == 5 && ironstormOffsets.All(s => !s.Contains("(gated)") || s.Contains("=0s")),
@@ -280,6 +289,42 @@ public static partial class RulingsSelfTest
                 Check(ref failures, same && after.Dispatched == order.Tasks.Count,
                       $"(h) PARITY: {name} walks IDENTICALLY under both values - {after.Dispatched} of {order.Tasks.Count} " +
                       $"dispatched, every dispatch at the same task-clock second");
+            }
+        }
+
+        // ------------------------------------------------------------------ (i) ----
+        {
+            // A GATED DateTime StartTime, through the service's own conversion (TaskDispatchPolicy.StartOffsetMs:
+            // the instant minus the wall clock at receipt) and then the gate, exactly as RunTaskAsync hands it.
+            var receiptUtc = new DateTime(2026, 9, 28, 12, 0, 0, DateTimeKind.Utc);
+            long offsetMs = TaskDispatchPolicy.StartOffsetMs(0L, receiptUtc.AddSeconds(D), receiptUtc);
+            bool conversion = offsetMs == (long)(D * 1000.0)
+                              && TaskDispatchPolicy.StartOffsetMs(0L, receiptUtc.AddSeconds(-60), receiptUtc) == 0L
+                              && TaskDispatchPolicy.StartOffsetMs(5000L, receiptUtc.AddSeconds(D), receiptUtc) == 5000L;
+            Check(ref failures, conversion,
+                  $"(i) a DateTime StartTime becomes an offset from receipt ({offsetMs / 1000} s for an instant {D:F0} s " +
+                  "after it), a past instant becomes 0, and a SimulationTime offset takes precedence");
+
+            foreach (bool receipt in new[] { false, true })
+            {
+                var opened = new List<double>();
+                foreach (double predEnd in new[] { D / 2.0, 1.5 * D })
+                {
+                    var r = new AnchorRig(receipt);
+                    r.Dispatch("P", 0.0);
+                    var g = r.Gate("P", offsetMs / 1000.0, window: predEnd + 60.0);
+                    r.StepTo(predEnd); r.Complete("P");
+                    opened.Add(r.RunUntilOpen(g, 4.0 * D));
+                }
+                if (receipt)
+                    Check(ref failures, opened[0] == D && opened[1] == 1.5 * D,
+                          $"(i) STP-850 Receipt, a gated DateTime start {D:F0} s after receipt: predecessor ends early " +
+                          $"({D / 2.0:F0} s) -> opens at THE INSTANT ({opened[0]:F0} s); ends late ({1.5 * D:F0} s) -> " +
+                          $"opens at its completion ({opened[1]:F0} s)");
+                else
+                    Check(ref failures, opened[0] == 1.5 * D && opened[1] == 2.5 * D,
+                          $"FAIL-FIRST (i) PredecessorCompletion: the same DateTime start is served AFTER the predecessor " +
+                          $"- opens at {opened[0]:F0} s and {opened[1]:F0} s, never at the instant");
             }
         }
     }

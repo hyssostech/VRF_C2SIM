@@ -185,9 +185,13 @@ public sealed class TaskSequencer
     /// (<paramref name="simulationStartMs"/>) is measured FROM - order receipt, stamped once per order
     /// (Vrf:StartTimeAnchor=Receipt). The task then dispatches at max(predecessor completion,
     /// anchor + offset). NaN (the default) = the offset is a delay served AFTER the predecessor
-    /// completes (Vrf:StartTimeAnchor=PredecessorCompletion, the pre-STP-850 behaviour). The
-    /// relative delay is never anchored: it stays a delay after the predecessor. Every gate
-    /// outcome above the delay is unchanged either way.</param>
+    /// completes (Vrf:StartTimeAnchor=PredecessorCompletion, the pre-STP-850 behaviour). The service
+    /// also passes a DateTime StartTime here, converted to an offset from receipt, so it is anchored
+    /// the same way (start = max(predecessor completion, that instant)). The relative delay
+    /// (ActionTemporalRelationship/Duration) is never anchored: it stays a delay after the
+    /// predecessor. Every gate outcome above the delay is unchanged either way. Proceed means the
+    /// predecessor signalled Completed - NOT that its unit is idle (a platform ATTACK re-records its
+    /// engage in flight after that signal; RUNBOOK sec 11).</param>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
         long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct,
         double dispatchTimeoutSeconds = double.NaN, double overdueBackstopSeconds = double.NaN,

@@ -4824,10 +4824,11 @@ public sealed class VrfC2SimService : BackgroundService
             //     delaying them is no longer dispatched immediately;
             //   - Vrf:DurationScale compresses the wait exactly as it compresses the Duration, so a
             //     demo that shortens a 2 h task does not then wait 3h20m for its successor.
-            long startMs = task.SimulationStartMs;
-            if (startMs == 0 && task.AbsoluteStartUtc is DateTime absoluteStart)
+            // STP-850: the conversion is TaskDispatchPolicy.StartOffsetMs, so the self-test drives the same one.
+            long startMs = TaskDispatchPolicy.StartOffsetMs(task.SimulationStartMs, task.AbsoluteStartUtc,
+                                                            DateTime.UtcNow);
+            if (task.SimulationStartMs == 0 && task.AbsoluteStartUtc is DateTime absoluteStart)
             {
-                startMs = (long)Math.Max(0.0, (absoluteStart - DateTime.UtcNow).TotalMilliseconds);
                 _log.LogInformation("Task '{Task}': StartTime is the ABSOLUTE form ({At:O}) - dispatching " +
                                     "{S:F0} s after order receipt.", task.TaskName, absoluteStart, startMs / 1000.0);
             }

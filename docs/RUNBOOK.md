@@ -2893,13 +2893,23 @@ no Duration and no geometry is malformed and is refused, not held (below).
   `Vrf:DurationScale`. Before, the offset was served as a delay AFTER the predecessor completed (the C++
   oracle's order), and STP's export - absolute slot offsets plus one same-unit STREND lower bound - then
   grew a unit's chain quadratically past `Vrf:TaskChainBackstopSeconds` (d = 60 min, ten tasks: the last
-  start at 54 h, the tail TASKABRT'd as never dispatched). Gate outcomes (dispatch window, completion
-  window, OVERDUE extension, abandon/backstop) and a RelativeTime delay are unchanged, and a successor is
-  still never dispatched while its predecessor is in flight. Lines to look for: start-up "START TIME
-  ANCHOR (STP-850)", per task "start delay ... counted from ORDER RECEIPT", and the "CHAIN DEPTH" lead now
-  follows the anchor. No order in `data/` carries a SimulationTime on a gated task, so they all dispatch
-  identically either way (`--rulings-selftest`, STP-850 section). Rollback:
-  `$env:Vrf__StartTimeAnchor = "PredecessorCompletion"`.
+  start at 54 h, the tail TASKABRT'd as never dispatched). A DateTime StartTime is anchored the same way:
+  it is converted to an offset from receipt, so under Receipt the task starts at max(its predecessor's
+  completion, that instant) - before STP-850 the offset was again served after the predecessor. Gate
+  outcomes (dispatch window, completion window, OVERDUE extension, abandon/backstop) are unchanged, and so
+  is the ActionTemporalRelationship/Duration relative delay, which stays a delay after the predecessor
+  (StartTime/RelativeTime is not honoured by the parser at all). THE INVARIANT IS THE GATE'S, NOT THE
+  UNIT'S: a successor dispatches only after its predecessor's Completed signal (TaskSequencer.CompleteTask),
+  never before. That signal is not "the unit is idle". KNOWN EXPOSURE (pre-existing, not introduced here):
+  a PLATFORM ATTACK's advance-then-engage - SynthesizeUnitCompletion calls CompleteTask and only then
+  IssueEngage re-records the engage as the unit's in-flight task, and the timed walk releases successors
+  while popping only hold-in-place records - so a successor can reach a unit whose engage is running: a
+  mover then supersedes the engage, a hold is refused by SF4 (TASKABRT). Under Receipt an on-time successor
+  fires right at the completion instead of an offset later, so this is hit more often. Lines to look for:
+  start-up "START TIME ANCHOR (STP-850)", per task "start delay ... counted from ORDER RECEIPT", and the
+  "CHAIN DEPTH" lead now follows the anchor. No order in `data/` or `docs/golden-trace/orders/` carries a
+  SimulationTime or DateTime start on a gated task, so they all dispatch identically either way
+  (`--rulings-selftest`, STP-850 section). Rollback: `$env:Vrf__StartTimeAnchor = "PredecessorCompletion"`.
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.

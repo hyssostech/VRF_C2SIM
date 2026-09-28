@@ -581,10 +581,12 @@ public static class TaskDispatchPolicy
     ///   PredecessorCompletion start = predecessor completion + offset - the pre-STP-850 behaviour,
     ///                         kept for rollback.
     /// The scenario-start anchor is deliberately not offered: the interface has no scenario-start
-    /// instant it could stamp on the task clock. A relative (ActionTemporalRelationship) delay is not
-    /// affected - it stays a delay after the predecessor. Every order on disk whose tasks carry a
-    /// predecessor carries NO SimulationTime on those tasks, so for them the two values dispatch
-    /// identically (--rulings-selftest, STP-850 section).
+    /// instant it could stamp on the task clock. A DateTime StartTime is converted to an offset from
+    /// receipt (<see cref="StartOffsetMs"/>) and anchored the same way: start = max(predecessor
+    /// completion, that instant). The ActionTemporalRelationship/Duration relative delay is not affected
+    /// - it stays a delay after the predecessor (StartTime/RelativeTime is not honoured at all). Every
+    /// order on disk whose tasks carry a predecessor carries NO SimulationTime or DateTime start on those
+    /// tasks, so for them the two values dispatch identically (--rulings-selftest, STP-850 section).
     /// </summary>
     public enum StartTimeAnchor { Receipt, PredecessorCompletion }
 
@@ -607,6 +609,18 @@ public static class TaskDispatchPolicy
     /// after the predecessor) under PredecessorCompletion.</summary>
     public static double StartAnchorClock(StartTimeAnchor anchor, double receiptClock)
         => anchor == StartTimeAnchor.Receipt ? receiptClock : double.NaN;
+
+    /// <summary>R4 + STP-850: the unscaled start offset the gate is handed as its SimulationTime argument.
+    /// A SimulationTime offset as authored; otherwise a DateTime StartTime becomes an offset from
+    /// <paramref name="nowUtc"/> (the service passes the wall clock when the task's orchestration starts,
+    /// i.e. order receipt), never negative. Under Receipt the gate anchors it, so the task starts at
+    /// max(predecessor completion, that instant); under PredecessorCompletion it is served after the
+    /// predecessor, as before STP-850.</summary>
+    public static long StartOffsetMs(long simulationStartMs, DateTime? absoluteStartUtc, DateTime nowUtc)
+    {
+        if (simulationStartMs != 0 || absoluteStartUtc is not DateTime at) return simulationStartMs;
+        return (long)Math.Max(0.0, (at - nowUtc).TotalMilliseconds);
+    }
 
     /// <summary>STP-850: one order task as the chain-lead arithmetic sees it under this anchor. A
     /// SimulationTime offset under Receipt is a lower bound from receipt; everything else keeps the
