@@ -9,6 +9,9 @@ CLOSED - tripwires, one line each; the pointer is the record. A session that wan
 - Model set = the highest TASKED echelon: above BN aggregate-only; BN and below entity by default, overridable upward -> RL-20260927-06, RL-20260928-01.
 - Successor gate: an unfinished predecessor with a destination is OVERDUE when its window expires -> RL-20260927-05.
 - VRF objects are addressed by their real VRF_UUID, never a name-as-DtUUID -> DESIGN_ORBAT C8 (2026-09-02).
+- Vendor docs, samples and community material BEFORE any probe; a probe cites the doc it rests on. A suspected VR-Forces bug means we misuse it -> CLAUDE.md Research bias (2026-09-01), AUDIT_REPEATED_INSTRUCTIONS items 1, 11.
+- Hostile side: Chinese preferred, Russian acceptable - RUS for Iron Storm -> L4080 (2026-09-02), RL-20260927-02.
+- The demo is IRON STORM (Suwalki, STP CoaRenderer narrative 1); Mojave is preserved, no new effort -> RL-20260920-01, AUDIT item 12 (runner default still R9 - open).
 
 Ruling: RL-20260927-01 ("Go" on the decision brief of 2026-09-27). Basis: docs/experiments/FINDING_GROUND_MOVEMENT_
 PRACTICE_2026-09-27.md (vendor citations, the stops read against them, the aggregate mobility table). Frame: Y-15
