@@ -484,6 +484,17 @@ Check 'runner: $missing wraps the PROPERTY, not the call - @( (Test-EarlyExit ..
 # not support.
 Write-Host '=== 8b. the 5.2 profile: fixed rtiexec mode, interface address off by default ==='
 $runnerText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1') -Raw
+# AUDIT_RULINGS_IN_CODE_2026-09-28 row 5.0.2-ARCHIVE ("nothing on the live path launches 5.0.2", 2026-09-04): the
+# runner's -VrfProfile defaulted to 5.0.2 while the wrapper, every registered run and the only install on this machine
+# are 5.2. The default is 5.2 now; the 5.0.2 leg stays selectable with -VrfProfile 5.0.2 (8k / 8l pass it explicitly).
+$vpParam = $(if ($params.ContainsKey('VrfProfile')) { $params['VrfProfile'] } else { $null })
+$vpVs    = @(if ($vpParam) { $vpParam.Attributes | Where-Object { $_.TypeName.Name -eq 'ValidateSet' } })
+Check 'runner: -VrfProfile DEFAULTS TO 5.2 (audit 5.0.2-ARCHIVE), and 5.0.2 is still a valid value' (
+    $null -ne $vpParam -and $null -ne $vpParam.DefaultValue -and $vpParam.DefaultValue.Value -eq '5.2' -and
+    $vpVs.Count -eq 1 -and (@($vpVs[0].PositionalArguments | ForEach-Object { $_.Value }) -join ',') -eq '5.0.2,5.2') (
+    $(if ($vpParam) { "default=[$($vpParam.DefaultValue)]" } else { 'no -VrfProfile parameter' }))
+Check 'runner: the -VrfProfile help says 5.2 is the default' (
+    $runnerText -match "(?s)\.PARAMETER VrfProfile\s+WHICH VR-FORCES STACK the whole pipeline runs on: '5\.2' \(the DEFAULT")
 Check 'runner: the 5.2 RtiDir is makRti5.0.1 (never 4.6.1)' (
     $runnerText -match "ContainsKey\('RtiDir'\)\)\s*\{\s*\`$RtiDir\s*=\s*'C:\\MAK\\makRti5\.0\.1'")
 Check 'runner: the SHARED rid is rid-501-rtiexec-min.mtl' (
@@ -1203,8 +1214,10 @@ if ($holdOn -notmatch 'DRY RUN - the full planned sequence' -or $holdOff -notmat
 # profile must stay byte-for-byte what it was: a default dry run there may not mention the
 # holder at all. This assertion holds even in a checkout with no 5.0.2 binaries, because a
 # refusal would land in that run's Stage 0 Result block, which is always printed.
-$holdLegacy = (& $holdPwsh -NoProfile -File $holdScript -DryRun -SkipServerCheck 2>&1 | Out-String)
-Check '8k the 5.0.2 profile is untouched: a DEFAULT dry run there never mentions the holder' (
+# -VrfProfile 5.0.2 is PASSED since 2026-09-28: the runner's default is 5.2 now (audit row 5.0.2-ARCHIVE), and the
+# 5.0.2 leg stays selectable - this is the check that it still behaves as it did.
+$holdLegacy = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.0.2 -DryRun -SkipServerCheck 2>&1 | Out-String)
+Check '8k the 5.0.2 profile is untouched: a 5.0.2 dry run (-VrfProfile 5.0.2) never mentions the holder' (
     $holdLegacy -notmatch 'FederationHold' -and $holdLegacy -notmatch 'Stage 2h')
 
 # Static half: the holder is a JOINED FEDERATE, so it must be started detached and must never
@@ -1274,9 +1287,9 @@ if ($wsDryOn -notmatch 'DRY RUN - the full planned sequence' -or $wsDryOff -notm
 # THE REGRESSION THIS PINS: -WsRunawayAbortAfter defaults to 3 (armed), so a default dry run
 # that never mentions it would be the "no abort rule at all" false-green this whole item exists
 # to close - the same shape 8k's own final assertion guards for -FederationHoldSecs.
-$wsDryLegacy = (& $wsPwshDry -NoProfile -File $wsDryScript -DryRun -SkipServerCheck 2>&1 | Out-String)
+$wsDryLegacy = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.0.2 -DryRun -SkipServerCheck 2>&1 | Out-String)
 if ($wsDryLegacy -match 'DRY RUN - the full planned sequence') {
-    Check '8l a 5.0.2 default dry run still plans the abort rule (armed by default, profile-independent)' (
+    Check '8l a 5.0.2 dry run (-VrfProfile 5.0.2) still plans the abort rule (armed by default, profile-independent)' (
         $wsDryLegacy -match 'BACK-END WS' -and $wsDryLegacy -match 'RUNAWAY alerts')
 } else {
     Check '8l 5.0.2 leg SKIPPED - that dry run did not reach the planned sequence either' $true

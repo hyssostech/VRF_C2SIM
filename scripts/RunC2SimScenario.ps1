@@ -145,8 +145,10 @@
     THE THREE MUST COME FROM ONE AO (STP-823).
 
 .PARAMETER VrfProfile
-    WHICH VR-FORCES STACK the whole pipeline runs on: '5.0.2' (default, the historical
-    path - unchanged in every observable way) or '5.2'. It is the ONLY selector, and it
+    WHICH VR-FORCES STACK the whole pipeline runs on: '5.2' (the DEFAULT since 2026-09-28 -
+    audit row 5.0.2-ARCHIVE: the wrapper, every registered run and the only install on this
+    machine are 5.2) or '5.0.2' (the historical path, still selectable and unchanged in every
+    observable way when asked for by name). It is the ONLY selector, and it
     derives: the roots (vrforces5.2d + vrlink5.10 + makRti5.0.1), the per-process
     environment (5.2 PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, the SHARED rtiexec
     rid config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE), the launch and stop
@@ -397,8 +399,10 @@ param(
     # is REFUSED at validation (a half-5.2 environment is the DLL-name-binding trap: MAK
     # libraries bind BY NAME on PATH, so a 5.2 exe under a 5.0.2 PATH silently loads the
     # wrong stack - docs/VRF_5.2_MIGRATION_DIFF.md sec H).
+    # DEFAULT 5.2 since 2026-09-28 (AUDIT_RULINGS_IN_CODE_2026-09-28 row 5.0.2-ARCHIVE, "nothing on
+    # the live path launches 5.0.2"); -VrfProfile 5.0.2 still selects the historical path.
     [ValidateSet('5.0.2','5.2')]
-    [string] $VrfProfile = '5.0.2',
+    [string] $VrfProfile = '5.2',
 
     # 5.2 ONLY: launch the back end WITHOUT vrfGui (LaunchVrf52.ps1 -NoGui). Default OFF -
     # the GUI stays ON during the migration because it is the only channel that shows
@@ -2482,7 +2486,7 @@ if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
 }
 
-# ---- PROFILE integrity (nothing here can fire on the 5.0.2 default) ----------
+# ---- PROFILE integrity (nothing here can fire on the 5.0.2 profile) ----------
 # -VrfProfile is the ONLY stack selector. A hand-passed root/federation beside it would
 # produce a MIXED environment, and the failure mode is silent: MAK DLLs bind by NAME on
 # PATH, so a 5.2 binary under a 5.0.2 prefix loads 5.0.2 and reports it only in the app's
