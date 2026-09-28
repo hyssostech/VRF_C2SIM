@@ -109,6 +109,19 @@ public static class VertexChainPolicy
         => double.IsFinite(radiusMeters) && radiusMeters > 0.0
            && double.IsFinite(distanceMeters) && distanceMeters > radiusMeters;
 
+    /// <summary>
+    /// M3b (2026-09-28, the G1-3 Result) - THE EXECUTOR REFUSED: a success that is VACUOUS (farther than the bar from the
+    /// vertex) AND moved the unit less than the bar since its last fix. SEEN LIVE: G1-3's vertex 1 "COMPLETED - the unit is
+    /// 1451 m from it and moved 0 m since dispatch" (vrfc2simapp.log L9979) after every member's move-along was refused
+    /// "route does not exist" (L9811-L9875) - navigate-to-location ends SUCCESS once its subtask stops, whatever that
+    /// subtask's result (navigate-to-location.lua :252-259). A vacuous success that DID move the unit (one member left
+    /// behind while the rest arrived, say) is not this. Unreadable positions (NaN) never refuse, and a bar of 0 or less
+    /// switches the test off, as for <see cref="IsVacuous"/>.
+    /// </summary>
+    public static bool IsExecutorRefusal(double distanceMeters, double displacementMeters, double radiusMeters)
+        => IsVacuous(distanceMeters, radiusMeters)
+           && double.IsFinite(displacementMeters) && displacementMeters < radiusMeters;
+
     /// <summary>The start-up line, said once and in BOTH states (absence is not evidence of off).</summary>
     public static string StartupLine(bool enabled, double radiusMeters)
     {
@@ -143,7 +156,9 @@ public static class VertexChainPolicy
 ///                     way k+1 becomes outstanding. So a Move To is never issued before the previous one
 ///                     completed, and a second completion arriving in between is a Stray, not a step;
 ///   last vertex    -> the chain ENDS and the caller hands the completion to the task's own completion
-///                     rules (or, when it is vacuous, withholds it - see <see cref="Outcome.FinalVacuous"/>).
+///                     rules (or, when it is vacuous, withholds it - see <see cref="Outcome.FinalVacuous"/>);
+///   M3b            -> a PLANNED chain's INTERMEDIATE vertex that succeeded without moving the container ENDS the
+///                     chain as <see cref="Outcome.ExecutorRefused"/> - the vertex failed (the G1-3 Result).
 /// A chain is ENDED (Clear/ClearIfOtherTask) by every terminal end of its VR-Forces task: a new task for the
 /// same unit, a Fire At replacing the move, a vendor FAILURE, a dispatch that threw. A BACK-END LOSS FREEZES
 /// every chain instead (<see cref="FreezeAll"/>): the task is aborted and "NOTHING IS RE-TASKED" on recovery
@@ -208,6 +223,12 @@ public sealed class VertexChainTracker
         /// chain's LAST vertex is <see cref="FinalVertex"/> and its failure <see cref="Failed"/>, as for any
         /// chain: the task is still the unit's in-flight task.</summary>
         Retired,
+        /// <summary>M3b: a PLANNED container chain's INTERMEDIATE vertex reported SUCCESS while the container moved less than
+        /// the vacuous bar and is farther than it from the vertex (<see cref="VertexChainPolicy.IsExecutorRefusal"/>) - the
+        /// executor refused the planned route. The chain has ENDED and the vertex FAILED: the task takes the failure path
+        /// (TASKABRT with the reason) although the vendor reported success. A lone platform's chain (RL-20260927-01) never
+        /// returns this - its vacuous intermediate vertex is logged and advances, as ruled (PLAN_MOVEMENT row M1).</summary>
+        ExecutorRefused,
     }
 
     /// <summary>A copy of one chain's state, for decisions and log lines. VertexNumber is 1-based: the
@@ -376,6 +397,17 @@ public sealed class VertexChainTracker
                 var snapRetired = Snap(c);
                 _chains.Remove(unitName);
                 return new Decision(Outcome.Retired, snapRetired, k, dist, disp, dispFrom, vacuous, default, 0);
+            }
+
+            // M3b: a PLANNED chain's intermediate vertex that "succeeded" without moving the container is the executor
+            // refusing the planned route (G1-3) - the vertex FAILS instead of advancing past it. M1's lone-platform chain
+            // (no completion type) keeps its ruled behaviour: logged VACUOUS, then advance.
+            if (!string.IsNullOrEmpty(c.CompletionTaskType)
+                && VertexChainPolicy.IsExecutorRefusal(dist, disp, VertexArrivalRadiusMeters))
+            {
+                var snapRefused = Snap(c);
+                _chains.Remove(unitName);
+                return new Decision(Outcome.ExecutorRefused, snapRefused, k, dist, disp, dispFrom, vacuous, default, 0);
             }
 
             c.Index++;

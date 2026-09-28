@@ -24,6 +24,10 @@ namespace VrfC2SimApp;
 ///   (m7) THE VENDOR FILES - the script ids, parameter types and completion rule read from C:\MAK (read-only; SKIP if absent).
 ///   (m8) THE AUTO ROAD DECISION - the vendor road filter, the tile band, NEAR / FAR / UNKNOWN on synthetic tiles.
 ///   (m9) optional: the AUTO decision on real tiles for the cut-A legs of G1-2 (printed, informational).
+///   (m10) M3b (the G1-3 Result) - VACUOUS = FAILURE for a PLANNED INTERMEDIATE vertex: G1-3's own lines (L9811 'route does
+///        not exist', L9979 '1451 m from it and moved 0 m') replayed - the planned chain ends ExecutorRefused (TASKABRT with
+///        the reason) where M3 advanced; FAIL-FIRST: the lone platform's chain (M1, ruled) still advances on the same numbers;
+///        a vertex that moved but ended vacuous still advances; the last vertex still goes to D-6.
 /// </summary>
 public static class PlannedMoveSelfTest
 {
@@ -46,6 +50,7 @@ public static class PlannedMoveSelfTest
         Selection(ref failures);
         Chaining(ref failures);
         Completion(ref failures);
+        ExecutorRefusal(ref failures);
         Literal(ref failures);
         Setting(ref failures);
         Glue(ref failures);
@@ -293,6 +298,95 @@ public static class PlannedMoveSelfTest
               "(m3) every line is ASCII");
     }
 
+    // ----------------------------------------------------------------------------- (m10) ----
+    // M3b (2026-09-28, the G1-3 Result): VACUOUS = FAILURE for a PLANNED INTERMEDIATE vertex. G1-3's own lines, verbatim
+    // (runs/20260928T190047Z_run/vrfc2simapp.log): the executor refused every member's planned route, every member's
+    // navigate-to-location still ended SUCCESS, and M3 advanced past the vertex.
+    private const string G13RouteRefused =      // L9811 (one of 15 such warnings, 5 of 5 members)
+        "VRF console [1] 1-112_IN/28ID__FRIENDLY_I.RIF2 (VRF_UUID:081d4816-9dbd-5f2f-bb9b-42cbff62b529): Warning:  " +
+        "DtAggregatedMoveAlongController::setupRoute -- %1 route does not exist. | 1-112_IN/28ID__FRIENDLY_I.RIF2 Pathr";
+    private const string G13VertexLine =        // L9979
+        "PLANNED MOVE 1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE vertex 1 of 3: navigate-to-location issued " +
+        "(useRoads true) -> COMPLETED - the unit is 1451 m from it and moved 0 m since dispatch (VACUOUS by the vertex bar - " +
+        "R11); members 5 succeeded / 0 failed of 5; vertex 2 is issued next (RL-20260928-03)";
+
+    private static void ExecutorRefusal(ref int failures)
+    {
+        var m = Regex.Match(G13VertexLine, @"the unit is (\d+) m from it and moved (\d+) m since dispatch");
+        double dist = m.Success ? double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : double.NaN;
+        double disp = m.Success ? double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture) : double.NaN;
+        double bar = VertexChainPolicy.DefaultVertexArrivalRadiusMeters;
+        Check(ref failures, m.Success && dist == 1451 && disp == 0 && VertexChainPolicy.IsVacuous(dist, bar)
+                            && VertexChainPolicy.IsExecutorRefusal(dist, disp, bar)
+                            && G13RouteRefused.Contains("route does not exist", StringComparison.Ordinal),
+              "(m10) G1-3's vertex 1 (L9979: 1451 m from it, moved 0 m, 5 of 5 succeeded) after 'route does not exist' (L9811) " +
+              "is an EXECUTOR REFUSAL: vacuous by the 100 m bar AND moved less than it");
+        Check(ref failures, !VertexChainPolicy.IsExecutorRefusal(290, 1161, bar) && VertexChainPolicy.IsVacuous(290, bar)
+                            && !VertexChainPolicy.IsExecutorRefusal(40, 0, bar) && !VertexChainPolicy.IsExecutorRefusal(double.NaN, 0, bar)
+                            && !VertexChainPolicy.IsExecutorRefusal(1451, double.NaN, bar) && !VertexChainPolicy.IsExecutorRefusal(1451, 0, 0),
+              "(m10) NOT a refusal: a vacuous success that MOVED the container (one of 5 members left behind: 290 m off, 1161 m " +
+              "moved), a success within the bar, an unreadable position (NaN) either way, and the test switched off (bar 0)");
+
+        // THE CHAIN: the planned rule, replayed on the real tracker with G1-3's geometry (T10 vertex 1 of 3).
+        var origin = new VertexChainTracker.Point(54.042688, 23.308235);
+        var v1 = new VertexChainTracker.Point(54.029734, 23.305499);
+        var v2 = new VertexChainTracker.Point(54.024000, 23.313000);
+        var v3 = new VertexChainTracker.Point(54.019389, 23.313902);
+        var planned = new VertexChainTracker(bar);
+        planned.Start("1-112 IN", "VRF_UUID:c", "t10", "taskee", "T10", origin, new[] { v1, v2, v3 }, "navigate-to-location",
+                      handLastVertexOn: true);
+        var refused = planned.OnCompletion("1-112 IN", "navigate-to-location", true, origin, false);
+        double d0 = RouteExtentPolicy.GreatCircleMeters(origin.Lat, origin.Lon, v1.Lat, v1.Lon);
+        Check(ref failures, refused.Outcome == VertexChainTracker.Outcome.ExecutorRefused && refused.CompletedVertex == 1
+                            && Math.Abs(refused.DistanceMeters - d0) < 1.0 && refused.DisplacementMeters < 1.0 && refused.Vacuous
+                            && !planned.TryGet("1-112 IN", out _)
+                            && !planned.TryBeginIssue("1-112 IN", refused.Chain.Generation, 2, out _, out _),
+              FormattableString.Invariant($"(m10) a PLANNED chain whose vertex 1 'succeeds' with the container still at its origin ") +
+              FormattableString.Invariant($"({refused.DistanceMeters:F0} m from the vertex, moved {refused.DisplacementMeters:F0} m) ENDS as ") +
+              "ExecutorRefused - vertex 2 is never issued");
+        // FAIL-FIRST: the same completion on M3's rule (the planned chain before M3b) ADVANCED - reproduced here by the chain
+        // M3b leaves unchanged, the lone platform's (no completion type): it advances past the vacuous vertex, as ruled.
+        var m1 = new VertexChainTracker(bar);
+        m1.Start("P", "VRF_UUID:p", "t", "taskee", "T", origin, new[] { v1, v2, v3 });
+        var m1d = m1.OnCompletion("P", "move-to", true, origin, false);
+        Check(ref failures, m1d.Outcome == VertexChainTracker.Outcome.Advance && m1d.Vacuous && m1d.NextVertex == 2,
+              "FAIL-FIRST (m10): the lone platform's chain (M1, RL-20260927-01) ADVANCES on the identical completion, logged " +
+              "VACUOUS - M3's planned chain did exactly this in G1-3 (L9979 'vertex 2 is issued next'); M1 is unchanged by M3b");
+        // A planned vertex that moved but ended vacuous (a member left behind) still ADVANCES - the vendor's Move (Group) rule.
+        var moved = new VertexChainTracker(bar);
+        moved.Start("C", "VRF_UUID:c", "t", "taskee", "T", origin, new[] { v1, v2 }, "navigate-to-location", handLastVertexOn: true);
+        var partway = new VertexChainTracker.Point(54.032325, 23.306046);   // ~290 m short of v1, ~1160 m moved
+        var movedD = moved.OnCompletion("C", "navigate-to-location", true, partway, false);
+        Check(ref failures, movedD.Outcome == VertexChainTracker.Outcome.Advance && movedD.Vacuous && movedD.DisplacementMeters > bar,
+              FormattableString.Invariant($"(m10) a planned vertex that MOVED the container ({movedD.DisplacementMeters:F0} m) but ended ") +
+              FormattableString.Invariant($"{movedD.DistanceMeters:F0} m from it still ADVANCES (vacuous, logged) - not a refusal"));
+        // The LAST vertex is unchanged: handed to D-6 (RL-20260927-04), never ExecutorRefused.
+        var last = new VertexChainTracker(bar);
+        last.Start("C", "VRF_UUID:c", "t", "taskee", "T", origin, new[] { v1 }, "navigate-to-location", handLastVertexOn: true);
+        Check(ref failures, last.OnCompletion("C", "navigate-to-location", true, origin, false).Outcome == VertexChainTracker.Outcome.FinalVertex,
+              "(m10) a PLANNED LAST vertex that moved nothing is still FinalVertex - D-6 withholds it (RL-20260927-04), unchanged");
+
+        // THE REPLAY through the per-member step (Auto): 5 members succeed, the container never left -> ExecutorRefused, one
+        // issue per member for vertex 1 and nothing more.
+        var ms = Members(5);
+        var r = new PlannedRecorder(AggregateMovePlanner.Auto);
+        r.Dispatch("1-112 IN", "t10", new[] { origin, v1, v2, v3 }, ms);
+        VertexChainTracker.Outcome? o = null;
+        foreach (var mm in ms) o = r.CompleteMember(mm.Name, true, origin);
+        Check(ref failures, o == VertexChainTracker.Outcome.ExecutorRefused && r.Issued.Count == 5
+                            && r.Issued.All(s => s.Contains("@54.0297")),
+              $"(m10) Auto, 5 of 5 members SUCCEED on vertex 1 with the container unmoved -> ExecutorRefused; vertex 2 is NOT " +
+              $"issued ({r.Issued.Count} issues)");
+        string why = AggregateMovePolicy.ExecutorRefusedReason("1-112 IN", 1, 3, AggregateMovePlanner.Auto, 5, 5, 1451, 0, 0, bar);
+        string whyG = AggregateMovePolicy.ExecutorRefusedReason("1-112 IN", 2, 3, AggregateMovePlanner.Group, 0, 0, 800, 3, 1, bar);
+        Check(ref failures, why.StartsWith("PLANNED MOVE 1-112 IN vertex 1 of 3: navigate-to-location EXECUTOR REFUSED - moved 0 m since dispatch and is 1451 m from the vertex", StringComparison.Ordinal)
+                            && why.Contains("although 5 of 5 member(s) reported success") && why.Contains("navigate-to-location.lua :252-259")
+                            && whyG.Contains("group_movement_simplified EXECUTOR REFUSED - moved 3 m since vertex 1")
+                            && whyG.Contains("although VR-Forces reported success") && why.All(ch => ch < 128) && whyG.All(ch => ch < 128),
+              "(m10) the TASKABRT reason: 'PLANNED MOVE <c> vertex k of N: <script> EXECUTOR REFUSED - moved <d> m ...', naming the " +
+              "vendor script lines that make a refused executor end in success", why);
+    }
+
     // ------------------------------------------------------------------------------ (m4) ----
     private static void Literal(ref int failures)
     {
@@ -404,13 +498,18 @@ public static class PlannedMoveSelfTest
               "(m6) an aggregated step takes the container's own path in OnVrfTaskCompleted's order: the chain, D-6, the watchdog " +
               "window, the arrival swallow, SynthesizeUnitCompletion");
         string cp = Between(src, "private bool ConsumePlannedVertexCompletion(", "private bool RoutePlannedMemberCompletion(");
-        string routing = string.Join(", ", new[] { "Advance", "FinalVertex", "Failed", "Stray", "Retired" }
+        string routing = string.Join(", ", new[] { "Advance", "FinalVertex", "Failed", "Stray", "Retired", "ExecutorRefused" }
                                            .Select(o => o + "=" + ReturnAfter(cp, "case VertexChainTracker.Outcome." + o + ":")));
-        Check(ref failures, routing == "Advance=true, FinalVertex=false, Failed=false, Stray=true, Retired=true"
+        string refusedArm = Between(cp, "case VertexChainTracker.Outcome.ExecutorRefused:", "case VertexChainTracker.Outcome.Stray:");
+        Check(ref failures, routing == "Advance=true, FinalVertex=false, Failed=false, Stray=true, Retired=true, ExecutorRefused=true"
                             && cp.Contains("QueueNextVertex(container, d);") && cp.Contains("_plannedFailReason[container] = (d.Chain.TaskUuid, reason);")
-                            && !cp.Contains("SynthesizeUnitCompletion("),
+                            && CountOf(cp, "SynthesizeUnitCompletion(") == 1
+                            && refusedArm.Contains("_plannedFailReason[container] = (d.Chain.TaskUuid, refused);")
+                            && refusedArm.Contains("SynthesizeUnitCompletion(container, script, false);")
+                            && refusedArm.Contains("\"FAILED\", $\"- EXECUTOR REFUSED - "),
               $"(m6) M1's routing for a planned chain - intermediate consumed (the next vertex queued), last vertex and failure handed " +
-              $"on (the failure's reason left for its TASKABRT), stray and retired consumed ({routing})");
+              $"on (the failure's reason left for its TASKABRT), stray and retired consumed; M3b: an EXECUTOR REFUSED vertex is " +
+              $"consumed with its failure tail run in place - TASKABRT with the reason, success=false, never D-6 ({routing})");
         Check(ref failures, Between(src, "private void SynthesizeUnitCompletion(", "private void OnVrfTextReport(")
                                 .Contains("string plannedWhy = !success ? PlannedFailureText(name, taskUuid) : null;"),
               "(m6) SynthesizeUnitCompletion's TASKABRT carries a planned vertex's reason - only for the task it belongs to");
@@ -483,11 +582,21 @@ public static class PlannedMoveSelfTest
                             && VarType(n, "query") == "string" && sent.All(declared.Contains) && sent.Count == 6
                             && n.Contains("<item>-1:-1:-1:-1:-1:-1:-1</item>"),
               "(m7) navigate-to-location.xml: every variable the per-member planners send is DECLARED, with the type the vendor gives " +
-              "it (destination a locationreference, fed a location vector as the vendor's own subtask does); valid for every type");
+              "it (destination a locationreference, fed a location vector as the vendor's PhaseTwo subtask does - and CONFIRMED " +
+              "LIVE by G1-3's level-3 echo 'destination={3448198.452440, 1485421.208769, 5138688.441927}', L9681-L9713); valid " +
+              "for every type");
         Check(ref failures, nl.Contains("if (taskParameters.query ~= \"\") then") && nl.Contains("obstacleQuery = taskParameters.query")
                             && nl.Contains("defaultPathQuery = \"MAK_ROAD\""),
               "(m7) navigate-to-location.lua lets the old 'query' OVERRIDE obstacleQuery unless it is \"\" - so query=\"\" is sent; " +
               "its own default path query is MAK_ROAD - so pathQuery is always sent");
+        // M3b: WHY A REFUSED EXECUTOR READS AS SUCCESS. Once the move-along subtask is no longer running the script moves to
+        // the next route part and, after the last, ends TRUE - it never reads the subtask's result (:252-259).
+        var tail = Regex.Match(nl, @"if routeTask and not vrf:isSubtaskRunning\(routeTask\) then\s+currentRoute = currentRoute \+ 1\s+" +
+                                   @"if currentRoute <= #routeList then[\s\S]{0,200}?else\s+vrf:endTask\(true\)");
+        Check(ref failures, tail.Success && !nl.Contains("subtaskResult"),
+              "(m7) M3b: navigate-to-location.lua ends vrf:endTask(true) once its move-along subtask stops, WITHOUT reading that " +
+              "subtask's result (:252-259; no vrf:subtaskResult anywhere) - so a move-along the executor refused ('route does not " +
+              "exist') still reports the member's task a SUCCESS; VertexChainPolicy.IsExecutorRefusal is the interface's answer");
         string en = SafeRead(enabler);
         Check(ref failures, en.Contains("\"group_movement_simplified\"") && en.Contains("\"group-navigate-route-to-location\""),
               "(m7) the Ground Echelon Group Tactics Enabler lists Move (Group) (INFO: the generic containers the interface creates " +
@@ -653,7 +762,8 @@ public static class PlannedMoveSelfTest
             if (d.Outcome == VertexChainTracker.Outcome.Advance
                 && _chains.TryBeginIssue(_c, d.Chain.Generation, d.NextVertex, out var next, out var snap))
                 Issue(snap, d.NextVertex, next);
-            if (d.Outcome is VertexChainTracker.Outcome.FinalVertex or VertexChainTracker.Outcome.Failed) _moves.End(_c);
+            if (d.Outcome is VertexChainTracker.Outcome.FinalVertex or VertexChainTracker.Outcome.Failed
+                or VertexChainTracker.Outcome.ExecutorRefused) _moves.End(_c);
             LastOutcome = d.Outcome;
             return d.Outcome;
         }
@@ -710,6 +820,13 @@ public static class PlannedMoveSelfTest
         if (a < 0) return "";
         int b = s.IndexOf(to, a + from.Length, StringComparison.Ordinal);
         return b < 0 ? s.Substring(a) : s.Substring(a, b - a);
+    }
+
+    private static int CountOf(string s, string needle)
+    {
+        int n = 0;
+        for (int i = s.IndexOf(needle, StringComparison.Ordinal); i >= 0; i = s.IndexOf(needle, i + 1, StringComparison.Ordinal)) n++;
+        return n;
     }
 
     private static string FindRepoRoot()

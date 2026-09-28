@@ -50,6 +50,15 @@ STATUS 2026-09-28 (M3, RL-20260928-03): a container's ROUTE move is the vendor's
 PA_Move_Along_Route is Vrf:AggregateMovePlanner=Literal only - sec 6 (TASK) carries the update. Built offline on
 feat/aggregate-planned-move; not deployed, not live (G1-3 is its first run). RUNBOOK sec 11o.
 
+STATUS 2026-09-28 (M3b, the G1-3 Result - run 20260928T190047Z): Auto moved NOTHING. The destination bound (every member's
+level-3 echo), every member planned, and every member's move-along was refused "route does not exist": navigate-to-location
+names its route "<member> Path part <n>" (.lua :223) and a move-along carries the route's reference in a DtUUID cut at 35
+(vrfutil/uuid.h :247-249), so C1c's 30-character members could never be followed; the script then ended SUCCESS anyway
+(.lua :252-259), M3 advanced, and the back end crashed at 19:05:16Z. M3b (fix/planned-move-destination; managed only; offline
+only): MEMBER NAMES are now at most 16 characters, "<container designator, cut>[~k].<suffix>" ("1-112_IN.RIF2") - identity
+stays the uuid (C1d); a planned INTERMEDIATE vertex that "succeeds" without moving the container FAILS as EXECUTOR REFUSED
+(TASKABRT); a crashed back end VOIDS the run's window. RUNBOOK sec 11o; PLAN row M3b; G1-4 is the live test.
+
 ## 1. The five questions
 
 (1) ONLY A CONTAINER HOLDS SUBORDINATES. UG52 72.2.1 p1419: "the aggregate-level simulation objects that are configured
@@ -200,6 +209,14 @@ also applies to a per-member vertex from the members' own completions; a failed 
 point move (PA_Move_To_Location_Direct), the patrol (PA_Patrol_Route) and the holds keep this section's path; the
 publication gate still guards every issue (ContainerPopulator.TryIssueScriptedMove / TryIssueMemberMoves); a per-member
 planner REFUSES a container whose members are STP TO sub-containers (no movement system to plan with). RUNBOOK sec 11o.
+UPDATED 2026-09-28 - M3b (the G1-3 Result): THE TASK PATH, END TO END, as G1-3 showed it: RunScriptedTask(member uuid,
+"navigate-to-location", [destination ...]) -> the script plans (navigateThroughFeatures) -> vrf:createRoute("<member> Path
+part <n>", unpublished) -> vrf:startSubtask("move-along", {route}) -> the member's aggregated-move-along-controller looks the
+route up by the reference the move-along carries (a DtUUID, cut at 35) -> moves along it -> the script ends true when the
+subtask stops, WHATEVER ITS RESULT. Two consequences built into M3b: the member's NAME must leave room for " Path part
+<n>_<counter>" within 34 (members at most 16, VrfNames.PlannedMemberNameChars), and a vertex the vendor calls done is checked
+against the container's position - an intermediate vertex that moved nothing FAILS as EXECUTOR REFUSED (VertexChainPolicy
+.IsExecutorRefusal), never advances. The last vertex still goes to D-6.
 POSITION SOURCE: the container's own centroid (D1 as merged). GetAggregateMembers keeps ENTITY members only
 (VrfFacade.cpp:1036-1070) and aggregate units "do not simulate them individually" (AggregateLevelAggregate.ope:5), so
 UnitPositionPolicy.SourceFor gives AggregateLeaf (:96-101) and TryReadUnitPositions reads the centroid (:7529-7581) - no

@@ -2441,3 +2441,112 @@ function Test-CompositionVariantPairing {
     }
     return $r
 }
+
+# ---- M3b (2026-09-28, the G1-3 Result): A CRASHED BACK END VOIDS THE WINDOW ------------------------------
+# SEEN LIVE, run 20260928T190047Z_run: the back end (pid 3344) CRASHED at 19:05:16Z - C:\MAK\logs holds
+# vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-3344.callstack.log (mtime 19:05:16Z) and .dmp (19:05:17Z) - and sat
+# on a modal titled "Error vrfSimHLA1516e.exe" (stopvrf.stdout.log: window="Error vrfSimHLA1516e.exe"); WatchVrf's
+# backends= fell 1 -> 0 only at t=194.9s of its trace (19:07:10Z - its status cache ages out ~2 minutes after the last
+# status, V6); the observation window ran on to StopIface (19:07:22Z) as if nothing had happened, and StopVrf52 closed
+# the crash dialog with taskkill and reported "VR-Forces 5.2d is down (graceful; nothing was killed)". Every signal
+# below is READ-ONLY: crash records are matched by NAME AND MTIME ONLY - a vendor .log carries the whole process
+# environment in cleartext and is never opened (and never matched: only .callstack.log and .dmp are crash records).
+
+# The first TRACE sample whose backends= is 0 right after one that was >= 1 (a 0 from the start is "never up", not a
+# drop). SampleLines are WatchVrf's "# t=<s>s reflected=<n> readable=<n> backends=<n>" lines, in order. $null = no drop.
+function Get-TraceBackendDrop {
+    param([string[]]$SampleLines, [Nullable[datetime]]$TraceStartUtc)
+    $prev = $null
+    $prevLine = $null
+    foreach ($l in @($SampleLines)) {
+        if ([string]::IsNullOrEmpty($l)) { continue }
+        $m = [regex]::Match($l, '^# t=([0-9]+(?:\.[0-9]+)?)s\b.*\bbackends=([0-9]+)')
+        if (-not $m.Success) { continue }
+        $t = [double]::Parse($m.Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+        $n = [int]$m.Groups[2].Value
+        if ($null -ne $prev -and $prev -ge 1 -and $n -eq 0) {
+            $at = $null
+            if ($null -ne $TraceStartUtc) { $at = ([datetime]$TraceStartUtc).ToUniversalTime().AddSeconds($t) }
+            return [pscustomobject]@{ TSec = $t; AtUtc = $at; Line = $l; PrevLine = $prevLine }
+        }
+        $prev = $n
+        $prevLine = $l
+    }
+    return $null
+}
+
+# The back end's CRASH RECORDS among C:\MAK\logs entries (objects with Name and LastWriteTimeUtc - names and mtimes
+# only): "<prefix>-<pid>.callstack.log" and "<prefix>-<pid>.dmp" for THIS pid, written at or after SinceUtc (an older
+# one belongs to a recycled pid). The vendor's plain .log is never a crash record.
+function Get-BackendCrashRecords {
+    param([object[]]$Files, [int]$BackendPid, [Nullable[datetime]]$SinceUtc)
+    $out = @()
+    if ($BackendPid -le 0) { return $out }
+    foreach ($f in @($Files)) {
+        if ($null -eq $f) { continue }
+        $name = [string]$f.Name
+        $m = [regex]::Match($name, '^vrfSim.*-([0-9]+)\.(callstack\.log|dmp)$', 'IgnoreCase')
+        if (-not $m.Success -or [int]$m.Groups[1].Value -ne $BackendPid) { continue }
+        $mt = $null
+        try { $mt = ([datetime]$f.LastWriteTimeUtc).ToUniversalTime() } catch { $mt = $null }
+        if ($null -ne $SinceUtc -and ($null -eq $mt -or $mt -lt ([datetime]$SinceUtc).ToUniversalTime())) { continue }
+        $out += [pscustomobject]@{ Name = $name; LastWriteTimeUtc = $mt; Kind = $m.Groups[2].Value.ToLowerInvariant() }
+    }
+    return $out
+}
+
+# A back-end window title that IS a crash: the 5.2d "Error vrfSimHLA1516e.exe" modal (G1-3), or the 5.0.2 MAK dump
+# prompt titled like its dump, "vrfSim...<pid>.dmp" (RUNBOOK 0.5.12). A healthy back end's console title is its image
+# path, "...\vrfSimHLA1516e.exe", which matches neither.
+function Test-BackendCrashTitle {
+    param([string]$Title)
+    if ([string]::IsNullOrWhiteSpace($Title)) { return $false }
+    return ($Title -match '^Error vrfSim' -or $Title -match '^vrfSim.*\.dmp$')
+}
+
+# The line the runner prints and the manifest keeps: "BACK END CRASHED at <t> - the window is VOID (<evidence>)".
+function Format-BackendCrashLine {
+    param([Nullable[datetime]]$AtUtc, [string[]]$Evidence)
+    $t = if ($null -ne $AtUtc) { ([datetime]$AtUtc).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') } else { '(time unknown)' }
+    return ('BACK END CRASHED at {0} - the window is VOID ({1})' -f $t, ((@($Evidence) | Where-Object { $_ }) -join '; '))
+}
+
+# THE VERDICT, from whatever signals were read (each optional): crash records for the pid, the back end's window title
+# (and when it was read), whether the process has already gone while the run still needed it, and the trace's drop.
+# Crashed = any of them; AtUtc = the EARLIEST timestamped signal (a record's mtime, the trace drop, the title's read
+# time, the time the process was seen gone). Returns Crashed, AtUtc, Evidence and Line.
+function Get-BackendCrashEvidence {
+    param(
+        [int]$BackendPid,
+        [object[]]$CrashRecords,
+        [string]$WindowTitle,
+        [Nullable[datetime]]$WindowSeenUtc,
+        [bool]$ProcessGone = $false,
+        [Nullable[datetime]]$GoneSeenUtc,
+        [object]$TraceDrop
+    )
+    $ev = @()
+    $times = @()
+    foreach ($r in @($CrashRecords)) {
+        if ($null -eq $r) { continue }
+        $ev += ('crash record {0} (mtime {1})' -f $r.Name, $(if ($r.LastWriteTimeUtc) { ([datetime]$r.LastWriteTimeUtc).ToString('yyyy-MM-ddTHH:mm:ssZ') } else { '?' }))
+        if ($r.LastWriteTimeUtc) { $times += [datetime]$r.LastWriteTimeUtc }
+    }
+    if (Test-BackendCrashTitle -Title $WindowTitle) {
+        $ev += ('back-end pid {0} window "{1}"' -f $BackendPid, $WindowTitle)
+        if ($null -ne $WindowSeenUtc) { $times += [datetime]$WindowSeenUtc }
+    }
+    if ($ProcessGone) {
+        $ev += ('back-end pid {0} is GONE while the run still needed it' -f $BackendPid)
+        if ($null -ne $GoneSeenUtc) { $times += [datetime]$GoneSeenUtc }
+    }
+    if ($null -ne $TraceDrop) {
+        $ev += ('WatchVrf backends= fell 1 -> 0 at t={0}s of the trace' -f ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0}', $TraceDrop.TSec)))
+        if ($null -ne $TraceDrop.AtUtc) { $times += [datetime]$TraceDrop.AtUtc }
+    }
+    $crashed = $ev.Count -gt 0
+    $at = $null
+    if ($times.Count -gt 0) { $at = ($times | Sort-Object | Select-Object -First 1) }
+    $line = if ($crashed) { Format-BackendCrashLine -AtUtc $at -Evidence $ev } else { $null }
+    return [pscustomobject]@{ Crashed = $crashed; AtUtc = $at; Evidence = $ev; Line = $line }
+}

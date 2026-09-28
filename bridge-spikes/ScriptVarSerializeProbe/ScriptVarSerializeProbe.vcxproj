@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    M3b offline probe (2026-09-28): serializes the planned move's navigate-to-location task five ways and through the
+    facade's own addScriptVar. PURE NATIVE (no CLR), the bridge's Release-5.2 compile/link settings for its native TUs
+    (src/VrfBridge/VrfBridge.vcxproj: VrfFacade.cpp CompileAsManaged=false, Sync EH), console subsystem.
+    The destination-binding hypothesis it was built for is REFUTED (G1-3 Result; script_var_probe.cpp header).
+    FacadeDir  = the facade source directory compiled in (default: this worktree's src/VrfFacade); point it at a copy
+                 of another commit's facade to diff the two outputs.
+    Build:  MSBuild ScriptVarSerializeProbe.vcxproj /t:Rebuild /p:Configuration=Release-5.2 /p:Platform=x64
+            [/p:FacadeDir=<dir>] [/p:OutTag=<name>]
+    Run with the MAK bin dirs on PATH (vrforces5.2d\bin64;vrlink5.10\bin64;makRti5.0.1\bin).
+  -->
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release-5.2|x64">
+      <Configuration>Release-5.2</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C2510001-0003-4E5F-9A0B-000000000003}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VrfDir>C:/MAK/vrforces5.2d</VrfDir>
+    <VrlDir>C:/MAK/vrlink5.10</VrlDir>
+    <RtiDir>C:/MAK/makRti5.0.1</RtiDir>
+    <FacadeDir Condition="'$(FacadeDir)'==''">..\..\src\VrfFacade</FacadeDir>
+    <OutTag Condition="'$(OutTag)'==''">worktree</OutTag>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(FacadeDir);$(VrfDir)/include;$(VrlDir)/include;$(RtiDir)/include/HLA1516E;$(RtiDir)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NO_DFD_SUPPORT;NDEBUG;NOMINMAX;_SCL_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;DT_DLL_BUILD;DT_USE_DLL;DtHLA=1;DtHLA_1516=1;RTI_USES_STD_FSTREAM=1;DtHLA_1516_EVOLVED=1;IS_64BIT;RELEASE_PLUGIN_SUPPORT;VRF_API_52=1;BOOST_SIGNALS_DYN_LINK=1;BOOST_FILESYSTEM_DYN_LINK=1;BOOST_LIB_TOOLSET="vc141";BOOST_FILESYSTEM_VERSION=3;BOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <DisableSpecificWarnings>4793;4835;4564;4652;4691;4949;4005;4251;4267;4275;4675;4250</DisableSpecificWarnings>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;$(RtiDir)/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterfaceHLA1516e.lib;vrfMsgTransport.lib;vrfExtProtocol.lib;vrfExtObjectsHLA1516e.lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vlHLA1516e.lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;libfedtime1516e64.lib;librti1516e64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <PropertyGroup>
+    <OutDir>build\$(OutTag)\</OutDir>
+    <IntDir>build\$(OutTag)\obj\</IntDir>
+    <TargetName>ScriptVarSerializeProbe</TargetName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="script_var_probe.cpp" />
+    <ClCompile Include="$(FacadeDir)\remoteControlInit52.cxx" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

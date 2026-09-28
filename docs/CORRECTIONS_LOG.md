@@ -671,3 +671,16 @@ back end also crashed 2.9 s after the first planned dispatch (0xC0000005; C:\MAK
 RL-20260921-02 item 4) and the harness reported the shutdown as graceful. The M3b lane was redirected: short member display names by
 construction (identity is the uuid), a vacuous planned vertex = failure, a crashed back end voids the window. The seat's error: a
 cause claim built on the lane's stated assumption instead of on the run's own evidence, before the Result was harvested.
+## G1-3's planned move: "the destination did not bind", "a vertex the vendor calls done was reached", StopVrf52 "graceful" (2026-09-28)
+Claimed (three places): (1) the M3b brief - the members' instant COMPLETED meant navigate-to-location's destination (a
+"locationreference" the facade sends as a "location" DtRwVector) never reached the script; (2) M3's vertex chain - a planned vertex
+whose members' navigate-to-location reported success was reached (it advanced: G1-3 L9979 "moved 0 m ... vertex 2 is issued next");
+(3) StopVrf52 - "VR-Forces 5.2d is down (graceful; nothing was killed)" for G1-3's back end.
+Corrected (the G1-3 Result; RUNBOOK sec 11o): (1) the destination BOUND - every member's level-3 echo carries
+destination={3448198.452440, 1485421.208769, 5138688.441927} = the vertex at 0 m (vrfc2simapp.log L9681-L9713); the lane's facade
+change was built, probed (bridge-spikes/ScriptVarSerializeProbe) and discarded; (2) the EXECUTOR refused the planned route - the
+member's move-along asked for "<member> Pathr" and got "route does not exist" (L9807-L9875; the reference is cut at 35 in the
+move-along's DtUUID), and navigate-to-location.lua :252-259 ends SUCCESS whatever its subtask did - so a planned intermediate vertex
+that moved nothing now FAILS (M3b, EXECUTOR REFUSED); (3) the back end had CRASHED at 19:05:16Z (a crash record for pid 3344 and the
+"Error vrfSimHLA1516e.exe" modal StopVrf52 itself printed) - StopVrf52 now reports that as exit 8, and the runner VOIDS the window.
+

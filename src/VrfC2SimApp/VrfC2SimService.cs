@@ -3202,8 +3202,10 @@ public sealed class VrfC2SimService : BackgroundService
             // C1c (2026-09-28, run G1): the member names are PLANNED AND RESERVED UNDER ONE LOCK - the order thread and the
             // tick thread can both populate, and a second container must see the first one's names before it picks its
             // own - and each is checked against every name this run requested at the 30 characters VR-Forces keeps of an
-            // aggregate's name (NameRegistry.KeyConflict). Every member name is at most 30 characters, so VR-Forces
-            // returns it EXACTLY: no prefix scan runs for a member, and the "MORE THAN ONE name" guard cannot fire for one.
+            // aggregate's name (NameRegistry.KeyConflict). Every member name is at most 16 characters (M3b: the route the
+            // vendor's navigate-to-location names after it must be referenced intact - PopulatePlanner.MaxNameChars), so
+            // VR-Forces returns it EXACTLY: no prefix scan runs for a member, and the "MORE THAN ONE name" guard cannot fire
+            // for one. Each line below prints the short name beside the member's FULL name and its uuid.
             // C1d (RL-20260928-02): and each member gets the uuid it is created under, derived from the container's own
             // (its C2SIM uuid) and the member's suffix - said once, below, with the population.
             lock (_memberNameLock)
@@ -3240,7 +3242,8 @@ public sealed class VrfC2SimService : BackgroundService
             Inv($"reach {layout.ReachMeters:F0} m. Each is created AGGREGATED (UG52 Table 68 p1470) and attached by ") +
             Inv($"AddToOrganization; its tasks wait for the container to PUBLISH them (gate {timeout:F0} s). ") +
             "NOTHING IS DELETED. Members: [" +
-            string.Join(", ", layout.Members.Select(m => $"{m.Name} ({m.Leaf.TemplateName})")) + "].";
+            string.Join(", ", layout.Members.Select(m =>
+                $"{m.Name} = {PopulatePlanner.FullMemberName(name, m.Leaf.Suffix)} ({m.Leaf.TemplateName})")) + "].";
         _log.LogInformation("{Line}", populateLine);
         // C1d (RL-20260928-02): THE MEMBER UUIDS, ONCE, AT PLAN TIME - what each member is created under and bound by.
         _log.LogInformation("IDENTITY: POPULATE {Name} ({ContainerUuid}): {N} member uuid(s) DERIVED - RFC 4122 v5 in " +
@@ -3248,7 +3251,8 @@ public sealed class VrfC2SimService : BackgroundService
                             name, d.Plan.StartingUuid.Length > 0 ? d.Plan.StartingUuid : "no uuid", layout.Members.Count,
                             IdentityUuid.Namespace,
                             string.Join("; ", layout.Members.Select(m => m.Uuid.Length > 0
-                                ? $"{m.Name} = {m.Uuid} ({m.UuidName})" : $"{m.Name} = (none - the container has no uuid)")));
+                                ? $"{m.Name} = {m.Uuid} ({m.UuidName}; {PopulatePlanner.FullMemberName(name, m.Leaf.Suffix)})"
+                                : $"{m.Name} = (none - the container has no uuid; {PopulatePlanner.FullMemberName(name, m.Leaf.Suffix)})")));
         // C1c: say which members took a ~k tag (none in the shipped compositions - it takes two containers alike in their
         // first 26-29 characters, or a name another object of this run already holds).
         foreach (var m in layout.Members.Where(m => m.NameNote != null))
@@ -3659,7 +3663,9 @@ public sealed class VrfC2SimService : BackgroundService
     /// TICK THREAD, from ConsumeVertexChainCompletion for a PLANNED container chain: one PLANNED MOVE outcome line, then M1's
     /// routing - an intermediate vertex re-enters the tick thread for the next one (consumed, TRUE); the LAST vertex and a
     /// FAILURE are handed on (FALSE) to the container's completion path - D-6, the arrival swallow, SynthesizeUnitCompletion,
-    /// which reports a failure as TASKABRT with the reason left here; a stray or a retired completion is consumed.
+    /// which reports a failure as TASKABRT with the reason left here; a stray or a retired completion is consumed. M3b: an
+    /// intermediate vertex whose SUCCESS moved nothing (ExecutorRefused) is a FAILURE - its failure tail runs here (TRUE),
+    /// never D-6's withhold.
     /// </summary>
     private bool ConsumePlannedVertexCompletion(string container, VertexChainTracker.Decision d, string vrfTaskType, bool success)
     {
@@ -3693,6 +3699,28 @@ public sealed class VrfC2SimService : BackgroundService
                     "abandoned)"));
                 _plannedMoves.End(container);
                 return false;
+            case VertexChainTracker.Outcome.ExecutorRefused:
+                // M3b (the G1-3 Result): the vendor said SUCCESS for a vertex that moved nothing. Handing that success on
+                // would reach D-6, which WITHHOLDS a short success and leaves the task in flight; this vertex FAILED, so
+                // the failure tail runs HERE, with success=false: the watchdog window, the arrival swallow, and
+                // SynthesizeUnitCompletion's TASKABRT carrying the reason (PlannedFailureText).
+                string refused = AggregateMovePolicy.ExecutorRefusedReason(container, d.CompletedVertex, d.Chain.VertexCount,
+                    ctx.Planner, step.Members, step.Succeeded, d.DistanceMeters, d.DisplacementMeters, d.DisplacementFrom,
+                    _vertexChains.VertexArrivalRadiusMeters);
+                _plannedFailReason[container] = (d.Chain.TaskUuid, refused);
+                _log.LogWarning("{Line}", AggregateMovePolicy.VertexLine(container, d.CompletedVertex, d.Chain.VertexCount, script,
+                    useRoads, "FAILED", $"- EXECUTOR REFUSED - {where}{members}. {refused}; the task takes the failure path " +
+                    "(TASKABRT, follow-ons abandoned)"));
+                _plannedMoves.End(container);
+                ClearStallState(container);
+                if (_arrivalReported.TryRemove(container, out var refusedReported))
+                {
+                    _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",
+                                        container, refusedReported);
+                    return true;
+                }
+                SynthesizeUnitCompletion(container, script, false);
+                return true;
             case VertexChainTracker.Outcome.Stray:
                 _log.LogWarning("PLANNED MOVE {Name}: a VR-Forces completion ('{Type}', success={Ok}) arrived while {State} - it is " +
                                 "not this chain's {Script} and is SWALLOWED; the chain is unchanged at vertex {K} of {N} ({Ruling}).",

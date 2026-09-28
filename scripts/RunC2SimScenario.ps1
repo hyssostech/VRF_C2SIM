@@ -1240,6 +1240,15 @@ $script:LastStageStartUtc = $null
 # unassigned variable is a terminating error - which would turn a crashed-oracle run
 # into an exit-5 "unexpected error" and bury the real cause.
 $script:OracleDied = $false
+# M3b (2026-09-28, the G1-3 Result): the BACK END's crash, once seen (Register-BackendCrash) - the verdict object of
+# RunnerLib Get-BackendCrashEvidence. $null = none seen. Initialised here for the same StrictMode reason.
+$script:BackendCrash = $null
+# The last WatchVrf "# t=" sample line the crash check saw (its backends= is compared with the next one's).
+$script:LastBackendsSample = $null
+# StopVrf52 exited 8: VR-Forces is down, but its back end had crashed before the close.
+$script:StopVrfSawCrash = $false
+# When the observation window closed (UTC); $null = it never ran (a failure before Stage 8b, or -DryRun).
+$script:ObsWindowEndUtc = $null
 
 # ---- external invocation ----------------------------------------------------
 # EVERY external process in this script goes through Invoke-External or
@@ -1932,6 +1941,69 @@ function Get-LastLineWithPrefix {
     } finally {
         if ($fs) { $fs.Dispose() }
     }
+}
+
+# ---- M3b (2026-09-28, the G1-3 Result): A CRASHED BACK END VOIDS THE WINDOW ----------------------------------------
+# G1-3's back end crashed at 19:05:16Z and the window ran on to 19:07:22Z unaware (RunnerLib, the M3b block). Read the
+# back end's crash signals NOW - all read-only - and return RunnerLib Get-BackendCrashEvidence's verdict: crash records
+# in C:\MAK\logs by NAME AND MTIME only (never opened; a vendor .log holds the environment in cleartext), the window
+# title only while the pid is still THIS run's back end (pid + start time, Test-OwnBackendIdentity), the process seen
+# gone, and WatchVrf's last "# t=" sample against the one the previous call saw ($script:LastBackendsSample).
+function Test-LiveBackendCrash {
+    param([int]$BackendPid, [Nullable[datetime]]$BackendStartUtc, [Nullable[datetime]]$SinceUtc, [string]$TracePath,
+          [Nullable[datetime]]$TraceStartUtc, [switch]$RecordsOnly)
+    if ($BackendPid -le 0) { return $null }
+    $files = @()
+    try {
+        $files = @(Get-ChildItem -LiteralPath 'C:\MAK\logs' -File -ErrorAction Stop |
+                   Where-Object { $_.Name -like ('vrfSim*-{0}.*' -f $BackendPid) } | Select-Object Name, LastWriteTimeUtc)
+    } catch { $files = @() }
+    $records = @(Get-BackendCrashRecords -Files $files -BackendPid $BackendPid -SinceUtc $SinceUtc)
+    if ($RecordsOnly) { return Get-BackendCrashEvidence -BackendPid $BackendPid -CrashRecords $records }
+    $title = $null; $titleAt = $null; $gone = $false; $goneAt = $null
+    $p = Get-Process -Id $BackendPid -ErrorAction SilentlyContinue
+    if ($null -eq $p) {
+        $gone = $true; $goneAt = (Get-Date).ToUniversalTime()
+    } else {
+        $own = $true
+        if ($null -ne $BackendStartUtc -and (Get-Command Test-OwnBackendIdentity -ErrorAction SilentlyContinue)) {
+            $st = try { $p.StartTime.ToUniversalTime() } catch { $null }
+            $own = [bool](Test-OwnBackendIdentity -ExpectedPid $BackendPid -ExpectedStartUtc $BackendStartUtc `
+                              -ActualPid $p.Id -ActualStartUtc $st -ActualName $p.ProcessName).Match
+        }
+        if ($own) { $title = try { $p.MainWindowTitle } catch { $null }; $titleAt = (Get-Date).ToUniversalTime() }
+        else { $gone = $true; $goneAt = (Get-Date).ToUniversalTime() }   # the pid now names ANOTHER process
+    }
+    $drop = $null
+    $last = Get-LastLineWithPrefix -Path $TracePath -Prefix '# t='
+    if ($last -and $last -match 'backends=[0-9]+') {
+        $pair = @()
+        if ($script:LastBackendsSample) { $pair += $script:LastBackendsSample }
+        $pair += $last
+        $drop = Get-TraceBackendDrop -SampleLines $pair -TraceStartUtc $TraceStartUtc
+        $script:LastBackendsSample = $last
+    }
+    return Get-BackendCrashEvidence -BackendPid $BackendPid -CrashRecords $records -WindowTitle $title -WindowSeenUtc $titleAt `
+                                    -ProcessGone $gone -GoneSeenUtc $goneAt -TraceDrop $drop
+}
+
+# Record a back-end crash ONCE: the manifest's backendCrash block, the FAIL flag "BACK END CRASHED at <t> - the window
+# is VOID (...)", and $script:BackendCrash (the end of the run promotes exit 0 to 3 on it, like a dead oracle).
+function Register-BackendCrash {
+    param($Verdict, [string]$Where)
+    if ($null -ne $script:BackendCrash -or $null -eq $Verdict -or -not $Verdict.Crashed) { return }
+    $script:BackendCrash = $Verdict
+    $Manifest.backendCrash = [ordered]@{
+        void        = $true
+        atUtc       = $(if ($null -ne $Verdict.AtUtc) { ([datetime]$Verdict.AtUtc).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') } else { $null })
+        detectedUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        detectedIn  = $Where
+        evidence    = @($Verdict.Evidence)
+        line        = $Verdict.Line
+        rule        = 'M3b (2026-09-28, the G1-3 Result): a back end that crashed before the observation window closed VOIDS it - a crash record (<prefix>-<pid>.callstack.log / .dmp in C:\MAK\logs, by name and mtime), the "Error vrfSimHLA1516e.exe" modal, the process gone, or WatchVrf backends= 1 -> 0.'
+    }
+    Add-Flag 'FAIL' $Verdict.Line
+    Save-Manifest
 }
 
 function Get-TraceSummaryLine {
@@ -5450,6 +5522,11 @@ try {
         # own run directory, so that is not actually possible, but starting armed costs nothing).
         $nextWsCheck = (Get-Date).AddSeconds(-1)
         $wsRunawayAborted = $false
+        # M3b (the G1-3 Result): the back-end crash check, every 10 s of the window (Test-LiveBackendCrash). The trace's
+        # own start anchors its "# t=" seconds; unreadable = the drop is reported without a time.
+        $nextCrashCheck = (Get-Date).AddSeconds(-1)
+        $traceStartUtc = $null
+        try { if ($WatchProc) { $traceStartUtc = $WatchProc.StartTime.ToUniversalTime() } } catch { $traceStartUtc = $null }
         $completion = New-CompletionState
         # TERMINAL task-status lines seen in the app log for ANY taskee (the state's own
         # lineCount counts only the order's taskees). A RUNNING TOTAL now that the reader
@@ -5494,6 +5571,19 @@ try {
             if ($AppProc.HasExited -and -not $appDeathRecorded) {
                 $appDeathRecorded = $true
                 Add-Flag 'FAIL' ('VrfC2SimApp exited DURING the observation window with code {0}. The window is being RUN OUT anyway so the trace still covers it; the run is NOT valid (4a.6) but the evidence is preserved.' -f $AppProc.ExitCode)
+            }
+            # M3b (2026-09-28, the G1-3 Result): A CRASHED BACK END VOIDS THE WINDOW. G1-3's back end crashed at 19:05:16Z
+            # (crash record + "Error vrfSimHLA1516e.exe" modal) and this loop ran on for two minutes unaware. Checked every
+            # 10 s, read-only (Test-LiveBackendCrash): recorded ONCE, and - like the interface's death above - the window
+            # is then RUN OUT so the trace keeps what followed; the run's exit becomes 3 at the end.
+            if ($Is52 -and $BackendPid -and $null -eq $script:BackendCrash -and (Get-Date) -ge $nextCrashCheck) {
+                $nextCrashCheck = (Get-Date).AddSeconds(10)
+                $bc = $null
+                try {
+                    $bc = Test-LiveBackendCrash -BackendPid $BackendPid -BackendStartUtc $BackendStartUtc -SinceUtc $RunStartUtc `
+                                                -TracePath $PathTrace -TraceStartUtc $traceStartUtc
+                } catch { $bc = $null }
+                if ($bc -and $bc.Crashed) { Register-BackendCrash -Verdict $bc -Where 'the observation window' }
             }
             # THE WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension). Reads the SAME
             # thread-samples.alerts.txt scripts\SampleThreads.ps1 writes (armed only when the
@@ -5662,6 +5752,17 @@ try {
                 Add-Flag 'FAIL' ('the Q5 pause FIRED but the resume did NOT - the scenario was left PAUSED when the window closed, so nothing in the rest of this run moved. Teardown runs regardless (it is a finally), but whether StopVrf brings a PAUSED back end down as cleanly as a running one is UNMEASURED - watch its exit code. To resume by hand while VR-Forces is still up: tools/PauseSim resume <freshAppNo>.')
             }
         }
+        # M3b: the window's own last crash check (a crash in its final seconds), then its close time - a crash record
+        # written AFTER it (a back end that crashed while being torn down) does not void the window (teardown check).
+        if ($Is52 -and $BackendPid -and $null -eq $script:BackendCrash) {
+            $bc = $null
+            try {
+                $bc = Test-LiveBackendCrash -BackendPid $BackendPid -BackendStartUtc $BackendStartUtc -SinceUtc $RunStartUtc `
+                                            -TracePath $PathTrace -TraceStartUtc $traceStartUtc
+            } catch { $bc = $null }
+            if ($bc -and $bc.Crashed) { Register-BackendCrash -Verdict $bc -Where 'the observation window (at its close)' }
+        }
+        $script:ObsWindowEndUtc = (Get-Date).ToUniversalTime()
         Save-Manifest
         Say-Ok ('observation window complete ({0}s used of {1}s)' -f $EarlyExit.windowSecsUsed, $RunSecs)
     }
@@ -5842,12 +5943,18 @@ finally {
                 -Arguments $stopVrfArgs `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
                 -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `
-                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped; no OTHER VR-Forces process up - the forced pid may still be exiting at the -ForcedExitWaitSec deadline, logged "still exiting"); 7 FORCED the own back end but ANOTHER VR-Forces process is still up. rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
+                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped; no OTHER VR-Forces process up - the forced pid may still be exiting at the -ForcedExitWaitSec deadline, logged "still exiting"); 7 FORCED the own back end but ANOTHER VR-Forces process is still up; 8 (M3b) down, but the back end had CRASHED before the close - its crash dialog ("Error vrfSimHLA1516e.exe") and/or a crash record for its pid - so NOT graceful. rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
                         else { 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.' })
         if (-not $DryRun) {
             $StopVrfExitCode = $r.ExitCode
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
+                8 {
+                    # M3b (the G1-3 Result): down, but NOT graceful - the back end had crashed before the close (StopVrf52
+                    # saw the crash modal and/or a crash record; its stdout names them). The window verdict follows below.
+                    $script:StopVrfSawCrash = $true
+                    Say-Fail 'StopVrf exited 8: VR-Forces is down, but its back end had CRASHED before the close (the crash dialog and/or a crash record - stopvrf.stdout.log names them); it was closed with taskkill, NOT gracefully. RTI infrastructure preserved.'
+                }
                 7 { $teardownOk = $false; Add-Flag 'FAIL' ('StopVrf exited 7: FORCED - the graceful close was REFUSED, this run''s own back end (pid {0}, started {1:o}) was force-stopped, and ANOTHER VR-Forces process is STILL UP (see stopvrf.stdout.log). A leftover instance HARD-BLOCKS the next launch; a force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0).' -f $BackendPid, $BackendStartUtc) }
                 6 { Add-Flag 'WARN' ('StopVrf exited 6: FORCED - the graceful close was REFUSED and this run''s own back end (pid {0}, started {1:o}) was force-stopped; no other VR-Forces process is up (if stopvrf.stdout.log says "still exiting", the forced pid had not yet left the process table), RTI infrastructure preserved. A force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0): the next launch''s join is the check. Score it as a refused close.' -f $BackendPid, $BackendStartUtc) }
                 default {
@@ -5856,6 +5963,25 @@ finally {
                         Add-Flag 'FAIL' ((Get-StageFailureText -Name 'StopVrf' -Result $r) + ' VR-Forces MAY STILL BE RUNNING - a leftover instance HARD-BLOCKS the next launch.')
                     } else {
                         Add-Flag 'FAIL' ('StopVrf exited {0}. VR-Forces MAY STILL BE RUNNING, possibly behind an unanswered modal. NOTHING was force-killed. Inspect before the next run - a leftover instance HARD-BLOCKS the next launch.' -f $r.ExitCode)
+                    }
+                }
+            }
+            # M3b (the G1-3 Result): THE TEARDOWN'S CRASH VERDICT, if the window's own checks saw none - a crash record for
+            # this back end (by name and mtime) and StopVrf52's exit 8. A crash that happened BEFORE the window closed (or
+            # whose time is unknown) VOIDS it; one recorded after the window closed only happened during teardown (WARN).
+            if ($Is52 -and $BackendPid -and $null -eq $script:BackendCrash) {
+                $tc = $null
+                try { $tc = Test-LiveBackendCrash -BackendPid $BackendPid -SinceUtc $RunStartUtc -RecordsOnly } catch { $tc = $null }
+                if ((-not $tc -or -not $tc.Crashed) -and $script:StopVrfSawCrash) {
+                    $ev = @('StopVrf52 exit 8: the back end was on its crash dialog or had written a crash record before the close (stopvrf.stdout.log)')
+                    $tc = [pscustomobject]@{ Crashed = $true; AtUtc = $null; Evidence = $ev; Line = (Format-BackendCrashLine -AtUtc $null -Evidence $ev) }
+                }
+                if ($tc -and $tc.Crashed) {
+                    if ($null -ne $tc.AtUtc -and $null -ne $script:ObsWindowEndUtc -and ([datetime]$tc.AtUtc) -gt $script:ObsWindowEndUtc) {
+                        Add-Flag 'WARN' ('the back end CRASHED DURING TEARDOWN at {0:yyyy-MM-ddTHH:mm:ssZ}, after the observation window closed at {1:yyyy-MM-ddTHH:mm:ssZ} - the window stands (evidence: {2})' -f `
+                            ([datetime]$tc.AtUtc), $script:ObsWindowEndUtc, ($tc.Evidence -join '; '))
+                    } else {
+                        Register-BackendCrash -Verdict $tc -Where 'teardown (the window''s own checks had not seen it)'
                     }
                 }
             }
@@ -6105,6 +6231,17 @@ finally {
         # project keeps hitting. Rewrite the field and re-save.
         $Manifest.runnerExitCode = 3
         try { Save-Manifest } catch { Say-Warn 'could not re-save the manifest after promoting the exit code to 3; the FAIL flag is still present in it.' }
+    }
+    # M3b (2026-09-28, the G1-3 Result): A CRASHED BACK END VOIDS THE WINDOW - said last and on its own line, whatever
+    # else the run reports, and a run that would have exited 0 exits 3 (the same false-green rule as the dead oracle:
+    # G1-3 crashed at 19:05:16Z and the run carried on to a normal teardown).
+    if ($null -ne $script:BackendCrash) {
+        Say-Fail $script:BackendCrash.Line
+        if ($RunnerExit -eq 0) {
+            $RunnerExit = 3
+            $Manifest.runnerExitCode = 3
+            try { Save-Manifest } catch { Say-Warn 'could not re-save the manifest after promoting the exit code to 3 for the back-end crash; the FAIL flag and the backendCrash block are still in it.' }
+        }
     }
 
     switch ($RunnerExit) {

@@ -96,6 +96,13 @@
 #       by a later process, or a survivor whose start time cannot be read). Something WAS killed,
 #       so this is not 3; something ELSE is still up, so it is not 6 (laneR3 review S1, 2026-09-26).
 #       The forced pid still exiting is NOT "another process" (IRONSTORM_CUTA_LIVE-2026-09-27-1).
+#   8 = (M3b, 2026-09-28, the G1-3 Result) DOWN, BUT NOT GRACEFUL: before the close request the back end was already
+#       CRASHED - its window was the crash dialog ("Error vrfSimHLA1516e.exe"; or the 5.0.2-style "vrfSim...<pid>.dmp"
+#       prompt) and/or C:\MAK\logs held a crash record for its pid written since it started (<prefix>-<pid>
+#       .callstack.log / .dmp, matched by NAME AND MTIME only - RunnerLib Get-BackendCrashEvidence). The taskkill then
+#       closed a dead federate's dialog; nothing was force-killed. G1-3 (run 20260928T190047Z) was exactly this and
+#       this script said "graceful". A crashed back end still up at the end of the budget keeps 3 / 6 / 7 as before;
+#       its CRASHED line is printed either way.
 # ASCII only.
 [CmdletBinding()]
 param(
@@ -167,9 +174,13 @@ if ($ForceOwnBackendPid -gt 0) {
 # The identity match lives in RunnerLib (pure, unit-tested by the suite, 10f). A load failure must
 # never cost the graceful close: it only disables the force.
 $script:OwnIdOk = $false
+# M3b: the crash verdict (RunnerLib Get-BackendCrashEvidence) - unavailable = a crash is still LOGGED from the window
+# title, but the exit code cannot say CRASHED (exit 8) and stays what the close alone decides.
+$script:CrashFnOk = $false
 try {
     . (Join-Path $PSScriptRoot 'RunnerLib.ps1')
     $script:OwnIdOk = [bool](Get-Command Test-OwnBackendIdentity -ErrorAction SilentlyContinue)
+    $script:CrashFnOk = [bool](Get-Command Get-BackendCrashEvidence -ErrorAction SilentlyContinue)
 } catch {
     Say-Warn ('RunnerLib.ps1 could not be loaded ({0}) - the identity match is unavailable, so NOTHING will be forced.' -f $_.Exception.Message)
 }
@@ -443,6 +454,7 @@ if ($DryRun) {
     Say-Ok 'would run the READ-ONLY WINDOW DIAGNOSTIC after the grace and again at a timeout: every titled top-level window (title, visible, enabled) plus every nested ControlType=Window with its class, name and BUTTON NAMES.'
     Say-Ok 'would record TEARDOWN DIAGNOSTICS before any close request: each back end''s MainWindowTitle and MainWindowHandle, its Win32_Process parent (ParentProcessId) and any conhost.exe / OpenConsole.exe / WindowsTerminal.exe parent or child - the A3 discriminator (window="" on both 2026-09-26 refusals).'
     Say-Ok 'console exit (UG52 4.6 p146 "press Q and then Enter") is NOT DELIVERABLE headless: LaunchVrf52.ps1 starts the back end with a plain Start-Process (no -RedirectStandardInput), so its console input is not this script''s to write. The close request stays taskkill WITHOUT /F.'
+    Say-Ok 'M3b: would read, BEFORE the close request, each back end''s window title and its crash records in C:\MAK\logs by NAME AND MTIME (<prefix>-<pid>.callstack.log / .dmp, never opened); a back end that had CRASHED ("Error vrfSimHLA1516e.exe" modal or a crash record) and then goes down is exit 8 - down, NOT graceful - never 0.'
     if ($ForceOwnBackendPid -gt 0) {
         Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6 (after up to {3}s for it to exit; still exiting then = exit 6 with a "still exiting" line; exit 7 only if ANOTHER VR-Forces process is still up). rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc, $ForcedExitWaitSec)
     } else {
@@ -516,6 +528,37 @@ try {
 }
 Say-Info 'console exit (UG52 4.6 p146 "press Q and then Enter") NOT DELIVERABLE: the runner does not own the back end''s console input (LaunchVrf52.ps1 plain Start-Process). Using taskkill without /F.'
 
+# ---- 2a. M3b (2026-09-28, the G1-3 Result): DID THE BACK END CRASH BEFORE THE CLOSE? --------------------------
+# G1-3's back end (pid 3344) sat on a modal titled "Error vrfSimHLA1516e.exe" with a crash record already written
+# (C:\MAK\logs\vrfSimHLA1516e5.2d-...-3344.callstack.log / .dmp, 19:05:16-17Z); this script's taskkill closed that
+# dialog and it reported "down (graceful; nothing was killed)" - the run's window had been dead for two minutes. Read
+# BEFORE the close, read-only: each back end's window title and its crash records by NAME AND MTIME (never opened; the
+# vendor .log holds the environment in cleartext and is never matched). A crashed back end that then goes down is
+# exit 8, never 0.
+$crashSeen = @()
+foreach ($p in @(Get-Procs $procBackend)) {
+    $title = try { $p.MainWindowTitle } catch { '' }
+    $st = try { $p.StartTime.ToUniversalTime() } catch { $null }
+    $files = @()
+    try {
+        $files = @(Get-ChildItem -LiteralPath 'C:\MAK\logs' -File -ErrorAction Stop |
+                   Where-Object { $_.Name -like ('vrfSim*-{0}.*' -f $p.Id) } | Select-Object Name, LastWriteTimeUtc)
+    } catch { $files = @() }
+    $v = $null
+    if ($script:CrashFnOk) {
+        try {
+            $v = Get-BackendCrashEvidence -BackendPid $p.Id -WindowTitle $title -WindowSeenUtc ((Get-Date).ToUniversalTime()) `
+                    -CrashRecords @(Get-BackendCrashRecords -Files $files -BackendPid $p.Id -SinceUtc $st)
+        } catch { $v = $null }
+    } elseif ($title -match '^Error vrfSim' -or $title -match '^vrfSim.*\.dmp$') {
+        Say-Fail ('{0} pid={1} window "{2}" is a CRASH dialog (RunnerLib not loaded, so the exit code cannot say so).' -f $p.ProcessName, $p.Id, $title)
+    }
+    if ($v -and $v.Crashed) {
+        $crashSeen += $v
+        Say-Fail ('CRASHED BEFORE THE CLOSE: {0} pid={1} - {2}. The close request below goes to a DEAD federate''s crash dialog; this is NOT a graceful shutdown.' -f $p.ProcessName, $p.Id, ($v.Evidence -join '; '))
+    }
+}
+
 Say ''
 Say '=== Ask the back-end to close (taskkill, NO /F) ==='
 foreach ($p in @(Get-Procs $procBackend)) {
@@ -543,6 +586,12 @@ $rtiLeft = @()
 foreach ($n in $rtiNames) { foreach ($p in @(Get-Procs $n)) { $rtiLeft += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) } }
 if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }
 if ($left.Count -eq 0) {
+    if ($crashSeen.Count -gt 0) {
+        # M3b: down, but NOT graceful - the G1-3 case this script used to call "graceful".
+        Say-Fail ('VR-Forces 5.2d is down, but its back end had CRASHED before the close ({0}); the crash dialog was closed by taskkill without /F and nothing was force-killed. NOT graceful. Exit 8.' -f `
+            (($crashSeen | ForEach-Object { $_.Evidence -join '; ' }) -join ' | '))
+        exit 8
+    }
     Say-Ok 'VR-Forces 5.2d is down (graceful; nothing was killed).'
     exit 0
 }

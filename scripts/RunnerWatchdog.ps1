@@ -376,6 +376,10 @@ $code = Invoke-Step -Name 'StopVrf' -File $PwshExe `
             -ErrFile (Join-Path $RunDir 'watchdog-stopvrf.stderr.log') -TimeoutSec 300
 if ($code -eq 0) {
     Log 'OK' 'StopVrf exit 0: VR-Forces is down or was already down (graceful; RTI infrastructure preserved).'
+} elseif ($code -eq 8) {
+    # M3b (2026-09-28, the G1-3 Result): StopVrf52's exit 8 - VR-Forces is DOWN, so nothing blocks the next launch, but
+    # the back end had crashed before the close. Not a failed teardown; the run's window is VOID (the runner says so).
+    Log 'FAIL' 'StopVrf exit 8: VR-Forces is down, but its back end had CRASHED before the close (crash dialog and/or crash record - watchdog-stopvrf.stdout.log names them). NOT graceful; the run''s window is VOID. Nothing was force-killed; RTI infrastructure preserved.'
 } else {
     $stepsOk = $false
     Log 'FAIL' ('StopVrf exit {0} (0 down/already down; 2 bad args; 3 STILL RUNNING - NOTHING killed; 5 unexpected; blank = it never produced a code). A leftover instance HARD-BLOCKS the next launch.' -f $code)

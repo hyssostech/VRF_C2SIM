@@ -4196,6 +4196,73 @@ foreach ($rel in $asciiRel) {
     Check ('13e ' + $rel + ' is ASCII + CRLF') ($probs.Count -eq 0) ($probs -join '; ')
 }
 
+Write-Host '=== 14. M3b: a CRASHED BACK END VOIDS THE WINDOW (the G1-3 Result, run 20260928T190047Z) ==='
+# G1-3's OWN lines, verbatim (runs/20260928T190047Z_run - ours): WatchVrf's trace samples (watchvrf-trace.csv :8762,
+# :8828, :8894; the trace process started 19:03:55.335Z, run-manifest.json) and StopVrf52's inventory and verdict
+# (stopvrf.stdout.log). The crash records as C:\MAK\logs LISTS them - NAME AND MTIME ONLY, never opened; the vendor .log
+# beside them is listed only to prove it is never matched (it holds the environment in cleartext).
+$g13TraceStart = [datetime]::new(2026, 9, 28, 19, 3, 55, 335, [DateTimeKind]::Utc)
+$g13Samples = @('# t=190.9s reflected=67 readable=65 backends=1', '# t=192.9s reflected=67 readable=65 backends=1',
+                '# t=194.9s reflected=67 readable=65 backends=0', '# t=197s reflected=67 readable=65 backends=0')
+$g13Drop = Get-TraceBackendDrop -SampleLines $g13Samples -TraceStartUtc $g13TraceStart
+Check '14 the trace drop: backends= 1 -> 0 at t=194.9s = 19:07:10Z, two minutes after the crash (the status cache ages out)' (
+    $null -ne $g13Drop -and $g13Drop.TSec -eq 194.9 -and $g13Drop.AtUtc.ToString('HH:mm:ss') -eq '19:07:10' -and
+    $g13Drop.PrevLine -eq $g13Samples[1]) $(if ($g13Drop) { '{0} {1:o}' -f $g13Drop.TSec, $g13Drop.AtUtc } else { 'no drop' })
+Check '14 NOT a drop: every sample 1; 0 from the first sample (never up); no samples; a flap back to 1 needs a new 1 -> 0' (
+    $null -eq (Get-TraceBackendDrop -SampleLines @($g13Samples[0], $g13Samples[1]) -TraceStartUtc $g13TraceStart) -and
+    $null -eq (Get-TraceBackendDrop -SampleLines @('# t=3s reflected=2 readable=1 backends=0', '# t=5.1s reflected=2 readable=1 backends=0') -TraceStartUtc $null) -and
+    $null -eq (Get-TraceBackendDrop -SampleLines @() -TraceStartUtc $null) -and
+    $null -eq (Get-TraceBackendDrop -SampleLines @('# t=3s reflected=2 readable=1', 'POS,1,2,3') -TraceStartUtc $null))
+$g13Since = [datetime]::new(2026, 9, 28, 19, 0, 47, [DateTimeKind]::Utc)
+$g13Files = @(
+    [pscustomobject]@{ Name = 'vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-3344.callstack.log'; LastWriteTimeUtc = [datetime]::new(2026, 9, 28, 19, 5, 16, [DateTimeKind]::Utc) },
+    [pscustomobject]@{ Name = 'vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-3344.dmp';           LastWriteTimeUtc = [datetime]::new(2026, 9, 28, 19, 5, 17, [DateTimeKind]::Utc) },
+    [pscustomobject]@{ Name = 'vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-3344.log';           LastWriteTimeUtc = [datetime]::new(2026, 9, 28, 19, 5, 16, [DateTimeKind]::Utc) },
+    [pscustomobject]@{ Name = 'vrfSimHLA1516e5.2d-20260928-150104-Legatus-282607-9999.callstack.log'; LastWriteTimeUtc = [datetime]::new(2026, 9, 28, 19, 6, 0, [DateTimeKind]::Utc) },
+    [pscustomobject]@{ Name = 'vrfSimHLA1516e5.2d-20260927-010101-Legatus-282607-3344.callstack.log'; LastWriteTimeUtc = [datetime]::new(2026, 9, 27, 1, 2, 3, [DateTimeKind]::Utc) })
+$g13Recs = @(Get-BackendCrashRecords -Files $g13Files -BackendPid 3344 -SinceUtc $g13Since)
+Check '14 crash records: pid 3344''s .callstack.log and .dmp since the run began - NEVER its vendor .log, another pid''s record, or a recycled pid''s older one' (
+    $g13Recs.Count -eq 2 -and ($g13Recs | Where-Object { $_.Kind -eq 'callstack.log' }).Count -eq 1 -and
+    ($g13Recs | Where-Object { $_.Kind -eq 'dmp' }).Count -eq 1 -and -not ($g13Recs | Where-Object { $_.Name -like '*.log' -and $_.Name -notlike '*.callstack.log' }) -and
+    @(Get-BackendCrashRecords -Files $g13Files -BackendPid 0 -SinceUtc $null).Count -eq 0) (($g13Recs | ForEach-Object { $_.Name }) -join ', ')
+$g13Inventory = '  [OK]   vrfSimHLA1516e pid=3344 threads=69 window="Error vrfSimHLA1516e.exe"'
+$g13Title = [regex]::Match($g13Inventory, 'window="([^"]*)"').Groups[1].Value
+Check '14 the crash DIALOG titles: the 5.2d "Error vrfSimHLA1516e.exe" (G1-3''s inventory) and the 5.0.2 dump prompt; a healthy console title is neither' (
+    (Test-BackendCrashTitle -Title $g13Title) -and (Test-BackendCrashTitle -Title 'vrfSim5.0.2-MSVC++15.0_64-249613-1234.dmp') -and
+    -not (Test-BackendCrashTitle -Title 'C:\MAK\vrforces5.2d\bin64\vrfSimHLA1516e.exe') -and -not (Test-BackendCrashTitle -Title '') -and
+    -not (Test-BackendCrashTitle -Title $null)) $g13Title
+$g13Verdict = Get-BackendCrashEvidence -BackendPid 3344 -CrashRecords $g13Recs -WindowTitle $g13Title `
+                  -WindowSeenUtc ([datetime]::new(2026, 9, 28, 19, 7, 52, [DateTimeKind]::Utc)) -TraceDrop $g13Drop
+Check '14 THE VERDICT on G1-3''s own signals: CRASHED at 19:05:16Z - the earliest (the callstack record), not the trace''s 19:07:10Z - with all four named: "BACK END CRASHED at 2026-09-28T19:05:16Z - the window is VOID (...)"' (
+    $g13Verdict.Crashed -and $g13Verdict.AtUtc.ToString('yyyy-MM-ddTHH:mm:ss') -eq '2026-09-28T19:05:16' -and
+    @($g13Verdict.Evidence).Count -eq 4 -and $g13Verdict.Line -like 'BACK END CRASHED at 2026-09-28T19:05:16Z - the window is VOID (crash record vrfSimHLA1516e5.2d-*3344.callstack.log*' -and
+    $g13Verdict.Line -like '*window "Error vrfSimHLA1516e.exe"*' -and $g13Verdict.Line -like '*backends= fell 1 -> 0 at t=194.9s*') $g13Verdict.Line
+$quiet = Get-BackendCrashEvidence -BackendPid 3344 -CrashRecords @() -WindowTitle 'C:\MAK\vrforces5.2d\bin64\vrfSimHLA1516e.exe'
+$goneOnly = Get-BackendCrashEvidence -BackendPid 3344 -ProcessGone $true -GoneSeenUtc $g13Since
+Check '14 a healthy back end (no record, its console title, no drop) is NOT crashed and gets no line; a back end seen GONE mid-window is' (
+    -not $quiet.Crashed -and $null -eq $quiet.Line -and $goneOnly.Crashed -and $goneOnly.Line -like '*pid 3344 is GONE*')
+# FAIL-FIRST: G1-3's StopVrf52 printed THIS for the inventory above (stopvrf.stdout.log). The line is still in the script,
+# now reachable only when no crash was seen; a crash seen before the close ends in exit 8.
+$g13Graceful = '  [OK]   VR-Forces 5.2d is down (graceful; nothing was killed).'
+$sv52M3b = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\StopVrf52.ps1'))
+$iGate = $sv52M3b.IndexOf('if ($crashSeen.Count -gt 0) {')
+$iExit8 = $sv52M3b.IndexOf('exit 8', [Math]::Max(0, $iGate))      # the dry-run text and the 2a comment mention it earlier
+$iGraceful = $sv52M3b.IndexOf("Say-Ok 'VR-Forces 5.2d is down (graceful; nothing was killed).'")
+Check '14 FAIL-FIRST: G1-3''s StopVrf52 called that crashed back end "down (graceful; nothing was killed)"; now the crash is read BEFORE the close and a crashed back end that goes down is exit 8, the graceful line only without one' (
+    $g13Graceful -like '*VR-Forces 5.2d is down (graceful; nothing was killed).' -and $iGate -gt 0 -and $iExit8 -gt $iGate -and $iGraceful -gt $iExit8 -and
+    $sv52M3b.IndexOf('$crashSeen = @()') -lt $sv52M3b.IndexOf("=== Ask the back-end to close (taskkill, NO /F) ===") -and
+    $sv52M3b -match 'Get-BackendCrashEvidence -BackendPid \$p\.Id' -and $sv52M3b -match '#   8 = \(M3b')
+$rsM3b = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'))
+Check '14 the runner: every 10 s of the window (and at its close) Test-LiveBackendCrash, recorded ONCE by Register-BackendCrash; StopVrf exit 8 and a teardown crash record void a window they precede; exit 0 is promoted to 3 with the VOID line' (
+    $rsM3b -match '\$nextCrashCheck = \(Get-Date\)\.AddSeconds\(10\)' -and $rsM3b -match "Register-BackendCrash -Verdict \`$bc -Where 'the observation window'" -and
+    $rsM3b -match "Register-BackendCrash -Verdict \`$bc -Where 'the observation window \(at its close\)'" -and
+    $rsM3b -match '(?m)^\s+8 \{\s*$' -and $rsM3b -match '\$script:StopVrfSawCrash = \$true' -and
+    $rsM3b -match 'CRASHED DURING TEARDOWN' -and $rsM3b -match 'if \(\$null -ne \$script:BackendCrash\) \{\s+Say-Fail \$script:BackendCrash\.Line' -and
+    $rsM3b -match 'Where-Object \{ \$_\.Name -like \(''vrfSim\*-\{0\}\.\*'' -f \$BackendPid\) \} \| Select-Object Name, LastWriteTimeUtc')
+$wdM3b = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\RunnerWatchdog.ps1'))
+Check '14 the watchdog reads StopVrf exit 8 as DOWN (no leftover blocks the next launch) and names the crash, not as a failed teardown' (
+    $wdM3b -match '\} elseif \(\$code -eq 8\) \{' -and $wdM3b -match 'StopVrf exit 8: VR-Forces is down, but its back end had CRASHED')
+
 Write-Host ''
 if ($script:PendingCount -gt 0) {
     Write-Host ('  ' + $script:PendingCount + ' record check(s) PENDING, not enforced. Keys: ' +

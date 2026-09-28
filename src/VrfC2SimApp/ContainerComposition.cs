@@ -702,27 +702,38 @@ public sealed record PopulateLayout(IReadOnlyList<PopulateMember> Members, doubl
 /// </summary>
 public static class PopulatePlanner
 {
-    /// <summary>C1c (2026-09-28): the longest member name - 30 characters (<see cref="VrfNames.AggregateMarkingChars"/>),
-    /// which fits the 31-character aggregate marking field and so comes back from VR-Forces EXACTLY (a longer aggregate
-    /// name comes back as its first 30, 107 of 107). It was 34 (VrfC2SimService.MaxVrfMarkingChars, a DtUUID reference
-    /// limit), and run G1 lost 22 of its 23 members to names that agreed in their first 30 characters.</summary>
-    public const int MaxNameChars = VrfNames.AggregateMarkingChars;
+    /// <summary>THE LONGEST MEMBER NAME - 16 characters (<see cref="VrfNames.PlannedMemberNameChars"/>; M3b, 2026-09-28, the
+    /// G1-3 Result). C1c made it 30 (<see cref="VrfNames.AggregateMarkingChars"/>: the 31-character aggregate marking field,
+    /// so VR-Forces returns it EXACTLY - run G1 had lost 22 of its 23 members to names that agreed in their first 30). 30 is
+    /// still the field, but a member is ALSO the taskee of the vendor's navigate-to-location, which names the route it
+    /// plans "&lt;member&gt; Path part &lt;n&gt;" and hands it to a move-along by a reference cut at 35 characters: in G1-3 the
+    /// 30-character members' 42-character routes were refused "route does not exist" by every member's move-along, and
+    /// nothing moved. 16 leaves room for " Path part 99" and a 4-digit "_&lt;counter&gt;" within the 34 characters a
+    /// move-along has carried intact (VrfNames, the route-name budget). Identity is the uuid (RL-20260928-02): the name is
+    /// display only.</summary>
+    public const int MaxNameChars = VrfNames.PlannedMemberNameChars;
 
     /// <summary>A leaf of this echelon rank or below sizes the ring (composition_check.py SIZING_RANK_MAX = CO).</summary>
     public static readonly int SizingRankMax = CompositionResolver.Rank(5) ?? 4;
 
     private const double MetersPerDegLat = 111_320.0;   // DeStacker's constant
 
-    /// <summary>"&lt;container, cut&gt;[~k].&lt;suffix&gt;" within <see cref="MaxNameChars"/> (VrfNames.ChildName) - the
-    /// shape of VrfC2SimService.MakeChildName, so a member reads as its container's child in every log. The container
-    /// is cut to (30 - 1 - suffix length), so the member's WHOLE name survives and VR-Forces returns it exactly.</summary>
+    /// <summary>"&lt;container DESIGNATOR, cut&gt;[~k].&lt;suffix&gt;" within <see cref="MaxNameChars"/> (VrfNames.MemberName,
+    /// M3b) - the shape of VrfC2SimService.MakeChildName on the container's short designator ("1-112_IN.RIF2"), so a member
+    /// still reads as its container's. The designator is cut to (16 - 1 - suffix length), so the member's WHOLE name
+    /// survives, VR-Forces returns it exactly, and the route navigate-to-location names after it is referenced intact.</summary>
     public static string MemberName(string container, string suffix, int disambiguator = 0)
-        => VrfNames.ChildName(container, suffix, disambiguator);
+        => VrfNames.MemberName(container, suffix, disambiguator);
+
+    /// <summary>The member's FULL logical name - "&lt;container&gt;.&lt;suffix&gt;", never cut - printed beside its short
+    /// requested name and its uuid (M3b), so the log still says which member of which container each short name is.</summary>
+    public static string FullMemberName(string container, string suffix) => (container ?? "") + "." + (suffix ?? "");
 
     /// <summary>
     /// The ring and the member names. <paramref name="conflictOf"/> (C1c) is the run's own name check - the service
     /// passes NameRegistry.KeyConflict - and returns why a candidate name is taken, or null. Every member name is
-    /// at most 30 characters, unique among the members, not the container's own 30-character marking, and cleared by
+    /// at most <see cref="MaxNameChars"/> (16, M3b) characters, unique among the members, not the container's own
+    /// 30-character marking, and cleared by
     /// <paramref name="conflictOf"/>; a candidate that is not takes the first free ~k tag (k = 2 .. 99), deterministic
     /// for the same run state, and the population is REFUSED (NAME COLLISION) only when none is free.
     /// C1d (RL-20260928-02): <paramref name="containerUuid"/> is the uuid the container was created under (its C2SIM
@@ -762,13 +773,13 @@ public static class PopulatePlanner
             }
             string memberUuid = IdentityUuid.Derive(containerUuid, uuidSuffix);
             var (north, east) = DeStacker.EqualBearingOffset(k, leaves.Count, radius, rotationDeg);
-            string name = VrfNames.UniqueChildName(containerName, leaves[k].Suffix, candidate =>
+            string name = VrfNames.UniqueChildName(VrfNames.Designator(containerName), leaves[k].Suffix, candidate =>
                 names.Contains(candidate) ? "is another member's name"
                 : string.Equals(candidate, containerKey, StringComparison.Ordinal)
                     ? "is the container's own 30-character marking"
                     : conflictOf?.Invoke(candidate) is string c ? "collides with '" + c + "' within 30 characters"
                     : null,
-                out int tag, out string why);
+                out int tag, out string why, MaxNameChars);
             if (name == null)
                 return new PopulateLayout(Array.Empty<PopulateMember>(), spacing, radius, reach,
                     $"NAME COLLISION: member '{leaves[k].Suffix}' of '{containerName}' has no name unique within " +
