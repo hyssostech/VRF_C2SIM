@@ -273,7 +273,9 @@ W.  THE PRE-WARM (unscored) = THE W GATE: golive_checks -Phase prelaunch (0 FAIL
     RELABELLED - the Result's own critique: it "failed with the destination reached"; the binding is H3's); W-DONE (G1-3's
     rule, SEAT DECISION 2026-09-28: a vertex all members reached but that never CLOSED - S9 - is a FAIL = STOP before E; NOT
     REACHED is RECORDED, the seat's call, and NOT a stop by itself PROVIDED W-MOVE passes - every dispatched T10 member displaced
-    > 50 m and the container at least 50 m closer to vertex 1; the arrival, H6, is MEDIUM and for the scored run only); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
+    > 50 m (T10 ONLY, SEAT DECISION after Fable's review; T14's and T02's member displacements are RECORDED in the W output,
+    not gated - a far-shore member stuck at water, G1-2's INF1RIF2 at 13 m, is not M3b's question, and the scored run's H5
+    covers T14) and each mover's container at least 50 m closer to vertex 1; the arrival, H6, is MEDIUM and for the scored run only); H5; the water falsifiers; V-CRASH (a crash = "VOID", STOP before E). Then simcache_listing.ps1 -Out
     <L4>/simcache_after_prewarm.txt.
 E.  THE RUN: golive_checks -Phase prelaunch -MarkerWant 5281 -StartBy 2026-09-29T01:55:00Z (a) / -MarkerWant 5285 (b'); `sh <L4>/g1_4_runner.sh scored-dryrun` (EXPECT
     block 5281-5291 / 5285-5295, marker -> 5292 / 5296, 2700 s CAP with -StopWhenComplete); then `sh <L4>/g1_4_runner.sh
@@ -302,7 +304,7 @@ move-along reference against the whole "<member> Path part <n>[_<counter>]"), R-
 exist" COUNT - never a line), V-CRASH (the run manifest's backendCrash; stopvrf.stdout.log's "Error vrfSim..." window and
 "CRASHED BEFORE THE CLOSE"; the watchdog's "StopVrf exit 8"; crash records `vrfSim*-<pid>.callstack.log|.dmp` LISTED in
 C:\MAK\logs by name and mtime between the back end's start and the window's close + 5 s; the trace's backends 1 -> 0; the
-app's "(no back end reporting)" before shutdown); W-DEST relabelled W-MOVE, which now also needs every dispatched T10 / T14 member displaced > 50 m;
+app's "(no back end reporting)" before shutdown); W-DEST relabelled W-MOVE, which now also needs every dispatched T10 member displaced > 50 m (T14 / T02 members RECORDED);
 W-DONE per G1-3's rule (S9 = FAIL; NOT REACHED = the seat's call provided W-MOVE passes); in BOTH modes a vertex issued
 < 30 trace-s before the last fix is NOT EVALUATED by H3 (a missing echo; an OFF echo still fails) and H5 (Fable review item 4;
 W-MOVE's 30 s rule) - the app log carries no wall stamp per line, so a vertex's issue instant on the trace clock is its
@@ -324,10 +326,10 @@ the app's L10245; and, as it must, H3 PASSES there (10 echoes exact, vertices 1 
 identity / population limb passes (scratch control_g1_3_wgate_c1c.txt). With the default M3b names the same run fails more
 (the names do not match: I2, I6, I8, W1n ...; control_g1_3_wgate_m3b.txt). THE MUST-NOT-FIRE CONTROL on G1-2's clean pre-warm
 (20260928T141734Z_run, the Literal build), re-run on the FINAL scorer (Fable review item 5) [V: scratch laneG1-4\control_g1_2
-_prewarm_wgate_c1c.txt, sha256 a45f947e...; the scorer g1_4_score.py sha256 4d6e6ac0...]: V-CRASH "no signal" (pid 40344), H1
+_prewarm_wgate_c1c.txt, sha256 dcb6ce0e...; the scorer g1_4_score.py sha256 8f7f5fd3...]: V-CRASH "no signal" (pid 40344), H1
 0, H2 0; its W gate FAILS, as it must on that build, on the M3 limbs (M1-M5, M7, M16: the Literal route), H3 / H5 (no planned
-vertex), W-DONE (the Literal path closes no planned step) and W-MOVE - the last on G1-2's far-shore member
-48_IBCT/28ID__FRIENDL.INF1RIF2 (13 m, G1-3 sec 1(i)), which the new member > 50 m limb names.
+vertex) and W-DONE (S9: the Literal path closes no planned step). W-MOVE PASSES there on the final scorer: G1-2's far-shore
+member 48_IBCT/28ID__FRIENDL.INF1RIF2 (13 m, G1-3 sec 1(i)) is a T14 member, now RECORDED, not gated.
 
 THE NEW ROWS (G1-4's one variable). G1-3's P0-P23, P-FALS and O1-O12 apply as registered there, their line numbers per sec 2,
 with the changes named after this table.
@@ -397,7 +399,8 @@ composition, settings, sequence and harness geometry (the differences not intend
   "has resigned" at its L582339, after G1-3's app (remoteControl 26024) resigned at L581979 - the only Sim Engine joined since
   56380 joined (L535605), so that resign is taken to be pid 3344's [A: attribution by order; the log names no pid for a Sim
   Engine]. READ-ONLY FEDERATE LIST at 2026-09-28T22:2xZ [V: scratch laneG1-4\rti_federates.py over runs\launch52\rtiexec_20260926T115802Z5.0.1-...-47980.log,
-  join / resign lines only, names and handles printed]: joined now = remoteControl 56380 (handle 2) ONLY. Step A repeats it.
+  join / resign lines only, names and handles printed]: joined now = remoteControl 56380 (handle 2) ONLY. So pid 3344's federate does not appear to linger in the federation
+  G1-4 joins; the tie of that handle-5 resign to pid 3344 stays [A]. Step A repeats the list.
 - THE SCORED RUN HAS NO G1-3 CONTROL: G1-3 stopped at its W gate, so the scored rows' control is G1-2's scored run
   (20260928T142731Z) on another build (699552c, the Literal path) - every scored comparison names that difference.
 - THE HOLDER: branch (a) reuses G1-3's holder 56380 (G1-3 claimed and started it); branch (b') would start a new one on the
