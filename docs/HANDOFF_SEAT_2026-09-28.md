@@ -58,7 +58,13 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    u3\laneG1-3 adapted (scratchpad H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\5fc25950-1a10-4ade-9a7b-68cb5c1daf05\
    scratchpad\u3\laneG1-3\); ask the STP session to hold builds first (idle MSBuild workers fail the pre-launch check;
    let them time out, never kill).
-5. After the Result: the STP-850 PR; audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3: the owner's decisions;
+5. LABEL follow-up (owner 2026-09-28 ~20:55Z, from UG52 13.2.5 / 21.2 / 21.3): our creates send label = nullString
+   (VrfFacade.cpp :943, :964, :980), so the map shows only the NAME - the 30-character cut for containers, the 16-character
+   display name for members. The vendor's LABEL is uncapped, not unique and never a key: put the full C2SIM designation in the
+   Label on every create (a small native change - the facade hard-codes the null label; the bridge overloads take a label
+   argument; NEW PIN procedure) and enable the Label symbol decoration in the fixture's display settings (21.2), so the demo
+   audience sees the full designation. After G1-4's Result, not before; one lane; the fixture edit is the sanctioned deploy.
+6. After that: the STP-850 PR; audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3: the owner's decisions;
    the time multiplier; the D2b/M3 partials); the 8i-2 and observer test-isolation weaknesses are fixed / noted.
 
 ## 4. Decisions that are the owner's (do not decide them)
