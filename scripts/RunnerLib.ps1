@@ -1928,16 +1928,27 @@ function Get-TypeMapModelSet {
 #  * The fixture must load the SAME model set. A fixture that cannot be read is today's behaviour
 #    on EntityLevel (noted, not refused); on AggregateTacticalLevel it is REFUSED in a live run
 #    and WARNED about in -DryRun, because an unverifiable pairing is the mismatch this exists for.
+# D2 (RL-20260927-06) adds two OPTIONAL inputs and changes no message when both are left out:
+#  -ChoiceLabel    how the model set was chosen, when it was NOT typed ("auto: ..."): the messages
+#                  then say "the model set is X (auto: ...)" instead of "-ModelSet is X", because an
+#                  operator who typed nothing must not be told he typed something.
+#  -AggregateOnly  the order tasks a unit ABOVE BN, so EntityLevel is refused for it: no message may
+#                  then suggest "-ModelSet EntityLevel" as the way out.
 function Test-ModelSetPairing {
     param(
         [Parameter(Mandatory)][string]$ModelSet,
         [Parameter(Mandatory)][bool]$Is52,
         [Parameter(Mandatory)]$TypeMap,
         [Parameter(Mandatory)]$Scenario,
-        [bool]$DryRun = $false
+        [bool]$DryRun = $false,
+        [string]$ChoiceLabel = '',
+        [bool]$AggregateOnly = $false
     )
     $r = [ordered]@{ Refusals = @(); Warnings = @(); Notes = @() }
     $agg = ($ModelSet -eq 'AggregateTacticalLevel')
+    # "-ModelSet is X" when typed (the A1 wording, unchanged); "the model set is X (<how>)" when chosen.
+    $who = $(if ($ChoiceLabel) { 'the model set is {0} ({1})' -f $ModelSet, $ChoiceLabel } else { '-ModelSet is ' + $ModelSet })
+    $blocked = 'an EntityLevel run of this order is REFUSED: above battalion is aggregate-only, RL-20260927-06'
     if ($agg -and -not $Is52) {
         $r.Refusals += ('-ModelSet AggregateTacticalLevel is a 5.2 profile switch: the aggregate catalogue, its type map and its fixture exist only on VR-Forces 5.2d. Pass -VrfProfile 5.2, or drop -ModelSet.')
         return $r
@@ -1952,7 +1963,10 @@ function Test-ModelSetPairing {
             $r.Notes += ('type map {0} {1} - accepted on EntityLevel, as before.' -f $TypeMap.Path, $TypeMap.Via)
         }
     } elseif ($TypeMap.ModelSet -ne $ModelSet) {
-        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: -ModelSet is {0} but the type map {1} was built for {2} ({3}). Its object types do not exist in the other catalogue. Pass the matching -TypeMapFile, or -ModelSet {2}.' -f $ModelSet, $TypeMap.Path, $TypeMap.ModelSet, $TypeMap.Via)
+        $mapFix = $(if ($AggregateOnly -and $TypeMap.ModelSet -eq 'EntityLevel') { 'Pass the matching -TypeMapFile (' + $blocked + ').' }
+                    elseif ($ChoiceLabel) { 'Pass the matching -TypeMapFile, or drop -TypeMapFile and the runner picks the ' + $ModelSet + ' map.' }
+                    else { 'Pass the matching -TypeMapFile, or -ModelSet ' + $TypeMap.ModelSet + '.' })
+        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: {0} but the type map {1} was built for {2} ({3}). Its object types do not exist in the other catalogue. {4}' -f $who, $TypeMap.Path, $TypeMap.ModelSet, $TypeMap.Via, $mapFix)
     }
     if (-not $Scenario.Found -or -not $Scenario.Readable) {
         $why = ('the fixture {0} could not be checked ({1})' -f $Scenario.Path, $Scenario.Via)
@@ -1964,12 +1978,466 @@ function Test-ModelSetPairing {
             $r.Notes += ($why + ' - EntityLevel runs are not gated on it (unchanged behaviour).')
         }
     } elseif ($Scenario.ModelSet -eq $ModelSet) {
-        $r.Notes += ('fixture {0} loads {1} ({2}) - matches -ModelSet.' -f $Scenario.Path, $Scenario.ModelSet, $Scenario.Via)
+        $r.Notes += ('fixture {0} loads {1} ({2}) - matches {3}.' -f $Scenario.Path, $Scenario.ModelSet, $Scenario.Via, $(if ($ChoiceLabel) { 'the chosen model set' } else { '-ModelSet' }))
     } elseif ($agg -or $script:RunnerModelSets -contains $Scenario.ModelSet) {
-        $hint = $(if ($script:RunnerModelSets -contains $Scenario.ModelSet) { 'or -ModelSet ' + $Scenario.ModelSet } else { 'it is neither profile' })
-        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: -ModelSet is {0} but the fixture {1} loads {2} (Simulation-Model-Set-Files "{3}"; {4}). The model set is fixed per scenario (UG52 13.7), and the {0} type map names object types that do not exist in the other catalogue. Use a fixture built on the {0} SMS ({5}).' -f $ModelSet, $Scenario.Path, $Scenario.ModelSet, $Scenario.Sms, $Scenario.Via, $hint)
+        $hint = $(if ($AggregateOnly -and $Scenario.ModelSet -eq 'EntityLevel') { $blocked }
+                  elseif ($script:RunnerModelSets -contains $Scenario.ModelSet) { 'or -ModelSet ' + $Scenario.ModelSet }
+                  else { 'it is neither profile' })
+        $r.Refusals += ('FIXTURE/TYPE-MAP MISMATCH: {6} but the fixture {1} loads {2} (Simulation-Model-Set-Files "{3}"; {4}). The model set is fixed per scenario (UG52 13.7), and the {0} type map names object types that do not exist in the other catalogue. Use a fixture built on the {0} SMS ({5}).' -f $ModelSet, $Scenario.Path, $Scenario.ModelSet, $Scenario.Sms, $Scenario.Via, $hint, $who)
     } else {
         $r.Warnings += ('the fixture {0} loads {1} (Simulation-Model-Set-Files "{2}"; {3}), which is neither profile. An EntityLevel run is not refused on it (unchanged behaviour), but its type map was not built for it.' -f $Scenario.Path, $Scenario.ModelSet, $Scenario.Sms, $Scenario.Via)
+    }
+    return $r
+}
+
+# ===========================================================================================
+# THE MODEL SET, CHOSEN FROM THE ORDER (package D2; RL-20260927-06)
+# ===========================================================================================
+# The owner, RL-20260927-06 (docs/RULINGS.md): "consider the echelon threshold just for the units
+# actually tasked, not the overall set placed at initialization but never acted upon. [...] the
+# automated default can be overruled by a setting so that battalion and b[el]ow can be simulated at
+# an aggregate level rather than entity. Higher echelons can only be run at aggregate level because
+# of vrf limitations". Plan row D2 of docs/PLAN_MOVEMENT_2026-09-27.md; Y-15 (dated note) in
+# docs/VRF_5.2_DECISION_EVIDENCE.md. THE RULE AS BUILT:
+#   1. the TASKED units are the order's PerformingEntity values (Get-OrderTasks) - an init unit that
+#      no task names does not count, whatever its echelon;
+#   2. a tasked unit's echelon is its init Unit/EchelonCode - C2SIM EchelonCodeType, the JC3IEDM
+#      echelon enumeration (C2SIM_SMX_LOX_CWIX2024.xsd :4614-4648; mandatory on Unit, :4970);
+#   3. the HIGHEST ranked tasked echelon decides: ABOVE BN -> AggregateTacticalLevel, and only that
+#      (an explicit -ModelSet EntityLevel is REFUSED, "above battalion is aggregate-only"); BN AND
+#      BELOW -> EntityLevel by default, which an explicit -ModelSet AggregateTacticalLevel may lift;
+#   4. an echelon the ground ladder does not rank - NOS, NKN, an air or naval echelon, a value outside
+#      the schema, a missing code, a performer that is not a Unit or not in the init at all - counts
+#      as BELOW BN and is NAMED. It can never lift the choice, so an EntityLevel choice made with one
+#      in the order is WARNED: the operator's lever is -ModelSet AggregateTacticalLevel.
+# THE LADDER. The ranks follow the APP-6 / MIL-STD-2525 echelon order of symbol position 12 (A team
+# .. M region; UnitTypeMap.EchelonCharOf reads that character, and ContainerCatalogue.cs :126-136 maps
+# D..J onto the UG52 D.3.4 unit categories). The grouping codes rank with the unit they are "based
+# on" (JC3IEDM 3.1 UnitTypeSizeCode definitions, Standard/MSDL/extern/JC3IEDM-3.1-Codes-20061208.xsd
+# :122506-122792, same code list as the C2SIM enumeration): COYG a company; BNG an infantry
+# battalion; BATGRP "an infantry battalion or a tank regiment" (a battalion-sized regiment in that
+# usage); BDEGRP a brigade. RGT is "below a division or brigade and above a battalion" (same file).
+# SQD and SEC are NOT schema values; they are read as SQUAD and SECT, and the record says so.
+# PURE: text in, records out. Nothing here opens a file, starts a process or writes anything.
+$script:EchelonLadder = [ordered]@{
+    'TEAM' = 1; 'SQUAD' = 2; 'SECT' = 3; 'PLT' = 4
+    'COY' = 5; 'COYG' = 5
+    'BN' = 6; 'BNG' = 6; 'BATGRP' = 6
+    'RGT' = 7
+    'BDE' = 8; 'BDEGRP' = 8
+    'DIV' = 9; 'CORPS' = 10; 'ARMY' = 11; 'AG' = 12; 'REGION' = 13
+}
+# THE THRESHOLD: a tasked echelon ranked ABOVE this is aggregate-only.
+$script:EchelonBattalionRank = 6
+$script:EchelonAliases = @{ 'SQD' = 'SQUAD'; 'SEC' = 'SECT' }
+# Schema values OFF the ground ladder (same JC3IEDM file): counted below BN, and named.
+$script:EchelonUnranked = [ordered]@{
+    'NOS'    = 'NOS, "not otherwise specified" - no echelon given'
+    'NKN'    = 'NKN, "not known" - no echelon given'
+    'FLIGHT' = 'an AIR echelon (flight), not on the ground ladder'
+    'WING'   = 'an AIR echelon (wing), not on the ground ladder'
+    'SQDRNA' = 'an AIR echelon (squadron, air), not on the ground ladder'
+    'SQDRNM' = 'a NAVAL echelon (squadron, maritime), not on the ground ladder'
+    'FLEET'  = 'a NAVAL echelon (fleet), not on the ground ladder'
+    'NTF'    = 'a NAVAL echelon (task force), not on the ground ladder'
+    'NTG'    = 'a NAVAL echelon (task group), not on the ground ladder'
+    'NTU'    = 'a NAVAL echelon (task unit), not on the ground ladder'
+    'TSKELN' = 'a NAVAL echelon (task element), not on the ground ladder'
+}
+
+# One echelon code -> its place on the ladder. Status: ranked | unranked (a schema value off the
+# ladder) | not-schema | missing. Rank 0 = not ranked.
+function Get-EchelonRank {
+    param([AllowNull()][AllowEmptyString()][string]$Code)
+    $raw = $(if ($null -eq $Code) { '' } else { $Code.Trim() })
+    $up  = $raw.ToUpperInvariant()
+    $out = [ordered]@{ Code = $raw; Canonical = ''; Rank = 0; Status = ''; Note = '' }
+    if ($up -eq '') {
+        $out.Status = 'missing'
+        $out.Note   = 'NO EchelonCode (the schema makes it mandatory on a Unit) - counted below BN'
+        return $out
+    }
+    if ($script:EchelonAliases.ContainsKey($up)) {
+        $out.Canonical = [string]$script:EchelonAliases[$up]
+        $out.Rank      = [int]$script:EchelonLadder[$out.Canonical]
+        $out.Status    = 'ranked'
+        $out.Note      = ('"{0}" is not a schema value; read as {1}' -f $raw, $out.Canonical)
+        return $out
+    }
+    if ($script:EchelonLadder.Contains($up)) {
+        $out.Canonical = $up
+        $out.Rank      = [int]$script:EchelonLadder[$up]
+        $out.Status    = 'ranked'
+        return $out
+    }
+    if ($script:EchelonUnranked.Contains($up)) {
+        $out.Canonical = $up
+        $out.Status    = 'unranked'
+        $out.Note      = ([string]$script:EchelonUnranked[$up]) + ' - counted below BN'
+        return $out
+    }
+    $out.Status = 'not-schema'
+    $out.Note   = ('"{0}" is not a C2SIM EchelonCodeType value - counted below BN' -f $raw)
+    return $out
+}
+
+# The init's Units, keyed by lower-case UUID: Name, EchelonCode (the DIRECT child, as the schema puts
+# it), and the SIDC's own affiliation and echelon characters (APP-6 positions 2 and 12; recorded as
+# evidence, never decisive). Other elements that carry a UUID child are kept by element name, so a
+# performer that is not a Unit can be told apart from one that is not in the init at all. A UUID that
+# appears twice with DIFFERENT echelon codes is kept in Duplicates (lower-case UUID -> what clashed;
+# the first one is used) - the selector warns only when such a unit is TASKED.
+function Get-InitUnitEchelons {
+    param([AllowNull()][AllowEmptyString()][string]$InitText)
+    $out = [ordered]@{ Parsed = $false; Error = ''; UnitCount = 0; Units = @{}; Other = @{}; Duplicates = @{} }
+    if ([string]::IsNullOrWhiteSpace($InitText)) { $out.Error = 'the init text is empty'; return $out }
+    $doc = New-Object System.Xml.XmlDocument
+    try { $doc.LoadXml($InitText) } catch { $out.Error = $_.Exception.Message; return $out }
+    $out.Parsed = $true
+    foreach ($u in @($doc.SelectNodes("//*[local-name()='Unit']"))) {
+        $uuid = $null; $name = $null; $ech = $null
+        foreach ($c in @($u.ChildNodes)) {
+            if ($c.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+            if ($c.LocalName -eq 'UUID'        -and $null -eq $uuid) { $uuid = $c.InnerText.Trim() }
+            if ($c.LocalName -eq 'Name'        -and $null -eq $name) { $name = $c.InnerText.Trim() }
+            if ($c.LocalName -eq 'EchelonCode' -and $null -eq $ech)  { $ech  = $c.InnerText.Trim() }
+        }
+        if ([string]::IsNullOrWhiteSpace($uuid)) { continue }
+        $out.UnitCount++
+        $sidc = ''
+        $sn = $u.SelectSingleNode(".//*[local-name()='APP6C-SIDC' or local-name()='SIDCString']")
+        if ($null -ne $sn) { $sidc = $sn.InnerText.Trim() }
+        $key = $uuid.ToLowerInvariant()
+        if ($out.Units.ContainsKey($key)) {
+            if ([string]$out.Units[$key].EchelonCode -ne [string]$ech -and -not $out.Duplicates.ContainsKey($key)) {
+                $out.Duplicates[$key] = ('{0}: EchelonCode "{1}" and "{2}" (the first is used)' -f $uuid, $out.Units[$key].EchelonCode, $ech)
+            }
+            continue
+        }
+        $out.Units[$key] = [ordered]@{
+            Uuid        = $uuid
+            Name        = $(if ($name) { $name } else { '(no Name)' })
+            EchelonCode = $ech
+            Sidc        = $sidc
+            Affiliation = $(if ($sidc.Length -ge 2) { $sidc.Substring(1, 1).ToUpperInvariant() } else { '' })
+            SidcEchelon = $(if ($sidc.Length -ge 12) { $sidc.Substring(11, 1).ToUpperInvariant() } else { '' })
+        }
+    }
+    foreach ($e in @($doc.SelectNodes("//*[*[local-name()='UUID']]"))) {
+        if ($e.LocalName -eq 'Unit') { continue }
+        foreach ($c in @($e.ChildNodes)) {
+            if ($c.NodeType -eq [System.Xml.XmlNodeType]::Element -and $c.LocalName -eq 'UUID') {
+                $k = $c.InnerText.Trim().ToLowerInvariant()
+                if ($k -and -not $out.Other.ContainsKey($k)) { $out.Other[$k] = $e.LocalName }
+                break
+            }
+        }
+    }
+    return $out
+}
+
+# THE CHOICE, pure. -Requested is the -ModelSet argument ('Auto' when not typed). Returns the chosen
+# model set, how it was chosen, every tasked unit with its echelon, and Refusals / Warnings / Notes
+# for Stage 0. On the 5.0.2 profile NOTHING is read (Applied = $false): that profile has no
+# aggregate model set and its output is the regression control, so it stays exactly what it was.
+function Select-ModelSetByEchelon {
+    param(
+        [string]$Requested = 'Auto',
+        [Parameter(Mandatory)][bool]$Is52,
+        [AllowNull()][AllowEmptyString()][string]$OrderText,
+        [AllowNull()][AllowEmptyString()][string]$InitText,
+        [string]$OrderLabel = 'the order',
+        [string]$InitLabel  = 'the init'
+    )
+    $req = $(switch -Regex ([string]$Requested) {
+        '^(?i)entitylevel$'            { 'EntityLevel'; break }
+        '^(?i)aggregatetacticallevel$' { 'AggregateTacticalLevel'; break }
+        default                        { 'Auto' }
+    })
+    $s = [ordered]@{
+        Applied = $false; Requested = $req; Choice = ''; Source = ''; Auto = ''; Reason = ''
+        OrderParsed = $false; OrderError = ''; InitParsed = $false; InitError = ''
+        TaskCount = 0; Tasked = @(); Highest = ''; HighestRank = 0; HighestUnits = @()
+        AboveBattalion = $false; AboveBattalionUnits = @(); Unranked = @()
+        Refusals = @(); Warnings = @(); Notes = @()
+    }
+    if (-not $Is52) {
+        $s.Choice = $(if ($req -eq 'AggregateTacticalLevel') { 'AggregateTacticalLevel' } else { 'EntityLevel' })
+        $s.Source = $(if ($req -eq 'Auto') { 'default' } else { 'argument -ModelSet' })
+        $s.Reason = 'the 5.0.2 profile has no aggregate model set; the selector is not applied there'
+        return $s
+    }
+    $s.Applied = $true
+    # THE ORDER. Parsed here as well as by Get-OrderTasks, only so an UNPARSEABLE order is told apart
+    # from one that tasks nobody (Get-OrderTasks returns an empty list for both).
+    $taskPairs = @()
+    if ([string]::IsNullOrWhiteSpace($OrderText)) {
+        $s.OrderError = 'the order text is empty'
+    } else {
+        $probe = New-Object System.Xml.XmlDocument
+        try { $probe.LoadXml($OrderText); $s.OrderParsed = $true } catch { $s.OrderError = $_.Exception.Message }
+        if ($s.OrderParsed) {
+            $taskPairs   = @(Get-OrderTasks -OrderText $OrderText)
+            $s.TaskCount = @($probe.SelectNodes("//*[local-name()='Task']")).Count
+        }
+    }
+    $init = Get-InitUnitEchelons -InitText $InitText
+    $s.InitParsed = [bool]$init.Parsed
+    $s.InitError  = [string]$init.Error
+    # ONE RECORD PER DISTINCT PERFORMER, in the order's own order, with how many tasks name it.
+    $perf = [ordered]@{}
+    foreach ($tp in $taskPairs) {
+        $k = ([string]$tp.Taskee).ToLowerInvariant()
+        if ($perf.Contains($k)) { $perf[$k].Tasks++ } else { $perf[$k] = [ordered]@{ Uuid = [string]$tp.Taskee; Tasks = 1 } }
+    }
+    foreach ($k in @($perf.Keys)) {
+        $rec = [ordered]@{
+            Uuid = $perf[$k].Uuid; Tasks = $perf[$k].Tasks; Name = ''; EchelonCode = ''; Canonical = ''
+            Rank = 0; Status = ''; Note = ''; Affiliation = ''; SidcEchelon = ''
+        }
+        if ($init.Units.ContainsKey($k)) {
+            $u  = $init.Units[$k]
+            $er = Get-EchelonRank -Code $u.EchelonCode
+            $rec.Name        = $u.Name
+            $rec.EchelonCode = $er.Code
+            $rec.Canonical   = $er.Canonical
+            $rec.Rank        = $er.Rank
+            $rec.Status      = $er.Status
+            $rec.Note        = $er.Note
+            $rec.Affiliation = $u.Affiliation
+            $rec.SidcEchelon = $u.SidcEchelon
+        } elseif ($init.Other.ContainsKey($k)) {
+            $rec.Name   = ('(a {0}, not a Unit)' -f $init.Other[$k])
+            $rec.Status = 'not-a-unit'
+            $rec.Note   = ('the performer is a {0} in {1}, not a Unit - it has no echelon; counted below BN' -f $init.Other[$k], $InitLabel)
+        } else {
+            $rec.Name   = '(not in the init)'
+            $rec.Status = 'not-in-init'
+            $rec.Note   = ('no Unit or other entity with this UUID in {0} - counted below BN; the interface cannot task it either' -f $InitLabel)
+        }
+        $s.Tasked += $rec
+    }
+    foreach ($rec in $s.Tasked) {
+        if ($rec.Status -ne 'ranked') { $s.Unranked += $rec }
+        if ($rec.Rank -gt $s.HighestRank) { $s.HighestRank = $rec.Rank; $s.Highest = $rec.Canonical }
+    }
+    if ($s.HighestRank -gt 0) {
+        $s.HighestUnits = @($s.Tasked | Where-Object { $_.Rank -eq $s.HighestRank } | ForEach-Object { $_.Name })
+    }
+    $above = @($s.Tasked | Where-Object { $_.Rank -gt $script:EchelonBattalionRank })
+    $s.AboveBattalion      = ($above.Count -gt 0)
+    $s.AboveBattalionUnits = @($above | ForEach-Object { '{0} ({1})' -f $_.Name, $_.Canonical })
+    $s.Auto = $(if ($s.AboveBattalion) { 'AggregateTacticalLevel' } else { 'EntityLevel' })
+    $s.Reason = $(if ($s.AboveBattalion) {
+                      'highest TASKED echelon {0} ({1}) is ABOVE BN - aggregate-only' -f $s.Highest, ($s.HighestUnits -join ', ')
+                  } elseif ($s.HighestRank -gt 0) {
+                      'highest TASKED echelon {0} ({1}) is BN or below - EntityLevel by default' -f $s.Highest, ($s.HighestUnits -join ', ')
+                  } else {
+                      'no tasked unit has a ranked echelon - EntityLevel by default'
+                  })
+    switch ($req) {
+        'Auto' {
+            $s.Choice = $s.Auto
+            $s.Source = 'auto'
+        }
+        'EntityLevel' {
+            $s.Choice = 'EntityLevel'
+            $s.Source = 'argument -ModelSet'
+            if ($s.AboveBattalion) {
+                $s.Refusals += ('ABOVE BATTALION IS AGGREGATE-ONLY: -ModelSet EntityLevel was passed, but {0} tasks {1}. RL-20260927-06: "Higher echelons can only be run at aggregate level because of vrf limitations" - the setting may lift battalion-and-below to aggregate, never lower an order above BN to entity. Drop -ModelSet (auto chooses AggregateTacticalLevel) or pass -ModelSet AggregateTacticalLevel, with an aggregate fixture (-Scenario).' -f $OrderLabel, ($s.AboveBattalionUnits -join ', '))
+            }
+        }
+        'AggregateTacticalLevel' {
+            $s.Choice = 'AggregateTacticalLevel'
+            $s.Source = 'argument -ModelSet'
+            if (-not $s.AboveBattalion) {
+                $s.Notes += ('OVERRIDE UP: -ModelSet AggregateTacticalLevel on an order whose tasked units are all BN or below (auto would choose EntityLevel) - allowed, RL-20260927-06: "battalion and b[el]ow can be simulated at an aggregate level rather than entity".')
+            }
+        }
+    }
+    # WHAT THE CHOICE RESTS ON, said out loud when it is thin.
+    if (-not $s.OrderParsed) {
+        $s.Warnings += ('{0} could not be parsed ({1}): no tasked unit could be read, so the choice rests on nothing and falls back to EntityLevel. PushOrder is the authority on the order itself.' -f $OrderLabel, $s.OrderError)
+    } elseif ($s.Tasked.Count -eq 0) {
+        $s.Warnings += ('{0} tasks NO unit ({1} task(s), 0 PerformingEntity): nothing can lift the choice above EntityLevel.' -f $OrderLabel, $s.TaskCount)
+    }
+    if (-not $s.InitParsed -and $s.Tasked.Count -gt 0) {
+        $s.Warnings += ('{0} could not be parsed ({1}): no tasked unit''s echelon could be read, so every one counts as below BN.' -f $InitLabel, $s.InitError)
+    }
+    foreach ($rec in @($s.Tasked)) {
+        $dk = ([string]$rec.Uuid).ToLowerInvariant()
+        if ($init.Duplicates.ContainsKey($dk)) { $s.Warnings += ('{0} carries a TASKED unit''s UUID twice with different echelons - {1}' -f $InitLabel, $init.Duplicates[$dk]) }
+    }
+    foreach ($rec in @($s.Tasked | Where-Object { $_.Status -eq 'not-in-init' })) {
+        $s.Warnings += ('the performer {0} is not in {1} - counted below BN, and the interface cannot task it either.' -f $rec.Uuid, $InitLabel)
+    }
+    $unrankedOther = @($s.Unranked | Where-Object { $_.Status -ne 'not-in-init' })
+    if ($unrankedOther.Count -gt 0) {
+        $list = (@($unrankedOther | ForEach-Object { '{0} [{1}]' -f $_.Name, $(if ($_.EchelonCode) { $_.EchelonCode } else { $_.Status }) }) -join ', ')
+        if ($s.Choice -eq 'EntityLevel') {
+            $s.Warnings += ('{0} tasked unit(s) carry no ranked echelon and are counted BELOW BN (the D2 rule: NOS/unknown count below BN and are named): {1}. If one of them is really a formation above BN, this choice is wrong - pass -ModelSet AggregateTacticalLevel.' -f $unrankedOther.Count, $list)
+        } else {
+            $s.Notes += ('{0} tasked unit(s) carry no ranked echelon (counted below BN; they cannot change an AggregateTacticalLevel choice): {1}' -f $unrankedOther.Count, $list)
+        }
+    }
+    return $s
+}
+
+# ---- THE COMPOSITION VARIANT AND THE FIXTURE (D2 with C2; RL-20260927-04) ----------------------
+# On AggregateTacticalLevel the app populates a tasked container from Vrf:CompositionFile, whose
+# "variants" block names, per variant, the SMS it needs and the fixture on that SMS
+# (data/unit-composition-52-aggregate.json: "catalogue" -> the SHIPPED AggregateTacticalLevel.sms,
+# fixture IronStorm_Centre_52_Aggregate; "authored" -> the DERIVED C:\C2SIM\vrf-sms\
+# C2SIM_AggregateTacticalLevel.sms, fixture IronStorm_Centre_52_Aggregate_C2SIM). The hazard, in
+# docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7: on the shipped set the authored
+# types land EMPTY generic containers or the base abstract. The pairing is therefore checked BOTH
+# ways - the authored variant only on its derived set, the catalogue variant only on the shipped
+# one (one variable per run: the derived set is not live-proven). These helpers only READ.
+function Get-CompositionVariants {
+    param([Parameter(Mandatory)][string]$Path)
+    $out = [ordered]@{ Path = $Path; Found = $false; Parsed = $false; Error = ''; DefaultVariant = ''; Variants = [ordered]@{} }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { $out.Error = 'no such file'; return $out }
+    $out.Found = $true
+    try {
+        $j = [System.IO.File]::ReadAllText($Path) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        $out.Error = 'not JSON: ' + $_.Exception.Message
+        return $out
+    }
+    $out.Parsed = $true
+    $names = @($j.PSObject.Properties.Name)
+    if ($names -contains 'defaultVariant') { $out.DefaultVariant = [string]$j.defaultVariant }
+    if ($names -contains 'variants' -and $null -ne $j.variants) {
+        foreach ($p in @($j.variants.PSObject.Properties)) {
+            $v  = $p.Value
+            $vn = @($v.PSObject.Properties.Name)
+            $out.Variants[[string]$p.Name] = [ordered]@{
+                Sms      = $(if ($vn -contains 'sms')      { [string]$v.sms }      else { '' })
+                Fixture  = $(if ($vn -contains 'fixture')  { [string]$v.fixture }  else { '' })
+                ModelSet = $(if ($vn -contains 'modelSet') { [string]$v.modelSet } else { '' })
+            }
+        }
+    }
+    return $out
+}
+
+# 'shipped' = the vendor's own AggregateTacticalLevel.sms (macro form or under simulationModelSets);
+# 'derived' = any other .sms named by a rooted path (C:\C2SIM\vrf-sms\*.sms); 'other' / 'none'.
+function Get-AggregateSmsKind {
+    param([AllowNull()][AllowEmptyString()][string]$Sms)
+    if ([string]::IsNullOrWhiteSpace($Sms)) { return 'none' }
+    $n    = ($Sms.Trim() -replace '/', '\').ToLowerInvariant()
+    $leaf = ($n -split '\\')[-1]
+    if ($leaf -eq 'aggregatetacticallevel.sms' -and ($n -like '*$(data_dir)*' -or $n -like '*\simulationmodelsets\*' -or $n -notmatch '\\')) { return 'shipped' }
+    if ($n -match '^[a-z]:\\|^\\\\') { return 'derived' }
+    return 'other'
+}
+
+function ConvertTo-SmsKey {
+    param([AllowNull()][AllowEmptyString()][string]$Sms)
+    if ($null -eq $Sms) { return '' }
+    return (($Sms.Trim() -replace '/', '\').ToLowerInvariant())
+}
+
+# THE DECISION, pure. Refuses an explicit variant off the aggregate model set, a variant the file
+# does not declare, and a fixture on the other SMS; names the fixture that would pair. When the
+# fixture is on a DERIVED set and pairs, CatalogueSms is that SMS: the app must resolve the
+# composition against the SMS the fixture loads (VrfSettings.cs Vrf:CatalogueSms, "Must be the SMS
+# the fixture loads"). On the SHIPPED set nothing is exported (the key's default "" = the model set's
+# own SMS), so a predicted non-shipped value (an inherited env var, appsettings.json) is REFUSED.
+# -Variant is the variant the APP will use: the runner's -CompositionVariant (-VariantPassed), else what
+# the app would resolve on its own (an inherited Vrf__CompositionVariant, else appsettings.json
+# Vrf:CompositionVariant - -VariantSource names which), else EMPTY = the file's defaultVariant, which is
+# also what the app does with a blank value (VrfSettings.cs CompositionVariant, C1b).
+function Test-CompositionVariantPairing {
+    param(
+        [Parameter(Mandatory)][string]$ModelSet,
+        [AllowEmptyString()][string]$Variant = '',
+        [bool]$VariantPassed = $false,
+        [string]$VariantSource = '',
+        [Parameter(Mandatory)]$Composition,
+        [Parameter(Mandatory)]$Scenario,
+        [AllowEmptyString()][string]$PredictedCatalogueSms = '',
+        [string]$PredictedCatalogueSmsSource = ''
+    )
+    $r = [ordered]@{
+        Applied = $false; Variant = ''; Source = ''; ExpectedSms = ''; ExpectedSmsKind = ''; ExpectedFixture = ''
+        FixtureSmsKind = ''; Matches = $null; CatalogueSms = ''; Refusals = @(); Warnings = @(); Notes = @()
+    }
+    if ($ModelSet -ne 'AggregateTacticalLevel') {
+        if ($VariantPassed) {
+            $r.Refusals += ('-CompositionVariant {0} was passed but the model set is {1}: the composition, and so its variant, is read ONLY on AggregateTacticalLevel (VrfSettings.cs C1 block: "on EntityLevel NONE of these keys is read"). Drop -CompositionVariant, or run the aggregate model set.' -f $Variant, $ModelSet)
+        }
+        return $r
+    }
+    $r.Applied = $true
+    if (-not $Composition.Parsed) {
+        $r.Refusals += ('the composition file {0} could not be read ({1}). An AggregateTacticalLevel run populates its tasked containers from it (Vrf:CompositionFile), and its variant decides which SMS the fixture must load.' -f $Composition.Path, $Composition.Error)
+        return $r
+    }
+    if ($VariantPassed) {
+        $r.Variant = $Variant
+        $r.Source  = 'argument -CompositionVariant'
+    } elseif (-not [string]::IsNullOrWhiteSpace($Variant)) {
+        $r.Variant = $Variant.Trim()
+        $r.Source  = $(if ($VariantSource) { $VariantSource } else { 'the app''s own setting' })
+    } else {
+        $r.Variant = $Composition.DefaultVariant
+        $r.Source  = ('the defaultVariant of {0}' -f $Composition.Path)
+    }
+    $known = @($Composition.Variants.Keys)
+    if ([string]::IsNullOrWhiteSpace($r.Variant) -or $known -notcontains $r.Variant) {
+        $r.Refusals += ('COMPOSITION VARIANT "{0}" ({1}) is not a variant of {2} (it declares: {3}).' -f $r.Variant, $r.Source, $Composition.Path, $(if ($known.Count) { $known -join ', ' } else { 'none' }))
+        return $r
+    }
+    $v = $Composition.Variants[$r.Variant]
+    $r.ExpectedSms     = [string]$v.Sms
+    $r.ExpectedFixture = [string]$v.Fixture
+    $r.ExpectedSmsKind = Get-AggregateSmsKind -Sms $v.Sms
+    # The runner validates the variant and TELLS the app (Vrf__CompositionVariant); the app honours the key
+    # from C1b (e9006ae) on - an app built before it reads the file variant-blind. So a non-default variant
+    # is only what ran if the app's own start-up line says so.
+    if ($r.Variant -ne $Composition.DefaultVariant) {
+        $r.Warnings += ('the "{0}" variant is not the file''s default ("{1}"): the app honours Vrf:CompositionVariant from C1b (e9006ae) on, and an app built before it reads the file variant-blind. Check its start-up line "COMPOSITION VARIANT {0} ..." before scoring this run as "{0}".' -f $r.Variant, $Composition.DefaultVariant)
+    }
+    if ($r.ExpectedSmsKind -notin @('shipped', 'derived')) {
+        $r.Refusals += ('the "{0}" variant of {1} declares no usable sms ("{2}"), so its fixture cannot be checked.' -f $r.Variant, $Composition.Path, $v.Sms)
+        return $r
+    }
+    if (-not $Scenario.Found -or -not $Scenario.Readable) {
+        $r.Notes += ('the fixture {0} could not be read, so its SMS is NOT checked against the "{1}" variant here (the model-set check decides; the variant needs {2}, fixture {3}).' -f $Scenario.Path, $r.Variant, $r.ExpectedSms, $r.ExpectedFixture)
+        return $r
+    }
+    if ($Scenario.ModelSet -ne 'AggregateTacticalLevel') {
+        $r.Notes += ('the fixture {0} is not on the aggregate model set (refused by the model-set check), so the "{1}" variant is not checked against it.' -f $Scenario.Path, $r.Variant)
+        return $r
+    }
+    $r.FixtureSmsKind = Get-AggregateSmsKind -Sms $Scenario.Sms
+    $alt = @($known | Where-Object {
+                $ak = Get-AggregateSmsKind -Sms $Composition.Variants[$_].Sms
+                ($ak -eq 'shipped' -and $r.FixtureSmsKind -eq 'shipped') -or
+                ($ak -eq 'derived' -and $r.FixtureSmsKind -eq 'derived' -and (ConvertTo-SmsKey $Composition.Variants[$_].Sms) -eq (ConvertTo-SmsKey $Scenario.Sms)) })
+    $altHint = $(if ($alt.Count) { ', or -CompositionVariant ' + ($alt -join ' / ') } else { '' })
+    $pairs = (($r.ExpectedSmsKind -eq 'shipped' -and $r.FixtureSmsKind -eq 'shipped') -or
+              ($r.ExpectedSmsKind -eq 'derived' -and $r.FixtureSmsKind -eq 'derived' -and
+               (ConvertTo-SmsKey $r.ExpectedSms) -eq (ConvertTo-SmsKey $Scenario.Sms)))
+    $r.Matches = $pairs
+    if (-not $pairs) {
+        if ($r.ExpectedSmsKind -eq 'derived' -and $r.FixtureSmsKind -eq 'shipped') {
+            $r.Refusals += ('COMPOSITION VARIANT/FIXTURE MISMATCH: the "{0}" variant ({1}) needs the DERIVED set {2} - its authored unit types exist only there - but the fixture {3} loads the SHIPPED set ("{4}"), where they land EMPTY generic containers or the base abstract (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md sec 7). Use the variant''s fixture (-Scenario {5}){6}.' -f $r.Variant, $r.Source, $r.ExpectedSms, $Scenario.Path, $Scenario.Sms, $r.ExpectedFixture, $altHint)
+        } elseif ($r.ExpectedSmsKind -eq 'shipped' -and $r.FixtureSmsKind -eq 'derived') {
+            $r.Refusals += ('COMPOSITION VARIANT/FIXTURE MISMATCH: the "{0}" variant ({1}) is the SHIPPED-set composition ({2}), but the fixture {3} loads the DERIVED set "{4}". One variable per run: the derived set is not live-proven (AGGREGATE_AUTHORED_UNITS_2026-09-27 sec 12), and a "{0}" run on it is not the "{0}" run. Use -Scenario {5}{6}.' -f $r.Variant, $r.Source, $r.ExpectedSms, $Scenario.Path, $Scenario.Sms, $r.ExpectedFixture, $altHint)
+        } else {
+            $r.Refusals += ('COMPOSITION VARIANT/FIXTURE MISMATCH: the "{0}" variant ({1}) needs "{2}", but the fixture {3} loads "{4}". Use -Scenario {5}{6}.' -f $r.Variant, $r.Source, $r.ExpectedSms, $Scenario.Path, $Scenario.Sms, $r.ExpectedFixture, $altHint)
+        }
+        return $r
+    }
+    $r.Notes += ('fixture {0} loads "{1}" - the SMS the "{2}" variant needs ({3}).' -f $Scenario.Path, $Scenario.Sms, $r.Variant, $r.Source)
+    if ($r.FixtureSmsKind -eq 'derived') {
+        $r.CatalogueSms = [string]$Scenario.Sms
+        $r.Notes += ('the fixture is on a DERIVED set, so the app is told to resolve the composition against it: Vrf__CatalogueSms={0}.' -f $r.CatalogueSms)
+    } elseif (-not [string]::IsNullOrWhiteSpace($PredictedCatalogueSms) -and (Get-AggregateSmsKind -Sms $PredictedCatalogueSms) -ne 'shipped') {
+        $r.Refusals += ('CATALOGUE SMS MISMATCH: the fixture {0} loads the SHIPPED set, but the app would resolve the composition against "{1}" ({2}). Vrf:CatalogueSms must be the SMS the fixture loads (VrfSettings.cs); unset it for this run.' -f $Scenario.Path, $PredictedCatalogueSms, $PredictedCatalogueSmsSource)
     }
     return $r
 }
