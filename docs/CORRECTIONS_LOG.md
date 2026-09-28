@@ -615,3 +615,15 @@ and no Subordinate - the 15 TO relations (as RL-20260927-02's reading describes 
 reaches no cut-A taskee. Evidence: tools/aggregate/composition_check.py --vendor; PseudoAggregate.ope:40-131;
 data/STP-IRON-STORM-SYNTHETIC_Initialization.xml; docs/DESIGN_AGGREGATE_CONTAINERS_2026-09-27.md sec 1 and 4.1. No ruling
 changes; the TO question is the owner's decision D-7.
+
+## R9 1.BdeHQ: "a BDE unit" whose lower-echelon DIS type is the "init data defect" (2026-09-02; reversed 2026-09-28)
+Claimed (UNIT_TYPE_MAPPING_FIDELITY_2026-09-02 sec 4.3, "a platoon type on a BDE unit - init data defect"; NEXT_TYPE_MAPPING_
+LIVE_GATE, "a COMPANY-category type on a BDE unit"): 1.BdeHQ is a brigade-echelon unit and its DIS type is the wrong field.
+Reversed (RL-20260928-01, "D2 as recommended" - the recommendation: "1.BdeHQ is a company-sized element and its code should
+say so (COY)"): 1.BdeHQ is a brigade HEADQUARTERS element, one command-post vehicle in every mode (M577A2_Command_Post under
+FidelityTable, a single M1A2 under RealTemplates) with DIS category 5 = company; the wrong field was its EchelonCode BDE,
+which made the R9 order aggregate-only under RL-20260927-06. The TEST DATA now codes it COY (data/R9_Mojave_Lean_
+Initialization.xml, its _NoComments twin, R9_Mojave_Initialization.xml, GA_LeafCompany_Initialization.xml); SIDC and DIS are
+untouched and every planned creation is unchanged (deployed build: --parse-init, UnitTranslator.Plan on three entity maps,
+--destack-selftest, --parse-selftest). The golden-trace init keeps BDE as a record; L2/L3 are open (RUNBOOK sec 11j). The
+sec 4.3 DIS slip (153:3 for 153:5) is that doc's own item 6.

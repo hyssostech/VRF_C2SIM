@@ -598,6 +598,10 @@ rather than Ground_Aggregate - so today's picture is "wrong branch, real templat
 SIDCs VERIFIED: `SFGPUCIZ--EH---` (BdeHQ), `SFGPUCIZ---E---` (MechCoy),
 `SFGPUCIZ---D---` x4. This is the cheap probe fixture (sec 7).
 
+2026-09-28 (RL-20260928-01): the BdeHQ row's "init data defect" was the other field - its EchelonCode BDE, not its DIS
+type. The R9 test data now codes 1.BdeHQ COY (its SIDC and DIS unchanged, so this table's template column still holds);
+see docs/CORRECTIONS_LOG.md.
+
 ---
 
 ## 5. The proposed mapping

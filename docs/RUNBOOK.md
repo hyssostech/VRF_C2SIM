@@ -3977,11 +3977,22 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
   is ABOVE BN - aggregate-only` (or `is BN or below - EntityLevel by default`); `tasked : N unit(s) ...`, then one
   line per unit (code, name, UUID, task count); `composition : variant "<v>" <- ...`; `catalogue : ...`.
   Manifest: `inputs.modelSet.selection` (every tasked unit and its echelon), `inputs.modelSet.composition`.
-- THE RULING'S LETTER, AS BUILT - read before running an old command line. The runner's built-in default order
-  `data/R9_Mojave_UnitMove_Order.xml` tasks `1.BdeHQ`, EchelonCode BDE: a no-argument 5.2 run is now aggregate-only
-  and is refused on the (entity) default scenario. The E1/E2/E2-2 cut-A lines (28ID DIV and 48 IBCT BDE tasked,
-  entity fixture) are refused the same way. Orders whose tasked units are all BN and below (COA-STP1, the
-  wrapper's default) run exactly as before. The 5.0.2 profile is not touched (no aggregate model set there).
+- OLD COMMAND LINES - RULED 2026-09-28 (RL-20260928-01, "D2 as recommended"): the rule stands, with NO downward
+  override. (a) The R9 lines run at EntityLevel again. The runner's default order `data/R9_Mojave_UnitMove_Order.xml`
+  tasks `1.BdeHQ`, a brigade HEADQUARTERS element (one command-post vehicle, DIS category 5 = company) that the test
+  data had coded BDE; it is re-coded BDE -> COY in `data/R9_Mojave_Lean_Initialization.xml`, its `_NoComments` twin,
+  `data/R9_Mojave_Initialization.xml` and `data/GA_LeafCompany_Initialization.xml`. Its SIDC (SFGPUCIZ--EH---) and DIS
+  type are untouched, so nothing it creates changes: FidelityTable still lands M577A2_Command_Post (row F-UCIZ-H, keyed
+  on the SIDC; the EchelonCode is never read for it), RealTemplates still a single M1A2 - checked on the deployed
+  build with `--parse-init`, UnitTranslator.Plan on three entity maps, `--destack-selftest` and `--parse-selftest`.
+  The no-argument 5.2 default, DEMO Way A, COMPLETION_CONFIRM and the N3 GA line all choose EntityLevel <- auto.
+  (b) The E1/E2/E2-2 cut-A entity lines (28ID DIV and 48 IBCT BDE tasked, entity fixture) stay REFUSED: cut A keeps
+  no entity-level regression run; E1/E2 stay as records. (c) NOT re-coded: `data/L2_Infantry_Initialization.xml`
+  and `data/L3_CpProxy_Initialization.xml`, whose 1.BdeHQ has SIDC SFGPUCI---EH--- - there COY WOULD change it (map
+  key (c) lands Infantry Platoon (USA Army), an aggregate) while COYG keeps it; until that is decided they are
+  aggregate-only with the R9 order. The golden-trace init under `docs/golden-trace/` is a record and keeps BDE.
+  Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default) run exactly as before; the 5.0.2
+  profile is not touched (no aggregate model set there).
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

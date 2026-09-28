@@ -82,6 +82,8 @@ All six units are friendly (`SF...`), so `OpposingNation` does not bite here.
 this pass. Note `1.BdeHQ` is `11:1:**153:5**:4:0:0`, a COMPANY-category type on a BDE unit -
 the survey sec 4.3 records it as `11:1:153:3:4:0:0`. Either way Country 153 is not in the table,
 so the backstop behaviour is the same.)
+(2026-09-28, RL-20260928-01: the mismatch was the EchelonCode, not the type - 1.BdeHQ is a company-sized brigade HQ element;
+the R9 test data now codes it COY, SIDC and DIS unchanged, so the row F-UCIZ-H outcome above still holds. CORRECTIONS_LOG.)
 
 Contrast with run 1 (`RealTemplates`, the control): all four `D` units become
 **Tank Platoon (USA)**, `114.MechCoy` becomes **Tank Company (USA)**, and `1.BdeHQ` becomes a

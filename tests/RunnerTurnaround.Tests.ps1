@@ -51,14 +51,6 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $RepoRoot 'scripts\RunnerLib.ps1')
 . (Join-Path $PSScriptRoot 'RecordChecks.ps1')
 
-# D2 (RL-20260927-06): the runner now CHOOSES the model set from the order's tasked units, and its
-# built-in default order (data\R9_Mojave_UnitMove_Order.xml) tasks 1.BdeHQ, whose EchelonCode is BDE -
-# above BN - so a no-argument 5.2 dry run chooses AggregateTacticalLevel and Stage 0 refuses it on the
-# (entity) default scenario. The dry runs below that test something ELSE past Stage 0 therefore pass
-# this company-only order (the same R9 order without its 1.BdeHQ task; section 8z says why), and are
-# otherwise the default run they always were. Section 8z tests the choice itself.
-$D2EntityOrder = Join-Path $RepoRoot 'tests\data\D2_R9_CompanyOnly_Order.xml'
-
 # The record-check GENERATORS (section 13). Reached only when asked for by name;
 # they write one tracked file and exit before any check runs.
 if ($UpdateTripwireAllowlist -or $UpdateRulingClaimsBaseline) {
@@ -1006,9 +998,7 @@ try {
     # 2026-09-15: bare pwsh gave exit=2 and "this runner is hosted in a 32-BIT PowerShell",
     # while the pinned host + profile gave exit=5 and DRY-RUN FAILED, as asserted below).
     $probePwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
-    # -Order $D2EntityOrder: the default order is aggregate-only since D2 and would stop at Stage 0
-    # before the injected error is reached (see $D2EntityOrder at the head of this file).
-    $out  = & $probePwsh -NoProfile -File $probe -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder 2>&1
+    $out  = & $probePwsh -NoProfile -File $probe -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
     $code = $LASTEXITCODE
     $text = ($out | Out-String)
     Check 'a terminating error in -DryRun exits 5 (UNEXPECTED TERMINATING ERROR), not 0' ($code -eq 5) "exit=$code"
@@ -1038,7 +1028,7 @@ Check 'the probe copy was removed from scripts\' (-not (Test-Path -LiteralPath $
 Write-Host '=== 8h. -DryRun does not throw under StrictMode and reports the launch lock ==='
 $dryLockPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $dryLockScript = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
-$dryLockOut  = (& $dryLockPwsh -NoProfile -File $dryLockScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder 2>&1 | Out-String)
+$dryLockOut  = (& $dryLockPwsh -NoProfile -File $dryLockScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
 $dryLockCode = $LASTEXITCODE
 # THE ASSERTION THAT WOULD HAVE CAUGHT THE DEFECT, in the coordinator's own
 # words: a dry run must end "0/2", never 1 - 0 clean, 2 a legitimate validation/
@@ -1180,9 +1170,9 @@ if (-not (Test-Path -LiteralPath $wsRunawayCsv) -or -not (Test-Path -LiteralPath
 Write-Host '=== 8k. Stage 2h federation holder: planned by default, omitted at -FederationHoldSecs 0 ==='
 $holdPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $holdScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
-$holdOn      = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder 2>&1 | Out-String)
+$holdOn      = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
 $holdOnCode  = $LASTEXITCODE
-$holdOff     = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder -FederationHoldSecs 0 2>&1 | Out-String)
+$holdOff     = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -FederationHoldSecs 0 2>&1 | Out-String)
 $holdOffCode = $LASTEXITCODE
 if ($holdOn -notmatch 'DRY RUN - the full planned sequence' -or $holdOff -notmatch 'DRY RUN - the full planned sequence') {
     Check '8k SKIPPED - neither dry run reached the planned sequence in this checkout (Stage 0 aborts on the missing Release-5.2 binaries)' $true
@@ -1262,9 +1252,9 @@ Check '8l-0 a line with an unparseable leading timestamp is CONSERVATIVELY KEPT,
     @(Get-WsRunawayAlertsSinceDispatch -AlertsText 'NOT-A-TIMESTAMP BACK-END WS RUNAWAY: garbage' -DispatchUtc $wsDispatchReal).Count -eq 1)
 $wsPwshDry    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $wsDryScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
-$wsDryOn      = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder 2>&1 | Out-String)
+$wsDryOn      = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
 $wsDryOnCode  = $LASTEXITCODE
-$wsDryOff     = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder -WsRunawayAbortAfter 0 2>&1 | Out-String)
+$wsDryOff     = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -WsRunawayAbortAfter 0 2>&1 | Out-String)
 $wsDryOffCode = $LASTEXITCODE
 if ($wsDryOn -notmatch 'DRY RUN - the full planned sequence' -or $wsDryOff -notmatch 'DRY RUN - the full planned sequence') {
     Check '8l SKIPPED - neither dry run reached the planned sequence in this checkout (Stage 0 aborts on the missing Release-5.2 binaries)' $true
@@ -1574,7 +1564,7 @@ Write-Host '=== 8n. F6: scenario/init/order provenance - argument > environment 
 $provPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $provScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
 $provSaved   = @{ s = $env:C2SIM_SCENARIO; i = $env:C2SIM_INIT; o = $env:C2SIM_ORDER }
-$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''; $provEntOut = ''; $provDefCode = $null; $provEntCode = $null
+$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''; $provDefCode = $null
 try {
     $env:C2SIM_SCENARIO = 'RunnerTurnaround_EnvScenario'
     $env:C2SIM_INIT     = (Join-Path $RepoRoot 'data\COA-STP1_Initialization.xml')
@@ -1592,11 +1582,6 @@ try {
     $env:C2SIM_ORDER    = $null
     $provDefOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
     $provDefCode = $LASTEXITCODE
-    # D2: the SAME default run with only the order swapped for the company-only one, for the
-    # checks (8p, 8r, 8y, 8z) that read what a 5.2 dry run prints AFTER Stage 0 - the all-defaults
-    # run above stops there since D2 (its order tasks a BDE). See $D2EntityOrder.
-    $provEntOut  = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $D2EntityOrder 2>&1 | Out-String)
-    $provEntCode = $LASTEXITCODE
 } finally {
     $env:C2SIM_SCENARIO = $provSaved.s
     $env:C2SIM_INIT     = $provSaved.i
@@ -1607,7 +1592,6 @@ try {
 $provEnvFlat = ($provEnvOut -replace '\s+', ' ')
 $provArgFlat = ($provArgOut -replace '\s+', ' ')
 $provDefFlat = ($provDefOut -replace '\s+', ' ')
-$provEntFlat = ($provEntOut -replace '\s+', ' ')
 Check '8n THE F6 DEFECT: $env:C2SIM_SCENARIO is honoured by the ps1 (it was read only by RunScenario.sh)' (
     $provEnvFlat -match 'scenario : RunnerTurnaround_EnvScenario') "banner did not carry the env scenario"
 Check '8n the banner names the SOURCE of all three, and says the environment for all three' (
@@ -1915,12 +1899,12 @@ $ciProbe = Join-Path ([System.IO.Path]::GetTempPath()) ('_ClientIdLeakProbe.{0}.
 # banner-reading arms must use it - a mismatching id aborts at validation BEFORE the banner,
 # which is itself asserted as arm (d).
 $ciSrc = @'
-param([string]$Runner, [string]$Before, [string]$Pass, [string]$Order)
+param([string]$Runner, [string]$Before, [string]$Pass)
 if ($Before -eq '(unset)') { $env:Vrf__ClientId = $null } else { $env:Vrf__ClientId = $Before }
 if ($Pass -eq '(none)') {
-    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $Order 2>&1
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
 } else {
-    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -Order $Order -ClientId $Pass 2>&1
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ClientId $Pass 2>&1
 }
 Write-Output ('EXITCODE=' + $LASTEXITCODE)
 Write-Output ('AFTER=[' + $env:Vrf__ClientId + ']')
@@ -1931,18 +1915,18 @@ foreach ($ln in (($out | Out-String) -split "`r?`n")) {
 try {
     [System.IO.File]::WriteAllText($ciProbe, $ciSrc, (New-Object System.Text.UTF8Encoding($false)))
     # (a) -ClientId on a shell that had nothing: the run must give the shell back nothing.
-    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Order $D2EntityOrder -Before '(unset)' -Pass 'STP' 2>&1 | Out-String)
+    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass 'STP' 2>&1 | Out-String)
     Check '8v3 (a) -ClientId leaves NOTHING behind when the shell had nothing' (
         $ciA -match 'AFTER=\[\]') $ciA
     Check '8v3 (a) and the banner credits the SWITCH, not appsettings.json' (
         $ciA -match 'clientId\s+:\s+STP \(-ClientId -> Vrf__ClientId') $ciA
     # (b) -ClientId on a shell that had its OWN value: that value comes back, not the runner's.
-    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Order $D2EntityOrder -Before 'MINE' -Pass 'STP' 2>&1 | Out-String)
+    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'MINE' -Pass 'STP' 2>&1 | Out-String)
     Check '8v3 (b) -ClientId puts the shell''s OWN value back, not the runner''s' (
         $ciB -match 'AFTER=\[MINE\]') $ciB
     # (c) THE MISLABEL ITSELF: no -ClientId, but the shell carries one. The app reads it and it
     #     beats appsettings.json, so the banner must say so - it used to say "(appsettings.json)".
-    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Order $D2EntityOrder -Before 'STP' -Pass '(none)' 2>&1 | Out-String)
+    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' 2>&1 | Out-String)
     Check '8v3 (c) an INHERITED Vrf__ClientId is named as INHERITED, never credited to appsettings.json' (
         $ciC -match 'clientId\s+:\s+STP \(INHERITED Vrf__ClientId in this shell' -and
         $ciC -notmatch 'clientId\s+:\s+STP \(appsettings\.json\)') $ciC
@@ -1951,7 +1935,7 @@ try {
     # (d) AND THE GATE NOW BITES ON IT. A leaked id that disagrees with the init's SystemName is
     #     a run that creates 0 UNITS; the check used to compare appsettings.json, which is the
     #     value the app would NOT have used, so it could not see this at all.
-    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Order $D2EntityOrder -Before 'WRONGID' -Pass '(none)' 2>&1 | Out-String)
+    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'WRONGID' -Pass '(none)' 2>&1 | Out-String)
     Check '8v3 (d) an inherited id that disagrees with the init is REFUSED at validation (exit 2)' (
         $ciD -match 'EXITCODE=2') $ciD
     Check '8v3 (d) and the refusal names the EFFECTIVE value and the source it came from' (
@@ -2081,13 +2065,12 @@ Check '8y runner: the manifest records the model set and what Stage 0 checked it
     $runnerText -match '\$Manifest\.inputs\.modelSet = \[ordered\]@\{' -and
     $runnerText -match 'fixtureModelSet\s*=' -and $runnerText -match 'typeMapDeclares\s*=')
 # BEHAVIOUR, on the REAL runner in -DryRun: Stage 0 prints the model set whether or not the build
-# tree exists, so these hold in a checkout with nothing built. The output is 8n's company-only run
-# (D2: an order tasking only BN-and-below units is where "nothing changes" is promised; the
-# all-defaults order tasks a BDE and is 8z's).
-Check '8y a BN-and-below dry run says EntityLevel <- auto and that the entity map declares it (nothing else changes)' (
-    $provEntFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy\) is BN or below - EntityLevel by default; exported to the app as Vrf__ModelSet' -and
-    $provEntFlat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
-    $provEntFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
+# tree exists, so these hold in a checkout with nothing built. The default output is 8n's: the R9 pair, whose
+# tasked units are PLT/COY/COY since RL-20260928-01 re-coded 1.BdeHQ BDE -> COY, so auto keeps it EntityLevel.
+Check '8y the DEFAULT dry run says EntityLevel <- auto and that the entity map declares it (nothing else changes)' (
+    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default; exported to the app as Vrf__ModelSet' -and
+    $provDefFlat -match 'type map : data/unit-type-map-52\.json - declares EntityLevel' -and
+    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH')
 $msAggOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ModelSet AggregateTacticalLevel 2>&1 | Out-String)
 $msAggExit = $LASTEXITCODE
 $msAggFlat = ($msAggOut -replace '\s+', ' ')
@@ -2169,20 +2152,53 @@ Check '8z CUT A: the above-BN units are exactly 28ID (DIV) and 48 IBCT (BDE) - t
     ($zCutA.AboveBattalionUnits -join ' | '))
 Check '8z CUT A on the E-series init (IRONSTORM_CUTA_Initialization.xml) chooses the same' (
     $zCutAe.Choice -eq 'AggregateTacticalLevel' -and $zCutAe.Highest -eq 'DIV' -and @($zCutAe.Tasked).Count -eq 3)
-# THE COMPANY-ONLY ORDER: the R9 order without its 1.BdeHQ task (tests\data\D2_R9_CompanyOnly_Order.xml).
-$zCo = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'tests\data\D2_R9_CompanyOnly_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
-Check '8z a COMPANY-ONLY order (1222.MechPlt PLT, 114.MechCoy COY) -> EntityLevel, auto, highest COY, nothing to warn' (
+# THE COMPANY-ONLY ORDER IS THE RUNNER'S OWN DEFAULT (RL-20260928-01, "D2 as recommended"): the R9 test data carried
+# 1.BdeHQ - a brigade HEADQUARTERS element, DIS category 5 (company), one M577A2 command post under FidelityTable and
+# one M1A2 under RealTemplates - with EchelonCode BDE, which made the R9 order aggregate-only. The TEST DATA was
+# re-coded BDE -> COY; its SIDC (SFGPUCIZ--EH---) and DIS type are untouched, so no planned creation changes
+# (verified on the deployed build: --parse-init, UnitTranslator.Plan in all three modes on three entity maps, and
+# --destack-selftest / --parse-selftest on the re-coded files). Pinned here, so a regression of the DATA is loud.
+function Get-D2UnitCodes {
+    param([string]$Text, [string]$Uuid)
+    $doc = New-Object System.Xml.XmlDocument
+    $doc.LoadXml($Text)
+    foreach ($u in @($doc.SelectNodes("//*[local-name()='Unit']"))) {
+        $id = $u.SelectSingleNode("./*[local-name()='UUID']")
+        if ($null -eq $id -or $id.InnerText.Trim() -ne $Uuid) { continue }
+        $sidc = $u.SelectSingleNode(".//*[local-name()='APP6C-SIDC']")
+        $dis  = @('DISKind','DISDomain','DISCountry','DISCategory','DISSubCategory','DISSpecific','DISExtra' | ForEach-Object {
+                     $n = $u.SelectSingleNode(".//*[local-name()='$_']"); if ($null -ne $n) { $n.InnerText.Trim() } else { '?' } }) -join '.'
+        return [ordered]@{ Echelon = $u.SelectSingleNode("./*[local-name()='EchelonCode']").InnerText.Trim()
+                           Sidc = $(if ($null -ne $sidc) { $sidc.InnerText.Trim() } else { '' }); Dis = $dis }
+    }
+    return $null
+}
+$zR9Files = @('R9_Mojave_Lean_Initialization.xml', 'R9_Mojave_Lean_Initialization_NoComments.xml', 'R9_Mojave_Initialization.xml',
+              'GA_LeafCompany_Initialization.xml')
+$zR9Units = @($zR9Files | ForEach-Object { Get-D2UnitCodes -Text (Read-D2Fixture ('data\' + $_)) -Uuid '670cfdb2-6c43-f267-ad7f-bd6e739def24' })
+Check '8z the R9 test data carries 1.BdeHQ as COY in the four inits the R9 order runs with (RL-20260928-01; it was BDE)' (
+    (@($zR9Units | ForEach-Object { $_.Echelon }) -join ',') -eq 'COY,COY,COY,COY') (
+    'got ' + (@($zR9Units | ForEach-Object { $_.Echelon }) -join ','))
+Check '8z ... and ONLY the EchelonCode moved: the SIDC still reads SFGPUCIZ--EH--- and the DIS type 11.1.153.5.4.0.0 in all four' (
+    @($zR9Units | Where-Object { $_.Sidc -eq 'SFGPUCIZ--EH---' -and $_.Dis -eq '11.1.153.5.4.0.0' }).Count -eq 4) (
+    (@($zR9Units | ForEach-Object { $_.Sidc + '/' + $_.Dis }) -join ', '))
+$zCo = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+Check '8z a COMPANY-ONLY order - the R9 order (1222.MechPlt PLT, 114.MechCoy COY, 1.BdeHQ COY) -> EntityLevel, auto, highest COY, nothing to warn' (
     $zCo.Choice -eq 'EntityLevel' -and $zCo.Source -eq 'auto' -and $zCo.Highest -eq 'COY' -and -not $zCo.AboveBattalion -and
-    @($zCo.Tasked).Count -eq 2 -and @($zCo.Refusals).Count -eq 0 -and @($zCo.Warnings).Count -eq 0) ("choice=$($zCo.Choice) highest=$($zCo.Highest)")
-# THE RULING'S LETTER ON THE RUNNER'S OWN DEFAULT ORDER: 1.BdeHQ carries EchelonCode BDE (and SIDC echelon H),
-# so the R9 order is aggregate-only. Pinned so that a change to this reading is a decision, not an accident.
-$zR9 = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
-Check '8z the R9 order (the runner''s built-in default) tasks 1.BdeHQ, EchelonCode BDE -> AggregateTacticalLevel by the ruling''s letter' (
-    $zR9.Choice -eq 'AggregateTacticalLevel' -and $zR9.Highest -eq 'BDE' -and ($zR9.HighestUnits -join ',') -eq '1.BdeHQ')
+    @($zCo.Tasked).Count -eq 3 -and ($zCo.HighestUnits -join ',') -eq '114.MechCoy,1.BdeHQ' -and
+    @($zCo.Refusals).Count -eq 0 -and @($zCo.Warnings).Count -eq 0) (
+    "choice=$($zCo.Choice) highest=$($zCo.Highest) units=$($zCo.HighestUnits -join ',')")
+$zR9Full = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Initialization.xml')
+$zR9Nc   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization_NoComments.xml')
+$zR9Cc   = Select-ModelSetByEchelon -Is52 $true -OrderText (Read-D2Fixture 'data\COMPLETION_CONFIRM_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+Check '8z the other R9 lines are EntityLevel too: the FULL R9 init, the NoComments lean init, the COMPLETION_CONFIRM order' (
+    $zR9Full.Choice -eq 'EntityLevel' -and $zR9Nc.Choice -eq 'EntityLevel' -and $zR9Cc.Choice -eq 'EntityLevel' -and
+    $zR9Full.Highest -eq 'COY' -and $zR9Nc.Highest -eq 'COY' -and $zR9Cc.Highest -eq 'COY') (
+    "full=$($zR9Full.Choice)/$($zR9Full.Highest) nocomments=$($zR9Nc.Choice) completion=$($zR9Cc.Choice)")
 # THE OVERRIDES.
-$zUp   = Select-ModelSetByEchelon -Requested 'AggregateTacticalLevel' -Is52 $true -OrderText (Read-D2Fixture 'tests\data\D2_R9_CompanyOnly_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+$zUp   = Select-ModelSetByEchelon -Requested 'AggregateTacticalLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
 $zDown = Select-ModelSetByEchelon -Requested 'EntityLevel' -Is52 $true -OrderText (Read-D2Fixture 'data\IRONSTORM_CUTA_Order.xml') -InitText (Read-D2Fixture 'data\STP-IRON-STORM-SYNTHETIC_Initialization.xml') -OrderLabel 'the order IRONSTORM_CUTA_Order.xml'
-$zSame = Select-ModelSetByEchelon -Requested 'entitylevel' -Is52 $true -OrderText (Read-D2Fixture 'tests\data\D2_R9_CompanyOnly_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
+$zSame = Select-ModelSetByEchelon -Requested 'entitylevel' -Is52 $true -OrderText (Read-D2Fixture 'data\R9_Mojave_UnitMove_Order.xml') -InitText (Read-D2Fixture 'data\R9_Mojave_Lean_Initialization.xml')
 Check '8z OVERRIDE UP allowed: an entity-eligible order forced to AggregateTacticalLevel - no refusal, said as OVERRIDE UP' (
     $zUp.Choice -eq 'AggregateTacticalLevel' -and $zUp.Source -eq 'argument -ModelSet' -and $zUp.Auto -eq 'EntityLevel' -and
     @($zUp.Refusals).Count -eq 0 -and ($zUp.Notes -join ' ') -match 'OVERRIDE UP')
@@ -2380,22 +2396,23 @@ Check '8z runner: the variant the app would resolve itself (env > appsettings) i
 Check '8z runner: the manifest records the selection (the tasked units) and the composition pairing, 5.2 only' (
     $runnerText -match "\`$Manifest\.inputs\.modelSet\['selection'\] = \[ordered\]@\{" -and
     $runnerText -match "\`$Manifest\.inputs\.modelSet\['composition'\] = " -and $runnerText -match 'tasked\s+= @\(\$ModelSetSelection\.Tasked')
-# BEHAVIOUR ON THE REAL RUNNER (-DryRun). The two 8n runs: all defaults (R9, a BDE tasked) and the
-# company-only order. Then cut A and the overrides, each one dry run.
-Check '8z DRY RUN, all defaults: auto chooses AggregateTacticalLevel because 1.BdeHQ is BDE, lists the 3 tasked units, and REFUSES on the entity scenario (exit 2)' (
-    $provDefCode -eq 2 -and
-    $provDefFlat -match 'model set : AggregateTacticalLevel <- auto \(RL-20260927-06\): highest TASKED echelon BDE \(1\.BdeHQ\) is ABOVE BN - aggregate-only' -and
+# BEHAVIOUR ON THE REAL RUNNER (-DryRun). 8n's all-defaults run is the R9 pair - since RL-20260928-01 a company-only
+# order, so it runs at EntityLevel exactly as before D2. Then cut A and the overrides, each one dry run.
+Check '8z DRY RUN, all defaults (the R9 pair): EntityLevel <- auto, the 3 tasked units listed (1.BdeHQ as COY), nothing refused on the model set' (
+    $provDefFlat -match 'model set : EntityLevel <- auto \(RL-20260927-06\): highest TASKED echelon COY \(114\.MechCoy, 1\.BdeHQ\) is BN or below - EntityLevel by default' -and
     $provDefFlat -match 'tasked : 3 unit\(s\) named by the PerformingEntity of 3 task\(s\) in R9_Mojave_UnitMove_Order\.xml' -and
-    $provDefFlat -match 'BDE 1\.BdeHQ 670cfdb2-6c43-f267-ad7f-bd6e739def24' -and
-    $provDefFlat -match 'FIXTURE/TYPE-MAP MISMATCH: the model set is AggregateTacticalLevel \(auto: ' -and
-    $provDefFlat -match 'an EntityLevel run of this order is REFUSED: above battalion is aggregate-only') "exit=$provDefCode"
-Check '8z DRY RUN, company-only: exit 0, EntityLevel, the entity map, Vrf__ModelSet=EntityLevel and NOTHING aggregate in the plan' (
-    $provEntCode -eq 0 -and $provEntFlat -match 'Vrf__ModelSet=EntityLevel' -and $provEntFlat -match 'Vrf__TypeMapFile=data/unit-type-map-52\.json' -and
-    $provEntFlat -notmatch 'Vrf__CompositionVariant' -and $provEntFlat -notmatch 'Vrf__CatalogueSms' -and $provEntFlat -notmatch 'composition :' -and
-    $provEntFlat -notmatch 'MODEL SET:') "exit=$provEntCode"
-Check '8z DRY RUN, company-only: the plan exports Vrf__Scenario = the .scnx Stage 0 read (the default scenario here)' (
-    $provEntFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\Sample\\FirstExperience\\firstexperience\.scnx' -and
-    $provEntFlat -match 'Vrf__Scenario=\S*firstexperience\.scnx \(the \.scnx Stage 0 read')
+    $provDefFlat -match 'COY 1\.BdeHQ 670cfdb2-6c43-f267-ad7f-bd6e739def24' -and
+    $provDefFlat -notmatch 'FIXTURE/TYPE-MAP MISMATCH' -and $provDefFlat -notmatch 'ABOVE BATTALION' -and $provDefFlat -notmatch 'MODEL SET:') "exit=$provDefCode"
+if ($provDefFlat -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8z all-defaults plan legs SKIPPED - that dry run did not reach the planned sequence in this checkout (no Release-5.2 binaries)' $true
+} else {
+    Check '8z DRY RUN, all defaults: exit 0, the entity map, Vrf__ModelSet=EntityLevel and NOTHING aggregate in the plan' (
+        $provDefCode -eq 0 -and $provDefFlat -match 'Vrf__ModelSet=EntityLevel' -and $provDefFlat -match 'Vrf__TypeMapFile=data/unit-type-map-52\.json' -and
+        $provDefFlat -notmatch 'Vrf__CompositionVariant' -and $provDefFlat -notmatch 'Vrf__CatalogueSms' -and $provDefFlat -notmatch 'composition :') "exit=$provDefCode"
+    Check '8z DRY RUN, all defaults: the plan exports Vrf__Scenario = the .scnx Stage 0 read (the default scenario here)' (
+        $provDefFlat -match 'would set, for the app only \(profile 5\.2\): Vrf__Scenario=\S*userData\\scenarios\\Sample\\FirstExperience\\firstexperience\.scnx' -and
+        $provDefFlat -match 'Vrf__Scenario=\S*firstexperience\.scnx \(the \.scnx Stage 0 read')
+}
 $zRun = { param([string[]]$A) $o = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck @A 2>&1 | Out-String); return @($LASTEXITCODE, ($o -replace '\s+', ' ')) }
 $zCutArgs = @('-Init', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Initialization.xml'), '-Order', (Join-Path $RepoRoot 'data\IRONSTORM_CUTA_Order.xml'), '-ClientId', 'Not Set')
 $zDownRun = & $zRun (@($zCutArgs) + @('-ModelSet', 'EntityLevel'))
@@ -2421,12 +2438,12 @@ if ($zAggRun[1] -match 'DRY RUN - the full planned sequence') {
 } else {
     Check '8z ... plan leg SKIPPED - that dry run did not reach the planned sequence in this checkout' $true
 }
-$zUpRun = & $zRun @('-Order', $D2EntityOrder, '-ModelSet', 'AggregateTacticalLevel')
-Check '8z DRY RUN, OVERRIDE UP on the company-only order: accepted by the selector (OVERRIDE UP), refused only by the entity scenario' (
+$zUpRun = & $zRun @('-ModelSet', 'AggregateTacticalLevel')
+Check '8z DRY RUN, OVERRIDE UP on the (company-only) R9 default: accepted by the selector (OVERRIDE UP), refused only by the entity scenario' (
     $zUpRun[0] -eq 2 -and $zUpRun[1] -match 'model set : AggregateTacticalLevel <- argument -ModelSet \(auto would choose EntityLevel\)' -and
     $zUpRun[1] -match 'OVERRIDE UP' -and $zUpRun[1] -notmatch 'ABOVE BATTALION IS AGGREGATE-ONLY' -and
     $zUpRun[1] -match 'FIXTURE/TYPE-MAP MISMATCH: -ModelSet is AggregateTacticalLevel') "exit=$($zUpRun[0])"
-$zVarRun = & $zRun @('-Order', $D2EntityOrder, '-CompositionVariant', 'authored')
+$zVarRun = & $zRun @('-CompositionVariant', 'authored')
 Check '8z DRY RUN, -CompositionVariant on an EntityLevel run: REFUSED at Stage 0 (exit 2)' (
     $zVarRun[0] -eq 2 -and $zVarRun[1] -match '-CompositionVariant authored was passed but the model set is EntityLevel') "exit=$($zVarRun[0])"
 # THE WRAPPER: --composition-variant passed ONLY when given; --model-set documents auto.
@@ -2558,7 +2575,7 @@ Check '8p runner: the 5.0.2 bin64-*.log copy goes under vendor\ too' (
     $runnerText -match "Join-Path \`$b64Dir \('bin64-' \+ \`$lg\)" -and
     $runnerText -notmatch "Join-Path \`$RunDir \('bin64-' \+ \`$lg\)")
 Check '8p runner: the dry-run plan and the secrets WARN both name the vendor\ subdirectory and the glob rule' (
-    $provEntFlat -match 'vendor\\vendor-vrfSim\.log' -and
+    $provDefFlat -match 'vendor\\vendor-vrfSim\.log' -and
     $runnerText -match 'runs\\<run>\\\*\.log glob' -and
     $runnerText -match 'never glob')
 Check '8p runner: the manifest records WHERE the copies are and WHY' (
@@ -2633,12 +2650,12 @@ Check '8r runner: the manifest carries both hashes and the verdict' (
     $runnerText -match 'connectionConfigIdentical\s+= \$ConnConfigMatch')
 Check '8r runner: the tools are NOT re-plumbed - the check only REPORTS (no new tool argument was added)' (
     $runnerText -notmatch '-ConnectionConfigFile \$ConnConfigVendorFile')
-if ($provEntFlat -notmatch 'VrfProfile 5\.2 - VR-Forces') {
+if ($provDefFlat -notmatch 'VrfProfile 5\.2 - VR-Forces') {
     Check '8r behaviour leg SKIPPED - the 5.2 banner is printed after Stage 0 validation, which aborts in a checkout with no Release-5.2 binaries' $true
 } else {
     Check '8r a DEFAULT 5.2 run (appData not relocated) says the two are ONE FILE, and hashes it' (
-        $provEntFlat -match 'conn config : \S*MAK-ONE-2025-Config\.xml sha256' -and
-        $provEntFlat -match 'the sim, the gui, the app and the \.NET tools all read this one file')
+        $provDefFlat -match 'conn config : \S*MAK-ONE-2025-Config\.xml sha256' -and
+        $provDefFlat -match 'the sim, the gui, the app and the \.NET tools all read this one file')
 }
 
 Write-Host '=== 9. marking -> VRF_UUID mapping parses both app-log route-line forms ==='
