@@ -84,7 +84,7 @@ the evidence is in that decision's note under its table.
 Notes:
 - RL-20260927-02: (2) ContainerPopulator CPop:138, pinned by CST p1-p15. (1) RUS is the compiled and base default (VS:90,
   AJ:30) and no test reads it; data/unit-type-map-52-aggregate.json holds 19 RUS and 19 BLR hostile rows and its note
-  (:12) still says the hostile nation is "not decided here".
+  (:12) still says the hostile nation is "not decided here". Since 9999b35 the note names RL-20260927-02 and the shipped-profile pins read it.
 - RL-20260927-03: on the aggregate set the start refuses without AtOrder (Svc:2906-2908); at entity level the same rule
   is RL-20260906-02's, which only the overlays apply - counted there, not twice.
 - RL-20260927-04: CComp:186 (variants and the C1b guard), CComp:499 (resolver); D-6 CPop:517; D-1 in
@@ -118,7 +118,7 @@ Notes:
 | RL-20260914-05 | 09-14 | Q1 supersede aborts; Q2 sim clock; Q4 malformed; Q5; Q7 | TDP, SimClockTracker.cs | E | TDP:331, :437; RST:2294, :1836, :1412 +n |
 | RL-20260914-06 | 09-14 | STP-809 back-end state; E3 task cycles refused with an abort | VrfFacade.h, TDP | E | VrfFacade.h:406-415, TDP:368; RST:1366, :2553 |
 | RL-20260915-01 | 09-15 | convert the four 5.0.2-only tools to 5.2 | tools/*.csproj | E | BridgeConfig; tools/ResetVrf/Program.cs:113 |
-| RL-20260920-01 | 09-20 | 1 Iron Storm; 2 8080/61613; 3 route shift; 4 extent; 6 quit | runner, SI52, VS | P-code | item 1: Mojave defaults; 2-6 pinned +n |
+| RL-20260920-01 | 09-20 | 1 Iron Storm; 2 8080/61613; 3 route shift; 4 extent; 6 quit | runner, SI52, VS | P-code CLOSED 2026-09-28 by c3cfec6 | item 1: Mojave defaults; 2-6 pinned +n |
 | RL-20260920-02 | 09-20 | Iron Storm: A, a demo-scale cut, then B, the aggregate profile | data, Svc | E | IRONSTORM_CUTA_*.xml, C1; --stpexport, --populate |
 | RL-20260921-01 | 09-21 | de-stack A + C; T14 800 m nudge (not the 0.9 nav bar) | DeStacker.cs, data | P-code | RST:2960-3045; ring 350 m vs "about 300 m" +n |
 | RL-20260921-02 | 09-21 | close rtiAssistant; path A; demo clock FAST; callstack; MAK case | ops, fixture | A | actions +n |
@@ -155,7 +155,7 @@ Notes:
   record past TASK_VOCABULARY_ASSESSMENT_2026-09-14.md:1271. Probably overtaken by RL-20260926-01 and RL-20260927-06.
 - RL-20260914-05: SimClockTracker.cs:206 (TaskClockAxis); VS:757 sim clock, :774 TASKABRT; Q7 rollback pinned RST:1623.
 - RL-20260920-01: item 1 - RSh:61-66 defaults to R9_Mojave_Empty_52_NavAO with the COA-STP1 Mojave pair; RCS:918,
-  :1065, :1074 to firstexperience with the R9 Mojave pair. Items 2-6 pinned: RTT:3609-3618 (11i), ROS:478-498,
+  :1065, :1074 to firstexperience with the R9 Mojave pair. Since c3cfec6: Iron Storm cut A in both (RUNBOOK sec 11n). Items 2-6 pinned: RTT:3609-3618 (11i), ROS:478-498,
   RouteExtentSelfTest.cs:61, RTT:2813 (10).
 - RL-20260921-01: A + C pinned by RST:2960-3045 and --destack; the nudge is data/IRONSTORM_CUTA_CHANGES.md:150 (kept at
   :494). The platoon ring is 350 m (EchelonSpacing.cs:97, derived from a 320.9 m formation span) against the approved
@@ -166,7 +166,7 @@ Notes:
   is still unanswered.
 - RL-20260921-07: per the ledger, the Jira STP-857 correction is drafted and not posted (process, awaiting him).
 - RL-20260925-01: Q1 RST:600-725 and TAS; Q2 RST:704-715; Q4 RST:760-767; the re-clamp limb PRS. Q3 lives only in AD:49
-  (VS:411 is false) and no test reads it.
+  (VS:411 is false) and no test reads it. Since 9999b35: pinned (--rulings-selftest, shipped profile s3).
 - RL-20260927-01: VertexChain.cs:88, VS:600, AJ:77; Preflight/OsmFeatures.cs, VertexNudge.cs, ModelSetRules.cs. Pins:
   VCS:41-64 (v1), :451-466 (v5 reads AJ and AD), OSS:148-155 (shipped defaults), RTT:2715 (9b).
 - RL-UNVERIFIED-MAK01: HANDOFF_2026-09-01_R9_COMPLETE.md:160-161 still states the prohibition.
@@ -288,7 +288,7 @@ Notes:
   content (TMS:319) - the Chinese preference waits on 5.g.
 - SETTLE-EVIDENCE: author not recorded. JC-1, JC-2: the supervisor's provisional calls, never put to him.
 - 5.0.2-ARCHIVE: RCS:400-401 -VrfProfile still defaults to 5.0.2 (RSh:40 is 5.2) and nothing refuses a live 5.0.2 run;
-  the 5.0.2 install is gone from this machine.
+  the 5.0.2 install is gone from this machine. Since 9999b35 the default is 5.2 (5.0.2 selectable by name).
 - MULTIPLIER: VS:653 is 1 and applied only above 1 (Svc:1050-1051). PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02:194 and
   RUNG2:163 record 1x as settled; AUDIT_REPEATED item 13 records it parked. Not counted.
 
@@ -369,3 +369,5 @@ parse 19, sequencer 12, compose 9, and terrain, placement, placement-reclamp, ro
 PASS); --populate-selftest 173 PASS / 1 FAIL / 4 SKIP, the FAIL being the checkout-reading source check of sec 3 item 4
 (the committed ff60f6f source holds the string it looks for); the three --disabled arms exit 1 as designed.
 Nothing joined a federation; no VR-Forces process was started; nothing under C:\MAK was written.
+
+ADDENDUM 2026-09-28 (fix/d2b-and-audit-fixes: b5c6d02, 9999b35, 4d488ab, c3cfec6; offline, not deployed): 12 rows CLOSED - P-code RL-20260927-06, RL-20260928-01, 5.0.2-ARCHIVE, RL-20260920-01; P-pin RL-20260927-02, RL-20260925-01, C4, C8, C10, C6+G3/G4, Y-12, Y-13. On sec 1's 699552c basis (38 E, 0 I) the tally is 50 E, 11 P-code, 4 P-pin, 6 X, 0 I, 10 S, 11 A: of the 71 code-binding decisions 17 are not fully in the code (11 P-code, 6 X) - 24 percent, was 31.
