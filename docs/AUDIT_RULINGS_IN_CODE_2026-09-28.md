@@ -77,8 +77,8 @@ the evidence is in that decision's note under its table.
 | RL-20260927-03 | 09-27 | init: every unit an empty container on the map; tasked ones filled | Svc | E | Svc:2906-2908, :1763-1797; CST:361-390, :649-655 +n |
 | RL-20260927-04 | 09-27 | D-1..D-8 as recommended; D-2: author the missing US types (C2) | CComp, CPop, data | E | CST:222, :575-589, :645, :780-796 +n |
 | RL-20260927-05 | 09-27 | "Q1 a": an unfinished mover is OVERDUE when the gate window expires | TCP, TDP | E | TCP:253, TDP:458; TAS:141-166 (t4) |
-| RL-20260927-06 | 09-27 | model set by the highest TASKED echelon; above BN aggregate | RLib, app | P-code | RLib:2143, RTT:2123 (8z); not in app/SI52 +n |
-| RL-20260928-01 | 09-28 | D2 as recommended: no downward override; test HQ re-coded COY | RLib, data | P-code | RLib:2143, RTT:2123-2160; demo path none +n |
+| RL-20260927-06 | 09-27 | model set by the highest TASKED echelon; above BN aggregate | RLib, app | P-code CLOSED 2026-09-28 by b5c6d02 | RLib:2143, RTT:2123 (8z); not in app/SI52 +n |
+| RL-20260928-01 | 09-28 | D2 as recommended: no downward override; test HQ re-coded COY | RLib, data | P-code CLOSED 2026-09-28 by b5c6d02 | RLib:2143, RTT:2123-2160; demo path none +n |
 | RL-20260928-02 | 09-28 | identity = uuid: create under startingUUID, bind ObjectCreated by uuid | Fac, Svc | I | branch fix/identity-by-uuid (C1d) +n |
 
 Notes:
@@ -91,9 +91,10 @@ Notes:
   data/unit-composition-52-aggregate.json:30-38. Pins: CST:222 (D-8), :575-589 (D-6), :645 (D-5), :780-796 (p13). The
   authored variant (C2) is off by default (AJ:115) and not live (G1b queued).
 - RL-20260927-06: the app has no echelon rule (0 hits in src), SI52 sets no model set and AD:12 says EntityLevel, so an
-  STP-driven Iron Storm order (brigades, a division) is simulated at entity level.
+  STP-driven Iron Storm order (brigades, a division) is simulated at entity level. Since b5c6d02 (D2b): the app refuses
+  that order at receipt (RUNBOOK sec 11k).
 - RL-20260928-01: RTT:2123 (8z) pins the refusal and RTT:2156-2160 the re-coded 1.BdeHQ; nothing refuses on the demo
-  path (AD:12). "Go for the server" is an authorisation (process).
+  path (AD:12). "Go for the server" is an authorisation (process). Since b5c6d02 (D2b): OnOrder refuses it.
 - RL-20260928-02: at ff60f6f units are created without a startingUUID (Fac:928-944) and bound by name. The lane merged to main at
   699552c during this audit with its pins (CST p15, NameSelfTest); not deployed (the exe is 84c4f62); G1-2 owed.
 

@@ -4100,6 +4100,25 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
   Orders whose tasked units are all BN and below (COA-STP1, the wrapper's default) run exactly as before; the 5.0.2
   profile is not touched (no aggregate model set there).
 
+### 11k. THE SAME RULE INSIDE THE APP - AN ABOVE-BN ORDER ON EntityLevel IS REFUSED (D2b, RL-20260927-06, RL-20260928-01, 2026-09-28)
+
+The runner CHOOSES the model set (11j); an interface started by hand (`scripts/StartInterface52.ps1`, Demo overlay
+`Vrf:ModelSet=EntityLevel`) cannot, because VR-Forces has loaded its model set before an order arrives. So the app
+applies the rule of RL-20260927-06 / RL-20260928-01 as a GUARD in `OnOrder`, before anything of the order is registered
+or dispatched, on the runner's own ladder (`EchelonLadder`, `src/VrfC2SimApp/ModelSetGuard.cs`; held equal to
+RunnerLib's by `--rulings-selftest` (g1) and RTT 8z). The highest TASKED echelon (init `EchelonCode` read from the RAW
+text - the typed parse turns an absent code into "AG") above BN on EntityLevel -> the order is REFUSED: one ERROR line,
+every task `TASKABRT`, nothing dispatched. Above BN on AggregateTacticalLevel, and BN-and-below on either set, run (the
+latter on aggregate as `OVERRIDE UP`). Lines: at start-up `MODEL SET RULE (D2b; RL-20260927-06, RL-20260928-01):
+Vrf:ModelSet=<v> -> <set>. ...`; per order ONE `MODEL SET RULE (D2b): ...` line - ERROR `ORDER REFUSED - ABOVE
+BATTALION IS AGGREGATE-ONLY (RL-20260927-06; no downward override, RL-20260928-01). This order's highest TASKED echelon
+DIV (28ID__FRIENDLY_INFANTRY_DIVISION) is ABOVE BN - it tasks ... - and this interface runs Vrf:ModelSet=EntityLevel.
+NONE of its 5 task(s) is executed ...`, INFO `allowed` / `OVERRIDE UP - allowed`, WARN when an EntityLevel order tasks
+a NOS, unknown or missing echelon (named). The TASKABRT reason starts `REFUSED (D2b): ABOVE BATTALION IS
+AGGREGATE-ONLY`. To run Iron Storm by hand, start the interface with `Vrf:ModelSet=AggregateTacticalLevel`, the
+aggregate type map and an aggregate fixture. No 5.0.2 twin is needed: the 5.0.2 app has not compiled from this source
+since the container bridge members. OFFLINE-PROVEN ONLY (b5c6d02; not deployed, not live).
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
