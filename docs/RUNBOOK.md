@@ -2317,7 +2317,7 @@ THE PROCEDURE (native changes are pre-authorized; see the memory entry):
   2. `/t:Rebuild` ALWAYS (never an incremental build of the C++/CLI project).
      (2026-09-28) `C:\MAK\makRti4.6.1` is GONE since the 2026-09-25 machine rebuild (and is not in the 5.2d install
      media), while the vcxproj's Release-5.2 `RtiDir` still names it: the build as recorded stops at C1083
-     `RTI/RTI1516.h`. Pass `/p:RtiDir=C:/MAK/makRti5.0.1` - the RTI the 5.2 profile runs (sec 0.5.13); the full
+     `RTI/RTI1516.h`. Pass `/p:RtiDir=C:/MAK/makRti5.0.1` - the RTI the 5.2 profile runs (sec 0.5.13); the full FIXED 2026-09-28: the vcxproj Release-5.2 RtiDir now defaults to makRti5.0.1, so no override is needed.
      command is on the NEW PIN 2026-09-28 line below. A FAILED `/t:Rebuild` has already run its Clean, so
      `build\Release-5.2\` then holds NO VrfBridge.dll: restore step 1's backup before any consumer build.
   3. Rebuild ALL ELEVEN consumers so every `bin` copy of that bridge is ONE hash (all eleven for

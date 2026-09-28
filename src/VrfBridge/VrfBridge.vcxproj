@@ -47,7 +47,7 @@
     <!-- match examples/remoteControl/remoteControlHLA1516e.vcxproj (5.2d) -->
     <VrfDir>C:/MAK/vrforces5.2d</VrfDir>
     <VrlDir>C:/MAK/vrlink5.10</VrlDir>
-    <RtiDir>C:/MAK/makRti4.6.1</RtiDir>
+    <RtiDir>C:/MAK/makRti5.0.1</RtiDir>
     <RtiIncludeSub>HLA1516E</RtiIncludeSub>
     <HlaLibSuffix>HLA1516e</HlaLibSuffix>
     <RtiLibs>libfedtime1516e64.lib;librti1516e64.lib</RtiLibs>
