@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # RunScenario.sh - the ONLY supported way to launch scripts/RunC2SimScenario.ps1 for a
-# live run. It is a TEMPLATE: the defaults below are the G6 configuration, every one of
-# them is overridable on the command line, and anything after "--" is passed straight
-# through to the runner.
+# live run. It is a TEMPLATE: the defaults below are the G6 configuration (except the
+# scenario/init/order trio, Iron Storm cut A since 2026-09-28), every one of them is
+# overridable on the command line, and anything after "--" is passed straight through to
+# the runner.
 #
 # WHY THIS FILE EXISTS (2026-09-14; docs/experiments/RUNNER_HARDENING_2026-09-14.md).
 # The G6 run of 2026-09-14 was launched by an ad-hoc two-line wrapper and three separate
@@ -36,7 +37,7 @@ cd "$REPO" || { echo "cannot cd to repo root"; exit 1; }
 # ---- the 64-bit host, pinned by full path -----------------------------------
 PWSH64='/c/Program Files/PowerShell/7/pwsh.exe'
 
-# ---- defaults (the G6 configuration) ----------------------------------------
+# ---- defaults (the G6 configuration; the AO trio is Iron Storm since 2026-09-28) ----
 PROFILE='5.2'
 NOGUI=1
 # THE NEXT THREE ARE AO-SPECIFIC DEFAULTS (STP-802). THE DEMO IS IRON STORM (RL-20260920-01 item
