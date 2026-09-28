@@ -3897,7 +3897,7 @@ selected variant is resolved against the catalogue and logged; the variant and i
 the pinned `VrfBridge.dll` (90272bc9...) does NOT carry it. The deploy for G1 is therefore a native `/t:Rebuild` of
 the bridge plus all eleven consumers (sec 9), on a machine WITH the C++ toolset: on 2026-09-27 this one had none
 (MSBuild MSB4019 on Microsoft.Cpp.Default.props; no VC\Tools\MSVC under VS 18), so the native member is written and
-source-checked but NOT compiled. REBUILT 2026-09-28: the deployed bridge 5198ac45... carries it (sec 9, NEW PIN
+source-checked but NOT compiled. REBUILT 2026-09-28: the deployed bridge carries it - 5198ac45 (00:44Z), superseded 13:34Z by 03226dd0 with the C1d overloads (sec 9, NEW PIN
 2026-09-28) - rebuilt 2026-09-28 with MSVC 14.51 v145 for C1's PublishedSubordinateCount (RL-20260927-02..04);
 `--populate-selftest` (p12) on the deployed exe reads "the linked VrfBridge.dll CARRIES PublishedSubordinateCount".
 
