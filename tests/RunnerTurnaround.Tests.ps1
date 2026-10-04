@@ -35,6 +35,10 @@
 #      ASCII+CRLF on the files it adds. Helpers: tests\RecordChecks.ps1. Three checks are
 #      STAGED behind $RecordCheckStaging until the other U2 lanes land - see section 13.
 #      Generators (never automatic): -UpdateTripwireAllowlist, -UpdateRulingClaimsBaseline.
+#   15. LBL (RL-20261004-05): tools\display\Enable-LabelDecoration.ps1, the Label symbol decoration deploy, run as a
+#      child pwsh against FAKE install trees in %TEMP% (-NoAutoDiscover; never C:\MAK, never a VR-Forces process): -Verify
+#      0/1/2, -WhatIf, apply + re-read, idempotence, a running vrfGui refusal, discovery hygiene, a per-user copy, and
+#      LaunchVrf52's read-only WARN. A third kind of process start, launching nothing.
 [CmdletBinding()]
 param(
     # Regenerate tests\tripwire_allowlist.txt from the tree, then EXIT without
@@ -4314,6 +4318,178 @@ Check '14 the runner: every 10 s of the window (and at its close) Test-LiveBacke
 $wdM3b = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\RunnerWatchdog.ps1'))
 Check '14 the watchdog reads StopVrf exit 8 as DOWN (no leftover blocks the next launch) and names the crash, not as a failed teardown' (
     $wdM3b -match '\} elseif \(\$code -eq 8\) \{' -and $wdM3b -match 'StopVrf exit 8: VR-Forces is down, but its back end had CRASHED')
+
+Write-Host '=== 15. LBL: the Label symbol decoration DEPLOY (RL-20261004-05) - fake install trees, never C:\MAK ==='
+# RL-20261004-05: "I need this to work on every installed instance of this component. Ok to change C:\MAK, but needs to be
+# automated/reproducible". tools\display\Enable-LabelDecoration.ps1 is that deploy step; tools\display\LabelDecorationLib.ps1
+# is its logic, shared READ-ONLY with LaunchVrf52's pre-flight WARN. Every tree below is a FAKE install in %TEMP% (a stub
+# bin64\vrfGui.exe and a SYNTHETIC boost archive of the shape 5.2d writes - never MAK's file, this repo is public); the
+# script runs as a child pwsh against them with -NoAutoDiscover, so the real installs are never read or written here.
+$lblScript = Join-Path $RepoRoot 'tools\display\Enable-LabelDecoration.ps1'
+$lblLib    = Join-Path $RepoRoot 'tools\display\LabelDecorationLib.ps1'
+$lblPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$lblTmp    = Join-Path ([System.IO.Path]::GetTempPath()) ('lbl15-' + [guid]::NewGuid().ToString('N'))
+$lblRel    = 'appData\settings\vrfGui\default_SymbolDecorationSettings.symx'
+# A synthetic SymbolDecorationSettings v8 archive: model sets 0 and 5, types Ground and Default; $LabelOn5 puts
+# DtLabelSymbolDecoration in model set 5's two ON sets; the MOUSE-OVER map always carries it (it must never count as ON).
+function New-LblSymx {
+    param([bool]$LabelOn5)
+    function Set-Lbl([string[]]$items) {
+        $s = ($items | ForEach-Object { "`t`t`t`t`t`t<item>$_</item>" }) -join "`r`n"
+        return @("`t`t`t`t`t<second>", ("`t`t`t`t`t`t<count>{0}</count>" -f $items.Count), "`t`t`t`t`t`t<item_version>0</item_version>", $s, "`t`t`t`t`t</second>") -join "`r`n"
+    }
+    function Map-Lbl([string]$tag, [int]$cls, [hashtable]$sets) {
+        $l = @("`t<$tag class_id=""$cls"" tracking_level=""0"" version=""0"">", "`t`t<count>2</count>", "`t`t<bucket_count>8</bucket_count>", "`t`t<item_version>0</item_version>")
+        $first = $true
+        foreach ($ms in @(0, 5)) {
+            $l += $(if ($first) { "`t`t<item class_id=""$($cls + 1)"" tracking_level=""0"" version=""0"">" } else { "`t`t<item>" })
+            $l += @("`t`t`t<first>$ms</first>", "`t`t`t<second>", "`t`t`t`t<count>2</count>", "`t`t`t`t<bucket_count>64</bucket_count>", "`t`t`t`t<item_version>0</item_version>")
+            $innerFirst = $true
+            foreach ($t in @('Ground', 'Default')) {
+                $l += $(if ($first -and $innerFirst) { "`t`t`t`t<item class_id=""$($cls + 2)"" tracking_level=""0"" version=""0"">" } else { "`t`t`t`t<item>" })
+                $l += "`t`t`t`t`t<first>$t</first>"
+                $l += (Set-Lbl $sets["$ms/$t"])
+                $l += "`t`t`t`t</item>"
+                $innerFirst = $false
+            }
+            $l += @("`t`t`t</second>", "`t`t</item>")
+            $first = $false
+        }
+        $l += "`t</$tag>"
+        return $l -join "`r`n"
+    }
+    $off = @('DtHeadingIndicatorSymbolDecoration', 'DtNameSymbolDecoration')
+    $on  = @('DtHeadingIndicatorSymbolDecoration', 'DtLabelSymbolDecoration', 'DtNameSymbolDecoration')
+    $main = @{ '0/Ground' = @('DtNameSymbolDecoration'); '0/Default' = @('DtNameSymbolDecoration')
+               '5/Ground' = $(if ($LabelOn5) { $on } else { $off }); '5/Default' = $(if ($LabelOn5) { $on } else { $off }) }
+    $mouse = @{ '0/Ground' = @('DtSpeedSymbolDecoration'); '0/Default' = @('DtSpeedSymbolDecoration')
+                '5/Ground' = @('DtLabelSymbolDecoration', 'DtSpeedSymbolDecoration'); '5/Default' = @('DtSpeedSymbolDecoration') }
+    return (@('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>', '<!DOCTYPE boost_serialization>',
+              '<boost_serialization signature="serialization::archive" version="14">',
+              '<SymbolDecorationSettings class_id="0" tracking_level="0" version="8">',
+              "`t<myLodOutAltitude>1.00000000000000000e+05</myLodOutAltitude>",
+              (Map-Lbl 'myModelSetAndTypeSymbolDecorationMap' 4 $main),
+              (Map-Lbl 'myModelSetAndTypeMouseOverSymbolDecorationMap' 7 $mouse),
+              '</SymbolDecorationSettings>', '</boost_serialization>', '') -join "`r`n")
+}
+function New-LblInstall {
+    param([string]$Name, [string]$State)     # State: off | on | missing | corrupt
+    $root = Join-Path $lblTmp $Name
+    New-Item -ItemType Directory -Force -Path (Join-Path $root 'bin64'), (Join-Path $root 'appData\settings\vrfGui') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $root 'bin64\vrfGui.exe'), 'stub')
+    $f = Join-Path $root $lblRel
+    switch ($State) {
+        'off'     { [System.IO.File]::WriteAllText($f, (New-LblSymx -LabelOn5 $false)) }
+        'on'      { [System.IO.File]::WriteAllText($f, (New-LblSymx -LabelOn5 $true)) }
+        'corrupt' { [System.IO.File]::WriteAllText($f, '<SymbolDecorationSettings class_id="0" tracking_level="0" version="8"><oops') }
+    }
+    return $root
+}
+function Invoke-Lbl {
+    param([string[]]$LblArgs)
+    $out = & $lblPwsh -NoProfile -NonInteractive -File $lblScript @LblArgs 2>&1 | Out-String
+    return [pscustomobject]@{ Code = $LASTEXITCODE; Out = $out }
+}
+function Get-LblHash([string]$root) { $p = Join-Path $root $lblRel; if (Test-Path -LiteralPath $p) { (Get-FileHash -LiteralPath $p).Hash } else { 'MISSING' } }
+function Get-LblBackups([string]$root) { @(Get-ChildItem -LiteralPath (Join-Path $root 'appData\settings\vrfGui') -Filter 'default_SymbolDecorationSettings.symx.bak-*' -ErrorAction SilentlyContinue).Count }
+
+try {
+    New-Item -ItemType Directory -Force -Path $lblTmp | Out-Null
+    $iA = New-LblInstall 'vrforces5.2a' 'off'; $iB = New-LblInstall 'vrforces5.2b' 'on'; $iC = New-LblInstall 'vrforces5.2c' 'missing'
+    $iK = New-LblInstall 'vrforces5.2k' 'corrupt'; $iD = New-LblInstall 'vrforces5.2d' 'off'; $iE = New-LblInstall 'vrforces5.2e' 'off'
+    $iF = New-LblInstall 'vrforces5.2f' 'off'
+    $noGui = @('-RunningGuiPath', '')     # an EMPTY list: no vrfGui running (the live process list is never consulted here)
+    # (a) the parse, in process: the ON set is the one that counts, never the mouse-over set
+    $lblLibOk = Test-Path -LiteralPath $lblLib
+    $stOff = $null; $stOn = $null
+    if ($lblLibOk) {
+        $stOff = & { param($l, $t) . $l; Get-LabelDecorationState -Text $t } $lblLib (New-LblSymx -LabelOn5 $false)
+        $stOn  = & { param($l, $t) . $l; Get-LabelDecorationState -Text $t } $lblLib (New-LblSymx -LabelOn5 $true)
+    }
+    Check '15a the library reads a v8 archive: OFF where only the MOUSE-OVER set holds the Label, ON where model set 5 Ground and Default both do' (
+        $lblLibOk -and $stOff.Parsed -and -not $stOff.AllOn -and $stOn.Parsed -and $stOn.AllOn -and @($stOn.Entries).Count -eq 2) $lblLib
+    # (b) -Verify: 0 on, 1 off, 2 missing/unparseable - each install reported
+    $hA00 = Get-LblHash $iA
+    $vA = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
+    $vB = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iB) + $noGui)
+    $vC = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iC) + $noGui)
+    $vK = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iK) + $noGui)
+    $vAll = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', "$iA,$iB,$iC") + $noGui)
+    Check '15b -Verify: exit 1 on an install with the Label OFF, 0 with it ON, 2 with the file MISSING or UNPARSEABLE' (
+        $vA.Code -eq 1 -and $vB.Code -eq 0 -and $vC.Code -eq 2 -and $vK.Code -eq 2) ("A {0}, B {1}, C {2}, K {3}" -f $vA.Code, $vB.Code, $vC.Code, $vK.Code)
+    Check '15b -Verify over three installs reports EACH (OFF / ON / MISSING) and exits with the worst (2)' (
+        $vAll.Code -eq 2 -and $vAll.Out -match [regex]::Escape($iA) + '[\s\S]*?\bOFF\b' -and $vAll.Out -match [regex]::Escape($iB) + '[\s\S]*?\bON\b' -and
+        $vAll.Out -match [regex]::Escape($iC) + '[\s\S]*?\bMISSING\b') ("exit {0}" -f $vAll.Code)
+    Check '15b -Verify writes NOTHING (every file hash unchanged, no backup)' (
+        (Get-LblHash $iA) -eq $hA00 -and (Get-LblBackups $iA) -eq 0 -and (Get-LblHash $iC) -eq 'MISSING')
+    # (c) -WhatIf: reports the change, writes nothing
+    $hA0 = Get-LblHash $iA
+    $wA = Invoke-Lbl (@('-WhatIf', '-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
+    Check '15c -WhatIf on an OFF install: exit 0, says it WOULD change 2 entries, the file and the backup count unchanged' (
+        $wA.Code -eq 0 -and $wA.Out -match 'WOULD' -and (Get-LblHash $iA) -eq $hA0 -and (Get-LblBackups $iA) -eq 0) ("exit {0}" -f $wA.Code)
+    # (d) apply: exactly the two ON sets gain the Label, one backup, re-read verified
+    $aA = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
+    $txtA = [System.IO.File]::ReadAllText((Join-Path $iA $lblRel))
+    $vA2 = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
+    Check '15d apply on an OFF install: exit 0, the file is BYTE-FOR-BYTE the ON archive (2 counts + 2 items, CRLF kept, mouse-over untouched), ONE backup, -Verify then exits 0' (
+        $aA.Code -eq 0 -and $txtA -ceq (New-LblSymx -LabelOn5 $true) -and (Get-LblBackups $iA) -eq 1 -and $vA2.Code -eq 0 -and $aA.Out -match 'verified') ("exit {0}; verify {1}" -f $aA.Code, $vA2.Code)
+    # (e) idempotent
+    $hA1 = Get-LblHash $iA
+    $aA2 = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
+    $aB = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iB) + $noGui)
+    Check '15e a SECOND run changes nothing and SAYS so (already ON); no new backup; an install already ON is left byte-identical' (
+        $aA2.Code -eq 0 -and $aA2.Out -match 'already ON' -and (Get-LblHash $iA) -eq $hA1 -and (Get-LblBackups $iA) -eq 1 -and
+        $aB.Code -eq 0 -and (Get-LblBackups $iB) -eq 0) ("exits {0}, {1}" -f $aA2.Code, $aB.Code)
+    # (f) a running vrfGui of THAT install refuses THAT install only; an unreadable process path refuses all
+    $hD0 = Get-LblHash $iD
+    $rD = Invoke-Lbl @('-NoAutoDiscover', '-VrfRoot', "$iD,$iE", '-RunningGuiPath', (Join-Path $iD 'bin64\vrfGui.exe'))
+    Check '15f a vrfGui RUNNING from install D: D is REFUSED (unchanged, no backup) while install E is applied; exit 4' (
+        $rD.Code -eq 4 -and (Get-LblHash $iD) -eq $hD0 -and (Get-LblBackups $iD) -eq 0 -and (Get-LblBackups $iE) -eq 1 -and
+        $rD.Out -match 'REFUSED') ("exit {0}" -f $rD.Code)
+    $hF0 = Get-LblHash $iF
+    $rF = Invoke-Lbl @('-NoAutoDiscover', '-VrfRoot', $iF, '-RunningGuiPath', '?')
+    Check '15f a vrfGui whose path cannot be read blocks EVERY install (conservative): exit 4, nothing written' (
+        $rF.Code -eq 4 -and (Get-LblHash $iF) -eq $hF0 -and (Get-LblBackups $iF) -eq 0) ("exit {0}" -f $rF.Code)
+    # (g) a missing file is never created
+    $aC = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iC) + $noGui)
+    Check '15g apply on an install with NO settings file: exit 2, and no file is invented' (
+        $aC.Code -eq 2 -and (Get-LblHash $iC) -eq 'MISSING') ("exit {0}" -f $aC.Code)
+    # (h) discovery hygiene: one install however it is spelled; a directory that is not an install is skipped
+    $notInstall = Join-Path $lblTmp 'not-an-install'; New-Item -ItemType Directory -Force -Path $notInstall | Out-Null
+    $dB = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', ("{0},{1}\,{2}" -f $iB, $iB.ToUpperInvariant(), $notInstall)) + $noGui)
+    $dN = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $notInstall) + $noGui)
+    Check '15h discovery: the same install given three spellings is ONE install; a directory without bin64\vrfGui.exe or appData\settings\vrfGui is skipped and said; none found = exit 2' (
+        $dB.Code -eq 0 -and ([regex]::Matches($dB.Out, '(?m)^INSTALL ')).Count -eq 1 -and $dB.Out -match 'not a VR-Forces install' -and $dN.Code -eq 2) ("exits {0}, {1}" -f $dB.Code, $dN.Code)
+    # (i) a per-user settings copy (vrfGui --useUserSettingsDirectory) is found and treated like the install's
+    $userRoot = Join-Path $lblTmp 'user'; $userDir = Join-Path $userRoot 'vrforces\5.2\vrfGui'
+    New-Item -ItemType Directory -Force -Path $userDir | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $userDir 'default_SymbolDecorationSettings.symx'), (New-LblSymx -LabelOn5 $false))
+    $iG = New-LblInstall 'vrforces5.2g' 'on'
+    $uV = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iG, '-UserSettingsRoot', $userRoot) + $noGui)
+    $uA = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iG, '-UserSettingsRoot', $userRoot) + $noGui)
+    Check '15i a PER-USER settings copy is found under -UserSettingsRoot, reported OFF by -Verify (exit 1) and applied by the deploy' (
+        $uV.Code -eq 1 -and $uV.Out -match 'per-user' -and $uA.Code -eq 0 -and
+        [System.IO.File]::ReadAllText((Join-Path $userDir 'default_SymbolDecorationSettings.symx')) -ceq (New-LblSymx -LabelOn5 $true)) ("exits {0}, {1}" -f $uV.Code, $uA.Code)
+    # (j) the launch path WARNS, read-only
+    $lv52Lbl = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'))
+    $lbBlock = if ($lv52Lbl -match '(?s)# LBL PRE-FLIGHT.*?# END LBL PRE-FLIGHT') { $Matches[0] } else { '' }
+    Check '15j LaunchVrf52 reads the Label decoration of the appData it hands the GUI (Test-LabelDecorationFile, in a child scope, inside try) and WARNS when it is not ON - it never writes' (
+        $lbBlock -match 'LabelDecorationLib\.ps1' -and $lbBlock -match 'Test-LabelDecorationFile' -and $lbBlock -match 'Say-Warn' -and
+        $lbBlock -match 'try \{' -and $lbBlock -notmatch 'Set-LabelDecorationText|WriteAllText|Copy-Item|Enable-LabelDecoration\.ps1 -(?!Verify)' -and
+        $lbBlock -match 'if \(-not \$NoGui\)') ('block length {0}' -f $lbBlock.Length)
+    # (k) ASCII + CRLF on the deploy's two files
+    $lblBad = @()
+    foreach ($p in @($lblScript, $lblLib)) {
+        if (-not (Test-Path -LiteralPath $p)) { $lblBad += "$p missing"; continue }
+        $b = [System.IO.File]::ReadAllBytes($p)
+        if (@($b | Where-Object { $_ -gt 127 }).Count -gt 0) { $lblBad += "$p non-ASCII" }
+        $t = [System.Text.Encoding]::ASCII.GetString($b)
+        if (([regex]::Matches($t, "`n")).Count -ne ([regex]::Matches($t, "`r`n")).Count) { $lblBad += "$p bare LF" }
+    }
+    Check '15k the deploy script and its library are ASCII with CRLF line endings' ($lblBad.Count -eq 0) ($lblBad -join '; ')
+} finally {
+    if (Test-Path -LiteralPath $lblTmp) { Remove-Item -LiteralPath $lblTmp -Recurse -Force -ErrorAction SilentlyContinue }
+}
 
 Write-Host ''
 if ($script:PendingCount -gt 0) {
