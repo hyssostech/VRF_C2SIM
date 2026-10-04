@@ -41,7 +41,12 @@ public readonly record struct CreationPlan(
     // proxy is that unit's one object), a DERIVED uuid for a container member, a synthesized sub-unit or a template
     // re-create. EnqueueCreates registers it and OnVrfObjectCreated binds the object by it. "" = none (the vendor
     // generates one, the pre-C1d create): UnitTranslator never sets it - the service does, from the unit.
-    string StartingUuid = "");
+    string StartingUuid = "",
+    // LBL (HANDOFF_SEAT_2026-09-28 sec 3 item 5): the vendor LABEL this object is created with - the create's `label`
+    // argument (vrfRemoteController.h 5.2 :1289, :1302), DISPLAY ONLY: "Does not have to be unique ... No limit on
+    // character length" (UG52 13.2 Table 21 p363, 13.2.5 p364), never a key. The FULL C2SIM designation the NAME
+    // cannot carry (cut to 30 for a unit, 16 for a container member - VrfNames). "" = none, the pre-LBL nullString.
+    string Label = "");
 
 /// <summary>C1: the aggregate state a plan is created in - the ONE place EnqueueCreates reads it from.</summary>
 public static class CreationStates

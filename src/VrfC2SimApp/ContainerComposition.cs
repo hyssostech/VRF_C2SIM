@@ -677,10 +677,11 @@ public static class CompositionResolver
 /// plain "container.suffix" name and says why otherwise (C1c: the ~k tag that kept it unique within 30). Uuid (C1d,
 /// RL-20260928-02) is the uuid it is CREATED under - the RFC 4122 v5 uuid of "&lt;container uuid&gt;/&lt;suffix&gt;"
 /// (IdentityUuid.Derive), deterministic across runs; "" when the plan was given no container uuid. UuidName is the
-/// name that was hashed, for the one line that states it.</summary>
+/// name that was hashed, for the one line that states it. Label (LBL) is the member's FULL designation,
+/// "&lt;container designation&gt;.&lt;suffix&gt;", never cut - the vendor Label it is created with (CreationPlan.Label).</summary>
 public sealed record PopulateMember(int Slot, string Name, PopulateLeaf Leaf, double NorthMeters, double EastMeters,
                                     double LatDeg, double LonDeg, double BearingDeg, string NameNote = null,
-                                    string Uuid = "", string UuidName = "");
+                                    string Uuid = "", string UuidName = "", string Label = "");
 
 /// <summary>The ring a flat population is born on.</summary>
 public sealed record PopulateLayout(IReadOnlyList<PopulateMember> Members, double SpacingMeters, double RadiusMeters,
@@ -743,7 +744,8 @@ public static class PopulatePlanner
     /// </summary>
     public static PopulateLayout Plan(string containerName, double anchorLat, double anchorLon,
                                       IReadOnlyList<PopulateLeaf> leaves, double rotationDeg,
-                                      Func<string, string> conflictOf = null, string containerUuid = null)
+                                      Func<string, string> conflictOf = null, string containerUuid = null,
+                                      string containerLabel = null)
     {
         if (leaves == null || leaves.Count == 0)
             return new PopulateLayout(Array.Empty<PopulateMember>(), 0.0, 0.0, 0.0, "no leaf to place");
