@@ -3160,6 +3160,15 @@ public sealed class VrfC2SimService : BackgroundService
                                 : ContainerScripts.MoveAlongRoute,
                             ContainerScripts.MoveToLocationDirect,
                             ContainerScripts.PatrolRoute, _vrf.VertexArrivalRadiusMeters, _catalogue.Describe);
+        // RL-20261004-01: the member-slot check's rule, said once (the per-slot L-SLOT lines name the clearance too).
+        Preflight.ModelSetRules.TryParse(_vrf.ModelSet, out var slotModelSet);   // the pre-flight's own reading of the key
+        _log.LogInformation("{Line}", Preflight.PreflightService.DescribeSlotCheck(new Preflight.PreflightOptions
+            {
+                ModelSet = slotModelSet,
+                BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
+                VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
+                SlotWaterClearanceMeters = _vrf.PreflightSlotWaterClearanceMeters,
+            }) + (_vrf.PreflightRouteShift ? "" : " NOT RUN THIS RUN: Vrf:PreflightRouteShift is false - every slot is kept, UNVERIFIED."));
         var (roadFiles, roadEmpty) = RoadCache().Census(Preflight.OsmSet.Highways);
         _log.LogInformation("{Line}", AggregateMovePolicy.StartupLine(_movePlanner, true, _vrf.AllowLiteralMove,
                                                                        RoadProximityMeters(), roadFiles, roadEmpty,
@@ -3337,9 +3346,10 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// OFF THE TICK THREAD (tiles). Every member's slot through the M2 point test (PreflightService.CheckPoint: OSM
-    /// water under the model set's rules, OSM buildings within Vrf:PreflightBuildingClearanceMeters) and, when it is
-    /// wet or on a building, VertexNudgeSearch to the nearest clear ground within Vrf:PreflightVertexNudgeMaxMeters -
+    /// OFF THE TICK THREAD (tiles). Every member's slot through the M2 point test (PreflightService.CheckSlot: OSM
+    /// water under the model set's rules AND within Vrf:PreflightSlotWaterClearanceMeters, 10 m - RL-20261004-01; OSM
+    /// buildings within Vrf:PreflightBuildingClearanceMeters) and, when it is wet, inside the water clearance or on a
+    /// building, VertexNudgeSearch to the nearest clear ground within Vrf:PreflightVertexNudgeMaxMeters -
     /// reported like a moved vertex (design sec 5). Unknown ground is never clear, and never "bad": an unreadable slot
     /// is kept, UNVERIFIED.
     /// </summary>
@@ -3353,27 +3363,12 @@ public sealed class VrfC2SimService : BackgroundService
                 outp.Add((m.LatDeg, m.LonDeg, "UNVERIFIED (the pre-flight is off or cannot score - the slot is kept)"));
             return outp;
         }
-        var opt = new Preflight.VertexNudgeOptions
-        {
-            MaxMeters = Math.Max(0.0, _vrf.PreflightVertexNudgeMaxMeters),
-            StepMeters = 25.0,
-        };
+        // The check itself is PreflightService.CheckSlot - one implementation, the one --osm-selftest drives
+        // (sec 8b); the service's options carry Vrf:PreflightVertexNudgeMaxMeters and the building clearance.
         foreach (var m in members)
         {
-            var n = Preflight.VertexNudgeSearch.Nudge(m.Slot + 1, (m.LatDeg, m.LonDeg), null, null, opt,
-                p => Preflight.NudgeVerdict.Of(svc.CheckPoint(p)),
-                c => Preflight.NudgeVerdict.Of(svc.CheckPoint(c)),
-                FormattableString.Invariant($"clear of OSM water and of OSM buildings within {_vrf.PreflightBuildingClearanceMeters:F0} m"));
-            if (n.Moved)
-                outp.Add((n.To.Lat, n.To.Lon, FormattableString.Invariant(
-                    $"SLOT MOVED {n.DistanceM:F0} m {n.Compass} - the planned slot lies {n.Why}; the new point is the nearest ground {n.ClearOf}")));
-            else if (n.Unresolved)
-                outp.Add((m.LatDeg, m.LonDeg, FormattableString.Invariant(
-                    $"KEPT ON BAD GROUND - the slot lies {n.Why} and no ground {n.ClearOf} was found within {n.SearchedMeters:F0} m")));
-            else if (n.Unverified)
-                outp.Add((m.LatDeg, m.LonDeg, $"UNVERIFIED - {n.Why}; the slot is kept"));
-            else
-                outp.Add((m.LatDeg, m.LonDeg, n.OnBridge ? n.Why : "clear"));
+            var s = svc.CheckSlot(m.Slot + 1, (m.LatDeg, m.LonDeg));
+            outp.Add((s.Point.Lat, s.Point.Lon, s.Verdict));
         }
         return outp;
     }
@@ -7452,6 +7447,7 @@ public sealed class VrfC2SimService : BackgroundService
                     OsmFeatures = true,
                     BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
                     VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
+                    SlotWaterClearanceMeters = _vrf.PreflightSlotWaterClearanceMeters,
                 };
                 if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
                 _preflight = new Preflight.PreflightService(opt);

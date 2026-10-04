@@ -1176,6 +1176,13 @@ public class VrfSettings
     // is half the lateral shift's +/-600 m band. 0 = check and report, never move.
     public double PreflightVertexNudgeMaxMeters { get; set; } = 300.0;
 
+    // RL-20261004-01: a populated container's MEMBER SLOT in OSM water or WITHIN this distance of it is bad
+    // ground (exactly this far = in the band), and a nudged slot lands MORE than this from every OSM water feature (buildings stay at
+    // PreflightBuildingClearanceMeters; the search is the vertex nudge's). 10 m = the obstacle buffer the
+    // container's planning task is given (RL-20260928-03). Authored route VERTICES do not read it. 0 = the rule
+    // before the ruling (a slot is bad only IN the water).
+    public double PreflightSlotWaterClearanceMeters { get; set; } = 10.0;
+
     // ============== POPULATED AGGREGATE CONTAINERS (C1) ==================================================
     // RL-20260927-02 (hostile RUS; populate the containers, not proxies), RL-20260927-03 (every unit an EMPTY
     // container at init at its authored position; ONLY a tasked unit is populated, in place, when its order

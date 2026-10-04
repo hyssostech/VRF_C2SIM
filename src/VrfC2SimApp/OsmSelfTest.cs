@@ -115,6 +115,7 @@ public static class OsmSelfTest
             FlagRules();
             NudgeSearch();
             NudgeOnTheLake(cache, tmp);
+            SlotWaterClearance(tmp);
             NudgeSlope(repo);
             RiverAndPond(tmp);
             ChooserOsm();
@@ -156,6 +157,18 @@ public static class OsmSelfTest
         Check(overlay.ModelSet == "EntityLevel" && overlay.PreflightBuildingClearanceMeters == 10.0
               && overlay.PreflightVertexNudgeMaxMeters == 300.0,
               "the Demo overlay states them too");
+        // (c) RL-20261004-01: the member-slot water clearance, = the planner's 10 m buffer (RL-20260928-03).
+        var appCfg = new ConfigurationBuilder().AddJsonFile(app, false).Build().GetSection("Vrf");
+        var demoCfg = new ConfigurationBuilder().AddJsonFile(demo, false).Build().GetSection("Vrf");
+        Check(d.PreflightSlotWaterClearanceMeters == 10.0 && shipped.PreflightSlotWaterClearanceMeters == 10.0
+              && overlay.PreflightSlotWaterClearanceMeters == 10.0
+              && appCfg["PreflightSlotWaterClearanceMeters"] == "10" && demoCfg["PreflightSlotWaterClearanceMeters"] == "10",
+              $"(c) Vrf:PreflightSlotWaterClearanceMeters = 10 m (RL-20261004-01): the C# default, WRITTEN in appsettings.json and in the Demo overlay (got {d.PreflightSlotWaterClearanceMeters} / {shipped.PreflightSlotWaterClearanceMeters} / {overlay.PreflightSlotWaterClearanceMeters})");
+        Check((appCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20261004-01", StringComparison.Ordinal)
+              && (appCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20260928-03", StringComparison.Ordinal)
+              && (demoCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20261004-01", StringComparison.Ordinal)
+              && (demoCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20260928-03", StringComparison.Ordinal),
+              "(c) both files carry a _PreflightSlotWaterClearanceMeters entry citing RL-20261004-01 and the buffer's RL-20260928-03");
         string saved = Environment.GetEnvironmentVariable("Vrf__ModelSet");
         try
         {
@@ -615,6 +628,153 @@ public static class OsmSelfTest
         }
     }
 
+    // ================================================================= 8b. member slots clear OSM water (RL-20261004-01)
+    // G1-4 (PREREG_IRONSTORM_AGG_G1-4 Result N1 (b)): 48_IBCT.INF3WPN1's ring slot lay IN OSM water 16373225 and the
+    // slot check moved it to a point 1.7 m outside the shoreline - the water rule was "not inside the polygon". The
+    // ruling (RL-20261004-01): a nudged member slot clears OSM water by at least the planner's 10 m obstacle buffer
+    // (RL-20260928-03). A slot already within that band is treated as needing the nudge. Authored VERTICES keep their rule.
+    private static void SlotWaterClearance(string tmp)
+    {
+        Console.WriteLine("-- 8b. MEMBER SLOTS clear OSM water by the planner's 10 m buffer (RL-20261004-01; synthetic pond, aggregate)");
+        string noRaster = Path.Combine(tmp, "no-raster");
+        var c = (Lat: 54.10, Lon: 23.10);
+        var f = OsmGeometry.Frame.At(c.Lat, c.Lon);
+        var world = new SyntheticWorld();
+        world.AddWater("pond-1", Disc(c, 100.0, 64), 80);   // a vertex every 5.6 deg; due north is a vertex at 100 m
+        using var svc = Service(noRaster, ModelSet.AggregateTacticalLevel, world);
+        double WaterM(PreflightService s, (double Lat, double Lon) p) => s.CheckPoint(p, 100.0).WaterDistanceM;
+        string F1(double v) => v.ToString("F1", CultureInfo.InvariantCulture);
+        Check(svc.Options.SlotWaterClearanceMeters == 10.0, "PreflightOptions.SlotWaterClearanceMeters defaults to 10 m");
+
+        // (a) G1-4's shape, synthetic: a slot 1.7 m OUTSIDE the water.
+        var a = f.LatLon((0.0, 101.7));
+        Check(Math.Abs(WaterM(svc, a) - 1.7) < 0.05, $"(a) the synthetic slot is 1.7 m outside the pond (measured {F1(WaterM(svc, a))} m)");
+        var sa = svc.CheckSlot(16, a);
+        Console.WriteLine($"     (a) {sa.Verdict}");
+        Check(sa.Nudge.Moved && WaterM(svc, sa.Point) >= 10.0,
+              $"FAIL-FIRST (a): a slot 1.7 m outside OSM water is MOVED to >= 10 m from it (moved={sa.Nudge.Moved}, now {F1(WaterM(svc, sa.Point))} m from water)");
+        Check(sa.Verdict.StartsWith("SLOT MOVED ", StringComparison.Ordinal)
+              && sa.Verdict.Contains("1.7 m from OSM water (natural=water, OSM pond-1), inside the 10 m water clearance", StringComparison.Ordinal)
+              && sa.Verdict.Contains("water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)", StringComparison.Ordinal),
+              "(a) the L-SLOT verdict keeps its 'SLOT MOVED' prefix, says why (inside the 10 m water clearance) and states the clearance used");
+
+        // (a2) G1-4's mechanism: a slot IN the water must not be nudged INTO the band (the old first clear ring point
+        // here is 25 m north, 5 m outside the shore).
+        var a2 = f.LatLon((0.0, 80.0));
+        var sa2 = svc.CheckSlot(16, a2);
+        Console.WriteLine($"     (a2) {sa2.Verdict}");
+        Check(sa2.Nudge.Moved && WaterM(svc, sa2.Point) >= 10.0,
+              $"FAIL-FIRST (a2): a slot IN the pond is moved to >= 10 m from water, not to the 5 m point the first ring offers (now {F1(WaterM(svc, sa2.Point))} m, {F1(sa2.Nudge.DistanceM)} m moved)");
+
+        // (a3) every slot round the pond, in it or in the band: moved to >= 10 m, or kept and said so - never a move into the band.
+        int moved = 0, intoBand = 0, kept = 0;
+        foreach (double r in new[] { 20.0, 60.0, 95.0, 101.7, 105.0, 109.0 })
+            for (int k = 0; k < 36; k++)
+            {
+                double th = k * 10.0 * Math.PI / 180.0;
+                var s = svc.CheckSlot(1, f.LatLon((r * Math.Sin(th), r * Math.Cos(th))));
+                if (s.Nudge.Moved) { moved++; if (WaterM(svc, s.Point) < 10.0) intoBand++; }
+                else kept++;
+            }
+        Check(moved == 216 && intoBand == 0 && kept == 0,
+              $"(a3) 216 slots in the pond or within 10 m of it: every one MOVED, none into the band (moved {moved}, into the band {intoBand}, kept {kept})");
+
+        // (b) a slot 25 m from water is not touched.
+        var b = f.LatLon((0.0, 125.0));
+        var sb = svc.CheckSlot(16, b);
+        Check(!sb.Nudge.Moved && !sb.Nudge.Problem && sb.Verdict == "clear" && sb.Point == b,
+              $"(b) a slot 25 m from water is left where it is, 'clear' (got '{sb.Verdict}')");
+
+        // (b2) the building rule is kept: the first ring point for (a) is 25 m north - put a building there.
+        var world2 = new SyntheticWorld();
+        world2.AddWater("pond-1", Disc(c, 100.0, 64), 80);
+        world2.AddBuilding("b-north", Square(f.LatLon((0.0, 126.7)), 5.0));
+        using var svc2 = Service(noRaster, ModelSet.AggregateTacticalLevel, world2);
+        var sb2 = svc2.CheckSlot(16, a);
+        Check(sb2.Nudge.Moved && sb2.Nudge.RefusedBuilding > 0 && !svc2.CheckPoint(sb2.Point).Building && WaterM(svc2, sb2.Point) >= 10.0,
+              $"(b2) the nudge still refuses ground within 10 m of an OSM building ({sb2.Nudge.RefusedBuilding} refused) and lands >= 10 m from water");
+
+        // (e) a slot on a road bridge deck over a river: a SLOT is not an authored crossing - with the clearance on, the
+        // bridge exempts nothing for it and it is moved off the water; at 0 the old exemption holds.
+        var world3 = new SyntheticWorld();
+        world3.AddRiver("river-1", new[] { f.LatLon((-300.0, 0.0)), f.LatLon((300.0, 0.0)) }, 10.0);
+        world3.AddBridge("bridge-1", new[] { f.LatLon((0.0, -30.0)), f.LatLon((0.0, 30.0)) });
+        using var svc3 = Service(noRaster, ModelSet.AggregateTacticalLevel, world3);
+        using var svc3off = new PreflightService(new PreflightOptions
+            { CacheDir = noRaster, Offline = true, OsmFeatures = true, ModelSet = ModelSet.AggregateTacticalLevel,
+              SlotWaterClearanceMeters = 0.0 }, null, world3.Provider);
+        var deck = f.LatLon((0.0, 2.0));
+        var se = svc3.CheckSlot(1, deck);
+        var se0 = svc3off.CheckSlot(1, deck);
+        Console.WriteLine($"     (e) clearance 10: {se.Verdict}");
+        Console.WriteLine($"     (e) clearance 0 : {se0.Verdict}");
+        Check(se.Nudge.Moved && WaterM(svc3, se.Point) >= 10.0,
+              $"FAIL-FIRST (e): a slot on a bridge deck over a river is moved to >= 10 m from the river (now {F1(WaterM(svc3, se.Point))} m)");
+        Check(!se0.Nudge.Moved && se0.Nudge.OnBridge && se0.Point == deck,
+              "(e) with Vrf:PreflightSlotWaterClearanceMeters = 0 the old bridge exemption holds: kept, on the bridge");
+
+        // (f) 0 restores the pre-RL-20261004-01 rule: the 1.7 m slot is not moved.
+        var world4 = new SyntheticWorld();
+        world4.AddWater("pond-1", Disc(c, 100.0, 64), 80);
+        using var svc4 = new PreflightService(new PreflightOptions
+            { CacheDir = noRaster, Offline = true, OsmFeatures = true, ModelSet = ModelSet.AggregateTacticalLevel,
+              SlotWaterClearanceMeters = 0.0 }, null, world4.Provider);
+        var sf = svc4.CheckSlot(16, a);
+        var sf2 = svc4.CheckSlot(16, a2);
+        Check(!sf.Nudge.Moved && sf.Verdict == "clear" && sf2.Nudge.Moved && WaterM(svc4, sf2.Point) < 10.0,
+              $"(f) Vrf:PreflightSlotWaterClearanceMeters = 0 is the old rule: 1.7 m out stays, IN is moved to the first dry ring point ({F1(WaterM(svc4, sf2.Point))} m out)");
+
+        // (g) the authored VERTEX path does not read the slot clearance (package M2's rule is unchanged).
+        var route = new List<(double Lat, double Lon)> { f.LatLon((0.0, 600.0)), a };
+        var v = svc.CheckVertices(route, 1.0, out var checkedRoute).Single();
+        Check(!v.Moved && !v.Problem && checkedRoute[1] == a,
+              $"(g) an authored VERTEX 1.7 m outside the pond is NOT moved - the vertex rule is unchanged ({v.Why})");
+
+        // (h) the start-up line says which water clearance the slot check uses.
+        string on = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.AggregateTacticalLevel });
+        string off = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.AggregateTacticalLevel, SlotWaterClearanceMeters = 0.0 });
+        Console.WriteLine($"     {on}");
+        Check(on.StartsWith("MEMBER SLOT CHECK", StringComparison.Ordinal)
+              && on.Contains("within 10 m of it (water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)", StringComparison.Ordinal)
+              && on.Contains("more than 10 m from every OSM water", StringComparison.Ordinal)
+              && off.Contains("= 0: the rule before RL-20261004-01", StringComparison.Ordinal),
+              "(h) the start-up line states the slot water clearance in use (and says so when it is 0)");
+
+        // (i) EntityLevel: the model set's 25 m corridor is WIDER than the 10 m setting and is what CheckPoint(p, w)
+        // applies - both strings print the EFFECTIVE clearance, 25 m, never "10 m" (Fable's review of W1, item 1).
+        using var ent = Service(noRaster, ModelSet.EntityLevel, world);
+        var si = ent.CheckSlot(16, a);
+        string entLine = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.EntityLevel });
+        Console.WriteLine($"     (i) {si.Verdict}");
+        Console.WriteLine($"     (i) {entLine}");
+        Check(si.Nudge.Moved && WaterM(ent, si.Point) > 25.0
+              && si.Verdict.Contains("inside the 25 m water clearance", StringComparison.Ordinal)
+              && si.Verdict.Contains(" - water clearance 25 m (the EntityLevel water corridor, wider than Vrf:PreflightSlotWaterClearanceMeters = 10 m, RL-20261004-01)", StringComparison.Ordinal)
+              && !si.Verdict.Contains("water clearance 10 m", StringComparison.Ordinal),
+              $"(i) EntityLevel: the SLOT MOVED clause states the EFFECTIVE 25 m clearance with the setting and the ruling id, never 10 m (lands {F1(WaterM(ent, si.Point))} m out)");
+        Check(entLine.Contains("within 25 m of it (water clearance 25 m (the EntityLevel water corridor", StringComparison.Ordinal)
+              && entLine.Contains("more than 25 m from every OSM water", StringComparison.Ordinal)
+              && entLine.Contains("Vrf:PreflightSlotWaterClearanceMeters = 10 m, RL-20261004-01", StringComparison.Ordinal)
+              && !entLine.Contains("10 m of it", StringComparison.Ordinal),
+              "(i) EntityLevel: the start-up line states the effective 25 m, with the setting and the ruling id");
+
+        // (j) THE BOUNDARY (OsmQuery.Point: water when distance <= corridor). A slot EXACTLY the clearance from water is
+        // IN the band; one just outside is clear. The clearance is set to the slot's own measured distance, so the
+        // equality is exact in floating point (the same computation on both sides).
+        var edge = f.LatLon((0.0, 110.0));
+        double dEdge = WaterM(svc, edge);
+        using var exact = new PreflightService(new PreflightOptions
+            { CacheDir = noRaster, Offline = true, OsmFeatures = true, ModelSet = ModelSet.AggregateTacticalLevel,
+              SlotWaterClearanceMeters = dEdge }, null, world.Provider);
+        var sj = exact.CheckSlot(16, edge);
+        var outside = f.LatLon((0.0, 110.05));
+        var sj2 = svc.CheckSlot(16, outside);
+        Check(Math.Abs(dEdge - 10.0) < 0.01 && sj.Nudge.Problem && sj.Nudge.Moved && WaterM(svc, sj.Point) > dEdge,
+              $"(j) a slot EXACTLY the clearance from water ({dEdge.ToString("F6", CultureInfo.InvariantCulture)} m = the clearance) is IN the band: moved, to more than that");
+        Check(WaterM(svc, outside) > 10.0 && !sj2.Nudge.Moved && sj2.Verdict == "clear",
+              $"(j) a slot just outside the 10 m clearance ({WaterM(svc, outside).ToString("F2", CultureInfo.InvariantCulture)} m) is clear and kept");
+    }
+
     // ================================================================= 9. "not on flagged slope"
     private static void NudgeSlope(string repo)
     {
@@ -1032,6 +1192,7 @@ public static class OsmSelfTest
     {
         Console.WriteLine($"-- R. the (e) T14 line on REAL tiles: {osmDir}");
         rasterDir ??= Path.Combine(repo ?? "", "tools", "preflight", "preflight_cache");
+        RealSlotG14(osmDir, rasterDir);
         // The (e) line (what E1/G1 are registered to drive), then the line as STP EXPORTED it, before
         // the hand edit (e) moved its destination 799 m west (data/IRONSTORM_CUTA_CHANGES.md (e)).
         foreach (var (label, dest) in new[] { ("the (e) line", T14DestE), ("the EXPORTED line, before (e)", T14DestExported) })
@@ -1094,6 +1255,65 @@ public static class OsmSelfTest
                               $"{leg.WaterSamples} wet sample(s), unknown tiles {leg.UnknownTiles}, slow {leg.SlowM:F0} m); " +
                               $"Polyline {polyMs} ms ({poly.WetSegments} wet segment(s))");
         }
+    }
+
+    /// <summary>
+    /// (d) of RL-20261004-01 on REAL tiles: G1-4's 48_IBCT.INF3WPN1 (slot 16 of 17). The app log gives only the point
+    /// the slot was MOVED to - "SLOT MOVED 75 m south-east" to (54.022048, 23.309402) (G1-4 Result N1 (b), L690) - so the
+    /// planned slot is RECONSTRUCTED: every point of the search's own 75 m ring whose nudge, under the OLD rule
+    /// (clearance 0), lands back on that point. Exactly one must; it must lie IN lake 16373225 and on 48 IBCT's 490 m
+    /// ring round the cut-A container point (--populate-selftest p6). Then the ruled rule runs on that slot.
+    /// </summary>
+    private static void RealSlotG14(string osmDir, string rasterDir)
+    {
+        Console.WriteLine("   == G1-4's INF3WPN1 slot (lake 16373225; RL-20261004-01) ==");
+        var born = (Lat: 54.022048, Lon: 23.309402);
+        PreflightService Svc(double w) => new(new PreflightOptions
+        {
+            CacheDir = rasterDir, OsmCacheDir = osmDir, Offline = true, OsmFeatures = true,
+            ModelSet = ModelSet.AggregateTacticalLevel, SlotWaterClearanceMeters = w,
+        });
+        using var old = Svc(0.0);
+        using var now = Svc(10.0);
+        var at = now.CheckPoint(born, 100.0);
+        if (!at.Known || at.WaterId != "16373225")
+        {
+            Console.WriteLine($"  [SKIP] these tiles do not hold lake 16373225 at G1-4's birth point (known={at.Known}, nearest water '{at.WaterId}') - (d) not evaluated");
+            return;
+        }
+        Check(at.WaterDistanceM > 1.0 && at.WaterDistanceM < 2.5,
+              $"(d) G1-4's birth point (54.022048, 23.309402) is {at.WaterDistanceM:F2} m outside OSM water 16373225 (the Result: 1.7 m)");
+        const double R = 75.0;
+        int n = Math.Max(8, (int)Math.Ceiling(2.0 * Math.PI * R / 25.0));
+        var hits = new List<((double Lat, double Lon) Slot, double Brg, SlotCheck S)>();
+        for (int i = 0; i < n; i++)
+        {
+            double brg = 360.0 * i / n, th = brg * Math.PI / 180.0;
+            double lat = born.Lat - R * Math.Cos(th) / RouteShift.MetresPerDegree;
+            double lon = born.Lon - R * Math.Sin(th) / (RouteShift.MetresPerDegree * Math.Cos(lat * Math.PI / 180.0));
+            var s = old.CheckSlot(16, (lat, lon));
+            if (s.Nudge.Moved && TileMath.DistanceMeters(s.Point.Lat, s.Point.Lon, born.Lat, born.Lon) < 0.5)
+                hits.Add(((lat, lon), brg, s));
+        }
+        foreach (var h in hits)
+            Console.WriteLine($"     candidate ({h.Slot.Lat:F6},{h.Slot.Lon:F6}) at {h.Brg:F1} deg: " +
+                              $"{TileMath.DistanceMeters(h.Slot.Lat, h.Slot.Lon, T14Start.Lat, T14Start.Lon):F1} m from the container point; old rule: {h.S.Verdict}");
+        // The ring geometry decides between ring points that all nudge back onto the birth point.
+        var onRing = hits.Where(h => Math.Abs(TileMath.DistanceMeters(h.Slot.Lat, h.Slot.Lon, T14Start.Lat, T14Start.Lon) - 490.0) < 2.0
+                                     && old.CheckPoint(h.Slot) is { Water: true, WaterDistanceM: <= 0.0, WaterId: "16373225" })
+                         .ToList();
+        Check(hits.Count >= 1 && onRing.Count == 1,
+              $"(d) of the {hits.Count} ring point(s) 75 m from it whose OLD-rule nudge (clearance 0) lands on it, exactly ONE lies IN lake " +
+              $"16373225 on 48 IBCT's 490 m ring round the cut-A container point - the planned slot (got {onRing.Count})");
+        if (onRing.Count != 1) return;
+        var slot = onRing[0].Slot;
+        Console.WriteLine($"     planned slot ({slot.Lat:F6},{slot.Lon:F6})");
+        var s2 = now.CheckSlot(16, slot);
+        double after = now.CheckPoint(s2.Point, 100.0).WaterDistanceM;
+        Console.WriteLine($"     ruled rule: {s2.Verdict}");
+        Check(s2.Nudge.Moved && after >= 10.0 && !now.CheckPoint(s2.Point).Building,
+              $"FAIL-FIRST (d): under the ruled 10 m clearance the same slot is moved to {after:F1} m from OSM water (>= 10), off every building");
+        Check(old.Tiles.Fetched == 0 && now.Tiles.Fetched == 0, "(d) nothing was fetched");
     }
 
     // ================================================================= helpers
