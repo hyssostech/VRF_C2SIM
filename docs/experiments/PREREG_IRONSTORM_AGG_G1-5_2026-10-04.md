@@ -697,6 +697,10 @@ N1 - THE CULVERT CROSSING:
     in the Adding Content manual, which is NOT INSTALLED - C:\MAK\vrforces5.2d\doc\AddingContent.pdf is a one-page placeholder
     ("Documentation Has Not Been Installed": the vendor documentation installer was not run), docs/vendor/mak-5.2 holds no
     Adding Content text, and the installed txt set has 0 hits for "culvert" [V: Fable's cold review, fable_g15r].
+    ADDENDUM 2026-10-04 (the seat): the manual is PUBLIC - docs.mak.com/support/MAK_ONE_2025_Adding_Content.pdf (MAK-25.0-1-251009,
+    550 pp), now in docs/vendor/mak-5.2 with its txt (INDEX.md). Its sec 7.8 (p.234-236) lists the mobility classes and the
+    sysdef block (road speed-factor 1 at priority 100, impassable 0 at 200, L2 0.25 at 300, L1 0.65 at 400) but does NOT say how
+    priority resolves an overlap, and it has 0 hits for "culvert" [V]. So the docs do not settle (iii); it stays [A].
 THE COMPETITORS: (i) A FORD BESIDE THE CULVERT - the members left the road for a few metres to cross the open channel: no fix
 supports it (the fix at the river is 0.8 m from the road), the planner was routing on the road network, and an impassable
 river line would have held them as G1-2's T02 member was held at river 8011072 off the road; but the fixes are 67-170 m apart
@@ -801,7 +805,8 @@ no fix off the road at the river. Nothing in the run is read as W1's, the M3 pla
 
 NEXT, in order (the seat's and the owner's): (1) Fable's cold review of this Result (RL-20260928-04). (2) RULE - the owner:
 whether the W gate's FAIL binds as scored, the precedent being RL-20261004-01 for G1-4 (P-FALS (e) there was a chord corner at
-a bridge; here a road over a culvert). (3) DESIGN - the seat's, its first step the owner's: (3a) INSTALL the VR-Forces 5.2d
+a bridge; here a road over a culvert). (3) DESIGN - the seat's, its first step the owner's: (3a) [DONE 2026-10-04 by download, not
+install - see N1's ADDENDUM: the manual is silent on culverts and on overlap priority] INSTALL the VR-Forces 5.2d
 documentation (the vendor's documentation installer; it writes under C:\MAK, so an owner action), then read "Configuring
 Aggregate-Level Movement Restrictions" in Adding Content - it settles how the sim resolves a road over a river line; (3b) a
 culvert clause for the ways rule (N1 IMPLICATION), its narrow or wide form, FAIL-FIRST on THIS pre-warm

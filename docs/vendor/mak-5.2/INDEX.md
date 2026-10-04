@@ -27,13 +27,21 @@ Base URL: https://docs.mak.com/support/
 | VR-Forces_5.1.1_Entity_Catalog.pdf | VRF-5.1.1-22-240925 (5.1.1, not 5.2) | 1326 | 60336910 | 1eb7540f94ba5d8b904eee7bdb3e6334378f796550f85c37332ef99cc28373a3 |
 | MAK_ONE_2025_Model_Catalog.pdf | MAK-25.0-11-250912 (MAK ONE 2025) | 680 | 135571044 | bed9bd31d7094195242dd78247a5d36bcaf27ce1f514e1d8206884d2b6eee0d5 |
 | MAK_ONE_2025_Interoperability_Guide.pdf | MAK-25.0-03-251024 (MAK ONE 2025) | 96 | 1386931 | 4441453448e58d418faf249a4f44b98084de9b50fe9989cd777d2aa4557b2900 |
+| MAK_ONE_2025_Adding_Content.pdf | MAK-25.0-1-251009 (MAK ONE 2025; added 2026-10-04) | 550 | 81858373 | 3b556c518356a1d26f6a5e2bb5d2b39a6d6de78d396c324302c5477bb0ceacd4 |
 
 URL of each = base URL + file name. The two MAK ONE 2025 files are the public counterparts of
 the installer's MAK-One-Model-Catalog.pdf and MAKInteroperabilityGuide.pdf; the installed
 copies are placeholders, so there is no hash control that they are the exact revision 5.2d
 ships.
 
-## Where to find (UG = VR-Forces_5.2_Users_Guide.pdf)
+## Where to find (UG = VR-Forces_5.2_Users_Guide.pdf; AC = MAK_ONE_2025_Adding_Content.pdf)
+
+- **Aggregate-level movement restrictions (featureconfig.txt mobility classes, the sysdef terrain-mobility block)**
+  - AC p.234-236 "7.8. Configuring Aggregate-Level Movement Restrictions": the mobility classes per movement type and the
+    mech-aggregated-movement.sysdef block (speed-factor 1 / 0 / 0.25 / 0.65 at priority 100 / 200 / 300 / 400). The text does
+    NOT say how priority resolves overlapping classes, and the manual has 0 hits for "culvert" (checked 2026-10-04).
+  - AC p.236 "7.9. Dynamic Features": combat engineering objects (bridges, ditches, ...) as features.
+
 
 - **vrfNavGenerator / navigation data generation (command line, config file, navDataDir)**
   - The strings `vrfNavGenerator` and `navDataDir` are not found in the PDF set (HTML Users
