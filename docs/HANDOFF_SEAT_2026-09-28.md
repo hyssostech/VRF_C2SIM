@@ -113,6 +113,13 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    scored aggregate cut-A run, doubling as a Way-A rehearsal); LBL (labels); DR1 (read-only survey: the FULL 23-task order on
    the aggregate profile - per-task outcome, blockers, recommended demo scope). Then: DEMO_RUNBOOK rewrite for aggregate Iron
    Storm and a rehearsal. Demo date: not in the record (asked 2026-10-04).
+   G1-6 RAN 2026-10-04 (RL-20261004-05 "(1) go"): pre-warm 20261004T221443Z_run (5296-5306) W GATE PASS (culvert rule;
+   ways/chord RECORDED FAIL as expected); scored 20261004T223015Z_run (5307-5317, marker 5318): 5/5 TASKCMPLT in 169 s of the
+   order, T02/T10/T14 ARRIVED 0.9-2.1 m, 79 PASS / 0 FAIL on g1_6_score (scratch laneG1-6), no crash, StopVrf exit 6. The
+   FIRST fully passing scored aggregate cut-A run. Result not yet harvested. Holder 67984 up to 04:22Z 10-05.
+   RL-20261004-05: the demo is WAY B (STP pushes its own order: STP-848 durations + no cut-A hand fixes - leniency is the
+   owner's call, asked); the Label decoration may be written under C:\MAK ONLY by an automated, verifiable deploy step on
+   every install. Tier-1 full order merged c3b2bb5 (22 tasks). NEXT: LBL hardened + new pin; composition sources (public).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
