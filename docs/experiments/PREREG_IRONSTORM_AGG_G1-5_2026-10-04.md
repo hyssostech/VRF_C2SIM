@@ -1,6 +1,8 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-5: G1-4 re-run on the W1 build - nudged member slots clear OSM water by 10 m (the planner's obstacle buffer), H5 gated on every tasked member, the scorer's river rule read on the road and bridge ways (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01. COLD-REVIEWED 2026-10-04 by Fable
+STATUS: STOPPED AT THE W GATE 2026-10-04 - FAIL (P-FALS(e)) as scored, every other limb passed; whether it binds is the
+owner's question (the Result below; G1-4 precedent RL-20261004-01). Was: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's
+go-live under RL-20260928-01. COLD-REVIEWED 2026-10-04 by Fable
 (RL-20260928-04; scratch 7207877b...\fable_g15\REVIEW_G1-5_PREREG_fable_2026-10-04.txt): GO WITH FIXES - findings 1-7 and ITEM 5
 applied in the commit after a08bad8 (the composite reading and the one to watch, the four boots, the bridge rule's acceptance
 region and two controls, H5's closed-vertex rule in W, step S, the recorded water distance, the moved-member records). Registered by lane G1-5 (session 7207877b; the registration commit's own time is
@@ -548,4 +550,259 @@ SEAT DECISIONS 2026-10-04, before any go-live step (the seat, Opus, under RL-202
 
 ## Result (written after the harvest, never from a live read)
 
-(empty - the run has not been launched)
+RESULT 2026-10-04: STOPPED AT THE W GATE - NO SCORED RUN. The pre-warm (run 20261004T202533Z_run, launched 20:25:32Z, runner
+exit 0 at 20:34:19Z) scored "W GATE: FAIL (branch A; P-FALS(e)) - STOP before E" (g1_5_score.py --wgate, scorer sha256
+c60b0b6c..., output sha256 c2031c74...; scratch laneG1-5\W_gate_20261004T202533Z_run.txt; re-run by this lane from the same
+scorer on the same run directory: identical line for line, the header's run path aside). E was not launched: P0-P23 and H6
+are NOT SCORED and the scored block 5296-5306 was never claimed. Every other W limb passed: SL0-SL4 (the four slots moved as
+predicted), H1-H5 (H5 on all 23 tasked members; 48_IBCT.INF3WPN1 moved 1,701.0 m from 13.6 m off lake 16373225), W-MOVE,
+W-DONE, V-CRASH. The one miss is P-FALS (e) under the ways rule: all 17 T14 members, on 6 distinct tracks, crossed the
+Wiersnianka where road 300614718 crosses OSM river way 1467512812, tagged tunnel=culvert, and drove on (N1). By the stop rules
+(sec 4) nothing is patched or re-run under this registration; whether the FAIL binds as scored is the owner's question (the
+G1-4 precedent: RL-20261004-01); the successor is IRONSTORM_AGG_G1-2026-10-04-6 or later, with new numbers. Marks: [V] =
+checked by this harvest lane after the run (read-only: the run directory, the runner log and manifest, the rtiexec log, the
+trace, the reports capture, the thread samples, the scorer re-run, the OSM tile copy the scorer reads, the vendor RiverL
+filter, featureconfig and mech sysdef, the seat's go-live artefacts); [A] = the seat's record or an inference. The vendor sim
+log and C:\MAK\logs: counts, names, sizes and mtimes only. This lane's scripts and outputs: scratch 7207877b...\harvestG1-5
+(h_*.py, h_*_out.txt, h_wgate_repro.txt, h_wgate_chord.txt, h_full_ways.txt).
+
+THE SEQUENCE AS RUN (by the seat under RL-20260928-01) [V: scratch laneG1-5 artefacts and the runner log
+runs/launch52/RunScenario-ironstorm-agg-g1-5-prewarm-20261004T202532Z.log, unless marked]:
+- R, 20:21:36Z: prertiexec 1 check FAILED - REST 18080 refused, expected until step S (sec 8 item 3; R_prertiexec.txt).
+  StartRtiExec52 dry run, then live: rtiexec pid 65540 started 20:22:01Z and started its own rtiForwarder 58844 (20:22:04Z);
+  "RTIEXEC READY rtiexec=65540 forwarder=58844 tcp=127.0.0.1:4001" (R_rtiexec.txt). Its log is runs\launch52\
+  rtiexec_20261004T202200Z5.0.1-20261004-162202-Legatus-281993-65540.log (the script's own "[WARN] rtiexec log NOT created"
+  is a naming test, N4 (d)).
+- D', 20:22:23Z: preholder 1 FAILED (REST, as at R; Dp_preholder.txt). g1_5_claim_holder.ps1 claimed 5281-5284, marker 5281
+  -> 5285 (Dp_claim.txt; commit 3f04f34). StartFederationHolder52 attempt 1 on 5281 at 20:22:51Z: "HOLDER JOINED: pid 67984
+  appNo 5281" at 20:22:59Z, 28800 s (Dp_holder.txt); rtiexec log L2026, handle 2, the log's first join. The federate list
+  (g1_5_rti_federates.py) printed 0 join lines - a parser defect (N4 (a)); the seat counted one join by hand [A], and the log
+  holds exactly one join before the pre-warm's Stage 2h holder (L5343; that holder started 20:25:36Z) [V].
+- S: `docker start c2sim-server-vrf` [A: the seat; no artefact]; REST 200 by 20:23:41Z [V: A_prelaunch.txt].
+- A, 20:23:41Z: prelaunch 0 FAILED - the registered hashes and settings, 41 / 0 road tiles, cache 520 / 27c2117e, rtiexec
+  65540 and forwarder 58844, holder 67984 with 479 min left, marker 5285, REST 200 (A_prelaunch.txt). A2 (the offline suites
+  on the deployed exe) [A: the W1 deploy line; no A2 artefact in the lane's scratch].
+- C3, 20:23:52-20:24:25Z: PushInit exit 0 ("QUERYINIT : 40 Units"; the server read RUNNING before its reset), PushOrder exit
+  0, one "ORDER (69670 chars)" echo at 20:23:55.081 (C3_stdout.txt, g1_5_c3_pushinit.txt, g1_5_c3_pushorder.txt).
+- W: prelaunch 20:25:12.9Z 0 FAILED (W_prelaunch.txt; 478 min left); the sim cache listed 20:25:12Z; the dry run 20:25:13-16Z
+  exit 0; the pre-warm launched 20:25:32Z (g1_5_runner.stamps.txt): holder 67984 recognised PERSISTENT (runner log :88), block
+  5285-5295 claimed and marker 5285 -> 5296 before any join (:130), Stage 2r found 65540 up and started nothing (:146-147),
+  Stage 2h holder pid 68076 on 5292 joined in 3 s (:160-161; rtiexec log L5343, handle 3), Stage 2c RtiProbe on 5290 exit 0
+  (:171), the back end pid 63444 on 5285 started 20:25:47.505Z (:185-186), the app pid 62220 on 5289, the oracle gate passed
+  on 36 real-coordinate POS lines (:250), the order on the bus 20:29:06.253Z (:258), the window ran 121.3 s to its 120 s cap -
+  4 of 5 tasks terminal, T14 (1075b583...) open (:270-271) - the app exit 0, a clean resign (:279), StopVrf EXIT 6 (:288-289;
+  N4 (c)). Runner exit 0, end 20:34:19Z; 0 "BACK END CRASHED" (app log count). Scored by the seat at 20:34:36Z (the W gate
+  file's mtime). Post-W inventory 20:35:03Z (postW_inventory.txt): rtiexec 65540, forwarder 58844, holder 67984 (468 min
+  left) and the pre-warm's Stage 2h holder 68076; 1 check FAILED, "exactly one RtiProbe: 2 (want 1)", which is that
+  registered second holder (sec 3 W names it; N4 (b)); REST 200; marker 5296. The sim cache listed 20:35:05Z.
+- THE QUIET PERIOD held: no other runner log in runs\launch52 between W's prelaunch and the post-W inventory (the suite's
+  dry-run logs sit at 20:18-20:19Z and 20:36-20:37Z) [V: listing].
+THE CLOCKS [V]: trace t0 = WatchVrf join 20:28:25.609Z; T10 dispatched t=74.0 (SIM 345.6), T14 t=79.2 (SIM 380.2), T02 t=80.2
+(SIM 381.2); every member's last fix t=190.9 (20:31:36.5Z; the window ended 20:31:37.7Z, manifest observationEndUtc); the
+trace's last fix of any object t=221.7. The sim ran about 6.5-6.8 x wall (L64823: 64.1 WALL s = 414.7 SIM s; L77855: 78.0
+WALL s = 527.3 SIM s). Reports (reports-captured.log): TASKSTRT T01 and T13 20:29:09.0Z, T10 20:29:39.6Z, T14 20:29:44.8Z,
+T02 20:29:45.9Z; TASKCMPLT T01 and T13 20:29:44.4Z, T10 20:30:44.0Z, T02 20:31:03.9Z; T14 none. Peak back-end working set
+4,133 MB at 20:31:39Z and 3.43 cores at 20:30:04Z (thread-samples.csv); WS-runaway alerts 992.7 MB/min at 20:26:58Z and
+1,628.4 MB/min at 20:29:08.6Z (load-time, as before; manifest backendWsRunaway true).
+
+WHAT HELD [V: the W gate output and this lane's re-run]: W0-W7 (1 / 5 / 17 of N attached and published); IDENTITY branch A,
+I1-I17 - 59 of 59 created under the requested uuid and bound by it, the M3b short names as markings (RL-20260928-02);
+SL0 the MEMBER SLOT CHECK start-up line once, exact (L32); SL1 23 slot lines with exactly 4 SLOT MOVED - 48_IBCT.INF1RIF2,
+INF1RIF3, INF1WPN1, INF3WPN1; SL2 4 of 4 as predicted (distance, compass, water id, landing within 1 m, the clearance clause;
+INF3WPN1 at (54.021976,23.308667), L726); SL3 19 clear at their planned points; SL4 0 UNVERIFIED, 0 KEPT ON BAD GROUND;
+M1-M10 and M12-M17 on all three movers (road layer 16 / 10 / 14 readable, 0 not; every leg NEAR -> MAK_ROAD on the offline
+table's ways 384833185, 372319246 / 367165904 / 1262103420, 783013873 / 312326007); M10 0 FAILED; H1 0 relayed "route does
+not exist" and R-VEND 0 (vendor log count); H2 0 EXECUTOR REFUSED and 0 pre-M3b equivalent; H3 50 of 50 echoes exact (T10
+5 x 3, T14 17 x 2, T02 1); R-REF 57 of 57 WHOLE ("<member> Path part <n>"); H4 by the identity limbs; H5 PASS - 33
+member-vertex pairs judged in the W gate (the W gate judges a vertex k > 1 only once it has closed), 0 not moved, INF3WPN1
+included; the same scorer in full mode on this run (RECORDED - the pre-warm is unscored) judges 50 pairs, T14 vertex 2
+included, 0 not moved; W-MOVE PASS (T10 5 of 5 > 50 m; T14 17 of 17 and T02 1 of 1 RECORDED); W-DONE PASS (T14 vertex 1
+closed - "the LAST of 17: 17 succeeded, 0 failed", L70619 - and T10's three and T02's one; nothing reached but not closed;
+T14 vertex 2 NOT REACHED, N3); V-CRASH no signal for pid 63444 (C:\MAK\logs holds its .log, 14,814,344 B, last written
+20:31:39Z, and no .callstack.log or .dmp [V: listing]); the fixes-inside-water limb (0 fixes deeper than 25 m; "longest run
+0" for every member). P-FALS (e)'s T02 limb held as predicted: 28ID.HQ1 crossed river 8011072 at 54.007540,23.236524, 13.3 m
+from a drivable road bridge (218414262) - ON A BRIDGE by the 15 m chord acceptance the ways rule keeps first - and drove on
+3,035 m to 0.5 m from its destination.
+THE WATCH (RECORDED): INF3WPN1 1,701.0 m, within 50 m of vertex 1 at t=142.1, vertex 2 NONE; INF1WPN1 1,483.2 m, t=109.4,
+NONE.
+THE MOVED-MEMBER RECORDS (RECORDED; G1-4's pre-warm reference in brackets): INF1RIF2 first-leg bearing 310 deg, first-300-m
+water minimum 15.8 m, 0 constrained [294 deg, 2.3 m, 0]; INF1RIF3 174 deg, 14.5 m, 0 [166, 5.5, 0]; INF1WPN1 294 deg, 11.3 m,
+0 [189, 7.5, 0]; INF3WPN1 89 deg, 9.2 m (lake 16373225, t=88.9), 0 [NONE, 1.7 m, 1].
+THE MOVES [V: the app log, the trace]: T10 - vertices closed 3 / 4 / 20 m from them (scorer R12), ARRIVAL EVIDENCE 64.1 WALL
+s after dispatch (L64823), final fix 1.4 m. T02 - its one vertex closed 19 m from it after 5,354 m (L80173); OVERDUE, then
+ARRIVED 78.0 WALL s = 527.3 SIM s after dispatch (L77855-77857); final fix 0.5 m. T14 - vertex 1 closed with the unit 6 m
+from it after 1,273 m (L70621), all 17 members within 50 m of it by t=148.2; vertex 2 issued (L70659-70661: NEAR 0 m ->
+MAK_ROAD on 312326007, to (54.040348,23.324206)) - the first M3b leg past a vertex 1 (G1-4's vertex 1 never closed); 0
+"Cound not create route" (G1-3's vertex-2 text; P7c carried, held).
+
+WHAT FAILED [V]: P-FALS (e) / P11 / P14 under the ways rule - every T14 member "crossed river 197345450" (14 members) or
+"1467512812" (INF2HQ1, INF3HQ1, CAV1) at about 54.01986,23.32848, 4,860-4,866 m from any drivable road bridge, and drove on
+1,194-2,018 m; each line reads "OFF A BRIDGE by the ways rule: banks 0.2-2.9 m (south) / 0.5-1.9 m (north) from a drivable
+road (<= 15 m: ON the network); NO drivable road bridge over river <id> in the index" (W gate output lines 118-151; the
+P-FALS line 163). The chord rule (RECORDED, `--bridge-rule chord`, h_wgate_chord.txt) reads the same 17 crossings OFF A
+BRIDGE, T02's ON, and prints the same verdict.
+
+N1 - THE CULVERT CROSSING:
+(a) THE GROUND [V: harvestG1-5\h_culvert_geom_out.txt, h_culvert_geom2_out.txt - lane G1's tile copy, the tiles the scorer
+    reads]: the Wiersnianka is three OSM ways here. 197345450 (waterway=river) comes from the west and ends at
+    54.019860,23.328481 (C below); 1467512812 (waterway=river, tunnel=culvert, layer=-1) is a 2-vertex way 9.5 m long, from C
+    to 54.019807,23.328593; 1467512811 (waterway=river, no tunnel tag) continues from there. Road 300614718 (highway=
+    unclassified, surface=asphalt) runs north-south 3.7 m east of C and CROSSES the culvert way at 54.019835,23.328533 - 4.5 m
+    from C, inside the culvert's 9.5 m; it crosses neither 197345450 nor 1467512811. Track 360178110 joins 300614718 at
+    54.019362,23.328470, 55 m south of C. No feature within 300 m in either tile set carries a bridge, ford or other tunnel
+    tag; the nearest drivable road bridge is 4.86 km away (the scorer). The osm-water set (the sim's Lake layer) holds nothing
+    within 185 m of C (lake 197345448 at 185.5 m).
+(b) THE FIXES [V: the trace]: the 17 crossings are 6 distinct chords. The 12 Mech COs were within 2 m of one another from
+    t=148.2, 5 m from vertex 1 (each member is sent to the vertex point itself - H3's echo), to t=160.4, and again from t=162.4
+    to the window's end, so their 12 crossings are one chord. Per chord - south bank fix (distance to road 300614718 or track
+    360178110; distance south of the river line) / north bank fix (to the road; north) / chord length / the chord's crossing
+    point to the road centreline and to the culvert x road point:
+    - HQ1: t=154.3 track 0.5 m, 101 m / t=156.3 road 0.7 m, 19 m / 128.4 m / 3.7 m, 4.4 m.
+    - INF1HQ1: t=154.3 track 0.2 m, 98 m / t=156.3 road 1.0 m, 57 m / 170.1 m / 10.2 m, 11.5 m.
+    - INF2HQ1, INF3HQ1: t=154.3 track 0.5 m, 93-97 m / t=156.3 road 0.5-0.6 m, 18-19 m / 121-123 m / 2.9 m, 3.5 m.
+    - CAV1: t=156.3 road 0.8 m and 1.3 m from the river line - the one fix AT the crossing, on the road / t=158.4 road 1.9 m,
+      111 m / 123.7 m / 1.2 m, 1.5 m.
+    - the 12 Mech COs: t=162.4 road 2.9 m, track 5.0 m (at their junction), 46 m / t=164.5 road 0.7 m, 15 m / 67.5-67.7 m /
+      4.6 m, 5.3 m.
+    Every crossing point lies 1.2-10.2 m from the road's centreline and 1.5-11.5 m from where the road crosses the culvert
+    way; no fix lies off the road within 10 m of the river line. Every member then drove on north along 300614718 (1,194-2,018
+    m); 0 "Movement constrained by features" and 0 "Terrain too steep" (app log 0 / vendor log count 0 [V:
+    h_counts_out.txt]); 0 stationary runs (the scorer); all were still moving when the window closed (N3).
+(c) THE READING MOST CONSISTENT WITH THE EVIDENCE [V for the ground and the fixes; A for the path]: the members drove the road
+    over the culvert. The leg was planned on the road network (vertex 2 NEAR -> MAK_ROAD); both bank fixes of every chord are
+    on the network; the one fix at the river is on the road; and the road crosses the river only through the culvert. The
+    planned path is not printed (DEBUG_DETAIL false), so the crossing is inferred from the fixes and the plan's road query,
+    not observed.
+(d) THE SIM'S WATER AT C [V: the files read; A: that the running terrain used this file]: the vendor's aggregate River filter
+    (C:\MAK\SharedData\19\latest\TerrainData\TerrainConfiguration\VRFSIM.Aggregate.feature.model.xml :323-354, "RiverL")
+    keeps every way, not a node or a polygon, with waterway river / canal / tidal_channel, and tests no tunnel or culvert tag
+    (as src OsmFeatures.cs :454-456 records). If the aggregate terrain loads that file (PREREG G1 :46 [A]), 197345450 and the
+    culvert way are both River features at C - MAK_WATERWAY (featureconfig.txt :413), IMPASSABLE for a mech unit (:262;
+    mech-aggregated-movement.sysdef :116-120, speed-factor 0, priority 200). The same sysdef gives MAK_MECH_UNRESTRICTED_TERRAIN
+    = MAK_ROAD (featureconfig.txt :259) speed-factor 1 at priority 100 (:111-115). Which entry governs where a road and a river
+    line overlap is not in the docs read here: UG52 27.1.4 p531 defers to "Configuring Aggregate-Level Movement Restrictions"
+    (Adding Content, PDF only, unread) [A].
+THE COMPETITORS: (i) A FORD BESIDE THE CULVERT - the members left the road for a few metres to cross the open channel: no fix
+supports it (the fix at the river is 0.8 m from the road), the planner was routing on the road network, and an impassable
+river line would have held them as G1-2's T02 member was held at river 8011072 off the road; but the fixes are 67-170 m apart
+across the river and the path is not printed, so the trace alone cannot exclude it. (ii) THE SIM'S WATER LAYER HAD NO WATER
+THERE - not supported by the vendor filter (no culvert exclusion), but the streamed features the sim used are unread and could
+differ from the tile copy. (iii) THE ROAD'S MOBILITY ENTRY OUTRANKED THE RIVER'S at the overlap - consistent with every fix,
+unverified (the priority rule is unread). (ii) and (iii) bear on WHY a member could pass C, not on WHERE it crossed; all three
+are consistent with a crossing on, or within a few metres of, road 300614718. WHAT WOULD FALSIFY THE ON-THE-ROAD READING: a
+fix in the channel more than about 5 m off the road's centreline; a "Movement constrained" line or a stop at either bank; the
+planned path (a DEBUG_DETAIL run) leaving the road at C; a sim-side feature query showing the road broken at C. None is in
+the evidence.
+(e) WHAT THE REGISTRATION NAMED: sec 1(z) named two residual errors of the ways rule - a blind zone (a ford near a bridge over
+    the same river reads ON) and a false FIRE when the bridge spans another way id of the same river. This is a third case it
+    did not name: a road over a river with no bridge tag (here tunnel=culvert on the river way). The rule fired as written.
+IMPLICATION (a scorer design matter for the successor - the seat's, not this lane's): the ways rule has no culvert clause.
+A clause accepting a crossing where a drivable road way crosses the river way within the chord tolerance, both banks on the
+network, would accept this crossing. Whether it should be narrow (a river way tagged tunnel=culvert) or wide (any drivable
+road crossing a river line, which (iii) would make the sim allow) turns on the unread priority rule.
+
+N2 - 48_IBCT.INF3WPN1, THE ROW G1-5 EXISTED TO TEST (n = 1):
+MEASUREMENT [V: the trace, app log L726, harvestG1-5\h_inf3wpn1_out.txt, h_g14pt_out.txt]: born at (54.021976,23.308667) as
+predicted (SL2), 13.6 m outside lake 16373225 on the scorer's tiles and 48.6 m from its G1-4 birth point. It stayed there from
+its first fix (t=42.1) to T14's dispatch (t=79.2), was 17.6 m out at t=82.8 and left on bearing 89 deg (the first fix 50 m
+out, t=86.9). From t=82.8 to t=99.2 its 9 fixes ran east, then north-east and north round the lake's east shore, 9.2-10.2 m
+from the OSM shoreline (minimum 9.2 m at t=88.9), passing 7.9 m from G1-4's birth point (54.022048,23.309402); the chords
+between those fixes (5-50 m long) come within 4.7 m of the shoreline where they cut its curve. It reached the road network
+north-east of the lake at t=101.2-105.3 (track 595161645 at 10.9 m, then unclassified 1309922882 / 1262103420 at 1.6 / 0.2
+m), came within 50 m of vertex 1 at t=142.1 and moved 1,701.0 m in all; 0 "Movement constrained by features" (G1-4: 1). The
+straight segment from its landing to the nearest drivable road (595161645, 306 m) cuts the lake (sec 4 COMPETITORS); the
+member went round it.
+READING [A]: (1) the pass is what every registered reading predicts from 13.6 m - (e), (vi), (v) and the composite (sec 7) -
+so it does not discriminate them; the lake between the start and the roads (the composite's second condition) was present
+again and did not stop it, as the composite predicts once its first condition (a start inside the 10 m buffer) is removed.
+(2) A track that holds 9.2-10.2 m from the OSM shoreline for about 200 m, away from any road, fits a path planned round the
+water with the 10 m buffer (navigate-to-location.lua :14) against a water feature lying within about a metre of the OSM
+shoreline on that stretch [A: the planned path is not printed; the fixes are 2 s apart]. If the planner's water edge there
+matches OSM to a metre, G1-4's birth point (1.7 m outside OSM, 7.9 m from this track) lay about 8 m inside the planner's
+buffer - the start that (vi) and the composite name - and (e) would need the actuator's water to reach at least 1.7 m beyond
+an edge the planner appears to place at the OSM line; that weakens (e) further only if the planner and the actuator read the
+same feature [A]. (3) It does not separate (vi) from (v) (a first leg into the lake from G1-4's start): G1-5 never started
+inside the buffer. The discriminating observations remain sec 7's (1)-(3).
+
+N3 - T14 VERTEX 2 NOT REACHED IN THE 120 s WINDOW [V: the trace, harvestG1-5\h_tail_out.txt; runner log :270]: vertex 2 was
+issued when the last member closed vertex 1 (t=148.2); at the last fix (t=190.9) the container was 874.0 m from it, the four
+HQ members 297-315 m, CAV1 428 m and the 12 Mech COs 1,103.6 m, all still moving (the Mech COs 91 m and HQ1 about 150 m in
+the last 2 s). The task was open at the cap ("still open: 1075b583..."), so -StopWhenComplete did not fire. By W-DONE's rule a NOT
+REACHED vertex is recorded, not a stop. RECORDED, no reading: the Mech COs' last fix (54.030578,23.327180) is 17.6 m from the
+point where G1-2's INF3WPN1 stopped at a building of the -2 hamlet (sec 7); they were moving west there, on the line the HQs
+and CAV1 had driven about 18 s earlier.
+
+N4 - THE HARNESS [V]:
+(a) THE FEDERATE PARSER: g1_5_rti_federates.py (lane G1-4's rti_federates.py, log chosen by pid) matches only
+    `^Federate Federate (.+?) \("(.+?)" (\d+)\).* has (joined|resigned from) federation "`. The long-lived rtiexec 47980 wrote
+    each join doubled and interleaved (its L4051: "Federate Federate remoteControl 34096 ("remoteControl" 2)remoteControl 34096
+    ... has joined federation " has joined federation ..."); the fresh rtiexec 65540 writes it once (L2026: "Federate
+    remoteControl 67984 ("remoteControl" 2) has joined federation "MAK-ONE-2025"."), so the parser found 0 join lines in a log
+    that held the holder's join (Dp_federates.txt), and D''s "exactly one joined federate" was not machine-checked. By grep it
+    held. The whole log: 7 joins (67984; 68076; 34468, Stage 2c; Federate5, the back end; 67260, the WatchVrf pre-check;
+    26380, the trace; 62220, the app) and 5 resigns (34468, 67260, 62220, 26380 normal; the back end LostConnectionResign,
+    forced by the rtiexec after the kill, L25356-25393); 67984 and 68076 still joined at the log's last write (20:37:21Z).
+(b) THE POST-W INVENTORY CHECK: golive_checks -Phase prelaunch asserts "exactly one RtiProbe (the persistent holder)"; after
+    the pre-warm the registered inventory (sec 3 W) includes the pre-warm's Stage 2h holder (68076, a 900 s hold from about
+    20:25:39Z), so the check's FAIL is that expected holder - the check is wrong for the post-W phase, not the inventory.
+(c) STOPVRF EXIT 6, again: taskkill without /F refused for 120 s; the run's own back end force-stopped by pid and start time;
+    its windows "NVOGLDC invisible" and "Default IME" only, no crash modal (stopvrf.stdout.log). The registered gate accepts 0
+    or 6. Seen on G1-4 and earlier runs [A: lane D1].
+(d) StartRtiExec52's "[WARN] rtiexec log NOT created at <path>": the rtiexec appends its own suffix
+    ("5.0.1-20261004-162202-Legatus-281993-65540") to the -l name, so the script's exact-path test misses a log that exists
+    (the preholder check finds it by glob; the holder and the runner read it). No effect on the run.
+THE CARRIED ITEMS [V]: THE CRASH did not recur (V MEDIUM held; 1 crash in 3 runs on this path). O8 DID NOT RECUR, against
+sec 4's expectation (5): 36 of 36 init create altitudes came from the TERRAIN QUERY, 0 from the FALLBACK (L377, 20:29:02.985Z;
+G1-4: 0 of 36) - recorded, no cause claimed (the federation, the rtiexec and the machine's boot are new, sec 4a). O6 - 18 "No
+creator found" lines (as G1-4). P19 - 79 cache HITs, 0 HTTP FETCH (L99963). THE SIM CACHE - unchanged: 21,807 files,
+495,599,180 B before and after (simcache_before / after_prewarm.txt; G1-4's pre-warm added 2). The vendor log
+(runs\20261004T202533Z_run\vendor\vendor-vrfSim.log, 14,814,344 B, the twin of C:\MAK\logs\...-162550-...-63444.log): "Path
+part" 57, "48_IBCT.INF3WPN1" 20, "Movement constrained" 0, "route does not exist" 0, every failure text 0 (counts).
+
+THE NUMBERS [V: Dp_claim.txt, Dp_holder.txt; runner log :92-105, :130, :301; run-manifest.json appNumbers and ledger; the
+rtiexec log's joins]:
+- THE HOLDER 5281-5284, claimed by g1_5_claim_holder.ps1 before the holder joined (marker 5281 -> 5285, commit 3f04f34): 5281
+  CONSUMED by RtiProbe pid 67984 (attempt 1, joined 20:22:59Z, holding 28800 s - to about 2026-10-05T04:22:51Z; never
+  touched); 5282-5284 BURNED (not reached - one attempt per number until one joins).
+- THE PRE-WARM 5285-5295 (marker 5285 -> 5296 by the runner, :130; manifest ledger 5285 -> 5296; commit bd21b35): 5285 (back
+  end, pid 63444, force-stopped by identity, StopVrf exit 6, no crash), 5287 (WatchVrf pre-check; pid 67260 by the rtiexec
+  log's join order), 5288 (WatchVrf trace, pid 26380), 5289 (VrfC2SimApp, pid 62220, exit 0), 5290 (Stage 2c RtiProbe, exit
+  0; pid 34468 by the join order), 5292 (Stage 2h holder attempt 1, pid 68076, joined in 3 s, left inside its 900 s hold)
+  CONSUMED; 5286 (--no-gui), 5291 (the oracle gate passed), 5293-5295 BURNED.
+- MARKER 5296. THE SCORED BLOCK 5296-5306 was never claimed. A successor takes new numbers from the marker as it reads at its
+  go-live (5296 unless another run moved it). While holder 67984 holds (to about 04:22:51Z on 2026-10-05) a successor's runner
+  would find it PERSISTENT, as G1-4's found 56380 [A]; after that, a new holder claim (branch (b')).
+
+WHAT IT MEANS (implication, not measurement): W1 did on the live cache what it does offline - the four slots landed as
+predicted - and every tasked member moved, INF3WPN1 included, so G1-4's shore stop did not recur on cut A, once (n = 1); that
+says nothing about which mechanism made G1-4's stop (sec 7; N2). For the first time on M3b, T14 closed its vertex 1 (17 of 17)
+and drove its second leg. The W gate's FAIL rests on P-FALS (e) alone: a scorer rule with no culvert clause reading a road
+over a culvert as an off-bridge river crossing (N1; the path [A]); the members' movement shows no stop, no constraint line and
+no fix off the road at the river. Nothing in the run is read as W1's, the M3 planner's or M3b's.
+
+NEXT, in order (the seat's and the owner's): (1) Fable's cold review of this Result (RL-20260928-04). (2) RULE - the owner:
+whether the W gate's FAIL binds as scored, the precedent being RL-20261004-01 for G1-4 (P-FALS (e) there was a chord corner at
+a bridge; here a road over a culvert). (3) DESIGN - the seat's: a culvert clause for the ways rule (N1 IMPLICATION), its
+narrow or wide form, FAIL-FIRST on THIS pre-warm (20261004T202533Z_run) - the clause must turn the 17 crossings ON and keep
+sec 1(z)'s dirty controls (c1)-(c4) firing; reading "Configuring Aggregate-Level Movement Restrictions" (Adding Content) first
+settles how the sim resolves a road over a river line. (4) PREREG G1-6 on the same build and order with that scorer, new
+numbers from the marker (5296 or later). (5) Harness: g1_5_rti_federates.py to accept the single join line (and keep the
+doubled form), with a control on each log; the post-W inventory check to allow the run's own Stage 2h holder; the
+StartRtiExec52 log-name test (N4). (6) Doc updates (sec 6): Appendix B annotated from the manifest (the seat's; this lane does
+not edit OPUS_EXECUTION_PLAN.md), PLAN_MOVEMENT rows G1-4 / W1 -> G1-5 and the step table, RUNBOOK sec 11o and sec 9 (W1 seen
+live: SL0-SL4 held), RUNBOOK :1716's "docker start if it exists" (sec 8 item 3), HANDOFF_SEAT sec 2.
+
+ADVERSARIAL REVIEW: (N1) the strongest competitor to "they crossed on the road over the culvert" is a ford a few metres
+beside it; against it stand the one fix at the river (0.8 m from the road), both banks of every chord on the network, the
+plan's road query, and the off-road stop of G1-2's member at a river line; for it, only the 67-170 m fix spacing. Unexplained
+and standing: why an impassable River line at C (the vendor filter keeps culverts) did not hold units on the road - the
+priority rule (iii) is the likely mechanism and is unread, so no cause is claimed. (N2) the strongest competitor to "the
+pass leaves (e)-(vi) undiscriminated" would be a reading that predicts a stop from 13.6 m - none was registered; the
+shore-following reading of (2) rests on 2-s fixes and an unprinted path, and on the planner and the actuator reading the
+same water, so it is [A] and is not used to retire (e). (Harness) the federate count rests on grep, not the script.
+Verified: the run directory (app log lines, trace, reports, manifest, thread samples, stop logs), the runner log, the rtiexec
+log's join and resign lines, the scorer re-run (W gate identical; chord rule; full mode), the OSM geometry on the scorer's
+tiles, the vendor RiverL filter, featureconfig and mech sysdef lines, UG52 27.1.4, the seat's go-live artefacts, C:\MAK\logs
+and the vendor log by name / size / mtime / count, the sim-cache listings. Assumed: S (docker start) and A2 as the seat
+records; that the aggregate terrain loads the RiverL file read here; the priority semantics; the planned paths; the pid of
+the pre-check and of Stage 2c (by join order).
