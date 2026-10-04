@@ -107,6 +107,12 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    ~0.6x speed dip on every T14 crossing chord (Result N1 (b)). Holder 67984 up to 04:22Z 10-05; marker 5296.
    IN FLIGHT (independent of the docs): lane LBL (Label = full C2SIM designation, item 5), lane HX (harness defects +
    stale PLAN rows: D2b/AF1-3/C1b are in the deployed 52f50e0), lane JS (Result NEXT 3c junction speeds, read-only).
+   DEMO TRACK (RL-20261004-04, 2026-10-04 ~21:40Z): demo readiness FIRST; the culvert, N1's cause, the speed dip, the G1-3
+   stack and small-part verbs/units are DEFERRED, not dropped. HX merged 4df7749, JS recorded (G1-5 ADDENDUM, dip unexplained),
+   Adding Content found (public) and indexed. In flight: G1-6 registration CUT TO THE MINIMUM (narrow culvert clause; the first
+   scored aggregate cut-A run, doubling as a Way-A rehearsal); LBL (labels); DR1 (read-only survey: the FULL 23-task order on
+   the aggregate profile - per-task outcome, blockers, recommended demo scope). Then: DEMO_RUNBOOK rewrite for aggregate Iron
+   Storm and a rehearsal. Demo date: not in the record (asked 2026-10-04).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
