@@ -211,6 +211,14 @@ below, PLAN_MOVEMENT row G1-6, RUNBOOK sec 11o, HANDOFF_SEAT sec 2 and Appendix 
 4. BRANCH CHOICE AT W: under (a) a W that passes too late for E by 03:22:51Z leaves the pre-warm's block spent and E under
    (b') later, with the shift recorded; the seat may prefer (b') from the start if W cannot begin by about 03:00Z.
 
+FABLE COLD REVIEW 2026-10-04 ~22:10Z (RL-20260928-04, sized per RL-20261004-04): GO - the one-scorer-change claim, the clause,
+the fail-first set (i)-(iv), the numbers and the hold arithmetic verified; two non-blocking notes: the banks limb is never the sole
+falsifier in a culvert control (correct by inspection); a chord within 15 m of the road x culvert point that cuts the same river
+elsewhere would read ON - RECORDED, no new gate. The index holds only two river-class culverts under drivable roads (1467512812
+and canal 265181802, far from the order).
+SEAT DECISIONS 2026-10-04, before any go-live step: the same-river condition is KEPT (fails safe); CULVERT_TOL_M 15 is APPROVED
+and frozen; the GUI rehearsal is separate (this run is headless); branch (b') is taken from the start if W cannot begin by 03:00Z.
+
 ## Result (written after the harvest, never from a live read)
 
 (empty - nothing has been run under this registration)
