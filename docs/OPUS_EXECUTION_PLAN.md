@@ -3643,6 +3643,7 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 5295: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
+- RESULT 2026-10-04 (G1-5 PRE-WARM 20261004T202533Z_run, IRONSTORM_AGG_G1-2026-10-04-5; from the harvest lane, Fable-checked): holder (b') 5281 CONSUMED (RtiProbe 67984), 5282-5284 BURNED; runner 5285 (back end 63444, StopVrf exit 6, no crash), 5287 (pre-check 67260 [A]), 5288 (trace 26380), 5289 (app 62220, exit 0), 5290 (Stage 2c, 34468 [A]), 5292 (Stage 2h holder 68076) CONSUMED; 5286, 5291, 5293-5295 BURNED. W GATE FAIL (P-FALS(e)) -> STOP before E; scored block 5296-5306 never claimed; marker 5285 -> 5296. Claims nothing.
 
 *** NEXT FREE: 5296 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)

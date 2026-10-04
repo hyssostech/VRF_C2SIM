@@ -100,7 +100,12 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    Wiersnianka (OSM 197345450 / 1467512812) at 54.01986,23.32848 with both banks on roads; 1467512812 is tagged
    tunnel=culvert under road 300614718 [V: waytags_t14_crossing.txt] - the ways rule has no culvert clause [reading A].
    Harness defect: g1_5_rti_federates.py misses the single-form join line of a fresh rtiexec (verified 1 join by hand).
-   NEXT: harvest lane (read-only Result) -> Fable cold -> owner RULE.
+   Result harvested (Fable ACCEPT WITH FIXES, applied) and MERGED 1758db2; Appendix B annotated. RULED RL-20261004-03: the
+   FAIL binds as scored; the culvert clause is G1-6's, registered before its run, and WAITS for the vendor Adding Content
+   manual (NOT INSTALLED - doc\AddingContent.pdf is a placeholder; the owner is finding the installer). Unexplained: a
+   ~0.6x speed dip on every T14 crossing chord (Result N1 (b)). Holder 67984 up to 04:22Z 10-05; marker 5296.
+   IN FLIGHT (independent of the docs): lane LBL (Label = full C2SIM designation, item 5), lane HX (harness defects +
+   stale PLAN rows: D2b/AF1-3/C1b are in the deployed 52f50e0), lane JS (Result NEXT 3c junction speeds, read-only).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
