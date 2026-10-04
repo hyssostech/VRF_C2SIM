@@ -157,6 +157,18 @@ public static class OsmSelfTest
         Check(overlay.ModelSet == "EntityLevel" && overlay.PreflightBuildingClearanceMeters == 10.0
               && overlay.PreflightVertexNudgeMaxMeters == 300.0,
               "the Demo overlay states them too");
+        // (c) RL-20261004-01: the member-slot water clearance, = the planner's 10 m buffer (RL-20260928-03).
+        var appCfg = new ConfigurationBuilder().AddJsonFile(app, false).Build().GetSection("Vrf");
+        var demoCfg = new ConfigurationBuilder().AddJsonFile(demo, false).Build().GetSection("Vrf");
+        Check(d.PreflightSlotWaterClearanceMeters == 10.0 && shipped.PreflightSlotWaterClearanceMeters == 10.0
+              && overlay.PreflightSlotWaterClearanceMeters == 10.0
+              && appCfg["PreflightSlotWaterClearanceMeters"] == "10" && demoCfg["PreflightSlotWaterClearanceMeters"] == "10",
+              $"(c) Vrf:PreflightSlotWaterClearanceMeters = 10 m (RL-20261004-01): the C# default, WRITTEN in appsettings.json and in the Demo overlay (got {d.PreflightSlotWaterClearanceMeters} / {shipped.PreflightSlotWaterClearanceMeters} / {overlay.PreflightSlotWaterClearanceMeters})");
+        Check((appCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20261004-01", StringComparison.Ordinal)
+              && (appCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20260928-03", StringComparison.Ordinal)
+              && (demoCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20261004-01", StringComparison.Ordinal)
+              && (demoCfg["_PreflightSlotWaterClearanceMeters"] ?? "").Contains("RL-20260928-03", StringComparison.Ordinal),
+              "(c) both files carry a _PreflightSlotWaterClearanceMeters entry citing RL-20261004-01 and the buffer's RL-20260928-03");
         string saved = Environment.GetEnvironmentVariable("Vrf__ModelSet");
         try
         {
@@ -717,6 +729,16 @@ public static class OsmSelfTest
         var v = svc.CheckVertices(route, 1.0, out var checkedRoute).Single();
         Check(!v.Moved && !v.Problem && checkedRoute[1] == a,
               $"(g) an authored VERTEX 1.7 m outside the pond is NOT moved - the vertex rule is unchanged ({v.Why})");
+
+        // (h) the start-up line says which water clearance the slot check uses.
+        string on = PreflightService.DescribeSlotCheck(new PreflightOptions());
+        string off = PreflightService.DescribeSlotCheck(new PreflightOptions { SlotWaterClearanceMeters = 0.0 });
+        Console.WriteLine($"     {on}");
+        Check(on.StartsWith("MEMBER SLOT CHECK", StringComparison.Ordinal)
+              && on.Contains("within 10 m of it (water clearance 10 m, Vrf:PreflightSlotWaterClearanceMeters", StringComparison.Ordinal)
+              && on.Contains("RL-20261004-01", StringComparison.Ordinal) && on.Contains("farther than 10 m from every OSM water", StringComparison.Ordinal)
+              && off.Contains("= 0: the rule before RL-20261004-01", StringComparison.Ordinal),
+              "(h) the start-up line states the slot water clearance in use (and says so when it is 0)");
     }
 
     // ================================================================= 9. "not on flagged slope"

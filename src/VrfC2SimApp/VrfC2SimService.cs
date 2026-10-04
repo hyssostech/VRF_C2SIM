@@ -3160,6 +3160,13 @@ public sealed class VrfC2SimService : BackgroundService
                                 : ContainerScripts.MoveAlongRoute,
                             ContainerScripts.MoveToLocationDirect,
                             ContainerScripts.PatrolRoute, _vrf.VertexArrivalRadiusMeters, _catalogue.Describe);
+        // RL-20261004-01: the member-slot check's rule, said once (the per-slot L-SLOT lines name the clearance too).
+        _log.LogInformation("{Line}", Preflight.PreflightService.DescribeSlotCheck(new Preflight.PreflightOptions
+            {
+                BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
+                VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
+                SlotWaterClearanceMeters = _vrf.PreflightSlotWaterClearanceMeters,
+            }) + (_vrf.PreflightRouteShift ? "" : " NOT RUN THIS RUN: Vrf:PreflightRouteShift is false - every slot is kept, UNVERIFIED."));
         var (roadFiles, roadEmpty) = RoadCache().Census(Preflight.OsmSet.Highways);
         _log.LogInformation("{Line}", AggregateMovePolicy.StartupLine(_movePlanner, true, _vrf.AllowLiteralMove,
                                                                        RoadProximityMeters(), roadFiles, roadEmpty,
@@ -3337,9 +3344,10 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// OFF THE TICK THREAD (tiles). Every member's slot through the M2 point test (PreflightService.CheckPoint: OSM
-    /// water under the model set's rules, OSM buildings within Vrf:PreflightBuildingClearanceMeters) and, when it is
-    /// wet or on a building, VertexNudgeSearch to the nearest clear ground within Vrf:PreflightVertexNudgeMaxMeters -
+    /// OFF THE TICK THREAD (tiles). Every member's slot through the M2 point test (PreflightService.CheckSlot: OSM
+    /// water under the model set's rules AND within Vrf:PreflightSlotWaterClearanceMeters, 10 m - RL-20261004-01; OSM
+    /// buildings within Vrf:PreflightBuildingClearanceMeters) and, when it is wet, inside the water clearance or on a
+    /// building, VertexNudgeSearch to the nearest clear ground within Vrf:PreflightVertexNudgeMaxMeters -
     /// reported like a moved vertex (design sec 5). Unknown ground is never clear, and never "bad": an unreadable slot
     /// is kept, UNVERIFIED.
     /// </summary>
@@ -7437,6 +7445,7 @@ public sealed class VrfC2SimService : BackgroundService
                     OsmFeatures = true,
                     BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
                     VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
+                    SlotWaterClearanceMeters = _vrf.PreflightSlotWaterClearanceMeters,
                 };
                 if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
                 _preflight = new Preflight.PreflightService(opt);
