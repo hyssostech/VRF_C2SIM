@@ -663,6 +663,10 @@ process started; never opened, and the vendor `.log` is never matched - it holds
 `Get-BackendCrashEvidence`), prints `CRASHED BEFORE THE CLOSE: ...`, and a crashed back end that then goes down is
 **exit 8** ("down, but NOT graceful"), never 0; one still up at the budget keeps 3 / 6 / 7. The runner reads 8 as down
 and VOIDS the window (sec 11o); the RunnerWatchdog reads 8 as down (nothing blocks the next launch) and names the crash.
+LIVE RECORD (G1-4 pre-warm, run 20260928T225800Z, this StopVrf52): exit 8 NOT seen live - there was no crash. The graceful
+close was refused for 120 s (windows `NVOGLDC invisible` and `Default IME` only, no `Error vrfSimHLA1516e.exe` modal, no
+`CRASHED BEFORE THE CLOSE` line) and the run's own back end, pid 40228, was forced: exit 6 (stopvrf.stdout.log). Exit 6 on
+the M3b StopVrf52 is a first [A]; exit 6 itself was seen live before (the E1, E2, E2-2, LIVE2, G1 and G1-2 Results).
 
 Also: the 8/8 clean teardown record is HEADLESS (79/79 StopVrf52 runs with no vrfGui) and
 says nothing about GUI-on teardown; D1 was 1 of 80.
@@ -4190,6 +4194,8 @@ member's move-along subtask asked for route `"<member> Pathr"` and `DtAggregated
 subtask stops, whatever that subtask's result - navigate-to-location.lua :252-259), and M3 advanced past a vertex the unit had
 not moved from (L9979: `1451 m from it and moved 0 m`). At vertex 2 two members failed `Cound not create route`; the back end
 crashed at 19:05:16Z (crash record + `Error vrfSimHLA1516e.exe` modal) and the window ran on to 19:07:22Z unaware.
+**SEEN LIVE 2026-09-28 ON THE M3b BUILD (G1-4 pre-warm, run 20260928T225800Z): 22 of 23 tasked members moved, 0 `route does
+not exist`; the W gate FAILED on H5 and P-FALS(e) and binds as scored (RL-20261004-01).** M3b's paragraph below has the parts.
 THE MECHANISM (vendor files, VrfNames.cs): the script names its route `<member> Path part <n>` (.lua :223); the route's uuid is
 the string `<name>_<counter>` (the vendor's own save: `JAM-137 Path part 1_8`, RoadToKaunasPhaseTwo.oob :103563-103565, and its
 move-along `(route "VRF_UUID:JAM-137 Path part 1_8")` :72127); a move-along carries its route as a DtUUID (moveAlongTasks.h
@@ -4198,7 +4204,8 @@ routes) came back cut to 35 - `1-112_IN/28ID__FRIENDLY_I.RIF2 Path` plus one jun
 route up by that reference (aggregatedMoveAlongController.h :70-77), found nothing. The same cut on the interface's OWN routes
 was MANIPULATED and proven on 2026-09-02 (PREREG_ROUTE_NAME_LENGTH_2026-09-02: <= 34 marched, >= 36 froze). NOT the
 destination binding (bridge-spikes/ScriptVarSerializeProbe records that refuted hypothesis). M3b (branch
-`fix/planned-move-destination`, managed only, OFFLINE-PROVEN ONLY): (1) THE ROUTE-NAME BUDGET - a container member is at most
+`fix/planned-move-destination`, managed only; merged 739cce2, deployed b0bad53 2026-09-28 21:20Z, sec 9; what G1-4 saw of
+each part closes this paragraph): (1) THE ROUTE-NAME BUDGET - a container member is at most
 16 characters, `<container designator, cut>[~k].<suffix>` (`1-112_IN.RIF2`; 34 - 11 ` Path part ` - 2 part digits - 5
 `_<counter>`, whose range the vendor documents nowhere), its uuid unchanged (C1d), the POPULATE / IDENTITY lines printing each
 short name beside the member's full name; (2) EXECUTOR REFUSED - a planned INTERMEDIATE vertex that reports success while the
@@ -4208,11 +4215,17 @@ never D-6's withhold; a lone platform's chain (M1) and the LAST vertex (D-6) are
 the back end every 10 s of the window (crash record by name and mtime, the crash modal, the process gone, WatchVrf backends=
 1 -> 0), records `BACK END CRASHED at <t> - the window is VOID (...)` once (manifest `backendCrash`), promotes exit 0 to 3, and
 StopVrf52 reports a crashed back end as exit 8, not graceful (sec 0.5.9). Tests: `--populate-selftest` p16, `--planned-move-
-selftest` m10 (and m7, m6), `--rulings-selftest` s13, RunnerTurnaround section 14 - each fail-first on G1-3's own lines. ONLY
-G1-4 can prove the members MOVE: its falsifier is 0 `route does not exist`, the members' positions changing, a vertex that
-completes near its point; if the short names still fail, the name is not the cause and the buffer 10 is next (the vendor
-route this controller follows in RoadToKaunasPhaseTwo.oob :72076-72130 was planned with buffer 0); the unpublished route is a
-weaker suspect - that vendor route was unpublished too (displayRoute False, `(publish-flag 0)` :103561) and was followed.
+selftest` m10 (and m7, m6), `--rulings-selftest` s13, RunnerTurnaround section 14 - each fail-first on G1-3's own lines.
+SEEN LIVE ONCE, G1-4's pre-warm (run 20260928T225800Z; PREREG_IRONSTORM_AGG_G1-4_2026-09-28.md Result): (1) NAMES - 35 of
+35 references carried whole (`<member> Path part <n>`, n = 1 on T10 and T14, 1-3 on T02; no `_<counter>` printed), 0 `route
+does not exist` (G1-3: 15); 22 of 23 tasked members moved on the script's routes, and four planned vertices closed 6-55 m from
+their points. The 23rd, 48_IBCT.INF3WPN1, sat at 0.0 m with its move-along running on the whole reference; it is read as a
+terrain hold at its nudged birth point [A], with the planner's 10 m obstacle buffer as the unexcluded competitor (Result N1).
+The name reading is consistent with this run; n = 1 is not proof of cause, and the "buffer 10 next" branch (the vendor's
+followed route, RoadToKaunasPhaseTwo.oob :72076-72130, was planned with buffer 0) and the unpublished-route suspect did not
+arise. (2) EXECUTOR REFUSED - did not fire: no vertex closed vacuously. T14's vertex 1 never closed at all (one member never
+ended, so the stall watchdog sent TASKABRT), a case (2) does not judge. (3) CRASH-VOID - did not fire: no crash (no crash
+record by name, no modal, backends never 1 -> 0), so the crash branch and StopVrf exit 8 stay OFFLINE-PROVEN ONLY.
 
 Ruled RL-20260928-03 (owner, "AUTO it is"; basis docs/experiments/FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md):
 on AggregateTacticalLevel a tasked container's ROUTE is no longer C1's PA_Move_Along_Route (every member on STP's straight
@@ -4245,8 +4258,8 @@ OFFLINE run on a cache without them decides every leg UNKNOWN -> NONE (the deplo
 `--planned-move-selftest [cache]` (72; the cache argument prints the per-leg decision for the cut-A legs), `--rulings-
 selftest` d10 (no container move issues PA_Move_Along_Route unless Literal) and s12 (the default as shipped), `--osm-selftest`
 (the report-only pond and river), `--populate-selftest` p11 (the variables bind as DtRwVector / DtRwString / DtRwReal /
-DtRwBoolean). DEPLOYED (R4) AND RUN LIVE ONCE: G1-3 - Auto moved nothing (the tripwire at the head of this section); M3b's
-fixes are offline-proven only until G1-4.
+DtRwBoolean). DEPLOYED (R4) AND RUN LIVE TWICE: G1-3 - Auto moved nothing (the tripwire at the head of this section); G1-4
+on M3b - 22 of 23 members moved, 0 refusals (M3b's paragraph above); M3b's crash branch and exit 8 remain offline-proven only.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

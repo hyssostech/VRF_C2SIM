@@ -27,11 +27,11 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
   03226dd0 (NEW PIN 13:34Z, C1d); the road layer staged: 41 osm-highways tiles in the deployed preflight-cache (manifest
   213bae20...). The M3b lane (below) changes managed code only - a managed rebuild of the ten consumers redeploys it
   (RUNBOOK sec 9 R2/R4 procedure); tools/RtiProbe's tree is held open by the live holder and its code is unchanged.
-- Live holder: RtiProbe pid 56380, appNo 5255, joined 19:00:02Z, resigns on its own ~03:00Z 2026-09-29. NEVER kill it or
-  rtiexec/rtiForwarder/rtiAssistant. While it is up every launch only JOINS.
-- Ledger marker (docs/OPUS_EXECUTION_PLAN.md Appendix B): `*** NEXT FREE: 5270 ***`. 5255 = the holder; 5256-5258
-  burned; the G1-3 pre-warm took 5259-5269. G1-4 while 56380 is up: pre-warm 5270-5280, scored 5281-5291, marker 5292.
-  After it resigns: a holder claim first (5270-5273), pre-warm 5274-5284, scored 5285-5295, marker 5296.
+- 2026-10-04: G1-4 Result merged (91d84ba), ruling RL-20261004-01. Holder 56380 (appNo 5255) GONE since the owner's reboot
+  2026-09-28 23:16:45Z; the RTI trio is down (Stage 2r starts a fresh rtiexec). NEVER kill rtiexec/rtiForwarder/rtiAssistant.
+- Ledger marker (docs/OPUS_EXECUTION_PLAN.md Appendix B): `*** NEXT FREE: 5281 ***` (the G1-4 pre-warm took 5270-5280; its
+  scored block was never claimed). G1-5, branch (b'): holder claim 5281-5284 (marker -> 5285), pre-warm 5285-5295 (-> 5296),
+  scored 5296-5306 (-> 5307).
 - M3b MERGED as 739cce2 (branch fix/planned-move-destination 5ae2193; managed only, pin 03226dd0 stands): (1) member DISPLAY names
   at most 16 characters (VrfNames.cs, ContainerComposition.cs) so the vendor script's route reference "<member> Path part N_<counter>"
   fits the 35-byte DtUUID payload (uuid.h :247-249; the 2026-09-02 cut, PREREG_ROUTE_NAME_LENGTH; the vendor's own saves name a
@@ -42,7 +42,8 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
   DEPLOYED 2026-09-28 21:20Z (Opus seat): ten consumers at 1.0.0+git.b0bad53.Release-5.2, all eleven trees at pin 03226dd0,
   appsettings redeployed, 779/0/1 (RUNBOOK sec 9, "M3b DEPLOY" line); RtiProbe not rebuilt (held; code unchanged; optional).
   Unexplained, carried: the back-end crash (callstack unread; the owner's call); vertex 2's "Cound not create route" for two
-  members. Next hypothesis if short names still fail in G1-4: buffer 10 (the vendor's save used 0).
+  members. Next hypothesis if short names still fail in G1-4: buffer 10 (the vendor's save used 0) - did not arise: G1-4
+  carried 35 of 35 references whole with 0 refusals (n = 1).
 - The STP session (stp-live-picture-d8, STP-850) holds a PR #1 (fix/stp-850-start-at-max) on this repo: the task-start
   anchor at receipt. Review it here with the record rules; the DEFAULT anchor (Receipt) is the owner's to confirm.
 
