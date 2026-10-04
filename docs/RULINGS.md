@@ -3,28 +3,13 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-04). 0927-05, -03, -02 archived on 10-04 (for 1004-01..-03).
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-05). 0927-05, -03, -02, -04 archived on 10-04 (1004-01..-03, -05).
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
-
-RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-turn follow-up)
-  Q (as put, P6251, the seat's C1 decision brief, its "Decisions owed" D-1..D-8 with a recommendation each; D-2 read: "Brigade depth: manoeuvre elements
-    only, 17 units (recommended). The catalogue has no US engineer or support battalions; a full TO&E adds nothing that moves or fights." and the close:
-    "If you take the recommendations as a block, 'as recommended' is enough and the code lane starts when E2 has finished.")
-  A (owner, P6260): "As recommended. But clarify D-2 - "The catalogue has no US engineer or support battalions". But there are engineering tasks. Can't the
-    units be authored even if not in the catalog?"
-  A (owner, P6304): "Same for support and other missing from catalog"
-  supervisor reading: D-1, D-3..D-8 as recommended (28ID as HQ only; company-level HQ; Mech CO for a US rifle company; performer only populated; withhold
-    a short/vacuous container completion; TO twins display-only; flat containers). D-2 REVISED by him: compose to doctrine (FM 3-96), and AUTHOR the US unit
-    types the aggregate catalogue lacks - engineer, support and any other - as new unit types (UG52 72.2 parameters incl. Engineering systems; 27.2.3;
-    the aggregate breach/obstacle tasks exist) in the derived model set, from the catalogue's own engineer/support units of other nations (Engineering BN
-    (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)). Sequencing (seat's, not his): G1 proves the container mechanism with catalogue units
-    first; the authored battalions join the composition as package C2 lands.
-  pointer: DESIGN_AGGREGATE_CONTAINERS_2026-09-27 secs 6-9; PLAN_MOVEMENT_2026-09-27 rows C1, C2, G1; tools/sms/Deploy-C2SimSms.ps1 (the recipe pattern).
 
 RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompted)
   Q (as put): none - the seat's rationale at P5335 stood as Y-15: "Entity level for company-and-below orders; aggregate level for battalion-and-above,
@@ -118,3 +103,12 @@ RL-20261004-04 | 2026-10-04 | VERBATIM - Q1275, TYPED, unprompted (after the sea
   supervisor reading: demo readiness first; what does not block a credible WIP demo (the culvert, N1's cause, the speed dip, the G1-3
     crash stack, verbs/units in a small part of the order) is deferred, not dropped; registered runs go on where cheap or as rehearsals.
   pointer: HANDOFF_SEAT_2026-09-28 sec 3 item 3-4 (the demo track); PLAN_MOVEMENT row G2.
+RL-20261004-05 | 2026-10-04 | VERBATIM - Q1452, TYPED
+  Q (seat, Q1433): "Still waiting on you: 1. G1-6 go-live [...] 2. Tier 2: compositions for the five missing brigades. 3. Demo path:
+    Way A or Way B. 4. Label display: the operator toggles it in the GUI, or the script edits a file under C:\MAK." [...]
+  A (owner, Q1452): "(1) go. (2) is the composition available as public unclass information? (3) B. (4) is this robust? I need this to
+    work on every installed instance of this component. Ok to change C:\MAK, but needs to be automated/reproducible"
+  supervisor reading: (1) G1-6 go-live authorised. (2) a question, not a ruling: compositions only from public unclassified sources.
+    (3) the demo runs WAY B (STP pushes its own order). (4) the Label decoration may be written under C:\MAK ONLY by an automated,
+    reproducible, verifiable deploy step that works on every installed instance; no hand edits.
+  pointer: PREREG_IRONSTORM_AGG_G1-6_2026-10-04; tools/display/Enable-LabelDecoration.ps1 (feat/full-designation-label).
