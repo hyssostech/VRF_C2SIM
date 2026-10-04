@@ -8,6 +8,7 @@
 #      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01, RL-20260921-05, RL-20260926-01,
 #      RL-20260927-01 (moved 2026-09-28, unchanged, to make room for RL-20260928-01; the movement approach it approved is implemented and live-proven).
 #      RL-20260927-05 (moved 2026-10-04, unchanged, to make room for RL-20261004-01; option (a) is implemented, fix/gate-late-predecessor).
+#      RL-20260927-03 (moved 2026-10-04, unchanged, to make room for RL-20261004-02; C13 for containers, implemented and live since G1-2).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -475,3 +476,12 @@ RL-20260927-05 | 2026-09-27 | status VERBATIM - P6612, TYPED (mid-turn)
   A (owner, P6612): "Q1 a"
   supervisor reading: option (a) as put. The no-Duration mover (never OVERDUE, skipped at the floor) was named as outside Q1 and is not decided here.
   pointer: fix/gate-late-predecessor; RUNBOOK sec 11; TimerAnchorSelfTest t4; RL-20260925-01 (archive) Q1.
+
+RL-20260927-03 | 2026-09-27 | status VERBATIM - P6030, TYPED, unprompted (restates C13 for the container work)
+  Q (as put): none - the seat's preceding message (the RL-20260927-02 exchange) had said C1 populates containers.
+  A (owner, P6030): "Another thing that is settled already is that the only units that need to be hydrated are the ones that are actually task. No
+    reason to carry the whole tree if just a few units are actually meaningful for the simulation. I still want all units to show on the map on
+    initialization though."
+  supervisor reading: C13 restated for C1 (RL-20260906-02 "just 11 taskees ... the only ones that need to be simulated"; PREREG_ORDER_TIME_MATERIALIZATION:
+    display at init, configure at order time): every unit is an empty container at init, visible at its authored position; only a tasked unit is populated.
+  pointer: PLAN_MOVEMENT_2026-09-27 row C1; CreationPolicy=AtOrder (C13) in VrfC2SimService; PREREG_ORDER_TIME_MATERIALIZATION_2026-09-06 sec 2.

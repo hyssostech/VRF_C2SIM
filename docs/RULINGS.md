@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01). 0927-05 archived on 10-04 (for 1004-01).
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01, -02). 0927-05, 0927-03 archived on 10-04 (for 1004-01, -02).
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -26,15 +26,6 @@ RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
     corps -> division -> brigade (15 Superior relations, 4 battalions); brigade -> battalion/company composition is NOT in it and must come from the
     catalogue's configured sub-units or an authored composition table (DESIGN_ORBAT_TO_VRF sec 5 (b)) - the source of that table is not decided here.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1, G1; AGGREGATE_CATALOGUE_2026-09-27; DESIGN_ORBAT_TO_VRF_2026-09-06 secs 1, 2, 5.
-
-RL-20260927-03 | 2026-09-27 | status VERBATIM - P6030, TYPED, unprompted (restates C13 for the container work)
-  Q (as put): none - the seat's preceding message (the RL-20260927-02 exchange) had said C1 populates containers.
-  A (owner, P6030): "Another thing that is settled already is that the only units that need to be hydrated are the ones that are actually task. No
-    reason to carry the whole tree if just a few units are actually meaningful for the simulation. I still want all units to show on the map on
-    initialization though."
-  supervisor reading: C13 restated for C1 (RL-20260906-02 "just 11 taskees ... the only ones that need to be simulated"; PREREG_ORDER_TIME_MATERIALIZATION:
-    display at init, configure at order time): every unit is an empty container at init, visible at its authored position; only a tasked unit is populated.
-  pointer: PLAN_MOVEMENT_2026-09-27 row C1; CreationPolicy=AtOrder (C13) in VrfC2SimService; PREREG_ORDER_TIME_MATERIALIZATION_2026-09-06 sec 2.
 
 RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-turn follow-up)
   Q (as put, P6251, the seat's C1 decision brief, its "Decisions owed" D-1..D-8 with a recommendation each; D-2 read: "Brigade depth: manoeuvre elements
@@ -118,3 +109,10 @@ RL-20261004-01 | 2026-10-04 | VERBATIM - Q171, TYPED
     fails alone, 16.24 m > 15). (2) G1-5 gates H5 on every tasked member, on a build whose nudged member slots clear OSM water by >= the
     planner's 10 m buffer; its scorer's bridge rule reads the fixes against the road/bridge ways, fail-first on G1-4's pre-warm.
   pointer: PREREG_IRONSTORM_AGG_G1-4_2026-09-28 Result (N1-N3, COLD REVIEW AND RULING); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20261004-02 | 2026-10-04 | VERBATIM - Q478, TYPED
+  Q (seat, Q475, after Fable's GO WITH FIXES on lane W1): "Should slots that lie within 10 m of water, not only in it, be moved, with no bridge
+    exemption for slots? I recommend keeping both, since they change nothing on cut A. Reply "keep both" or "inside-only"."
+  A (owner, Q478): "Keep both"
+  supervisor reading: RL-20261004-01's slot clearance applies to a member slot IN OSM water or WITHIN the clearance of it (a slot at
+    exactly the clearance is in the band), and a road bridge exempts nothing for a slot; STP route vertices are untouched (M2's rule).
+  pointer: fix/slot-water-clearance (e4badc8, 03a350d, 377ce98); Vrf:PreflightSlotWaterClearanceMeters; --osm-selftest 8b, (d), (g)-(j).
