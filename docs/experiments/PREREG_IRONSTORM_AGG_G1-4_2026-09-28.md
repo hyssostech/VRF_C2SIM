@@ -467,7 +467,7 @@ RESULT 2026-09-28: STOPPED AT THE W GATE - NO SCORED RUN. The pre-warm (run 2026
 exit 0 at about 23:07:14Z) scored "W GATE: FAIL (branch A; H5, P-FALS(e)) - STOP before E" (g1_4_score.py --wgate, sha256
 8f7f5fd3...; scratch laneG1-4\W_gate_20260928T225800Z_run.txt). E was not launched: P0-P23 and H6 are NOT SCORED and the
 scored block 5281-5291 was never claimed. M3b's question is answered at n = 1 (below): 22 of 23 tasked members moved on the script's routes; the 23rd is read as
-a terrain hold (N1, [A]). The two misses are not read as M3b's: one T14 member never moved off a lake shore (N1) and T02's member crossed its river 16 m from a road
+a terrain hold (N1, [A]; WEAKENED 2026-10-04, ADDENDUM under N1 (e)). The two misses are not read as M3b's: one T14 member never moved off a lake shore (N1) and T02's member crossed its river 16 m from a road
 bridge by the scorer's chord (N2); the H5 limb that stopped the gate governs as written
 (N3). By the stop rules (sec 4) nothing is patched or re-run under this registration; the successor is IRONSTORM_AGG_G1-2026-
 09-28-5 or later, with new numbers. Marks: [V] = checked by this lane after the run (the run directory, the runner log, the
@@ -571,6 +571,20 @@ N1 - 48_IBCT.INF3WPN1 NEVER MOVED [V]:
     streamed features (VRFSIM.Aggregate.feature.model.xml maps OSM water to its Lake layer - FINDING_GROUND_MOVEMENT_PRACTICE
     :184-190 [A]), not our cached tiles, and no feature query at that point is in the evidence. What the app did is settled:
     its nudge stops at the OSM polygon's edge, so a member can be born a metre from a shoreline.
+    ADDENDUM 2026-10-04 - (e) WEAKENED (lane G1-5, after Fable's cold review of the G1-5 registration, scratch 7207877b...\
+    fable_g15 ITEM 5; NOT re-scored). MEASUREMENT [V: G1-2's scored run vrfc2simapp.log L644 and the traces of both G1-2 runs;
+    scratch laneG1-5\g1_5_inf3wpn1_runs_out.txt]: in G1-2's scored run and pre-warm (20260928T142731Z / 20260928T141734Z - the
+    literal path, build 699552c, PA_Move_Along_Route, so no navigate-to-location and no planner buffer) INF3WPN1 was born at the
+    same point (54.022048, 23.309402) and moved 1,662.5 m / 1,660.2 m; G1-3 at the same point read 0.0 m because the executor
+    refused every route (uninformative). MEASUREMENT [V: fable_g15\nearest_road.py, re-run as laneG1-5\
+    g1_5_nearest_road_rerun.txt]: the straight segment from that birth point to the nearest drivable road (OSM 595161645, 292.7 m)
+    cuts lake 16373225; INF3RIF3 (113.6 m from the lake, moved in this run) has its road segment cutting the lake too; the three
+    siblings 2.3-7.5 m from lake 197345448 (moved) have segments clear of water. READING [A]: (e) as written - impassable water
+    under the unit's centre from its first tick - predicts no move from that point whatever the route, under the same aggregated
+    movement actuator; two literal runs moved, so (e) survives only through the sim's streamed water differing between runs or
+    through a route-dependent element ((v) or (vi)). The composite reading - a start INSIDE the 10 m planner buffer WITH THE LAKE
+    BETWEEN THE START AND THE ROAD NETWORK - fits every run [A]. G1-5 cannot discriminate between them
+    (PREREG_IRONSTORM_AGG_G1-5_2026-10-04.md sec 7).
 THE COMPETITORS [V]: (i) the executor refused the route (G1-3's mechanism) - EXCLUDED: 0 refusals, the subtask began on the
 whole reference, 16 siblings moved on identical references. (ii) a planning failure - EXCLUDED: the script starts the
 subtask only after a path of two or more points and a route that passed its validity check (lua :177-186, :213-246), and 0
@@ -666,7 +680,7 @@ counts only. Vendor log counts: "Path part" 35, "48_IBCT.INF3WPN1" 13, "Movement
 The 5.2 command line was G1-3's byte for byte (the log name aside).
 
 WHAT IT MEANS (implication, not measurement): M3b (1) did what it was built for - every member's move-along took its
-whole reference (35 of 35, 0 refusals) and 22 of 23 members moved, the 23rd read as a terrain hold (N1, [A]); M3b (2) had nothing to refuse; M3b (3) had nothing to void. The pre-warm's two misses are a birth slot
+whole reference (35 of 35, 0 refusals) and 22 of 23 members moved, the 23rd read as a terrain hold (N1, [A]; WEAKENED 2026-10-04, ADDENDUM under N1 (e)); M3b (2) had nothing to refuse; M3b (3) had nothing to void. The pre-warm's two misses are a birth slot
 at a shoreline and a scorer chord across a bridge - neither is read as the M3 planner's, the executor's or M3b's ([A] for N1).
 The W gate's FAIL rests on an H5 limb that governs as written (N3) and a P-FALS (e) reading the fixes can neither confirm nor exclude (N2);
 both are recorded here and neither is re-scored. A member born a metre from water and a vertex held open by a member that
