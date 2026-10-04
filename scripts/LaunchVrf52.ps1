@@ -943,6 +943,35 @@ if (-not $NoGui) {
     }
 }
 
+# LBL PRE-FLIGHT (RL-20261004-05) - IS THE LABEL SYMBOL DECORATION ON IN THE GUI THIS LAUNCH STARTS? READ-ONLY.
+# The interface creates every object with its full C2SIM designation as its vendor Label (LBL); the map shows it only when
+# the GUI's Label decoration is ON (UG52 21.2.3 p473-474), a GLOBAL setting in <appData>\settings\vrfGui (UG52 3.7.2 p126,
+# 3.7 p125). The DEPLOY that turns it on is tools\display\Enable-LabelDecoration.ps1 (RUNBOOK sec 9). This block only
+# READS (LabelDecorationLib.ps1's Test-LabelDecorationFile) and WARNS - it NEVER edits at launch, and like the teardown
+# precheck above it is advisory: a read failure is a WARN and can never fail a launch (child scope, try/catch).
+if (-not $NoGui) {
+    $lblAppData = $(if ([string]::IsNullOrWhiteSpace($AppDataDir)) { Join-Path $VrfRoot 'appData' } else { $AppDataDir })
+    $lblFile = Join-Path $lblAppData 'settings\vrfGui\default_SymbolDecorationSettings.symx'
+    try {
+        $lblState = & {
+            param($libPath, $file)
+            . $libPath
+            Test-LabelDecorationFile -Path $file
+        } (Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\display\LabelDecorationLib.ps1') $lblFile
+        if ($lblState.Status -eq 'on') {
+            Say-Ok ('Label decoration ON in {0} ({1}) - the map shows each object''s full C2SIM designation (LBL).' -f $lblFile, $lblState.Detail)
+        } else {
+            $lblWhy = if ($lblState.Status -eq 'off') { $lblState.Detail } else { $lblState.Status.ToUpperInvariant() + ' - ' + $lblState.Detail }
+            Say-Warn ('LABEL DECORATION NOT ON in {0}: {1}' -f $lblFile, $lblWhy)
+            Say-Warn '  The map will show only the CUT names (30 characters a unit, 16 a member), not the full C2SIM designations.'
+            Say-Warn '  FIX (the deploy step, RL-20261004-05; with NO vrfGui running): pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -WhatIf, then without -WhatIf. NOT A REFUSAL - this launch goes on.'
+        }
+    } catch {
+        Say-Warn ('could not read the Label decoration setting under {0}: {1} (advisory only - the launch is not affected).' -f $lblAppData, $_.Exception.Message)
+    }
+}
+# END LBL PRE-FLIGHT
+
 # Mixed-RTI environment report (Machine scope, informational - overridden per process)
 $mRti = [Environment]::GetEnvironmentVariable('MAK_RTIDIR','Machine')
 $mRid = [Environment]::GetEnvironmentVariable('RTI_RID_FILE','Machine')

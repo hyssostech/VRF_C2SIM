@@ -3856,6 +3856,10 @@ $sayScripts = Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'scripts') -Filter
 $runnerLibPath12 = Join-Path $RepoRoot 'scripts\RunnerLib.ps1'
 $runnerLibAst12 = [System.Management.Automation.Language.Parser]::ParseFile($runnerLibPath12, [ref]$null, [ref]$null)
 $runnerLibFuncs12 = @($runnerLibAst12.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+# LBL (RL-20261004-05): LaunchVrf52 also dot-sources tools\display\LabelDecorationLib.ps1 (in a child scope, as it does
+# RunnerLib) for its read-only Label pre-flight - resolved the same narrow way, by the operator plus the literal filename.
+$lblLibAst12 = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'tools\display\LabelDecorationLib.ps1'), [ref]$null, [ref]$null)
+$lblLibFuncs12 = @($lblLibAst12.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
 
 # 12b widens the same walk to ANY Verb-Noun call name: undefined-locally, not dot-sourced
 # from RunnerLib.ps1, and not resolvable by Get-Command in this process (this test itself
@@ -3889,6 +3893,7 @@ foreach ($f12 in $sayScripts) {
     foreach ($callName12 in @($allCommandNames12 | Where-Object { $_ -match '^[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9]*$' })) {
         if ($ownFuncs12 -contains $callName12) { continue }
         if ($dotSourcesRunnerLib12 -and ($runnerLibFuncs12 -contains $callName12)) { continue }
+        if ($dotSourced12.Count -gt 0 -and $text12 -match 'LabelDecorationLib\.ps1' -and ($lblLibFuncs12 -contains $callName12)) { continue }
         if (Get-Command $callName12 -ErrorAction SilentlyContinue) { continue }
         $unresolvedAny12.Add("$($f12.Name): $callName12")
     }
@@ -4475,7 +4480,8 @@ try {
     $lbBlock = if ($lv52Lbl -match '(?s)# LBL PRE-FLIGHT.*?# END LBL PRE-FLIGHT') { $Matches[0] } else { '' }
     Check '15j LaunchVrf52 reads the Label decoration of the appData it hands the GUI (Test-LabelDecorationFile, in a child scope, inside try) and WARNS when it is not ON - it never writes' (
         $lbBlock -match 'LabelDecorationLib\.ps1' -and $lbBlock -match 'Test-LabelDecorationFile' -and $lbBlock -match 'Say-Warn' -and
-        $lbBlock -match 'try \{' -and $lbBlock -notmatch 'Set-LabelDecorationText|WriteAllText|Copy-Item|Enable-LabelDecoration\.ps1 -(?!Verify)' -and
+        $lbBlock -match 'try \{' -and $lbBlock -notmatch 'Set-LabelDecorationText|WriteAllText|Copy-Item|&\s*[^
+]*Enable-LabelDecoration' -and
         $lbBlock -match 'if \(-not \$NoGui\)') ('block length {0}' -f $lbBlock.Length)
     # (k) ASCII + CRLF on the deploy's two files
     $lblBad = @()
