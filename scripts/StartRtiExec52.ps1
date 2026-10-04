@@ -124,7 +124,7 @@ $logFile   = Join-Path $logDir ('rtiexec_{0}.log' -f $logStamp)
 Say ("  RtiDir       : {0}" -f $RtiDir)
 Say ("  rid (SHARED) : {0}" -f $ridPath)
 Say ("  rendezvous   : TCP {0} / UDP {1} on {2}, dest {3}, forwarder port {4}" -f $TcpPort, $UdpPort, $InterfaceAddress, $DestAddress, $ForwarderPort)
-Say ("  log          : {0}" -f $logFile)
+Say ("  log          : {0} (-l; the rtiexec writes it as rtiexec_{1}<version>-<date>-<time>-<host>-<id>-<pid>.log)" -f $logFile, $logStamp)
 
 $hardFail = $false
 foreach ($chk in @(
@@ -182,6 +182,23 @@ function Get-RtiProcs {
         }
     }
     return @($out)
+}
+# THE LOG THE RTIEXEC ACTUALLY WRITES. The vendor's rtiexec does not use the -l name as given:
+# it drops ".log" and appends "<version>-<date>-<time>-<host>-<id>-<pid>.log" (G1-5, 2026-10-04:
+# -l rtiexec_20261004T202200Z.log -> rtiexec_20261004T202200Z5.0.1-20261004-162202-Legatus-
+# 281993-65540.log; LaunchVrf52's Get-RtiExecLogForPid records the same suffix). An exact-path
+# test therefore WARNed "NOT created" about a log that existed (PREREG_IRONSTORM_AGG_G1-5 Result
+# N4 (d)). Found by THIS run's stamp prefix AND the started pid, newest first; the bare -l name
+# is accepted too, should a vendor build ever honour it. '' when there is none.
+function Find-RtiExecLog {
+    param([string]$LogDir, [string]$LogStamp, $RtiExecPid)
+    if (-not $LogDir -or -not $LogStamp -or -not (Test-Path -LiteralPath $LogDir -PathType Container)) { return '' }
+    $exact = Join-Path $LogDir ('rtiexec_{0}.log' -f $LogStamp)
+    $hits = @(Get-ChildItem -LiteralPath $LogDir -File -Filter ('rtiexec_{0}*.log' -f $LogStamp) -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -eq $exact -or ($RtiExecPid -and $_.Name -like ('*-{0}.log' -f $RtiExecPid)) } |
+              Sort-Object LastWriteTimeUtc -Descending)
+    if ($hits.Count -gt 0) { return $hits[0].FullName }
+    return ''
 }
 
 # ---- THE PLAN, printed BEFORE the inventory decides whether it is needed -----
@@ -269,23 +286,33 @@ $listen  = Get-TcpListener -Port $TcpPort
 $alive   = [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue)
 $nowFwd  = @(Get-RtiProcs -Name 'rtiForwarder' -UnderDir $rtiBin)
 $fwdPidText = if (@($nowFwd).Count -gt 0) { [string]@($nowFwd)[0].Id } else { 'none' }
+# The log is looked for by stamp + pid (Find-RtiExecLog); a few seconds' grace in case the
+# rtiexec has not opened it yet. $logReport is what every line below names: the REAL file when
+# found, else the -l name (the runner's Get-RtiExecLogPath then falls back to the pid glob).
+$logFound = ''
+for ($i = 0; $i -lt 5; $i++) {
+    $logFound = Find-RtiExecLog -LogDir $logDir -LogStamp $logStamp -RtiExecPid $proc.Id
+    if ($logFound) { break }
+    Start-Sleep -Seconds 1
+}
+$logReport = if ($logFound) { $logFound } else { $logFile }
 
 Say-Head 'Readiness'
-if (-not $alive) { Say-Fail ('rtiexec pid {0} EXITED. The rtiexec exits when it cannot start its own rtiForwarder (RTI UG 4.2.1 p4-11) - read {1}.' -f $proc.Id, $logFile) }
+if (-not $alive) { Say-Fail ('rtiexec pid {0} EXITED. The rtiexec exits when it cannot start its own rtiForwarder (RTI UG 4.2.1 p4-11) - read {1}.' -f $proc.Id, $logReport) }
 elseif ($listen.listening) { Say-Ok ('TCP {0} LISTENING (owner pid {1}, via {2})' -f $TcpPort, $listen.owningPid, $listen.source) }
 else { Say-Fail ('rtiexec pid {0} is alive but NOTHING is listening on TCP {1} after {2}s. PRESENCE IS NOT HEALTH.' -f $proc.Id, $TcpPort, $ReadyTimeoutSec) }
 if (@($nowFwd).Count -gt 0) { Say-Ok ('rtiForwarder pid {0} (started BY the rtiexec, not by this script)' -f $fwdPidText) }
 else { Say-Warn 'no rtiForwarder process visible - the rtiexec starts its own; reliable transport needs it (RM 10.1.2 p10-3).' }
-if (Test-Path -LiteralPath $logFile) {
-    Say-Ok ('rtiexec log tail ({0}):' -f $logFile)
-    Get-Content -LiteralPath $logFile -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Say ('         | ' + $_) }
-} else { Say-Warn ('rtiexec log NOT created at {0}' -f $logFile) }
+if ($logFound) {
+    Say-Ok ('rtiexec log tail ({0}):' -f $logFound)
+    Get-Content -LiteralPath $logFound -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Say ('         | ' + $_) }
+} else { Say-Warn ('rtiexec log NOT found under {0}: no rtiexec_{1}*-{2}.log (the vendor suffixes the -l name) and no {3}' -f $logDir, $logStamp, $proc.Id, $logFile) }
 
 Say-Head 'Result'
 if ($alive -and $listen.listening) {
-    Say-Ok ('RTIEXEC READY rtiexec={0} forwarder={1} tcp={2}:{3} started=yes log={4}' -f $proc.Id, $fwdPidText, $InterfaceAddress, $TcpPort, $logFile)
+    Say-Ok ('RTIEXEC READY rtiexec={0} forwarder={1} tcp={2}:{3} started=yes log={4}' -f $proc.Id, $fwdPidText, $InterfaceAddress, $TcpPort, $logReport)
     Say-Ok 'Federates must now share this rid (RTI_RID_FILE) or they will not share the connection.'
     exit 0
 }
-Say-Fail ('NOT READY within {0}s. NOTHING was killed. Read {1}, then re-run.' -f $ReadyTimeoutSec, $logFile)
+Say-Fail ('NOT READY within {0}s. NOTHING was killed. Read {1}, then re-run.' -f $ReadyTimeoutSec, $logReport)
 exit 3
