@@ -10,6 +10,7 @@
 #      RL-20260927-05 (moved 2026-10-04, unchanged, to make room for RL-20261004-01; option (a) is implemented, fix/gate-late-predecessor).
 #      RL-20260927-03 (moved 2026-10-04, unchanged, to make room for RL-20261004-02; C13 for containers, implemented and live since G1-2).
 #      RL-20260927-02 (moved 2026-10-04, unchanged, to make room for RL-20261004-03; container population, implemented and live since G1-2).
+#      RL-20260927-04 (moved 2026-10-04, unchanged, to make room for RL-20261004-05; C1 decisions D-1..D-8, implemented; C2 built).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -502,3 +503,18 @@ RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
     corps -> division -> brigade (15 Superior relations, 4 battalions); brigade -> battalion/company composition is NOT in it and must come from the
     catalogue's configured sub-units or an authored composition table (DESIGN_ORBAT_TO_VRF sec 5 (b)) - the source of that table is not decided here.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1, G1; AGGREGATE_CATALOGUE_2026-09-27; DESIGN_ORBAT_TO_VRF_2026-09-06 secs 1, 2, 5.
+
+RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-turn follow-up)
+  Q (as put, P6251, the seat's C1 decision brief, its "Decisions owed" D-1..D-8 with a recommendation each; D-2 read: "Brigade depth: manoeuvre elements
+    only, 17 units (recommended). The catalogue has no US engineer or support battalions; a full TO&E adds nothing that moves or fights." and the close:
+    "If you take the recommendations as a block, 'as recommended' is enough and the code lane starts when E2 has finished.")
+  A (owner, P6260): "As recommended. But clarify D-2 - "The catalogue has no US engineer or support battalions". But there are engineering tasks. Can't the
+    units be authored even if not in the catalog?"
+  A (owner, P6304): "Same for support and other missing from catalog"
+  supervisor reading: D-1, D-3..D-8 as recommended (28ID as HQ only; company-level HQ; Mech CO for a US rifle company; performer only populated; withhold
+    a short/vacuous container completion; TO twins display-only; flat containers). D-2 REVISED by him: compose to doctrine (FM 3-96), and AUTHOR the US unit
+    types the aggregate catalogue lacks - engineer, support and any other - as new unit types (UG52 72.2 parameters incl. Engineering systems; 27.2.3;
+    the aggregate breach/obstacle tasks exist) in the derived model set, from the catalogue's own engineer/support units of other nations (Engineering BN
+    (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)). Sequencing (seat's, not his): G1 proves the container mechanism with catalogue units
+    first; the authored battalions join the composition as package C2 lands.
+  pointer: DESIGN_AGGREGATE_CONTAINERS_2026-09-27 secs 6-9; PLAN_MOVEMENT_2026-09-27 rows C1, C2, G1; tools/sms/Deploy-C2SimSms.ps1 (the recipe pattern).

@@ -102,10 +102,24 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    Harness defect: g1_5_rti_federates.py misses the single-form join line of a fresh rtiexec (verified 1 join by hand).
    Result harvested (Fable ACCEPT WITH FIXES, applied) and MERGED 1758db2; Appendix B annotated. RULED RL-20261004-03: the
    FAIL binds as scored; the culvert clause is G1-6's, registered before its run, and WAITS for the vendor Adding Content
-   manual (NOT INSTALLED - doc\AddingContent.pdf is a placeholder; the owner is finding the installer). Unexplained: a
+   manual (FOUND 2026-10-04: public MAK_ONE_2025_Adding_Content.pdf, now in docs/vendor/mak-5.2; sec 7.8 is silent on
+   culverts and on overlap priority, so the clause rests on G1-5's observation, [A]). Unexplained: a
    ~0.6x speed dip on every T14 crossing chord (Result N1 (b)). Holder 67984 up to 04:22Z 10-05; marker 5296.
    IN FLIGHT (independent of the docs): lane LBL (Label = full C2SIM designation, item 5), lane HX (harness defects +
    stale PLAN rows: D2b/AF1-3/C1b are in the deployed 52f50e0), lane JS (Result NEXT 3c junction speeds, read-only).
+   DEMO TRACK (RL-20261004-04, 2026-10-04 ~21:40Z): demo readiness FIRST; the culvert, N1's cause, the speed dip, the G1-3
+   stack and small-part verbs/units are DEFERRED, not dropped. HX merged 4df7749, JS recorded (G1-5 ADDENDUM, dip unexplained),
+   Adding Content found (public) and indexed. In flight: G1-6 registration CUT TO THE MINIMUM (narrow culvert clause; the first
+   scored aggregate cut-A run, doubling as a Way-A rehearsal); LBL (labels); DR1 (read-only survey: the FULL 23-task order on
+   the aggregate profile - per-task outcome, blockers, recommended demo scope). Then: DEMO_RUNBOOK rewrite for aggregate Iron
+   Storm and a rehearsal. Demo date: not in the record (asked 2026-10-04).
+   G1-6 RAN 2026-10-04 (RL-20261004-05 "(1) go"): pre-warm 20261004T221443Z_run (5296-5306) W GATE PASS (culvert rule;
+   ways/chord RECORDED FAIL as expected); scored 20261004T223015Z_run (5307-5317, marker 5318): 5/5 TASKCMPLT in 169 s of the
+   order, T02/T10/T14 ARRIVED 0.9-2.1 m, 79 PASS / 0 FAIL on g1_6_score (scratch laneG1-6), no crash, StopVrf exit 6. The
+   FIRST fully passing scored aggregate cut-A run. Result not yet harvested. Holder 67984 up to 04:22Z 10-05.
+   RL-20261004-05: the demo is WAY B (STP pushes its own order: STP-848 durations + no cut-A hand fixes - leniency is the
+   owner's call, asked); the Label decoration may be written under C:\MAK ONLY by an automated, verifiable deploy step on
+   every install. Tier-1 full order merged c3b2bb5 (22 tasks). NEXT: LBL hardened + new pin; composition sources (public).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.

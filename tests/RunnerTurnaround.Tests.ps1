@@ -575,6 +575,58 @@ Check 'marker parses started=no, whose log= contains spaces' (
     $mNo.Success -and $mNo.Groups[1].Value -eq '15720' -and $mNo.Groups[2].Value -eq '43728' -and
     $mNo.Groups[3].Value -eq 'no' -and $mNo.Groups[4].Value -match '^\(not started') "got '$($mNo.Groups[4].Value)'"
 
+# 8b2. THE VENDOR-SUFFIXED rtiexec LOG (G1-5 Result N4 (d), 2026-10-04). The rtiexec does not
+# write the -l name as given: it drops ".log" and appends "<version>-<date>-<time>-<host>-<id>-
+# <pid>.log", so G1-5's step R printed "[WARN] rtiexec log NOT created at ...rtiexec_20261004T
+# 202200Z.log" while runs\launch52\rtiexec_20261004T202200Z5.0.1-20261004-162202-Legatus-281993-
+# 65540.log existed. The readiness check must find the file by this run's stamp prefix AND the
+# started pid, and print the REAL path. Offline: a fake directory, the finder lifted from the
+# shipped script by its own AST (like 8f), nothing started.
+Write-Host '=== 8b2. StartRtiExec52 finds the vendor-suffixed rtiexec log by stamp + pid ==='
+$sreLogFn = @($sreAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Find-RtiExecLog' }, $true))
+Check '8b2 StartRtiExec52 defines Find-RtiExecLog(-LogDir, -LogStamp, -RtiExecPid)' (
+    $sreLogFn.Count -eq 1 -and
+    (@('LogDir','LogStamp','RtiExecPid') | Where-Object { $sreLogFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains $_ }).Count -eq 3)
+$g15Stamp = '20261004T202200Z'
+$g15Name  = 'rtiexec_20261004T202200Z5.0.1-20261004-162202-Legatus-281993-65540.log'
+$tmpRl = Join-Path ([System.IO.Path]::GetTempPath()) ('sre-rtilog-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpRl -Force | Out-Null
+try {
+    Set-Content -LiteralPath (Join-Path $tmpRl $g15Name) -Encoding ascii -Value 'Federate remoteControl 67984 ("remoteControl" 2) has joined federation "MAK-ONE-2025".'
+    # distractors: an older rtiexec's log (other stamp, other pid), the same pid under another stamp, the same stamp under another pid
+    Set-Content -LiteralPath (Join-Path $tmpRl 'rtiexec_20260926T115802Z5.0.1-20260926-075814-Legatus-281993-47980.log') -Encoding ascii -Value 'old'
+    Set-Content -LiteralPath (Join-Path $tmpRl 'rtiexec_20260930T120000Z5.0.1-20260930-080000-Legatus-281993-65540.log') -Encoding ascii -Value 'same pid, other stamp'
+    Set-Content -LiteralPath (Join-Path $tmpRl 'rtiexec_20261004T202200Z5.0.1-20261004-162202-Legatus-281993-5540.log') -Encoding ascii -Value 'same stamp, pid 5540'
+    $g15Exact = Join-Path $tmpRl ('rtiexec_{0}.log' -f $g15Stamp)
+    # FAIL-FIRST: the shipped readiness test was "Test-Path -LiteralPath <the -l name>" - on this directory it is FALSE.
+    Check '8b2 FAIL-FIRST: the -l name G1-5''s StartRtiExec52 tested does NOT exist beside the vendor-suffixed log (the false WARN)' (
+        -not (Test-Path -LiteralPath $g15Exact) -and (Test-Path -LiteralPath (Join-Path $tmpRl $g15Name)))
+    $found = ''; $foundNone = 'unset'; $foundOther = 'unset'; $foundExact = 'unset'
+    if ($sreLogFn.Count -eq 1) {
+        & {
+            Invoke-Expression $sreLogFn[0].Extent.Text
+            $script:found      = Find-RtiExecLog -LogDir $tmpRl -LogStamp $g15Stamp -RtiExecPid 65540
+            $script:foundOther = Find-RtiExecLog -LogDir $tmpRl -LogStamp $g15Stamp -RtiExecPid 99999
+            $script:foundNone  = Find-RtiExecLog -LogDir (Join-Path $tmpRl 'absent') -LogStamp $g15Stamp -RtiExecPid 65540
+            Set-Content -LiteralPath $g15Exact -Encoding ascii -Value 'a build that honours -l as given'
+            $script:foundExact = Find-RtiExecLog -LogDir $tmpRl -LogStamp $g15Stamp -RtiExecPid 99999
+            Remove-Item -LiteralPath $g15Exact -Force
+        }
+        $found = $script:found; $foundOther = $script:foundOther; $foundNone = $script:foundNone; $foundExact = $script:foundExact
+    }
+    Check '8b2 the finder returns G1-5''s REAL file (stamp prefix + pid 65540), not the same-pid / same-stamp distractors' (
+        [string]$found -eq (Join-Path $tmpRl $g15Name)) ("got '" + $found + "'")
+    Check '8b2 the finder returns '''' for a pid with no log under this stamp, and for a missing directory' (
+        [string]$foundOther -eq '' -and [string]$foundNone -eq '') ("other '" + $foundOther + "', none '" + $foundNone + "'")
+    Check '8b2 the exact -l name is still accepted if a vendor build writes it' ([string]$foundExact -eq $g15Exact) ("got '" + $foundExact + "'")
+} finally { Remove-Item -LiteralPath $tmpRl -Recurse -Force -ErrorAction SilentlyContinue }
+# The readiness block uses the finder and prints the path it found, in the tail line, the WARN and the READY marker.
+Check '8b2 the readiness check no longer tests the bare -l name; it calls Find-RtiExecLog with the stamp and the started pid' (
+    $sreText -notmatch 'if \(Test-Path -LiteralPath \$logFile\)' -and
+    $sreText -match 'Find-RtiExecLog -LogDir \$logDir -LogStamp \$logStamp -RtiExecPid \$proc\.Id')
+Check '8b2 the READY marker carries the found log path (log={4} is $logReport, the real file when found)' (
+    $sreText -match "started=yes log=\{4\}' -f \`$proc\.Id, \`$fwdPidText, \`$InterfaceAddress, \`$TcpPort, \`$logReport")
+
 # 8c. THE 5.2 STARTUP CRASH must FAIL the launch, not be waited out (2026-09-04 cold-start
 # review): 0xC0000005 in makVrf::DtVrfSimOptions::parseCmdLine hit 2 of 5 launches, under
 # BOTH rids, so the trigger is unknown and the launch stage must DETECT it. Without this the

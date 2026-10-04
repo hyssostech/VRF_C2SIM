@@ -9,6 +9,7 @@ VR-Forces 5.2 vendor PDFs (git-ignored, ~335 MB). Re-fetch from the PUBLIC MAK l
   VR-Forces_5.1.1_Entity_Catalog.pdf         1326 pp (no VR-Forces 5.2 entity catalog online)
   MAK_ONE_2025_Model_Catalog.pdf              680 pp (added 2026-09-25; MAK ONE 2025 catalog)
   MAK_ONE_2025_Interoperability_Guide.pdf      96 pp (added 2026-09-25)
+  MAK_ONE_2025_Adding_Content.pdf             550 pp (added 2026-10-04; the installed doc\AddingContent.pdf is a placeholder)
 
 Page index, sha256 and revisions: mak-5.2/INDEX.md. Text extracts for rg: mak-5.2/txt/
 (git-ignored; regenerate with pypdf, one "=== PDFPAGE n LABEL n ===" marker per page).

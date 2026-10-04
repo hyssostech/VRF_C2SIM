@@ -697,6 +697,10 @@ N1 - THE CULVERT CROSSING:
     in the Adding Content manual, which is NOT INSTALLED - C:\MAK\vrforces5.2d\doc\AddingContent.pdf is a one-page placeholder
     ("Documentation Has Not Been Installed": the vendor documentation installer was not run), docs/vendor/mak-5.2 holds no
     Adding Content text, and the installed txt set has 0 hits for "culvert" [V: Fable's cold review, fable_g15r].
+    ADDENDUM 2026-10-04 (the seat): the manual is PUBLIC - docs.mak.com/support/MAK_ONE_2025_Adding_Content.pdf (MAK-25.0-1-251009,
+    550 pp), now in docs/vendor/mak-5.2 with its txt (INDEX.md). Its sec 7.8 (p.234-236) lists the mobility classes and the
+    sysdef block (road speed-factor 1 at priority 100, impassable 0 at 200, L2 0.25 at 300, L1 0.65 at 400) but does NOT say how
+    priority resolves an overlap, and it has 0 hits for "culvert" [V]. So the docs do not settle (iii); it stays [A].
 THE COMPETITORS: (i) A FORD BESIDE THE CULVERT - the members left the road for a few metres to cross the open channel: no fix
 supports it (the fix at the river is 0.8 m from the road), the planner was routing on the road network, and an impassable
 river line would have held them as G1-2's T02 member was held at river 8011072 off the road; but the fixes are 67-170 m apart
@@ -801,18 +805,35 @@ no fix off the road at the river. Nothing in the run is read as W1's, the M3 pla
 
 NEXT, in order (the seat's and the owner's): (1) Fable's cold review of this Result (RL-20260928-04). (2) RULE - the owner:
 whether the W gate's FAIL binds as scored, the precedent being RL-20261004-01 for G1-4 (P-FALS (e) there was a chord corner at
-a bridge; here a road over a culvert). (3) DESIGN - the seat's, its first step the owner's: (3a) INSTALL the VR-Forces 5.2d
+a bridge; here a road over a culvert). (3) DESIGN - the seat's, its first step the owner's: (3a) [DONE 2026-10-04 by download, not
+install - see N1's ADDENDUM: the manual is silent on culverts and on overlap priority] INSTALL the VR-Forces 5.2d
 documentation (the vendor's documentation installer; it writes under C:\MAK, so an owner action), then read "Configuring
 Aggregate-Level Movement Restrictions" in Adding Content - it settles how the sim resolves a road over a river line; (3b) a
 culvert clause for the ways rule (N1 IMPLICATION), its narrow or wide form, FAIL-FIRST on THIS pre-warm
 (20261004T202533Z_run) - the clause must turn the 17 crossings ON and keep sec 1(z)'s dirty controls (c1)-(c4) firing;
 (3c) a cheap discriminator for N1 (b)'s speed dip, from this run's trace: T10's and T02's speeds through other road junctions
-and hamlets (not run by this lane). (4) PREREG G1-6 on the same build and order with that scorer, new
+and hamlets (not run by this lane) [DONE 2026-10-04, read-only lane JS, scratch 7207877b...\scratchpad\laneJS\ - see the
+ADDENDUM below]. (4) PREREG G1-6 on the same build and order with that scorer, new
 numbers from the marker (5296 or later). (5) Harness: g1_5_rti_federates.py to accept the single join line (and keep the
 doubled form), with a control on each log; the post-W inventory check to allow the run's own Stage 2h holder; the
 StartRtiExec52 log-name test (N4). (6) Doc updates (sec 6): Appendix B annotated from the manifest (the seat's; this lane does
 not edit OPUS_EXECUTION_PLAN.md), PLAN_MOVEMENT rows G1-4 / W1 -> G1-5 and the step table, RUNBOOK sec 11o and sec 9 (W1 seen
 live: SL0-SL4 held), RUNBOOK :1716's "docker start if it exists" (sec 8 item 3), HANDOFF_SEAT sec 2.
+
+ADDENDUM 2026-10-04 - NEXT (3c), THE SPEED DIP (read-only lane JS over this run and G1-4's pre-warm; r = chord speed / mean of
+its neighbours; stacked members counted once; stop/start and vertex/birth intervals excluded) [V for every figure]:
+control (no junction, residential or water) n 284, median r 1.02 (IQR 0.85-1.23); way switch at a junction, turn 20-45 deg,
+no water, n 27, median 0.89 (5 of 27 <= 0.76); residential-only n 25, median 0.98; the culvert, 6 distinct tracks, median 0.75
+(4 of 6 <= 0.76). Not a clock artefact: the other tracks' median r at the culvert timestamps is 1.02-1.06. A residential 0.25
+factor on the road is refuted as the cause (rank correlation 0.02 over 540 chords; a chord wholly inside the residential
+polygon north of C runs at r 1.28). Water controls: T02's bridge chord r 1.20 (G1-5) / 0.92 (G1-4); T10's culvert over a
+ditch (OSM 505658344, not river-class) r 1.72 / 2.00. The junction is end to end (road 300614718 begins where track 360178110
+ends), its ~30 deg bends 44-52 m south of C.
+READING [A]: no candidate is strongly supported. Overlapping the slow chords places the slowdown about -4 to +16 m from C,
+weakly toward the culvert; the strongest confounder is resolution (every slow chord is 60-170 m and spans both the junction
+and C, 55 m apart). The water candidate cannot be tested here: neither run has another river-class line under a road. What
+would settle it: a trace at 0.5 s or finer through C, and one unit driven along 300614718 through C before any turn. The
+Adding Content manual (sec 7.8, ADDENDUM under N1) does not settle overlap priority. The dip stays UNEXPLAINED.
 
 COLD REVIEW (2026-10-04): Fable, cold, on the evidence only (RL-20260928-04; scratch 7207877b...\fable_g15r\rederive.py,
 rederive_out.txt): ACCEPT WITH FIXES - every verdict, limb and number re-checked; its fixes are applied above (N1 (b) the speed
