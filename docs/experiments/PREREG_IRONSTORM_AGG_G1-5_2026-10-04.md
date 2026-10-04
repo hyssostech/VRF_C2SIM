@@ -812,12 +812,28 @@ Aggregate-Level Movement Restrictions" in Adding Content - it settles how the si
 culvert clause for the ways rule (N1 IMPLICATION), its narrow or wide form, FAIL-FIRST on THIS pre-warm
 (20261004T202533Z_run) - the clause must turn the 17 crossings ON and keep sec 1(z)'s dirty controls (c1)-(c4) firing;
 (3c) a cheap discriminator for N1 (b)'s speed dip, from this run's trace: T10's and T02's speeds through other road junctions
-and hamlets (not run by this lane). (4) PREREG G1-6 on the same build and order with that scorer, new
+and hamlets (not run by this lane) [DONE 2026-10-04, read-only lane JS, scratch 7207877b...\scratchpad\laneJS\ - see the
+ADDENDUM below]. (4) PREREG G1-6 on the same build and order with that scorer, new
 numbers from the marker (5296 or later). (5) Harness: g1_5_rti_federates.py to accept the single join line (and keep the
 doubled form), with a control on each log; the post-W inventory check to allow the run's own Stage 2h holder; the
 StartRtiExec52 log-name test (N4). (6) Doc updates (sec 6): Appendix B annotated from the manifest (the seat's; this lane does
 not edit OPUS_EXECUTION_PLAN.md), PLAN_MOVEMENT rows G1-4 / W1 -> G1-5 and the step table, RUNBOOK sec 11o and sec 9 (W1 seen
 live: SL0-SL4 held), RUNBOOK :1716's "docker start if it exists" (sec 8 item 3), HANDOFF_SEAT sec 2.
+
+ADDENDUM 2026-10-04 - NEXT (3c), THE SPEED DIP (read-only lane JS over this run and G1-4's pre-warm; r = chord speed / mean of
+its neighbours; stacked members counted once; stop/start and vertex/birth intervals excluded) [V for every figure]:
+control (no junction, residential or water) n 284, median r 1.02 (IQR 0.85-1.23); way switch at a junction, turn 20-45 deg,
+no water, n 27, median 0.89 (5 of 27 <= 0.76); residential-only n 25, median 0.98; the culvert, 6 distinct tracks, median 0.75
+(4 of 6 <= 0.76). Not a clock artefact: the other tracks' median r at the culvert timestamps is 1.02-1.06. A residential 0.25
+factor on the road is refuted as the cause (rank correlation 0.02 over 540 chords; a chord wholly inside the residential
+polygon north of C runs at r 1.28). Water controls: T02's bridge chord r 1.20 (G1-5) / 0.92 (G1-4); T10's culvert over a
+ditch (OSM 505658344, not river-class) r 1.72 / 2.00. The junction is end to end (road 300614718 begins where track 360178110
+ends), its ~30 deg bends 44-52 m south of C.
+READING [A]: no candidate is strongly supported. Overlapping the slow chords places the slowdown about -4 to +16 m from C,
+weakly toward the culvert; the strongest confounder is resolution (every slow chord is 60-170 m and spans both the junction
+and C, 55 m apart). The water candidate cannot be tested here: neither run has another river-class line under a road. What
+would settle it: a trace at 0.5 s or finer through C, and one unit driven along 300614718 through C before any turn. The
+Adding Content manual (sec 7.8, ADDENDUM under N1) does not settle overlap priority. The dip stays UNEXPLAINED.
 
 COLD REVIEW (2026-10-04): Fable, cold, on the evidence only (RL-20260928-04; scratch 7207877b...\fable_g15r\rederive.py,
 rederive_out.txt): ACCEPT WITH FIXES - every verdict, limb and number re-checked; its fixes are applied above (N1 (b) the speed
