@@ -3,6 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01). 0927-05 archived on 10-04 (for 1004-01).
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -49,15 +50,6 @@ RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-tu
     (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)). Sequencing (seat's, not his): G1 proves the container mechanism with catalogue units
     first; the authored battalions join the composition as package C2 lands.
   pointer: DESIGN_AGGREGATE_CONTAINERS_2026-09-27 secs 6-9; PLAN_MOVEMENT_2026-09-27 rows C1, C2, G1; tools/sms/Deploy-C2SimSms.ps1 (the recipe pattern).
-
-RL-20260927-05 | 2026-09-27 | status VERBATIM - P6612, TYPED (mid-turn)
-  Q (as put, P6535, restated P6584 - the RL-20260925-01 Q1 race the timer-anchor lane found: a task-clock step > 60 s between timed walks can skip a
-    late predecessor's follow-ons): "Two ways to close it: (a) When the window expires, ask the timer directly: a predecessor with a destination that
-    has not finished is treated as overdue, and the gate extends to the backstop. Small, and my recommendation. (b) Gate on the predecessor's own
-    end-time signal instead of a separate margin. Cleaner, a larger change."
-  A (owner, P6612): "Q1 a"
-  supervisor reading: option (a) as put. The no-Duration mover (never OVERDUE, skipped at the floor) was named as outside Q1 and is not decided here.
-  pointer: fix/gate-late-predecessor; RUNBOOK sec 11; TimerAnchorSelfTest t4; RL-20260925-01 (archive) Q1.
 
 RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompted)
   Q (as put): none - the seat's rationale at P5335 stood as Y-15: "Entity level for company-and-below orders; aggregate level for battalion-and-above,
@@ -116,3 +108,13 @@ RL-20260928-04 | 2026-09-28 | VERBATIM
     the go-live on holder 5255 (RtiProbe 56380, up to ~03:00Z 09-29), invoking Fable through the Agent tool (model fable) for reviews and
     judgment lanes. Seat quality is measured by the owner's corrections per day (2026-09-28: six).
   pointer: docs/HANDOFF_SEAT_2026-09-28.md; CLAUDE.md sec 5 (the seat rule); memory feedback-seat-model-policy.
+RL-20261004-01 | 2026-10-04 | VERBATIM - Q171, TYPED
+  Q (seat, Q159, after Fable's cold review of the G1-4 Result; markdown emphasis dropped): "My recommendation on the RULE is that the W FAIL
+    binds as scored, whatever you decide about N3." [...] "(a) Keep H5 on all members and first give nudged slots a water clearance of at
+    least the 10 m buffer. That is a build change, so G1-5 would test two variables at once." [...] "I recommend (a)." [...] "the bridge
+    rule should judge fixes against the road and bridge ways, with a fail-first test on G1-4's pre-warm data."
+  A (owner, Q171): "As recommended"
+  supervisor reading: (1) G1-4 is STOPPED at its W gate, FAIL (H5, P-FALS(e)) as scored; nothing re-scored (H5 governs as written; P-FALS(e)
+    fails alone, 16.24 m > 15). (2) G1-5 gates H5 on every tasked member, on a build whose nudged member slots clear OSM water by >= the
+    planner's 10 m buffer; its scorer's bridge rule reads the fixes against the road/bridge ways, fail-first on G1-4's pre-warm.
+  pointer: PREREG_IRONSTORM_AGG_G1-4_2026-09-28 Result (N1-N3, COLD REVIEW AND RULING); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

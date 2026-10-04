@@ -7,6 +7,7 @@
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
 #      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02, RL-20260925-01, RL-20260921-05, RL-20260926-01,
 #      RL-20260927-01 (moved 2026-09-28, unchanged, to make room for RL-20260928-01; the movement approach it approved is implemented and live-proven).
+#      RL-20260927-05 (moved 2026-10-04, unchanged, to make room for RL-20261004-01; option (a) is implemented, fix/gate-late-predecessor).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -465,3 +466,12 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     elsewhere (RL-20260925-01), so outside the demo profile the stuck-unit ruling acts only once it is switched on.
   pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation).
 
+
+RL-20260927-05 | 2026-09-27 | status VERBATIM - P6612, TYPED (mid-turn)
+  Q (as put, P6535, restated P6584 - the RL-20260925-01 Q1 race the timer-anchor lane found: a task-clock step > 60 s between timed walks can skip a
+    late predecessor's follow-ons): "Two ways to close it: (a) When the window expires, ask the timer directly: a predecessor with a destination that
+    has not finished is treated as overdue, and the gate extends to the backstop. Small, and my recommendation. (b) Gate on the predecessor's own
+    end-time signal instead of a separate margin. Cleaner, a larger change."
+  A (owner, P6612): "Q1 a"
+  supervisor reading: option (a) as put. The no-Duration mover (never OVERDUE, skipped at the floor) was named as outside Q1 and is not decided here.
+  pointer: fix/gate-late-predecessor; RUNBOOK sec 11; TimerAnchorSelfTest t4; RL-20260925-01 (archive) Q1.

@@ -74,8 +74,11 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    every reproducible number held; fixes: N2 "on the bridge" -> "consistent with every fix" (no fix is on it); N3 is not a
    contradiction (W-MOVE >50 m and H5 >1 m are different limbs; as written H5 governs); N1 (e) to [A] plus the unweighed
    competitor (the planner's MAK_OBSTACLE 10 m buffer vs a 1.7 m birth); "the executor took every route" -> 22 of 23.
-   Independent of N3 the gate still FAILS on P-FALS(e) (16.24 m > 15) under the registered rule. RULE put to the owner
-   2026-10-04 (seat recommends: binds as scored); fixes + ruling go into result/g1-4 in one commit, then merge.
+   Independent of N3 the gate still FAILS on P-FALS(e) (16.24 m > 15) under the registered rule. RULED RL-20261004-01
+   ("As recommended"): the W FAIL binds as scored; G1-5 gates H5 on every member after a build giving nudged member slots
+   a water clearance >= the 10 m buffer; the scorer's bridge rule on the ways, fail-first on G1-4's pre-warm. Fixes +
+   ruling applied on result/g1-4 (bc1127c) and merged. NEXT: lane W1 (water clearance, code + tests) -> Fable cold on its
+   design -> merge/deploy (RUNBOOK sec 9) -> G1-5 registration; lane D1 (the Result's sec 6 doc updates) in parallel.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
