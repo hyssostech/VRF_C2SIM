@@ -4,6 +4,9 @@
   `--check` proves the committed files still match the derivation. Change list: `data/IRONSTORM_CUTA_CHANGES.md`.
   `--without i` writes the one registered variant, `data/IRONSTORM_CUTA_E1_Order.xml` (change (i) left out, for
   run E1); every other letter is refused, and `--check` verifies both order files.
+  `--variant full` writes `data/IRONSTORM_FULL_Order.xml` (every export task but T12, the same changes; no init of its
+  own - the export's is used). `--check` verifies it too. Change list and per-task prediction:
+  `data/IRONSTORM_FULL_CHANGES.md`.
 
 ## Where the Iron Storm narrative-1 export came from
 

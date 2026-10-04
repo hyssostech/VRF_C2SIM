@@ -17,6 +17,8 @@ OUTPUTS (tracked)
     data/IRONSTORM_CUTA_E1_Order.xml     the REGISTERED VARIANT "--without i" (run E1): the
                                          same derivation with change (i) left out - see
                                          VARIANTS at the end of the change list
+    data/IRONSTORM_FULL_Order.xml        the FULL VARIANT "--variant full": every task but T12,
+                                         the same changes - see THE FULL VARIANT below
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
 (change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
@@ -141,12 +143,28 @@ and the consequences.
     the full order minus exactly (i)'s two insertions (remove_change_i) - one change apart, so a
     run on it varies T14's route and nothing else. `--check` verifies every variant on disk.
 
+  THE FULL VARIANT - "--variant full" (2026-10-04, lane FD; RL-20261004-04, demo first)
+      -> data/IRONSTORM_FULL_Order.xml. The WHOLE narrative instead of the cut: (c) is replaced by
+      "keep ALL 23 tasks EXCEPT T12" (116 ABCT DESTRY, 52.6 km to Alytus over terrain tiles that
+      are not cached - tier 2; nothing depends on it). Every other change applies unchanged where
+      its task exists: (a) on all 44 remaining IsoTimeDuration values, (b), (e), (f), (h), (i), (j)
+      exactly as for cut A, and (g) on T01, T13 AND T03 - T03's STP source is the third
+      'ConductFwdPassageOfLines' task (56 SBCT; how 'PASSAGE_OF_LINES', what 'NOT_SPECIFIED'), the
+      same connector case-mismatch (g) documents, so (g)'s reasoning covers it. The init needs no
+      change: no init file is written for it; the run uses the export's init (byte-identical to
+      data/IRONSTORM_CUTA_Initialization.xml). The inserted lines keep their "ADDED BY CUT A"
+      comments so every cut-A task block is BYTE-IDENTICAL in the full order - asserted on every
+      run (assert_full_extends_cuta), with the non-task remainder of the two orders identical too.
+      Change list and the per-task prediction: data/IRONSTORM_FULL_CHANGES.md.
+
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
     python tools/scenario/derive_ironstorm_cuta.py --without i     # write the E1 variant
+    python tools/scenario/derive_ironstorm_cuta.py --variant full  # write the FULL order
     python tools/scenario/derive_ironstorm_cuta.py --check         # verify ALL, write nothing
     python tools/scenario/derive_ironstorm_cuta.py --selftest      # pure-function tests
-EXIT: 0 ok; 2 a gate failed; 3 --check found a mismatch; 4 a --without letter was refused.
+EXIT: 0 ok; 2 a gate failed; 3 --check found a mismatch; 4 a --without letter (or --without with
+--variant full) was refused.
 
 The script is deterministic: the same inputs always produce byte-identical outputs, and
 it prints the SHA-256 of every input and output so a derivation can be audited later.
@@ -167,6 +185,7 @@ SRC_ORDER = os.path.join(REPO, 'data', 'STP-IRON-STORM-SYNTHETIC_Order.xml')
 OUT_INIT = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_Initialization.xml')
 OUT_ORDER = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_Order.xml')
 OUT_ORDER_E1 = os.path.join(REPO, 'data', 'IRONSTORM_CUTA_E1_Order.xml')
+OUT_ORDER_FULL = os.path.join(REPO, 'data', 'IRONSTORM_FULL_Order.xml')
 
 NS = 'http://www.sisostds.org/schemas/C2SIM/1.1'
 Q = '{%s}' % NS
@@ -216,6 +235,53 @@ CODE_FIX = {
         'f', 'ATTACK', 'FOLSPT', '884518d7-5b82-a455-98de-64aae833d633', '116_ABCT/28ID',
         ':131/:297-299/:670'),
 }
+
+# ---------------------------------------------------------------------------
+# THE FULL VARIANT (2026-10-04, lane FD; RL-20261004-04 "demo first"). The export's 23 tasks,
+# in export order, with the label this project uses for each. The full variant ASSERTS the
+# export still carries exactly these, in this order, before it derives anything.
+# ---------------------------------------------------------------------------
+EXPORT_TASKS = (
+    ('f7b52ba4-c889-4a28-9f3a-e9715cd8a65f', 'T01'),  # 28ID     ExecutePlanPhase -> CNFPSL (g)
+    ('696fbb33-3dce-4854-8935-55fed398c247', 'T02'),  # 28ID     ATTACK (STP-846), + (b)
+    ('4edbc258-07f9-4be4-991c-b3093b11e142', 'T03'),  # 56 SBCT  ExecutePlanPhase -> CNFPSL (g, FULL)
+    ('0c0bb2cf-eab8-45ce-87e0-23a7a68444dc', 'T04'),  # 56 SBCT  FIX
+    ('f8b65950-5b7b-436e-a968-56da92ffbf5c', 'T05'),  # 56 SBCT  RETAIN
+    ('a4ffa19d-8775-4d5b-a767-7576d5b24b22', 'T06'),  # 278 ACR  SCREEN
+    ('31226602-7845-47e0-8b7c-b1af21ad0f6d', 'T07'),  # 278 ACR  SCREEN
+    ('7eed7fc0-15c7-4fa3-a3a8-d8e9347dfaf2', 'T08'),  # 278 ACR  BREACH
+    ('6507ecde-1531-4d86-b3ec-d31729d5df0b', 'T09'),  # 278 ACR  SCREEN
+    ('9aab7fe6-c7fb-4e74-b586-e11a00fc3eb9', 'T10'),  # 1-112 IN CRESRV, + (b) (h) (j)
+    ('89ba4d53-212e-4839-93da-d9e0a16bc4c4', 'T11'),  # 1-112 IN CRESRV
+    ('c6913c98-1713-4865-aaf5-415994cae4cf', 'T12'),  # 116 ABCT DESTRY - DROPPED (FULL_DROP)
+    ('37677c40-c595-4b4c-9039-e9865abb4eb3', 'T13'),  # 48 IBCT  ExecutePlanPhase -> CNFPSL (g)
+    ('1075b583-a7b8-45e5-b22b-d09988c9443e', 'T14'),  # 48 IBCT  ATTACK -> FOLSPT (f), (e) (i)
+    ('71fbb065-dc1d-4e59-b3b4-37e0886841c5', 'T15'),  # 48 IBCT  CLRLND
+    ('e84f2cc6-88a3-4630-8991-ca90b14a7969', 'T16'),  # 48 IBCT  SEIZE
+    ('09145166-899f-4851-b271-43be741c2f52', 'T17'),  # 48 IBCT  RETAIN
+    ('260e60ea-e624-4175-af30-52ce43c2675c', 'T18'),  # 55 MEB   RETAIN
+    ('1d9f4ce2-2f3a-41ff-b5ab-577deaa01dcc', 'T19'),  # 55 MEB   SECURE
+    ('acbac606-dc82-4101-ad9c-394b352e291c', 'T20'),  # 55 MEB   SECURE
+    ('d691bea4-96e4-40bd-8e3d-999413d80197', 'T21'),  # 55 MEB   SECURE
+    ('7c962730-9929-4a0c-ba3c-55c1b5213b75', 'T22'),  # 169 FAB  OCCUPY
+    ('8645f7db-dd9d-4ae4-b035-0e2f61abf4b9', 'T23'),  # 11 CAB   DESTRY
+)
+
+# The ONE task the full variant drops, and why (data/IRONSTORM_FULL_CHANGES.md).
+FULL_DROP = {
+    'c6913c98-1713-4865-aaf5-415994cae4cf':
+        'T12 116 ABCT DESTRY: a 52.6 km route (first leg 44.9 km) to Alytus over terrain tiles '
+        'that are not cached - tier 2; no task depends on it',
+}
+
+KEEP_FULL = dict((u, label) for u, label in EXPORT_TASKS if u not in FULL_DROP)
+
+# (g) covers T03 as well: its STP source is the third 'ConductFwdPassageOfLines' task (56 SBCT,
+# how 'PASSAGE_OF_LINES', what 'NOT_SPECIFIED' - STP-IRON-STORM-SYNTHETIC_Narrative1.op), the same
+# connector defect as T01 and T13. Cut A never kept T03, which is the only reason it was not listed.
+CODE_FIX_FULL = dict(CODE_FIX)
+CODE_FIX_FULL['4edbc258-07f9-4be4-991c-b3093b11e142'] = (
+    'g', 'ExecutePlanPhase', 'CNFPSL', None, None, ':609/:645-646/:668')
 
 
 def apply_code_fix(block, old_code, new_code, affected_uuid=None, affected_label=None):
@@ -869,9 +935,13 @@ def write(path, text):
 
 
 # ---------------------------------------------------------------------------
-def derive_order(src_text, log, init_text=None, without=frozenset()):
+def derive_order(src_text, log, init_text=None, without=frozenset(), keep=None, code_fix=None):
     """Apply (a), (b), (c), (e), (f), (g), (h), (i) and (j) to the order text, minus the changes
-    `without` names - which must be a REGISTERED variant (VARIANTS). Returns the derived text."""
+    `without` names - which must be a REGISTERED variant (VARIANTS). Returns the derived text.
+    `keep` / `code_fix` default to cut A's KEEP / CODE_FIX; the FULL variant passes KEEP_FULL /
+    CODE_FIX_FULL (derive_order_full) - every other step is the same code."""
+    keep = KEEP if keep is None else keep
+    code_fix = CODE_FIX if code_fix is None else code_fix
     if frozenset(without) not in VARIANTS:
         raise AssertionError('no registered variant leaves out %r' % sorted(without))
     blocks = TASK_BLOCK.findall(src_text)
@@ -890,19 +960,19 @@ def derive_order(src_text, log, init_text=None, without=frozenset()):
             raise AssertionError('duplicate task uuid %s' % u)
         by_uuid[u] = b
 
-    missing = sorted(set(KEEP) - set(by_uuid))
+    missing = sorted(set(keep) - set(by_uuid))
     if missing:
         raise AssertionError('the export no longer carries kept task(s): %s'
                              % ', '.join(missing))
 
     # (c) chain integrity: every kept task's predecessor must also be kept.
-    for u in KEEP:
+    for u in keep:
         m = re.search(r'<TemporalAssociationWithAction>([^<]+)<', by_uuid[u])
         pred = m.group(1).strip() if m else None
-        if pred and pred not in KEEP:
+        if pred and pred not in keep:
             raise AssertionError('kept task %s (%s) depends on dropped task %s'
-                                 % (KEEP[u], u, pred))
-        log('  keep %s %s  predecessor=%s' % (KEEP[u], u, KEEP.get(pred, '-')))
+                                 % (keep[u], u, pred))
+        log('  keep %s %s  predecessor=%s' % (keep[u], u, keep.get(pred, '-')))
 
     # (b) verify each added graphic EXISTS in the order, is a Point, and carries the Name
     # this script expects; then verify the task does not already reference it.
@@ -920,11 +990,11 @@ def derive_order(src_text, log, init_text=None, without=frozenset()):
             raise AssertionError('graphic %s Name is %r, expected %r'
                                  % (g_uuid, nm.group(1) if nm else None, g_name))
         if g_uuid in by_uuid[task_u]:
-            raise AssertionError('task %s already references %s' % (KEEP[task_u], g_uuid))
+            raise AssertionError('task %s already references %s' % (keep[task_u], g_uuid))
         lat = re.search(r'<Latitude>([^<]*)</Latitude>', blk)
         lon = re.search(r'<Longitude>([^<]*)</Longitude>', blk)
         log('  add  %s -> %s  %s  @ %s, %s'
-            % (KEEP[task_u], g_uuid, g_name[:34], lat.group(1), lon.group(1)))
+            % (keep[task_u], g_uuid, g_name[:34], lat.group(1), lon.group(1)))
 
     # Build the derived text: walk the ORIGINAL string, copying everything, replacing the
     # kept task blocks with their edited form and deleting the rest. Working on the raw
@@ -937,14 +1007,14 @@ def derive_order(src_text, log, init_text=None, without=frozenset()):
         pos = m.end()
         block = m.group(0)
         u = task_uuid(block)
-        if u not in KEEP:
+        if u not in keep:
             dropped += 1
             continue
         if u in ADD_GRAPHIC:
             g_uuid, _g_name, short = ADD_GRAPHIC[u]
             block = insert_map_graphic(block, g_uuid, short)
-        if u in CODE_FIX:
-            letter, old_c, new_c, aff, label, stp_lines = CODE_FIX[u]
+        if u in code_fix:
+            letter, old_c, new_c, aff, label, stp_lines = code_fix[u]
             if aff is not None and (init_text is None
                                     or ('<UUID>%s</UUID>' % aff) not in init_text):
                 raise AssertionError('(f) %s (%s) is not a unit of the init - not inventing it'
@@ -952,15 +1022,15 @@ def derive_order(src_text, log, init_text=None, without=frozenset()):
             block = apply_code_fix(block, old_c, new_c, aff, label)
             extra = '; AffectedEntity + %s %s' % (aff, label) if aff else ''
             log('  (%s) %s TaskActionCode %s -> %s%s (owner direction 2026-09-26; STP '
-                'C2SimTask.cs%s case mismatch)' % (letter, KEEP[u], old_c, new_c, extra,
+                'C2SimTask.cs%s case mismatch)' % (letter, keep[u], old_c, new_c, extra,
                                                     stp_lines))
         out.append(block)
         kept += 1
     out.append(src_text[pos:])
     text = ''.join(out)
     log('kept %d task(s), dropped %d' % (kept, dropped))
-    if kept != len(KEEP):
-        raise AssertionError('kept %d tasks, expected %d' % (kept, len(KEEP)))
+    if kept != len(keep):
+        raise AssertionError('kept %d tasks, expected %d' % (kept, len(keep)))
 
     # (e) the water nudge, on the assembled document so the site count is the DERIVED
     # file's and not the export's.
@@ -980,6 +1050,53 @@ def derive_order(src_text, log, init_text=None, without=frozenset()):
     for (old, new), n in sorted(seen.items()):
         log('  %-6s -> %-22s x%d' % (old, new, n))
     return text
+
+
+FULL_DURATIONS = 44                # the export's 46 minus T12's two (its Duration and its StartTime)
+
+
+def derive_order_full(src_text, log, init_text):
+    """THE FULL VARIANT: the export's task list is ASSERTED to be EXPORT_TASKS (same uuids, same
+    order), then derive_order runs with KEEP_FULL / CODE_FIX_FULL - all changes, every task but T12.
+    The duration count is asserted: (a) must have rewritten all 44 values that remain."""
+    found = tuple(task_uuid(b) for b in TASK_BLOCK.findall(src_text))
+    want = tuple(u for u, _label in EXPORT_TASKS)
+    if found != want:
+        raise AssertionError('the export task list changed: %d task(s), expected the %d of '
+                             'EXPORT_TASKS in order (first difference at #%d)'
+                             % (len(found), len(want),
+                                next((i + 1 for i, (a, b) in enumerate(zip(found, want)) if a != b),
+                                     min(len(found), len(want)) + 1)))
+    for u, why in sorted(FULL_DROP.items()):
+        log('  drop %s %s  (%s)' % (dict(EXPORT_TASKS)[u], u, why))
+    text = derive_order(src_text, log, init_text, frozenset(), KEEP_FULL, CODE_FIX_FULL)
+    n = len(re.findall(r'<IsoTimeDuration>', text))
+    if n != FULL_DURATIONS:
+        raise AssertionError('the full order carries %d IsoTimeDuration value(s), expected %d'
+                             % (n, FULL_DURATIONS))
+    return text
+
+
+def strip_tasks(text):
+    """The document with every <Task> block removed - what two derivations must share."""
+    return TASK_BLOCK.sub('', text)
+
+
+def assert_full_extends_cuta(full_text, cuta_text):
+    """The full order is the cut-A order PLUS the other tasks and NOTHING else: with every <Task>
+    block removed the two are byte-identical, and each of cut A's task blocks occurs verbatim, once,
+    in the full order. So everything a cut-A run established about T01/T02/T10/T13/T14 and the
+    graphics carries over to the full order unchanged."""
+    if strip_tasks(full_text) != strip_tasks(cuta_text):
+        raise AssertionError('the full and cut-A orders differ OUTSIDE their task blocks')
+    for b in TASK_BLOCK.findall(cuta_text):
+        n = full_text.count(b)
+        if n != 1:
+            raise AssertionError('cut-A task %s occurs %d time(s) verbatim in the full order, '
+                                 'expected 1' % (KEEP.get(task_uuid(b), task_uuid(b)), n))
+    kept = [task_uuid(b) for b in TASK_BLOCK.findall(full_text)]
+    if kept != [u for u, _label in EXPORT_TASKS if u in KEEP_FULL]:
+        raise AssertionError('the full order does not carry KEEP_FULL in export order')
 
 
 def derive_init(src_text, log):
@@ -1242,6 +1359,44 @@ def selftest():
         except AssertionError:
             print('  ok       refused: %s' % label)
 
+    print('the FULL variant (--variant full):')
+    check('EXPORT_TASKS lists 23 distinct tasks', len(set(u for u, _l in EXPORT_TASKS)), 23)
+    check('KEEP_FULL = 22 tasks, T12 the one dropped',
+          sorted(set(dict(EXPORT_TASKS).values()) - set(KEEP_FULL.values())), ['T12'])
+    check('KEEP_FULL holds every cut-A task under the same label',
+          all(KEEP_FULL.get(u) == lab for u, lab in KEEP.items()), True)
+    check('CODE_FIX_FULL = CODE_FIX + T03 only',
+          sorted(KEEP_FULL[u] for u in set(CODE_FIX_FULL) - set(CODE_FIX)), ['T03'])
+    check('CODE_FIX_FULL keeps every cut-A fix as is',
+          all(CODE_FIX_FULL[u] == fx for u, fx in CODE_FIX.items()), True)
+    blk_a = '  <Task>' + EOL + '<UUID>a</UUID>' + EOL + '  </Task>' + EOL
+    blk_b = '  <Task>' + EOL + '<UUID>b</UUID>' + EOL + '  </Task>' + EOL
+    check('strip_tasks drops every task block',
+          strip_tasks('<x>' + EOL + blk_a + blk_b + '</x>'), '<x>' + EOL + '</x>')
+    for label, full_doc in (('differs outside the task blocks', '<y>' + EOL + blk_a + '</x>'),
+                            ('lacks a cut-A task block', '<x>' + EOL + blk_b + '</x>')):
+        try:
+            assert_full_extends_cuta(full_doc, '<x>' + EOL + blk_a + '</x>')
+            ok = False
+            print('  MISMATCH %-46s accepted a document it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused (full extends cut A): %s' % label)
+    # a keep-set that drops a kept task's predecessor must be refused, not derived
+    chain = ('<Task>' + EOL + '<UUID>p</UUID>' + EOL + '</Task>' + EOL
+             + '<Task>' + EOL + '<TemporalAssociationWithAction>p</TemporalAssociationWithAction>'
+             + EOL + '<UUID>s</UUID>' + EOL + '</Task>' + EOL)
+    try:
+        derive_order(chain, lambda m: None, None, frozenset(), {'s': 'S'}, {})
+        ok = False
+        print('  MISMATCH %-46s accepted a keep-set it must refuse' % 'successor without predecessor')
+    except AssertionError as exc:
+        if 'depends on dropped task' in str(exc):
+            print('  ok       refused: a kept successor whose predecessor is dropped')
+        else:
+            ok = False
+            print('  MISMATCH %-46s refused for another reason: %s'
+                  % ('successor without predecessor', exc))
+
     print('gate (proven on a DIRTY control first, per the ASCII rule):')
     good = ('<?xml version="1.0" encoding="utf-8"?>\r\n<MessageBody xmlns="%s">\r\n'
             '  <A>x</A>\r\n</MessageBody>' % NS)
@@ -1283,6 +1438,11 @@ def main(argv=None):
                          "run E1, T14 on its original line -> data/IRONSTORM_CUTA_E1_Order.xml. "
                          "Any other letter is refused (exit 4). --check always verifies every "
                          "variant, whatever this says.")
+    ap.add_argument('--variant', choices=('cuta', 'full'), default='cuta',
+                    help="'cuta' (default) writes the cut-A pair (or the --without variant); 'full' "
+                         "writes data/IRONSTORM_FULL_Order.xml - every task but T12, the same "
+                         "changes (data/IRONSTORM_FULL_CHANGES.md). --check verifies both, whatever "
+                         "this says.")
     args = ap.parse_args(argv)
     if args.selftest:
         return selftest()
@@ -1290,6 +1450,10 @@ def main(argv=None):
         without = parse_without(args.without)
     except ValueError as exc:
         print('REFUSED --without %r: %s' % (args.without, exc))
+        return 4
+    if args.variant == 'full' and without:
+        print('REFUSED --without %r with --variant full: the full variant leaves no change out'
+              % args.without)
         return 4
 
     def log(msg):
@@ -1307,19 +1471,24 @@ def main(argv=None):
         log('=== ORDER VARIANT: %s -> %s ===' % (variant_label(v), os.path.basename(VARIANTS[v])))
         orders[v] = derive_order(src_order, log, src_init, v)
     log('')
+    log('=== ORDER VARIANT: FULL (every task but T12, all changes) -> %s ==='
+        % os.path.basename(OUT_ORDER_FULL))
+    full_order = derive_order_full(src_order, log, src_init)
+    log('')
     out_init = derive_init(src_init, log)
     log('')
 
     problems = []
     for v in orders:
         gate(orders[v], 'derived order (%s)' % variant_label(v), problems)
+    gate(full_order, 'derived order (FULL)', problems)
     gate(out_init, 'derived init', problems)
     if problems:
         for p in problems:
             print('GATE FAILURE: %s' % p)
         return 2
     log('gates: ASCII, CRLF, STP-830 comment scan, well-formedness, root, namespace, '
-        'duration pattern - ALL PASS (%d order variant(s) + the init)' % len(orders))
+        'duration pattern - ALL PASS (%d order variant(s) + the init)' % (len(orders) + 1))
 
     # ONE CHANGE APART: the without-(i) order must be the full order minus (i)'s two insertions
     # and nothing else - what lets a run on it claim T14's route as its one variable.
@@ -1334,11 +1503,22 @@ def main(argv=None):
         return 3
     log('variants: without (i) == as ruled minus (i)\'s graphic entity and MapGraphicID line - '
         'ONE change apart')
+    try:
+        assert_full_extends_cuta(full_order, orders[frozenset()])
+    except AssertionError as exc:
+        print('CHECK FAILURE: %s' % exc)
+        return 3
+    log('variants: FULL == cut A plus %d more task blocks; outside the task blocks byte-identical, '
+        'and each cut-A task block verbatim' % (len(KEEP_FULL) - len(KEEP)))
 
     if args.check:
-        targets = [(OUT_INIT, out_init)] + [(VARIANTS[v], orders[v]) for v in orders]
-        if without:
-            log('(--check verifies every variant; --without %s does not narrow it)' % args.without)
+        targets = ([(OUT_INIT, out_init)] + [(VARIANTS[v], orders[v]) for v in orders]
+                   + [(OUT_ORDER_FULL, full_order)])
+        if without or args.variant != 'cuta':
+            log('(--check verifies every variant; --without / --variant do not narrow it)')
+    elif args.variant == 'full':
+        # no init is written: the full variant uses the export's init, unchanged (derive_init)
+        targets = [(OUT_ORDER_FULL, full_order)]
     else:
         targets = [(OUT_INIT, out_init), (VARIANTS[without], orders[without])]
     for path, text in targets:
@@ -1357,10 +1537,13 @@ def main(argv=None):
                 % (name, sha(text), len(text.encode('utf-8'))))
     if not args.check:
         for v in orders:
-            if v != without:
+            if v != without or args.variant == 'full':
                 log('NOT WRITTEN %s (%s; derived and gated only - %s writes it)'
                     % (os.path.basename(VARIANTS[v]), variant_label(v),
                        '--without ' + ','.join(sorted(v)) if v else 'a run with no --without'))
+        if args.variant != 'full':
+            log('NOT WRITTEN %s (FULL; derived and gated only - --variant full writes it)'
+                % os.path.basename(OUT_ORDER_FULL))
     return 0
 
 

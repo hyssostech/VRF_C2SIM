@@ -249,6 +249,10 @@ and `Classify` sends an unlisted verb to the bare-move fallback with `Recognized
   *Geometry the interface will drive* below held for `ExecutePlanPhase` only.
 The CNFPSL verb is being added by another lane; until it lands and says what CNFPSL does,
 this order must not go to a live run as-is.
+> **SINCE MAPPED (noted 2026-10-04, lane FD).** The paragraph above is historical: FOLSPT advances along the graphic
+> and holds (`VerbMapping.cs:164`), and CNFPSL is HELD IN PLACE exactly like ExecutePlanPhase - no vendor task,
+> completion by time (`VerbMapping.cs:167`, `TaskDispatchPolicy.cs:61-62`; RL-20260926-01 A6, STP-866). T01 and T13
+> do not drive their four-graphic assemblies. (data/IRONSTORM_FULL_CHANGES.md (g) applies the same patch to T03.)
 
 --------------------------------------------------------------------------------
 ## STP-846 - T02 IS the ATTACK fallthrough, and here is exactly what it does
