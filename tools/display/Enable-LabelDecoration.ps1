@@ -126,7 +126,11 @@ try {
             $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
             $backup = "$($t.File).bak-$stamp"
             Copy-Item -LiteralPath $t.File -Destination $backup
-            [System.IO.File]::WriteAllText($t.File, $edit.Text, [System.Text.UTF8Encoding]::new($r.Bom))
+            # Atomic replace: write a temp file beside the target, then move it over (a crash mid-write
+            # leaves the original intact; the .bak above is the second line of defence).
+            $tmp = "$($t.File).tmp-$stamp"
+            [System.IO.File]::WriteAllText($tmp, $edit.Text, [System.Text.UTF8Encoding]::new($r.Bom))
+            [System.IO.File]::Move($tmp, $t.File, $true)
             $re = Test-LabelDecorationFile -Path $t.File -ModelSets $ModelSets -Types $Types -Decoration $Decoration
             $back = Read-LabelSettingsText -Path $t.File
             if ($re.Status -ne 'on' -or $back.Text -cne $edit.Text) {
