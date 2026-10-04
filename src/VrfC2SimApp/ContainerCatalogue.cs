@@ -211,7 +211,8 @@ public static class ContainerTypeRule
                new VrfC2Sim.Geodetic { LatDeg = latDeg, LonDeg = lonDeg, AltMeters = 0.0 }, null,
                TemplateName: member.Leaf.TemplateName)
            // C1d (RL-20260928-02): the member is created under the uuid its plan derived (PopulatePlanner.Plan).
-           { CreateSubordinates = false, CreateAggregated = true, StartingUuid = member.Uuid ?? "" };
+           // LBL: and with its FULL designation as its vendor Label (PopulateMember.Label, "<container>.<suffix>").
+           { CreateSubordinates = false, CreateAggregated = true, StartingUuid = member.Uuid ?? "", Label = member.Label ?? "" };
 
     /// <summary>
     /// The unit's creation plan AS A CONTAINER: the chosen container type and template, an EMPTY shell

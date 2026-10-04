@@ -670,8 +670,9 @@ public static class ContainerSelfTest
               && src.Contains("if (_containerMode && !string.IsNullOrEmpty(marking) && _containers.IsMember(marking, out var memberOf))")
               && src.Contains("=> _containerMode && !string.IsNullOrEmpty(name) && _containerByName.ContainsKey(name);"),
               "the init rule, the population, D-5, the sweep, the member completions and IsContainerUnit are all behind _containerMode");
-        // C1d: the call now also passes the plan's uuid (p15 guards that); the state still comes from the plan.
-        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates, p.StartingUuid);")
+        // C1d: the call now also passes the plan's uuid (p15 guards that) - and, LBL, its Label (p17); the state still
+        // comes from the plan.
+        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates, p.StartingUuid, p.Label);")
               && !src.Contains("AggregateState.Disaggregated, p.CreateSubordinates"),
               "EnqueueCreates takes the state from the plan (Disaggregated unless a container member asks)");
         Check(src.Contains("\"CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their \" +")
@@ -1608,17 +1609,19 @@ public static class ContainerSelfTest
             foreach (var c in CallArgs(text, "_bridge.CreateEntity(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "entity"));
             foreach (var c in CallArgs(text, "_bridge.CreateAggregate(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "aggregate"));
         }
-        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 6 : c.Args == 8)
-              && creates.All(c => c.Text.EndsWith(", p.StartingUuid)", StringComparison.Ordinal)),
+        // LBL: the uuid is now the second-to-last argument, followed by the plan's Label (p17 guards the Label).
+        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 7 : c.Args == 9)
+              && creates.All(c => c.Text.EndsWith(", p.StartingUuid, p.Label)", StringComparison.Ordinal)),
               "EVERY _bridge.CreateEntity / CreateAggregate call site in the app passes a uuid - the plan's StartingUuid, as the " +
-              "LAST argument of the 6- / 8-argument overload (the self-tests excluded)",
+              "second-to-last argument, followed only by the plan's Label (LBL), of the 7- / 9-argument overload (the self-tests " +
+              "excluded)",
               string.Join(" | ", creates.Select(c => $"{c.File}: {c.Args} args: {c.Text}")));
         string catSrc = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "ContainerCatalogue.cs"));
         Check(src.Contains("plan = plan with { StartingUuid = IdentityUuid.ForC2SimUnit(unit.Uuid) };")
               && src.Contains("{ CreateSubordinates = true, StartingUuid = childUuid };")
               && src.Contains("toCreate[0] = toCreate[0] with { StartingUuid = recreateUuid };")
               && src.Contains("containerUuid: d.Plan.StartingUuid,")
-              && catSrc.Contains("StartingUuid = member.Uuid ?? \"\" };")
+              && catSrc.Contains("StartingUuid = member.Uuid ?? \"\", Label = member.Label ?? \"\" };")
               && src.Contains("foreach (var p in plans) RequestIdentity(p);"),
               "every plan source sets the uuid it is created under - an init unit its C2SIM uuid, a synthesized sub-unit, a " +
               "member (MemberPlan) and a template re-create a derived one - and EnqueueCreates registers each before the create");
@@ -1947,6 +1950,11 @@ public static class ContainerSelfTest
         }
         Check(!HasLabelOverloads(typeof(NewCreateSurface)) && HasLabelOverloads(typeof(LabelCreateSurface)),
               "the reflection check finds the label overloads by their exact signatures (negative control: C1d's uuid-only surface)");
+        Check(!LabelBridge.Present(typeof(NewCreateSurface)) && LabelBridge.Present(typeof(LabelCreateSurface))
+              && !LabelBridge.Present(null) && !LabelBridge.Present(typeof(object))
+              && src.Contains("if (!LabelBridge.Present(_bridge.GetType()))") && src.Contains("LABEL (LBL) - REFUSING TO START"),
+              "the service's start check (LabelBridge.Present) finds the same two overloads and nothing else (negative controls: " +
+              "the uuid-only surface, object, null), and the start is REFUSED on a bridge without them");
         Check(HasLabelOverloads(typeof(VrfBridge)),
               "the LINKED VrfBridge.dll CARRIES CreateEntity(..., String uuid, String label) and CreateAggregate(..., Boolean, " +
               "String uuid, String label) - a bridge rebuilt for LBL", typeof(VrfBridge).Assembly.Location);

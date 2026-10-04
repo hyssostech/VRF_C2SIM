@@ -741,6 +741,9 @@ public static class PopulatePlanner
     /// uuid); each member gets the uuid it will be created under, IdentityUuid.Derive(container uuid, leaf suffix) - a
     /// suffix repeated within one population (two table entries of one function) is made unique by its slot,
     /// "&lt;suffix&gt;@&lt;slot&gt;", so every member of a population has its own uuid. None when the uuid is empty.
+    /// LBL: <paramref name="containerLabel"/> is the container's full designation (its plan's Label - the C2SIM name, never
+    /// cut or tagged); each member's Label is "&lt;that&gt;.&lt;suffix&gt;" (DesignationLabel.ForMember), the container's name
+    /// standing in when none is given. The Label is display only: it changes no name and no uuid.
     /// </summary>
     public static PopulateLayout Plan(string containerName, double anchorLat, double anchorLon,
                                       IReadOnlyList<PopulateLeaf> leaves, double rotationDeg,
@@ -793,7 +796,8 @@ public static class PopulatePlanner
                                            radius > 0.0 ? bearing : 0.0,
                                            tag > 1 ? $"tag {VrfNames.Tag(tag)}: the plain name {why}" : null,
                                            memberUuid,
-                                           memberUuid.Length > 0 ? IdentityUuid.DerivationName(containerUuid, uuidSuffix) : ""));
+                                           memberUuid.Length > 0 ? IdentityUuid.DerivationName(containerUuid, uuidSuffix) : "",
+                                           DesignationLabel.ForMember(containerLabel ?? containerName, leaves[k].Suffix)));
         }
         return new PopulateLayout(members, spacing, radius, reach, null);
     }

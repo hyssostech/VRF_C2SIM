@@ -662,6 +662,21 @@ public sealed class VrfC2SimService : BackgroundService
             _life.StopApplication();
             return;
         }
+        // 0b-iv. LBL - THE FULL DESIGNATION IN THE VENDOR LABEL (HANDOFF_SEAT_2026-09-28 sec 3 item 5). The creates call the
+        // bridge's label overloads; a VrfBridge.dll without them could create nothing - REFUSE TO START, as 0b-iii does.
+        if (!LabelBridge.Present(_bridge.GetType()))
+        {
+            _log.LogCritical("LABEL (LBL) - REFUSING TO START: the loaded VrfBridge.dll has no CreateEntity/CreateAggregate " +
+                             "taking a label, so every create would fail with MissingMethodException. Rebuild the bridge " +
+                             "(/t:Rebuild) and ALL ELEVEN consumers so every bin copy is one hash (docs/RUNBOOK.md sec 9).");
+            _life.StopApplication();
+            return;
+        }
+        _log.LogInformation("LABEL (LBL): every entity and aggregate is created with its FULL C2SIM designation as its VR-Forces " +
+                            "LABEL - an init unit its C2SIM name as sent, a container member or a synthesized sub-unit " +
+                            "'<parent designation>.<suffix>' - shown by the Label symbol decoration (UG52 21.2); display only, " +
+                            "uncapped and not unique (UG52 13.2 Table 21, 13.2.5), never a key. The NAME (cut to 30, a member's " +
+                            "to 16) and the uuid are unchanged.");
         _log.LogInformation("IDENTITY (C1d, RL-20260928-02): every entity and aggregate is CREATED UNDER A UUID and BOUND BY " +
                             "IT - an init unit (and its ~PXY proxy) under its own C2SIM uuid; a container member, a " +
                             "synthesized sub-unit and a template re-create under an RFC 4122 v5 uuid of '<parent uuid>/" +
@@ -2353,11 +2368,13 @@ public sealed class VrfC2SimService : BackgroundService
                 // Table 68 p1470; design sec 8 item 1). No EntityLevel plan asks for Aggregated.
                 // C1d: the plan's StartingUuid is the vendor's startingUUID (vrfRemoteController.h 5.2 :1282-1306),
                 // passed BARE; every other argument is exactly the pre-C1d call's.
+                // LBL: and the plan's Label - the full C2SIM designation (DesignationLabel) - in the vendor's label slot
+                // (:1289, :1302), display only; "" sends the nullString the pre-LBL call sent.
                 if (p.IsAggregate)
                     _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
-                                            CreationStates.For(p), p.CreateSubordinates, p.StartingUuid);
+                                            CreationStates.For(p), p.CreateSubordinates, p.StartingUuid, p.Label);
                 else
-                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name, p.StartingUuid);
+                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name, p.StartingUuid, p.Label);
             });
         }
     }
@@ -2735,6 +2752,8 @@ public sealed class VrfC2SimService : BackgroundService
                 var childPlan = new CreationPlan(true, childType, plan.Force, plan.HeadingDeg,
                                                  childName, plan.Pos, null)
                                 { CreateSubordinates = true, StartingUuid = childUuid };
+                // LBL: its vendor Label is its FULL designation, "<parent designation>.<handle><n>" - the name above is cut.
+                childPlan = childPlan with { Label = DesignationLabel.ForMember(DesignationLabel.Of(plan), childSuffix) };
                 // A synthesized sub-unit is born ON ITS LEAF'S COORDINATE and is composed into it by
                 // AddToOrganization below, so it is a COMPOSED CHILD in exactly the sense the
                 // de-stack must not touch (CompositionPlan): its place is the leaf's formation's,
@@ -3221,6 +3240,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 layout = PopulatePlanner.Plan(name, d.Plan.Pos.LatDeg, d.Plan.Pos.LonDeg, plan.Leaves, _vrf.DeStackRotationDeg,
                                               containerUuid: d.Plan.StartingUuid,
+                                              containerLabel: DesignationLabel.Of(d.Plan),
                                               conflictOf: c => _names.KeyConflict(c, truncatable: true));
                 if (layout.Refused) refusal = layout.Refusal;
                 else foreach (var m in layout.Members) _names.Requested(m.Name);
