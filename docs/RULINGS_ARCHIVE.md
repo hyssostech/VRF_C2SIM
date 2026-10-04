@@ -9,6 +9,7 @@
 #      RL-20260927-01 (moved 2026-09-28, unchanged, to make room for RL-20260928-01; the movement approach it approved is implemented and live-proven).
 #      RL-20260927-05 (moved 2026-10-04, unchanged, to make room for RL-20261004-01; option (a) is implemented, fix/gate-late-predecessor).
 #      RL-20260927-03 (moved 2026-10-04, unchanged, to make room for RL-20261004-02; C13 for containers, implemented and live since G1-2).
+#      RL-20260927-02 (moved 2026-10-04, unchanged, to make room for RL-20261004-03; container population, implemented and live since G1-2).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -485,3 +486,19 @@ RL-20260927-03 | 2026-09-27 | status VERBATIM - P6030, TYPED, unprompted (restat
   supervisor reading: C13 restated for C1 (RL-20260906-02 "just 11 taskees ... the only ones that need to be simulated"; PREREG_ORDER_TIME_MATERIALIZATION:
     display at init, configure at order time): every unit is an empty container at init, visible at its authored position; only a tasked unit is populated.
   pointer: PLAN_MOVEMENT_2026-09-27 row C1; CreationPolicy=AtOrder (C13) in VrfC2SimService; PREREG_ORDER_TIME_MATERIALIZATION_2026-09-06 sec 2.
+
+RL-20260927-02 | 2026-09-27 | status VERBATIM - P5906, TYPED
+  Q (as put, P5695, the seat's A1 report; its "Two decisions for you before G1"): "1. Hostile side: RUS (107 units, branch-correct stand-ins for every
+    hostile function, the vendor's own Baltic choice, and the map's default) or BLR (24, proxies). I recommend RUS. 2. Representation for the first
+    aggregate runs: proxies (company/battalion-sized aggregates; they move, report and carry footprints) now, with populated containers as the later
+    fidelity step; or build the container population first. I recommend proxies now."
+  A (owner, P5906): "1. RUS. 2. Again a discussion Thats been has. Many sessions ago you said that "authoring" was the vendors standard way of dealing
+    with units. I understood you were talking about the composition you just rediscovered. But your surprise makes me think the container thing might
+    be a bit shaky. In any case, if this is real, then going back to populating the containers is what needs to be gone while we still remember it. You
+    have the TO providing the composition, so it seems simpler than arbitrary proxies that will need to be changed later" (line break after "if this")
+  supervisor reading: (1) hostile side RUS. (2) populate the containers NOW, before G1, instead of proxies - conditional on the container model being
+    real, which UG52 72.2.1 p1419 confirms ("aggregate-level simulation objects that are configured to use the aggregate warfare model do not have the
+    configuration options for specifying subordinates. Therefore, AggregateLevelBase.sms has a platform, Aggregate Container"). The TO (STP init) gives
+    corps -> division -> brigade (15 Superior relations, 4 battalions); brigade -> battalion/company composition is NOT in it and must come from the
+    catalogue's configured sub-units or an authored composition table (DESIGN_ORBAT_TO_VRF sec 5 (b)) - the source of that table is not decided here.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows C1, G1; AGGREGATE_CATALOGUE_2026-09-27; DESIGN_ORBAT_TO_VRF_2026-09-06 secs 1, 2, 5.
