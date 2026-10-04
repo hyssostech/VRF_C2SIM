@@ -51,7 +51,7 @@ public sealed record PreflightOptions
     public double VertexNudgeStepMeters { get; init; } = 25.0;
 
     /// <summary>Vrf:PreflightSlotWaterClearanceMeters (RL-20261004-01): a populated container's MEMBER SLOT
-    /// (CheckSlot) within this distance of OSM water is bad ground, and its nudge target must lie farther than
+    /// (CheckSlot) within this distance of OSM water (exactly this far included) is bad ground, and its nudge target must lie MORE than
     /// this from every OSM water feature. 10 m = the planner's obstacle buffer (RL-20260928-03). 0 = the rule
     /// before RL-20261004-01 (a slot is bad only IN the water). Authored route VERTICES do not read it.</summary>
     public double SlotWaterClearanceMeters { get; init; } = 10.0;
@@ -475,10 +475,11 @@ public sealed class PreflightService : IDisposable
     /// THE WATER CLEARANCE (RL-20261004-01): a nudged member slot clears OSM water by at least
     /// <see cref="PreflightOptions.SlotWaterClearanceMeters"/> (10 m = the obstacle buffer the container's planning
     /// task is given, RL-20260928-03; the vendor's navigate-to-location.lua :14 defines that buffer as the "Distance
-    /// that the path will stay away from the non-traversable feature"). Both halves of the search read it: a slot
-    /// WITHIN the clearance is bad ground (the same hazard as a slot in the water - G1-4's INF3WPN1 was born 1.7 m
-    /// from a shore and never moved; WHY is not settled, the ruling is the design either way), and a candidate is
-    /// taken only farther than the clearance from every OSM water feature. A road bridge exempts nothing here: a
+    /// that the path will stay away from the non-traversable feature"). Both halves of the search read it. By design
+    /// under RL-20261004-01, a slot WITHIN the clearance (distance &lt;= the clearance, OsmQuery.Point) is bad ground,
+    /// and a candidate is taken only MORE than the clearance from every OSM water feature. The clearance in force is
+    /// <see cref="EffectiveSlotWaterClearance"/>: the model set's own water corridor wins when it is wider (EntityLevel,
+    /// 25 m). A road bridge exempts nothing here: a
     /// slot is a ring point this interface chose, not a crossing STP authored (the bridge rule's reason,
     /// OsmQuery.BridgeExempt). 0 = the rule before the ruling, exactly (in the water only; the bridge exemption).
     /// The authored-VERTEX check (CheckVertices) does not read the clearance - package M2's rule is unchanged.
@@ -493,7 +494,7 @@ public sealed class PreflightService : IDisposable
         double w = Math.Max(0.0, _opt.SlotWaterClearanceMeters);
         string clearOf = FormattableString.Invariant(
             $"clear of OSM water and of OSM buildings within {_opt.BuildingClearanceMeters:F0} m")
-            + (w > 0 ? FormattableString.Invariant($" - water clearance {w:F0} m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)") : "");
+            + (w > 0 ? " - " + SlotClearanceClause(_opt) : "");
         NudgeVerdict Judge((double Lat, double Lon) p)
         {
             if (w <= 0) return NudgeVerdict.Of(CheckPoint(p));
@@ -518,18 +519,40 @@ public sealed class PreflightService : IDisposable
     public static string DescribeSlotCheck(PreflightOptions opt)
     {
         double w = Math.Max(0.0, opt.SlotWaterClearanceMeters);
+        double eff = EffectiveSlotWaterClearance(opt);
         string water = w > 0
-            ? FormattableString.Invariant($"IN OSM water or within {w:F0} m of it (water clearance {w:F0} m, Vrf:PreflightSlotWaterClearanceMeters; RL-20261004-01: at least the planner's 10 m obstacle buffer, RL-20260928-03)")
-            : "IN OSM water (Vrf:PreflightSlotWaterClearanceMeters = 0: the rule before RL-20261004-01)";
+            ? FormattableString.Invariant($"IN OSM water or within {eff:F0} m of it ({SlotClearanceClause(opt)}; at least the planner's 10 m obstacle buffer, RL-20260928-03)")
+            : eff > 0
+                ? FormattableString.Invariant($"IN OSM water or within {eff:F0} m of it (the {opt.ModelSet} water corridor; Vrf:PreflightSlotWaterClearanceMeters = 0: the rule before RL-20261004-01)")
+                : "IN OSM water (Vrf:PreflightSlotWaterClearanceMeters = 0: the rule before RL-20261004-01)";
         string target = w > 0
-            ? FormattableString.Invariant($"the nearest ground farther than {w:F0} m from every OSM water feature (a road bridge exempts nothing for a slot)")
-            : "the nearest dry ground";
+            ? FormattableString.Invariant($"the nearest ground more than {eff:F0} m from every OSM water feature (a road bridge exempts nothing for a slot)")
+            : eff > 0
+                ? FormattableString.Invariant($"the nearest ground more than {eff:F0} m from OSM water")
+                : "the nearest dry ground";
         return FormattableString.Invariant(
             $"MEMBER SLOT CHECK (populated containers): a planned member slot {water} or within {opt.BuildingClearanceMeters:F0} m ") +
             FormattableString.Invariant(
             $"of an OSM building is moved to {target} and clear of buildings, on {Math.Max(1.0, opt.VertexNudgeStepMeters):F0} m rings within {Math.Max(0.0, opt.VertexNudgeMaxMeters):F0} m ") +
             "(Vrf:PreflightVertexNudgeMaxMeters); none found = KEPT ON BAD GROUND and logged; unreadable ground = UNVERIFIED, kept. " +
             "Authored route vertices keep the VERTEX CHECK's own rule.";
+    }
+
+    /// <summary>The water clearance a member slot is judged against: 0 when the setting is 0 and the model set has
+    /// no corridor; otherwise the WIDER of Vrf:PreflightSlotWaterClearanceMeters and the model set's own water
+    /// corridor (EntityLevel 25 m wins over 10 m; AggregateTacticalLevel's is 0) - what CheckPoint(p, w) applies.</summary>
+    public static double EffectiveSlotWaterClearance(PreflightOptions opt)
+        => Math.Max(Math.Max(0.0, opt.SlotWaterClearanceMeters), ModelSetRules.For(opt.ModelSet).WaterCorridorMeters);
+
+    /// <summary>"water clearance N m (...)" with the EFFECTIVE N, the setting and the ruling id.</summary>
+    private static string SlotClearanceClause(PreflightOptions opt)
+    {
+        double w = Math.Max(0.0, opt.SlotWaterClearanceMeters);
+        double eff = EffectiveSlotWaterClearance(opt);
+        return eff > w
+            ? FormattableString.Invariant(
+                $"water clearance {eff:F0} m (the {opt.ModelSet} water corridor, wider than Vrf:PreflightSlotWaterClearanceMeters = {w:F0} m, RL-20261004-01)")
+            : FormattableString.Invariant($"water clearance {eff:F0} m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)");
     }
 
     /// <summary>

@@ -731,14 +731,48 @@ public static class OsmSelfTest
               $"(g) an authored VERTEX 1.7 m outside the pond is NOT moved - the vertex rule is unchanged ({v.Why})");
 
         // (h) the start-up line says which water clearance the slot check uses.
-        string on = PreflightService.DescribeSlotCheck(new PreflightOptions());
-        string off = PreflightService.DescribeSlotCheck(new PreflightOptions { SlotWaterClearanceMeters = 0.0 });
+        string on = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.AggregateTacticalLevel });
+        string off = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.AggregateTacticalLevel, SlotWaterClearanceMeters = 0.0 });
         Console.WriteLine($"     {on}");
         Check(on.StartsWith("MEMBER SLOT CHECK", StringComparison.Ordinal)
-              && on.Contains("within 10 m of it (water clearance 10 m, Vrf:PreflightSlotWaterClearanceMeters", StringComparison.Ordinal)
-              && on.Contains("RL-20261004-01", StringComparison.Ordinal) && on.Contains("farther than 10 m from every OSM water", StringComparison.Ordinal)
+              && on.Contains("within 10 m of it (water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)", StringComparison.Ordinal)
+              && on.Contains("more than 10 m from every OSM water", StringComparison.Ordinal)
               && off.Contains("= 0: the rule before RL-20261004-01", StringComparison.Ordinal),
               "(h) the start-up line states the slot water clearance in use (and says so when it is 0)");
+
+        // (i) EntityLevel: the model set's 25 m corridor is WIDER than the 10 m setting and is what CheckPoint(p, w)
+        // applies - both strings print the EFFECTIVE clearance, 25 m, never "10 m" (Fable's review of W1, item 1).
+        using var ent = Service(noRaster, ModelSet.EntityLevel, world);
+        var si = ent.CheckSlot(16, a);
+        string entLine = PreflightService.DescribeSlotCheck(new PreflightOptions { ModelSet = ModelSet.EntityLevel });
+        Console.WriteLine($"     (i) {si.Verdict}");
+        Console.WriteLine($"     (i) {entLine}");
+        Check(si.Nudge.Moved && WaterM(ent, si.Point) > 25.0
+              && si.Verdict.Contains("inside the 25 m water clearance", StringComparison.Ordinal)
+              && si.Verdict.Contains(" - water clearance 25 m (the EntityLevel water corridor, wider than Vrf:PreflightSlotWaterClearanceMeters = 10 m, RL-20261004-01)", StringComparison.Ordinal)
+              && !si.Verdict.Contains("water clearance 10 m", StringComparison.Ordinal),
+              $"(i) EntityLevel: the SLOT MOVED clause states the EFFECTIVE 25 m clearance with the setting and the ruling id, never 10 m (lands {F1(WaterM(ent, si.Point))} m out)");
+        Check(entLine.Contains("within 25 m of it (water clearance 25 m (the EntityLevel water corridor", StringComparison.Ordinal)
+              && entLine.Contains("more than 25 m from every OSM water", StringComparison.Ordinal)
+              && entLine.Contains("Vrf:PreflightSlotWaterClearanceMeters = 10 m, RL-20261004-01", StringComparison.Ordinal)
+              && !entLine.Contains("10 m of it", StringComparison.Ordinal),
+              "(i) EntityLevel: the start-up line states the effective 25 m, with the setting and the ruling id");
+
+        // (j) THE BOUNDARY (OsmQuery.Point: water when distance <= corridor). A slot EXACTLY the clearance from water is
+        // IN the band; one just outside is clear. The clearance is set to the slot's own measured distance, so the
+        // equality is exact in floating point (the same computation on both sides).
+        var edge = f.LatLon((0.0, 110.0));
+        double dEdge = WaterM(svc, edge);
+        using var exact = new PreflightService(new PreflightOptions
+            { CacheDir = noRaster, Offline = true, OsmFeatures = true, ModelSet = ModelSet.AggregateTacticalLevel,
+              SlotWaterClearanceMeters = dEdge }, null, world.Provider);
+        var sj = exact.CheckSlot(16, edge);
+        var outside = f.LatLon((0.0, 110.05));
+        var sj2 = svc.CheckSlot(16, outside);
+        Check(Math.Abs(dEdge - 10.0) < 0.01 && sj.Nudge.Problem && sj.Nudge.Moved && WaterM(svc, sj.Point) > dEdge,
+              $"(j) a slot EXACTLY the clearance from water ({dEdge.ToString("F6", CultureInfo.InvariantCulture)} m = the clearance) is IN the band: moved, to more than that");
+        Check(WaterM(svc, outside) > 10.0 && !sj2.Nudge.Moved && sj2.Verdict == "clear",
+              $"(j) a slot just outside the 10 m clearance ({WaterM(svc, outside).ToString("F2", CultureInfo.InvariantCulture)} m) is clear and kept");
     }
 
     // ================================================================= 9. "not on flagged slope"

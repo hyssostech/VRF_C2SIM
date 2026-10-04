@@ -3161,8 +3161,10 @@ public sealed class VrfC2SimService : BackgroundService
                             ContainerScripts.MoveToLocationDirect,
                             ContainerScripts.PatrolRoute, _vrf.VertexArrivalRadiusMeters, _catalogue.Describe);
         // RL-20261004-01: the member-slot check's rule, said once (the per-slot L-SLOT lines name the clearance too).
+        Preflight.ModelSetRules.TryParse(_vrf.ModelSet, out var slotModelSet);   // the pre-flight's own reading of the key
         _log.LogInformation("{Line}", Preflight.PreflightService.DescribeSlotCheck(new Preflight.PreflightOptions
             {
+                ModelSet = slotModelSet,
                 BuildingClearanceMeters = _vrf.PreflightBuildingClearanceMeters,
                 VertexNudgeMaxMeters = _vrf.PreflightVertexNudgeMaxMeters,
                 SlotWaterClearanceMeters = _vrf.PreflightSlotWaterClearanceMeters,
