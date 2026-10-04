@@ -1711,8 +1711,12 @@ Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--ve
   and the app log's first lines say `C2SIM endpoints: rest=... stomp=...`. WHY: the operator
   works the C2SIM GUI against THEIR server (`c2sim_server4.8.4.9`, 8080/61613) and an
   initialization pushed there mid-run reset the interface (run 20260902T193508Z, formally
-  INVALID for that reason). The two servers must never be shared again. Recreate it if
-  missing (same image, second instance):
+  INVALID for that reason). The two servers must never be shared again. START IT FIRST: if
+  the container exists (`docker ps -a --filter name=c2sim-server-vrf` lists it, e.g. Exited
+  after a reboot), `docker start c2sim-server-vrf`, wait ~30 s, verify REST
+  `http://127.0.0.1:18080/C2SIMServer` -> HTTP 200 (seen 2026-10-04, G1-5 step S: REST 200
+  by 20:23:41Z). `docker run` ONLY when it does not exist - a second `docker run` with the
+  same name fails on the name. Recreate it if missing (same image, second instance):
   `docker run -d --name c2sim-server-vrf -p 18080:8080 -p 61614:61613 -v C:\C2SIM\docker\c2simFiles-vrf:/opt/c2simFiles -e TZ=America/Los_Angeles -e LANG=en_US.UTF-8 -e LC_ALL=en_US.UTF-8 -e LANGUAGE=en_US.UTF-8 c2sim-server:4.8.4.9-rev1`
   (~30 s to Apollo+Tomcat ready; verify REST `http://127.0.0.1:18080/C2SIMServer` -> HTTP 200).
   2026-09-25: recreated after the rebuild from image 8e6e6280, bind mount seeded from c2simFiles-v3.tar.gz (layout: one top dir `c2simFiles/` plus a stray `._c2simFiles`; extracted with `tar -xzf ... --strip-components=1` inside `C:\C2SIM\docker\c2simFiles-vrf`, so its contents sit directly at /opt/c2simFiles - no doubled folder); REST 18080 -> 200, TCP 61614 connects.
@@ -4197,6 +4201,11 @@ not moved from (L9979: `1451 m from it and moved 0 m`). At vertex 2 two members 
 crashed at 19:05:16Z (crash record + `Error vrfSimHLA1516e.exe` modal) and the window ran on to 19:07:22Z unaware.
 **SEEN LIVE 2026-09-28 ON THE M3b BUILD (G1-4 pre-warm, run 20260928T225800Z): 22 of 23 tasked members moved, 0 `route does
 not exist`; the W gate FAILED on H5 and P-FALS(e) and binds as scored (RL-20261004-01).** M3b's paragraph below has the parts.
+**SEEN LIVE A SECOND TIME 2026-10-04 ON THE W1 BUILD (52f50e0; G1-5 pre-warm, run 20261004T202533Z_run): M3b held again - 57 of
+57 route references whole, 0 `route does not exist`, 0 EXECUTOR REFUSED, all 23 tasked members moved (48_IBCT.INF3WPN1 1,701 m),
+T14 closed its vertex 1 (17 of 17) and drove its second leg; W1's slot check moved the 4 predicted slots; no crash. The W gate
+FAILED on P-FALS(e) alone - T14's members crossed a river where a road runs over a culvert, which the scorer's ways rule has
+no clause for - and binds as scored (RL-20261004-03; PREREG_IRONSTORM_AGG_G1-5 Result N1).**
 THE MECHANISM (vendor files, VrfNames.cs): the script names its route `<member> Path part <n>` (.lua :223); the route's uuid is
 the string `<name>_<counter>` (the vendor's own save: `JAM-137 Path part 1_8`, RoadToKaunasPhaseTwo.oob :103563-103565, and its
 move-along `(route "VRF_UUID:JAM-137 Path part 1_8")` :72127); a move-along carries its route as a DtUUID (moveAlongTasks.h
