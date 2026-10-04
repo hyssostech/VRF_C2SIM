@@ -3353,27 +3353,12 @@ public sealed class VrfC2SimService : BackgroundService
                 outp.Add((m.LatDeg, m.LonDeg, "UNVERIFIED (the pre-flight is off or cannot score - the slot is kept)"));
             return outp;
         }
-        var opt = new Preflight.VertexNudgeOptions
-        {
-            MaxMeters = Math.Max(0.0, _vrf.PreflightVertexNudgeMaxMeters),
-            StepMeters = 25.0,
-        };
+        // The check itself is PreflightService.CheckSlot - one implementation, the one --osm-selftest drives
+        // (sec 8b); the service's options carry Vrf:PreflightVertexNudgeMaxMeters and the building clearance.
         foreach (var m in members)
         {
-            var n = Preflight.VertexNudgeSearch.Nudge(m.Slot + 1, (m.LatDeg, m.LonDeg), null, null, opt,
-                p => Preflight.NudgeVerdict.Of(svc.CheckPoint(p)),
-                c => Preflight.NudgeVerdict.Of(svc.CheckPoint(c)),
-                FormattableString.Invariant($"clear of OSM water and of OSM buildings within {_vrf.PreflightBuildingClearanceMeters:F0} m"));
-            if (n.Moved)
-                outp.Add((n.To.Lat, n.To.Lon, FormattableString.Invariant(
-                    $"SLOT MOVED {n.DistanceM:F0} m {n.Compass} - the planned slot lies {n.Why}; the new point is the nearest ground {n.ClearOf}")));
-            else if (n.Unresolved)
-                outp.Add((m.LatDeg, m.LonDeg, FormattableString.Invariant(
-                    $"KEPT ON BAD GROUND - the slot lies {n.Why} and no ground {n.ClearOf} was found within {n.SearchedMeters:F0} m")));
-            else if (n.Unverified)
-                outp.Add((m.LatDeg, m.LonDeg, $"UNVERIFIED - {n.Why}; the slot is kept"));
-            else
-                outp.Add((m.LatDeg, m.LonDeg, n.OnBridge ? n.Why : "clear"));
+            var s = svc.CheckSlot(m.Slot + 1, (m.LatDeg, m.LonDeg));
+            outp.Add((s.Point.Lat, s.Point.Lon, s.Verdict));
         }
         return outp;
     }
