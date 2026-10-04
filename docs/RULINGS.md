@@ -3,24 +3,13 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-05). 0927-05, -03, -02, -04 archived on 10-04 (1004-01..-03, -05).
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-06). 0927-05, -03, -02, -04, -06 archived on 10-04 (1004-01..-03, -05, -06).
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
-
-RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompted)
-  Q (as put): none - the seat's rationale at P5335 stood as Y-15: "Entity level for company-and-below orders; aggregate level for battalion-and-above,
-    or whenever the vehicle count makes the fixed-frame clock crawl. The profile is a fixture plus a type map plus a runner setting, chosen per order".
-  A (owner, P6635): "On aggregate vs entity : consider the echelon threshold just for the units actually tasked, not the overall set placed at
-    initialization but never acted upon. And I trust that the automated default can be overruled by a setting so that battalion and bow can be
-    simulated at an aggregate level rather than entity. Higher echelons can only be run at aggregate level because of vrf limitations"
-  supervisor reading: refines Y-15: (1) the model set is chosen by the highest echelon among the TASKED units (the order's performers), not the init;
-    (2) a setting (Vrf:ModelSet / runner -ModelSet) overrides the automatic choice, so battalion-and-below may run at aggregate level too; (3) above
-    battalion is aggregate-only (the entity catalogue stops at BN). "bow" read as "below". Package D2 builds the automatic selector.
-  pointer: PLAN_MOVEMENT_2026-09-27 row D2; VRF_5.2_DECISION_EVIDENCE Y-15 (dated note); scripts/RunC2SimScenario.ps1 -ModelSet (A1).
 
 RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
   Q (as put, P7308 - the D2 lane's two side effects: "1. The runner's default Mojave order becomes aggregate-only ... 1.BdeHQ carries EchelonCode BDE
@@ -112,3 +101,13 @@ RL-20261004-05 | 2026-10-04 | VERBATIM - Q1452, TYPED
     (3) the demo runs WAY B (STP pushes its own order). (4) the Label decoration may be written under C:\MAK ONLY by an automated,
     reproducible, verifiable deploy step that works on every installed instance; no hand edits.
   pointer: PREREG_IRONSTORM_AGG_G1-6_2026-10-04; tools/display/Enable-LabelDecoration.ps1 (feat/full-designation-label).
+RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
+  Q (seat, Q1855): "1. Tier 2a compositions: 278 ACR and 169 FAB now; 55 MEB and 11 CAB left refused [...] 2. 56 SBCT: the Polish stand-in
+    battalion, or an authored Stryker infantry battalion. 3. Way B's duration fix: STP fixes STP-848 on its side, and/or the interface also
+    accepts the short form PT20M. I recommend both. [...] 4. Firewall rules: pre-create them as an automated deploy step"
+  A (owner, Q1858): "1 ok. 2 standin. 3 both - is there a jira item for stp already? 4 commands to put this in place?"
+  supervisor reading: (1) compose 278 ACR (ABCT pattern) and 169 FAB from public doctrine; 55 MEB, 11 CAB stay refused with reasons.
+    (2) 56 SBCT's Stryker infantry = the Polish motorized BN as a labelled STAND-IN. (3) STP-848 stays for STP AND the interface accepts
+    the canonical ISO-8601 short form too (reverses the 2026-09-20 strict-decoder choice in OrderParser.cs, a seat choice, not a ruling).
+    (4) a question: the commands are shown; any change to the host firewall is the owner's to run (elevated).
+  pointer: STP-848 (Jira, To Do); scratch laneCOMP (sources); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

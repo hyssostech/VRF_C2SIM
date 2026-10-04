@@ -11,6 +11,7 @@
 #      RL-20260927-03 (moved 2026-10-04, unchanged, to make room for RL-20261004-02; C13 for containers, implemented and live since G1-2).
 #      RL-20260927-02 (moved 2026-10-04, unchanged, to make room for RL-20261004-03; container population, implemented and live since G1-2).
 #      RL-20260927-04 (moved 2026-10-04, unchanged, to make room for RL-20261004-05; C1 decisions D-1..D-8, implemented; C2 built).
+#      RL-20260927-06 (moved 2026-10-04, unchanged, to make room for RL-20261004-06; the model-set rule, implemented as D2/D2b).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -518,3 +519,14 @@ RL-20260927-04 | 2026-09-27 | status VERBATIM - P6260 TYPED, P6304 TYPED (mid-tu
     (POL), Engineer BN (RUS, Mech), Logistics BN (LTU), CSS CO (USA)). Sequencing (seat's, not his): G1 proves the container mechanism with catalogue units
     first; the authored battalions join the composition as package C2 lands.
   pointer: DESIGN_AGGREGATE_CONTAINERS_2026-09-27 secs 6-9; PLAN_MOVEMENT_2026-09-27 rows C1, C2, G1; tools/sms/Deploy-C2SimSms.ps1 (the recipe pattern).
+
+RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompted)
+  Q (as put): none - the seat's rationale at P5335 stood as Y-15: "Entity level for company-and-below orders; aggregate level for battalion-and-above,
+    or whenever the vehicle count makes the fixed-frame clock crawl. The profile is a fixture plus a type map plus a runner setting, chosen per order".
+  A (owner, P6635): "On aggregate vs entity : consider the echelon threshold just for the units actually tasked, not the overall set placed at
+    initialization but never acted upon. And I trust that the automated default can be overruled by a setting so that battalion and bow can be
+    simulated at an aggregate level rather than entity. Higher echelons can only be run at aggregate level because of vrf limitations"
+  supervisor reading: refines Y-15: (1) the model set is chosen by the highest echelon among the TASKED units (the order's performers), not the init;
+    (2) a setting (Vrf:ModelSet / runner -ModelSet) overrides the automatic choice, so battalion-and-below may run at aggregate level too; (3) above
+    battalion is aggregate-only (the entity catalogue stops at BN). "bow" read as "below". Package D2 builds the automatic selector.
+  pointer: PLAN_MOVEMENT_2026-09-27 row D2; VRF_5.2_DECISION_EVIDENCE Y-15 (dated note); scripts/RunC2SimScenario.ps1 -ModelSet (A1).
