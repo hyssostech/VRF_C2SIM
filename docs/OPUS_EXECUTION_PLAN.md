@@ -3678,6 +3678,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 5317: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
+- RESULT 2026-10-04 (G1-6 PRE-WARM 20261004T221443Z_run, IRONSTORM_AGG_G1-2026-10-04-6): holder branch (a), 67984 (5281) PERSISTENT; 5296 (back end 49644, StopVrf exit 6, no crash), 5298 (pre-check 40232, rtiexec log L40607), 5299 (trace 59104), 5300 (app 45264, exit 0), 5301 (Stage 2c 54216, rtiexec log L33827), 5303 (Stage 2h holder 52056) CONSUMED; 5297, 5302, 5304-5306 BURNED. W GATE PASS (culvert rule). Marker 5296 -> 5307.
+- RESULT 2026-10-04 (G1-6 SCORED 20261004T223015Z_run): 5307 (back end 52080, StopVrf exit 6, no crash), 5309 (pre-check 55080, rtiexec log L60996), 5310 (trace 44608), 5311 (app 40880, exit 0), 5312 (Stage 2c 25940, rtiexec log L51148), 5314 (Stage 2h holder 24776) CONSUMED; 5308, 5313, 5315-5317 BURNED. 79 PASS / 0 FAIL, 5/5 TASKCMPLT. Marker 5307 -> 5318. Claims nothing.
 
 *** NEXT FREE: 5318 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)

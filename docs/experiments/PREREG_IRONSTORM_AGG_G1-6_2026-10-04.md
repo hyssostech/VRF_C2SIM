@@ -1,6 +1,7 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-6: G1-5 re-run with ONE scorer change (a narrow culvert clause) - the first SCORED aggregate cut-A run with arrivals, doubling as a rehearsal of the demo's runner path (one unscored pre-warm + one scored run)
 
-STATUS: PASSED 2026-10-04 - W GATE PASS; scored run 79 PASS / 0 FAIL, every HIGH row and H6 held (the Result below).
+STATUS: PASSED 2026-10-04 - W GATE PASS (culvert rule; the ways rule FAILS both runs, RECORDED); scored run 79 PASS / 0 FAIL,
+every HIGH row and H6 held (the Result below; Fable ACCEPT WITH FIXES, applied).
 Was: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01; Fable cold review owed
 (RL-20260928-04). Registered by lane G1-6 on branch prereg/g1-6 from main 3d64dba, BEFORE any order push, holder action or
 launch. PREPARATION ONLY: no C2SIM push, no rtiexec or holder start, no VR-Forces or runner launch, no appNumber claimed, no
