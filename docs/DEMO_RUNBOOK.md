@@ -47,6 +47,12 @@ ONCE PER DAY / BEFORE EACH DEMO
 - Nothing of ours may still be running: `Get-Process vrfSim*,vrfGui*,VrfC2SimApp` must come back
   empty. rtiexec / rtiForwarder / rtiAssistant MAY stay up between sessions and must NEVER be
   killed - they are shared infrastructure, not part of your run.
+- LABELS ON THE MAP (RL-20261004-05): with no vrfGui running, run
+      pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -Verify
+  EXPECT exit 0 and "[ON]" for every install. Exit 1 (OFF) or 2 (missing): run it with -WhatIf, then
+  without, then -Verify again (RUNBOOK sec 9, LABEL DECORATION DEPLOY). Without it the map shows only
+  the cut names, not the full C2SIM designations; LaunchVrf52 also prints a [WARN] LABEL DECORATION
+  NOT ON line at every launch while it is off.
 - WHICH C2SIM SERVER. There are two on this machine and they are NOT interchangeable:
     STANDARD  REST http://127.0.0.1:8080/C2SIMServer   STOMP http://127.0.0.1:61613/topic/C2SIM
               - the operator's own server. THIS IS WHERE STP LIVES, so this is the one a REAL

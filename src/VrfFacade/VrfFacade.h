@@ -585,6 +585,20 @@ public:
                          AggregateState state, bool createSubordinates,
                          const std::string& uuid);
 
+    // LBL (HANDOFF_SEAT_2026-09-28 sec 3 item 5): the two uuid overloads above with the vendor's `label` argument
+    // (vrfRemoteController.h 5.2 :1289 createEntity, :1302 createAggregate) filled in - the slot they leave at
+    // DtString::nullString(). The Label is display only, not unique and of unlimited length (UG52 13.2 Table 21 p363,
+    // 13.2.5 p364); the interface puts the full C2SIM designation there, which the name cannot carry. Empty label ->
+    // nullString, i.e. exactly the uuid overload.
+    void CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
+                      Force force, double headingDeg, const std::string& name,
+                      const std::string& uuid, const std::string& label);
+
+    void CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
+                         Force force, double headingDeg, const std::string& name,
+                         AggregateState state, bool createSubordinates,
+                         const std::string& uuid, const std::string& label);
+
     // uuid (V3): the VRF UUID to assign the created control point; empty -> nullUUID,
     // which is the pre-V3 behaviour and what every existing caller gets. The vendor's
     // createWaypoint takes the same optional startingUUID as createControlArea does

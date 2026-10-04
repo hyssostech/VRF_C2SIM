@@ -45,6 +45,12 @@ namespace VrfC2SimApp;
 ///         give 42-character routes, and the 35 a move-along carries of one IS what the back end printed before 'route does
 ///         not exist'); the fix on the same population ('1-112_IN.RIF2'), its uuids unchanged; every table row fits under
 ///         the longest shipped designator; the source guards
+///   (p17) LBL - THE FULL DESIGNATION IN THE VENDOR LABEL (HANDOFF_SEAT_2026-09-28 sec 3 item 5; UG52 13.2 Table 21 p363,
+///         13.2.5 p364): every cut-A init unit (36) is planned with its whole C2SIM name as its Label and every member of
+///         G1's three populations (23) - and of every shipped table row - with "&lt;container designation&gt;.&lt;suffix&gt;";
+///         the names and uuids BYTE-IDENTICAL to before (a pinned sha256 - C1d, M3b); the source guards (every create
+///         passes the plan's Label; the facade puts it in the vendor's label slot); the linked VrfBridge.dll CARRIES the
+///         label overloads
 /// VARIANTS (C1b): the composition file holds a "catalogue" and an "authored" variant. p1 walks the SELECTED variant
 /// (`--populate-selftest --variant authored`; default = the file's defaultVariant, catalogue) on ITS catalogue - the
 /// installed vendor set for catalogue, the DERIVED set for authored (`--derived-sms PATH`, else env
@@ -112,6 +118,7 @@ public static class ContainerSelfTest
         P14(repo, cat, table);
         P15(repo, cat, table);
         P16(repo, home, cat, table);
+        P17(repo, cat, table);
         return Finish();
     }
 
@@ -663,8 +670,9 @@ public static class ContainerSelfTest
               && src.Contains("if (_containerMode && !string.IsNullOrEmpty(marking) && _containers.IsMember(marking, out var memberOf))")
               && src.Contains("=> _containerMode && !string.IsNullOrEmpty(name) && _containerByName.ContainsKey(name);"),
               "the init rule, the population, D-5, the sweep, the member completions and IsContainerUnit are all behind _containerMode");
-        // C1d: the call now also passes the plan's uuid (p15 guards that); the state still comes from the plan.
-        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates, p.StartingUuid);")
+        // C1d: the call now also passes the plan's uuid (p15 guards that) - and, LBL, its Label (p17); the state still
+        // comes from the plan.
+        Check(src.Contains("CreationStates.For(p), p.CreateSubordinates, p.StartingUuid, p.Label);")
               && !src.Contains("AggregateState.Disaggregated, p.CreateSubordinates"),
               "EnqueueCreates takes the state from the plan (Disaggregated unless a container member asks)");
         Check(src.Contains("\"CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their \" +")
@@ -1601,17 +1609,19 @@ public static class ContainerSelfTest
             foreach (var c in CallArgs(text, "_bridge.CreateEntity(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "entity"));
             foreach (var c in CallArgs(text, "_bridge.CreateAggregate(")) creates.Add((Path.GetFileName(f), c.Args, c.Text, "aggregate"));
         }
-        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 6 : c.Args == 8)
-              && creates.All(c => c.Text.EndsWith(", p.StartingUuid)", StringComparison.Ordinal)),
+        // LBL: the uuid is now the second-to-last argument, followed by the plan's Label (p17 guards the Label).
+        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 7 : c.Args == 9)
+              && creates.All(c => c.Text.EndsWith(", p.StartingUuid, p.Label)", StringComparison.Ordinal)),
               "EVERY _bridge.CreateEntity / CreateAggregate call site in the app passes a uuid - the plan's StartingUuid, as the " +
-              "LAST argument of the 6- / 8-argument overload (the self-tests excluded)",
+              "second-to-last argument, followed only by the plan's Label (LBL), of the 7- / 9-argument overload (the self-tests " +
+              "excluded)",
               string.Join(" | ", creates.Select(c => $"{c.File}: {c.Args} args: {c.Text}")));
         string catSrc = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "ContainerCatalogue.cs"));
         Check(src.Contains("plan = plan with { StartingUuid = IdentityUuid.ForC2SimUnit(unit.Uuid) };")
               && src.Contains("{ CreateSubordinates = true, StartingUuid = childUuid };")
               && src.Contains("toCreate[0] = toCreate[0] with { StartingUuid = recreateUuid };")
               && src.Contains("containerUuid: d.Plan.StartingUuid,")
-              && catSrc.Contains("StartingUuid = member.Uuid ?? \"\" };")
+              && catSrc.Contains("StartingUuid = member.Uuid ?? \"\", Label = member.Label ?? \"\" };")
               && src.Contains("foreach (var p in plans) RequestIdentity(p);"),
               "every plan source sets the uuid it is created under - an init unit its C2SIM uuid, a synthesized sub-unit, a " +
               "member (MemberPlan) and a template re-create a derived one - and EnqueueCreates registers each before the create");
@@ -1782,6 +1792,178 @@ public static class ContainerSelfTest
               && CountOf(svc, "PopulatePlanner.FullMemberName(name, m.Leaf.Suffix)") == 3,
               "the planner names a member '<designator, cut>[~k].<suffix>' within 16, and the POPULATE and IDENTITY lines print " +
               "each short name beside the member's full name");
+    }
+
+    // ----------------------------------------------------------------------------------------------- (p17) ----
+    // LBL (HANDOFF_SEAT_2026-09-28 sec 3 item 5, asked by the owner 2026-09-28): the creates sent label = nullString, so the
+    // map showed only the NAME - cut to 30 for a unit (the aggregate marking field, VrfNames) and 16 for a container member
+    // (M3b). The vendor's LABEL "Does not have to be unique ... No limit on character length" (UG52 13.2 Table 21 p363;
+    // 13.2.5 p364 "without the restrictions of uniqueness or character length"), is a create argument
+    // (vrfRemoteController.h 5.2 :1289 createEntity, :1302 createAggregate; the message's objectLabel,
+    // vrfmsgs/ifCreateVrfObject.h :39-41, :134-136) and is shown by the Label symbol decoration (UG52 21.2 p470). So every
+    // create carries the FULL C2SIM designation as its Label, and NOTHING ELSE changes: the name and the uuid stay exactly
+    // what C1d and M3b made them (identity is the uuid, RL-20260928-02).
+    // The pin below is the sha256 of the 'name|uuid' lines this check builds, taken on the code BEFORE LBL (the scaffold
+    // commit of feat/full-designation-label, which adds only the defaulted Label fields): 36 aggregate-profile init plans,
+    // 36 entity-level init plans, G1's 23 members, and every shipped table row's members under the longest designator.
+    private const string IdentityPinBeforeLbl = "0e54c4dae412c7c2feea2fa2fc3ffa2d43cdb18a3be443ac56b2afdd48f7c94e";
+
+    private static void P17(string repo, ResolverCatalogue cat, CompositionTable table)
+    {
+        Console.WriteLine("--- (p17) LBL: the full C2SIM designation in the vendor Label on every create (UG52 13.2.5) ---");
+        var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
+        var created = init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)).ToList();
+        var aggMap = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"));
+        var entMap = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52.json"));
+        var nations = new NationRoles("USA", "RUS");
+        var identity = new System.Text.StringBuilder();
+        void Line(string name, string uuid) => identity.Append(name ?? "(null)").Append('|').Append(uuid ?? "(null)").Append('\n');
+
+        // (a) THE INIT: each created cut-A unit as the service plans it on the aggregate profile (UnitTranslator.Plan, its
+        //     C2SIM uuid as C1d sets it, the container rule) and on EntityLevel - the Label is the unit's WHOLE C2SIM name.
+        int aggLabelled = 0, entLabelled = 0, longer = 0;
+        var wrong = new List<string>();
+        foreach (var u in created)
+        {
+            var unit = u with { ElevationAgl = string.IsNullOrEmpty(u.ElevationAgl) ? "1000.0" : u.ElevationAgl };
+            var plan = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, aggMap, nations)
+                       with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
+            var choice = ContainerTypeRule.Choose(cat, plan.Type.Country, u.SymbolId, u.EchelonCode);
+            plan = ContainerTypeRule.Apply(plan, choice);
+            if (plan.Label == u.Name) aggLabelled++;
+            else wrong.Add($"{u.Name}: '{plan.Label}'");
+            Line(plan.Name, plan.StartingUuid);
+            var ent = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, entMap, nations)
+                      with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
+            if (ent.Label == u.Name) entLabelled++;
+            Line(ent.Name, ent.StartingUuid);
+            if (u.Name.Length > VrfNames.AggregateMarkingField) longer++;
+        }
+        Check(created.Count == 36 && aggLabelled == 36 && entLabelled == 36,
+              "INIT: every created cut-A unit is planned with its WHOLE C2SIM name as its Label - 36 of 36 as an Aggregate " +
+              "Container (aggregate profile) and 36 of 36 on EntityLevel",
+              $"aggregate {aggLabelled}, entity {entLabelled} of {created.Count}" + (wrong.Count == 0 ? "" : "; " + string.Join("; ", wrong.Take(3))));
+        Check(longer > 0,
+              $"the Label carries what the NAME cannot: {longer} of the 36 names are longer than the {VrfNames.AggregateMarkingField}-" +
+              "character aggregate marking field VR-Forces keeps of a name (VrfNames)", $"{longer} longer than 31");
+
+        // (b) THE MEMBERS: G1's three populations planned as PopulateInPlace plans them (the container's uuid and its
+        //     designation), then MemberPlan - the plan IssueMemberCreates sends. Label = "<container designation>.<suffix>".
+        var uuidOf = created.GroupBy(u => u.Name, StringComparer.Ordinal)
+                            .ToDictionary(g => g.Key, g => IdentityUuid.ForC2SimUnit(g.First().Uuid), StringComparer.Ordinal);
+        int members = 0, memberLabelled = 0;
+        var memberWrong = new List<string>();
+        foreach (var g in G1Populations)
+        {
+            var leaves = CompositionResolver.ExpandRow(table.ById(g.Row), table, cat).Leaves;
+            var lay = PopulatePlanner.Plan(g.Container, 54.0, 23.3, leaves, 0.0, containerUuid: uuidOf[g.Container],
+                                           containerLabel: g.Container);
+            foreach (var m in lay.Members)
+            {
+                members++;
+                var mp = ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg);
+                string want = g.Container + "." + m.Leaf.Suffix;
+                if (m.Label == want && mp.Label == want) memberLabelled++;
+                else memberWrong.Add($"{m.Name}: member '{m.Label}', plan '{mp.Label}'");
+                Line(mp.Name, mp.StartingUuid);
+            }
+        }
+        Check(members == 23 && memberLabelled == 23,
+              "MEMBERS: every member of G1's three populations (23) is planned - and MemberPlan sends it - with its FULL " +
+              "designation '<container designation>.<suffix>' as its Label (the name stays the 16-character M3b name)",
+              $"{memberLabelled} of {members}" + (memberWrong.Count == 0 ? "" : "; " + string.Join("; ", memberWrong.Take(3))));
+
+        // (c) EVERY ROW of the shipped table, under a designation longer than any name field: each member's Label is whole.
+        const string LongDesignation = "Headquarters_and_Headquarters_Brigade,_III_Corps/28ID__A_DESIGNATION_LONGER_THAN_ANY_NAME_FIELD";
+        int rows = 0, rowsOk = 0;
+        var rowWrong = new List<string>();
+        foreach (var row in table.Rows)
+        {
+            var pr = CompositionResolver.ExpandRow(row, table, cat);
+            if (pr.Refused) continue;
+            rows++;
+            var lr = PopulatePlanner.Plan(LongDesignation, 54.0, 23.3, pr.Leaves, 0.0, containerLabel: LongDesignation);
+            if (!lr.Refused && lr.Members.All(m => ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg).Label
+                                                   == LongDesignation + "." + m.Leaf.Suffix)) rowsOk++;
+            else rowWrong.Add(row.Id);
+            foreach (var m in lr.Members) Line(m.Name, m.Uuid);
+        }
+        Check(rows > 0 && rowsOk == rows,
+              $"EVERY shipped table row ({rows} expand): each member's Label is the whole '<designation>.<suffix>' under a " +
+              $"{LongDesignation.Length}-character designation (the Label has no length limit, UG52 Table 21)",
+              rowWrong.Count == 0 ? $"{rowsOk} of {rows}" : string.Join(", ", rowWrong));
+
+        // (d) NAMES AND UUIDS BYTE-IDENTICAL TO BEFORE LBL (C1d, M3b): the sha256 of every 'name|uuid' line above.
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                          System.Text.Encoding.UTF8.GetBytes(identity.ToString()))).ToLowerInvariant();
+        int lines = identity.ToString().Count(ch => ch == '\n');
+        Check(hash == IdentityPinBeforeLbl,
+              $"NAMES AND UUIDS UNCHANGED: the {lines} 'name|uuid' lines (36 + 36 init plans, 23 members, the table rows) hash " +
+              "to the value pinned on the code BEFORE LBL - the Label is added and nothing else moves",
+              "sha256 " + hash);
+
+        // (e) THE SOURCE GUARDS: every create passes the plan's Label LAST, after the uuid; every plan source sets one.
+        string src = SafeRead(Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs"));
+        var creates = new List<(int Args, string Text, string Kind)>();
+        foreach (var f in Directory.GetFiles(Path.Combine(repo, "src", "VrfC2SimApp"), "*.cs"))
+        {
+            if (Path.GetFileName(f).EndsWith("SelfTest.cs", StringComparison.Ordinal)) continue;
+            string text = File.ReadAllText(f);
+            foreach (var c in CallArgs(text, "_bridge.CreateEntity(")) creates.Add((c.Args, c.Text, "entity"));
+            foreach (var c in CallArgs(text, "_bridge.CreateAggregate(")) creates.Add((c.Args, c.Text, "aggregate"));
+        }
+        Check(creates.Count == 2 && creates.All(c => c.Kind == "entity" ? c.Args == 7 : c.Args == 9)
+              && creates.All(c => c.Text.EndsWith(", p.StartingUuid, p.Label)", StringComparison.Ordinal)),
+              "EVERY _bridge.CreateEntity / CreateAggregate call site in the app passes the plan's Label as the LAST argument, " +
+              "after its uuid (the 7- / 9-argument overloads)",
+              string.Join(" | ", creates.Select(c => $"{c.Args} args: {c.Text}")));
+        Check(src.Contains("containerLabel: DesignationLabel.Of(d.Plan),")
+              && src.Contains("childPlan = childPlan with { Label = DesignationLabel.ForMember(DesignationLabel.Of(plan), childSuffix) };")
+              && !src.Contains("Label = \"\""),
+              "every plan source sets the Label: a container's members from the container's designation (PopulateInPlace), a " +
+              "synthesized sub-unit from its parent's (ExpandCoarseLeaves); a template re-create keeps its unit's (no Label " +
+              "is ever reset); an init unit's is UnitTranslator.Plan's (checked above)");
+        string fac = SafeRead(Path.Combine(repo, "src", "VrfFacade", "VrfFacade.cpp"));
+        string hdr = SafeRead(Path.Combine(repo, "src", "VrfFacade", "VrfFacade.h"));
+        string brg = SafeRead(Path.Combine(repo, "src", "VrfBridge", "VrfBridge.cpp"));
+        Check(fac.Contains("return label.empty() ? DtString::nullString() : DtString(label.c_str());")
+              && fac.Contains("toDtLabel(label), DtSimSendToAll, true, toStartingUuid(uuid));")
+              && fac.Contains("toDtLabel(label), DtSimSendToAll, st, toStartingUuid(uuid), createSubordinates);")
+              && CountOf(hdr, "const std::string& uuid, const std::string& label);") == 2
+              && brg.Contains("double headingDeg, String^ name, String^ uuid, String^ label) {")
+              && brg.Contains("AggregateState state, bool createSubordinates, String^ uuid, String^ label) {")
+              && fac.Contains("DtString::nullString(), DtSimSendToAll, true, startingUuid);")
+              && fac.Contains("DtString::nullString(), DtSimSendToAll, st, startingUuid, createSubordinates);"),
+              "the native overloads are in the source: the facade puts the label in the vendor's LABEL slot (empty -> " +
+              "nullString, the old call exactly), the uuid overloads kept; the bridge has the two managed label overloads");
+
+        // (f) THE LINKED BRIDGE carries the two label overloads (a stale pin would not even compile the app).
+        bool HasLabelOverloads(Type t)
+        {
+            if (t == null) return false;
+            var e = t.GetMethod("CreateEntity", new[] { typeof(EntityTypeSpec), typeof(Geodetic), typeof(Force), typeof(double),
+                                                        typeof(string), typeof(string), typeof(string) });
+            var a = t.GetMethod("CreateAggregate", new[] { typeof(EntityTypeSpec), typeof(Geodetic), typeof(Force), typeof(double),
+                                                           typeof(string), typeof(AggregateState), typeof(bool), typeof(string),
+                                                           typeof(string) });
+            return e != null && a != null && e.ReturnType == typeof(void) && a.ReturnType == typeof(void);
+        }
+        Check(!HasLabelOverloads(typeof(NewCreateSurface)) && HasLabelOverloads(typeof(LabelCreateSurface)),
+              "the reflection check finds the label overloads by their exact signatures (negative control: C1d's uuid-only surface)");
+        Check(!LabelBridge.Present(typeof(NewCreateSurface)) && LabelBridge.Present(typeof(LabelCreateSurface))
+              && !LabelBridge.Present(null) && !LabelBridge.Present(typeof(object))
+              && src.Contains("if (!LabelBridge.Present(_bridge.GetType()))") && src.Contains("LABEL (LBL) - REFUSING TO START"),
+              "the service's start check (LabelBridge.Present) finds the same two overloads and nothing else (negative controls: " +
+              "the uuid-only surface, object, null), and the start is REFUSED on a bridge without them");
+        Check(HasLabelOverloads(typeof(VrfBridge)),
+              "the LINKED VrfBridge.dll CARRIES CreateEntity(..., String uuid, String label) and CreateAggregate(..., Boolean, " +
+              "String uuid, String label) - a bridge rebuilt for LBL", typeof(VrfBridge).Assembly.Location);
+    }
+
+    private sealed class LabelCreateSurface
+    {
+        public void CreateEntity(EntityTypeSpec t, Geodetic p, Force f, double h, string n, string u, string l) { }
+        public void CreateAggregate(EntityTypeSpec t, Geodetic p, Force f, double h, string n, AggregateState s, bool c, string u, string l) { }
     }
 
     // ---------------------------------------------------------------------------------------------- helpers ----

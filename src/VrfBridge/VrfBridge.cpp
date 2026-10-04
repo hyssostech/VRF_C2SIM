@@ -396,6 +396,21 @@ public:
                                  createSubordinates, ToStd(uuid));
     }
 
+    // LBL (HANDOFF_SEAT_2026-09-28 sec 3 item 5): the two uuid creates with the vendor LABEL (VrfFacade.h) - the full C2SIM
+    // designation, display only (UG52 13.2.5). null/empty label -> nullString, i.e. exactly the uuid overload.
+    void CreateEntity(EntityTypeSpec type, Geodetic pos, Force force,
+                      double headingDeg, String^ name, String^ uuid, String^ label) {
+        _facade->CreateEntity(ToNative(type), ToNative(pos), ToNative(force),
+                              headingDeg, ToStd(name), ToStd(uuid), ToStd(label));
+    }
+    void CreateAggregate(EntityTypeSpec type, Geodetic pos, Force force,
+                         double headingDeg, String^ name,
+                         AggregateState state, bool createSubordinates, String^ uuid, String^ label) {
+        _facade->CreateAggregate(ToNative(type), ToNative(pos), ToNative(force),
+                                 headingDeg, ToStd(name), ToNative(state),
+                                 createSubordinates, ToStd(uuid), ToStd(label));
+    }
+
     // uuid empty/null -> nullUUID (the pre-V3 behaviour and what the 2-argument overload
     // gives). V3 passes a C2SIM Point graphic's own uuid so it is addressable by it.
     void CreateWaypoint(Geodetic pos, String^ name) {

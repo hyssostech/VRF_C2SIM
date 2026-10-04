@@ -205,6 +205,17 @@ namespace {
             delete (DtVector*)list.remove(item);
         }
     }
+
+    // LBL: the create's LABEL argument. Empty -> DtString::nullString(), the vendor default every create sent before
+    // LBL (vrfRemoteController.h 5.2 :1289, :1302), so an empty label reproduces the pre-LBL call exactly.
+    DtString toDtLabel(const std::string& label) {
+        return label.empty() ? DtString::nullString() : DtString(label.c_str());
+    }
+
+    // The create's startingUUID, converted exactly as the C1d overloads below do (empty -> nullUUID).
+    DtUUID toStartingUuid(const std::string& uuid) {
+        return uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
+    }
 }
 
 // The controller subclass, moved here verbatim from main.cxx.
@@ -978,6 +989,37 @@ void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
         toDtType(type), toGeocentric(pos), toDtForce(force),
         (DtReal)(headingDeg / kDegRadFactor), DtString(name.c_str()),
         DtString::nullString(), DtSimSendToAll, st, startingUuid, createSubordinates);
+}
+
+// LBL (HANDOFF_SEAT_2026-09-28 sec 3 item 5) - THE FULL DESIGNATION IN THE VENDOR LABEL. The two C1d overloads above with
+// the vendor's `label` argument filled in (the slot they pass DtString::nullString() in): "A label is a text string that
+// you can use to identify simulation objects without the restrictions of uniqueness or character length that affect the
+// other identifiers" (UG52 13.2.5 p364; Table 21 p363 "No limit on character length"); the create message carries it as
+// its object label (vrfmsgs/ifCreateVrfObject.h :39-41, :134-136), so no setLabel (:1354-1359) is needed after the create.
+// Display only - never a key (identity is the uuid, RL-20260928-02). Empty label == the C1d overload exactly.
+void VrfFacade::CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
+                             Force force, double headingDeg, const std::string& name,
+                             const std::string& uuid, const std::string& label) {
+    // vrfRemoteController.h 5.2 :1282-1293: ..., uniqueName, label, addr = DtSimSendToAll, groundClamp = true,
+    // startingUUID, globalId = nullString (left defaulted).
+    p_->controller->createEntity(objectCreatedTrampoline, this,
+        toDtType(type), toGeocentric(pos), toDtForce(force),
+        (DtReal)(headingDeg / kDegRadFactor), DtString(name.c_str()),
+        toDtLabel(label), DtSimSendToAll, true, toStartingUuid(uuid));
+}
+
+void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
+                                Force force, double headingDeg, const std::string& name,
+                                AggregateState state, bool createSubordinates,
+                                const std::string& uuid, const std::string& label) {
+    // vrfRemoteController.h 5.2 :1295-1306: ..., uniqueName, label, addr = DtSimSendToAll, initialAggregateState,
+    // startingUUID, createSubordinates.
+    DtAggregateState st = (state == AggregateState::Aggregated)
+                              ? DtAggregated : DtDisaggregated;
+    p_->controller->createAggregate(objectCreatedTrampoline, this,
+        toDtType(type), toGeocentric(pos), toDtForce(force),
+        (DtReal)(headingDeg / kDegRadFactor), DtString(name.c_str()),
+        toDtLabel(label), DtSimSendToAll, st, toStartingUuid(uuid), createSubordinates);
 }
 
 void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name,
