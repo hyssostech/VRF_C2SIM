@@ -80,6 +80,13 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    a water clearance >= the 10 m buffer; the scorer's bridge rule on the ways, fail-first on G1-4's pre-warm. Fixes +
    ruling applied on result/g1-4 (bc1127c) and merged. NEXT: lane W1 (water clearance, code + tests) -> Fable cold on its
    design -> merge/deploy (RUNBOOK sec 9) -> G1-5 registration; lane D1 (the Result's sec 6 doc updates) in parallel.
+   D1 MERGED 0000f8c, pushed 4dbb94c (779/0/1). W1 = fix/slot-water-clearance e4badc8 (test-first, 7 FAIL) + 03a350d (fix:
+   Vrf:PreflightSlotWaterClearanceMeters 10; slots IN or WITHIN 10 m of water nudged; no bridge exemption for slots; vertex
+   path untouched). Fable cold: GO WITH FIXES (text only: EntityLevel prints the effective clearance; sec 4 comment; pin the
+   10.0 m boundary) - sent back to W1. SEAT DESIGN beyond the ruling's text, put to the owner 2026-10-04: the band and the
+   no-bridge rule (0 effect on cut A). G1-5 must predict (Fable harness, scratchpad 7207877b...\fable_w1\REVIEW_W1_fable_
+   2026-10-04.txt): 0 newly moved; the same 4 48_IBCT slots move - INF1RIF2 150 m NW 15.5 m, INF1RIF3 125 m SW 13.6 m,
+   INF1WPN1 25 m SW 10.9 m (thinnest), INF3WPN1 75 m S 13.6 m. The scorer's bridge rule is the G1-5 lane's, not W1's.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
