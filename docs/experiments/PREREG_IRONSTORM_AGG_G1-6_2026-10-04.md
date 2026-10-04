@@ -1,6 +1,7 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-6: G1-5 re-run with ONE scorer change (a narrow culvert clause) - the first SCORED aggregate cut-A run with arrivals, doubling as a rehearsal of the demo's runner path (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01; Fable cold review owed
+STATUS: PASSED 2026-10-04 - W GATE PASS; scored run 79 PASS / 0 FAIL, every HIGH row and H6 held (the Result below).
+Was: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01; Fable cold review owed
 (RL-20260928-04). Registered by lane G1-6 on branch prereg/g1-6 from main 3d64dba, BEFORE any order push, holder action or
 launch. PREPARATION ONLY: no C2SIM push, no rtiexec or holder start, no VR-Forces or runner launch, no appNumber claimed, no
 edit of docs/OPUS_EXECUTION_PLAN.md, no C:\MAK write, no build. CUT TO THE MINIMUM by RL-20261004-04 (demo readiness first;
@@ -221,4 +222,126 @@ and frozen; the GUI rehearsal is separate (this run is headless); branch (b') is
 
 ## Result (written after the harvest, never from a live read)
 
-(empty - nothing has been run under this registration)
+RESULT 2026-10-04: PASS. The pre-warm's W GATE PASSED (culvert rule) and in the scored run EVERY REGISTERED HIGH ROW HELD;
+H6 (MEDIUM) HELD - T14 and T10 arrived, T14 for the first time under Auto; V (MEDIUM) HELD - no crash. Scored run
+20261004T223015Z_run: g1_6_score 79 PASS, 0 FAIL, 18 RECORDED; 5 of 5 tasks TASKCMPLT, the last 168.4 s after the order
+reached the bus. The P-FALS (e) pass rests on the registered culvert clause: G1-5's ways rule FAILS the same runs (RECORDED,
+below). Marks: [V] = checked by this harvest lane (read-only: both run directories and manifests, both runner logs, the
+rtiexec log's join/resign lines, the seat's go-live artefacts in scratch laneG1-6, the scorer re-run); [A] = the seat's
+record or an inference. Vendor logs: names, sizes, counts only. This lane's files: scratch 7207877b...\harvestG1-6
+(h_rescore.py, h_full_culvert.txt, h_full_ways.txt, h_full_chord.txt, h_wgate_repro.txt).
+THE SCORER [V]: g1_6_score.py sha256 de7bd755..., written 21:53Z, before the registration commits 6ed351e (22:01:25Z) and
+d1fc69e (22:06:29Z); this lane's re-run reproduces the seat's W gate file (164 lines) and full score (368 lines) line for line,
+the header aside. It prints no speed ratio.
+
+THE SEQUENCE AS RUN (the seat, RL-20260928-01; BRANCH (a) - holder 67984 up throughout) [V unless marked]:
+- A 22:13:33Z: prelaunch 0 FAILED (hashes and settings as registered, src diff empty, scripts diff exactly
+  StartRtiExec52.ps1, cache 520 / 27c2117e, rtiexec 65540 + forwarder 58844, holder 67984 369 min left, marker 5296, REST 200).
+- C3 22:13:52-22:14:25Z: PushInit exit 0 ("QUERYINIT : 40 Units"), PushOrder exit 0, one "ORDER (69670 chars)" echo.
+- W: cache listed 22:14:33Z; dry run exit 0; pre-warm launched 22:14:42Z (runner log RunScenario-...-g1-6-prewarm-
+  20261004T221442Z.log): 67984 PERSISTENT (:88), marker 5296 -> 5307 before any join (:130), Stage 2r started nothing (:147),
+  Stage 2h holder 52056 on 5303 joined in 3 s (:161), back end 49644 on 5296 (:185), app 45264 on 5300, oracle gate 72 POS
+  lines / 36 uuids (:251), order on the bus 22:18:24.922Z (:259), window to its 120 s cap with T14 (1075b583...) open (:271),
+  app exit 0 (:280), StopVrf EXIT 6 (:289); runner exit 0, 22:23:40Z. W gate written 22:23:51Z: "W GATE: PASS"; --bridge-rule
+  ways and chord RECORDED 22:24:04-06Z, both "W GATE: FAIL (branch A; P-FALS(e))", as registered. Post-W inventory 22:24:08Z
+  (-AllowStage2hPid 52056) 0 FAILED, marker 5307.
+- E: the seat waited for 52056 to leave its 900 s hold [A: resigned 22:30:02Z]; the rtiexec log has its NormalResign (L47511)
+  before the next join, and E's prelaunch at 22:30:08Z lists only 65540, 58844 and 67984 - 0 FAILED, 353 min left, marker 5307.
+  Scored launch 22:30:14Z (RunScenario-...-g1-6-20261004T223014Z.log): 67984 PERSISTENT (:88), 5307 -> 5318 (:130), Stage 2h
+  24776 on 5314 (:161), back end 52080 on 5307 (:185), app 40880 on 5311 (:226), oracle gate 72 / 36 (:250), order on the bus
+  22:33:48.019Z (:258); the window closed EARLY under -StopWhenComplete at 240.3 s of 2700 s (:275-276); app exit 0 (:284);
+  StopVrf EXIT 6 (:293); runner exit 0, 22:41:01Z.
+- F 22:41:18Z: inventory 0 FAILED (24776 allowed; 67984 342 min left), marker 5318; scored 22:41:27Z.
+- THE SIM CACHE: 21,807 files, 495,599,180 B at all three listings (22:14:33Z, 22:24:08Z, 22:41:21Z) - unchanged.
+THE CLOCKS (scored) [V]: trace t0 = WatchVrf join 22:33:13.026Z; T10 dispatched t=70.7 (SIM 386.9), T14 t=74.0 (SIM 422.9),
+T02 t=74.9 (SIM 423.9); last fix t=335.8; SIM/WALL about 7.85. TASKCMPLT (reports-captured.log): T01 and T13 22:34:26.46Z,
+T10 22:35:26.45Z, T02 22:35:41.01Z, T14 22:36:36.43Z.
+
+THE ROWS [V: laneG1-6\W_gate_20261004T221443Z_run.txt (W) and score_20261004T223015Z_run.txt (E), both reproduced]:
+- SL (HIGH) HELD, W and E: SL0 L32 exact, once; SL1 23 slot lines, exactly 4 SLOT MOVED - 48_IBCT.INF1RIF2, INF1RIF3,
+  INF1WPN1, INF3WPN1; SL2 4 of 4 as predicted; SL3 19 clear within 1 m; SL4 0 UNVERIFIED, 0 KEPT ON BAD GROUND.
+- H1-H4 (HIGH) HELD, W and E: H1 0 relayed "route does not exist" (R-VEND 0); H2 0 EXECUTOR REFUSED, 0 pre-M3b equivalent;
+  H3 50 of 50 echoes exact; H4 I1-I17 (W) / I1-I18 (E): 59 of 59 created and bound by uuid, the trace carries 26 of 26 uuids.
+- H5 (HIGH) HELD: W 33 member-vertex pairs judged, 0 not moved; E 50 (T14 vertex 2 included), 0 not moved, 0 NOT EVALUATED.
+- P-FALS (e) (HIGH) HELD under the culvert rule, W and E: 0 fixes inside OSM water for all 23 members (longest run 0, deepest
+  0.0 m); 18 crossings, each ON, 0 OFF. W: 17 T14 crossings of 1467512812 by the culvert clause, the chord 1.0-3.0 m from the
+  road x culvert point (54.019835,23.328533); T02 crossed 8011072 20.9 m from bridge 218414262, ON by the ways limb (the path
+  via the bridge 1.01 x the chord). E: 16 T14 crossings of 1467512812, chords 0.5-3.0 m (the 12 Mech COs one chord, 3.0 m);
+  CAV1 crossed 197345450 (the river way that ends at the culvert, G1-5 N1 (a)) - ON through the same-river link, its chord
+  6.0 m and its crossing point 7.7 m from the point, banks 1.8 / 2.6 m from a drivable road; T02 crossed 8011072 30.8 m from
+  bridge 218414262, ON by the ways limb (1.05 x the 151.5 m chord), drove on 2,988 m; T14 members drove on 2,284-2,297 m.
+- H6 (MEDIUM) HELD - T14 AND T10 ARRIVED (E). T14: vertex 1 closed with the unit 6 m from it, vertex 2 4 m (R12); all 17
+  members within 50 m of vertex 2 by t=217.6; OVERDUE at its 300 s Duration (L57855, 315 SIM s), then ARRIVAL EVIDENCE
+  (L114191: nearest member 410 m, inside the 500 m bar; 129.4 WALL s = 950.4 SIM s after dispatch) and "was OVERDUE and the
+  unit has now ARRIVED" (L114193); final fix 2.1 m (container), members 0.8-1.7 m, CAV1 10.3 m. This is the first T14
+  arrival under Auto (sec 4 H6: "the FIRST LIVE TEST"). T10: ARRIVAL EVIDENCE L67795, 62.2 WALL s = 471.5 SIM s; vertices
+  closed 10 / 16 / 16 m; final 1.7 m (members 1.6-1.8 m). T02 (recorded with them): OVERDUE (313 SIM s), ARRIVED L77449-77451,
+  73.0 WALL s = 508.2 SIM s; final 0.9 m.
+- V (MEDIUM) HELD: V-CRASH no signal for back end 49644 (W) or 52080 (E); 0 "BACK END CRASHED" in either app log; C:\MAK\logs
+  holds their .log files (14,321,228 B and 19,525,643 B) and no .callstack.log or .dmp for either pid.
+- W-MOVE, W-DONE (HIGH, W only) HELD: W-MOVE PASS (T10 5 of 5 > 50 m; T14 17 of 17 and T02 1 of 1 RECORDED); W-DONE PASS -
+  closed T02, T10, T14 (vertex 1), nothing reached but not closed; T14 vertex 2 issued, no member within 50 m of it at the cap
+  (its O1 line; NOT REACHED, recorded, as G1-5 N3).
+- WATCH (RECORDED): W - INF1WPN1 1,054.9 m, within 50 m of vertex 1 at t=125.9, vertex 2 NONE; INF3WPN1 1,701.0 m, t=158.5,
+  NONE. E - INF1WPN1 2,490.3 m, t=101.0 / 217.6; INF3WPN1 2,279.3 m, t=133.6 / 217.6.
+- MM (RECORDED; first-leg bearing, first-300-m water minimum, "Movement constrained" count; W / E; G1-5 in brackets):
+  INF1RIF2 311 / 297 deg, 15.8 m, 0 [310, 15.8]; INF1RIF3 166 / 173 deg, 14.5 m, 0 [174, 14.5]; INF1WPN1 276 / 274 deg,
+  11.4 m, 0 [294, 11.3]; INF3WPN1 89 / 89 deg, 9.4 / 9.3 m (lake 16373225), 0 [89, 9.2].
+- SPEED (RECORDED, never gating): NOT MEASURED - the scorer prints no ratio; lane JS's js_dip.py not run (RL-20261004-04).
+- THE OTHER RULES (RECORDED, sec 6) [V: this lane's re-runs on E]: --bridge-rule ways - P-FALS (e) FAIL, the 17 T14 crossings
+  OFF, T02 ON; --bridge-rule chord - FAIL, all 18 OFF, T02 included (30.8 m > 15 m; G1-5's T02 read ON at 13.3 m). Every other
+  row is identical under the three rules (79 PASS, 0 FAIL). The pre-warm's ways / chord files show the same pattern.
+- CARRIED, RECORDED (E): O8 did not recur (36 of 36 terrain-query altitudes, 0 FALLBACK, L293); P19 79 cache HITs, 0 HTTP
+  FETCH (L190199); 0 "Movement constrained" relayed (R18); 18 raw "No creator found" lines (benign, as G1-5).
+
+THE NUMBERS [V: both run-manifest.json appNumbers and ledger; the runner logs :92-105, :130, :161, :185, :226; the pre-check
+and Stage 2c pids by the rtiexec log's join order [A]]:
+- PRE-WARM 5296-5306 (marker 5296 -> 5307): 5296 (back end 49644, force-stopped by identity, StopVrf exit 6, no crash), 5298
+  (WatchVrf pre-check 40232 [A]), 5299 (trace 59104), 5300 (app 45264, exit 0), 5301 (Stage 2c 54216 [A], exit 0), 5303
+  (Stage 2h holder 52056, joined in 3 s, NormalResign at the end of its hold) CONSUMED; 5297 (--no-gui), 5302 (the oracle gate
+  passed), 5304-5306 BURNED.
+- SCORED 5307-5317 (marker 5307 -> 5318): 5307 (back end 52080, StopVrf exit 6, no crash), 5309 (pre-check 55080 [A]), 5310
+  (trace 44608), 5311 (app 40880, exit 0), 5312 (Stage 2c 25940 [A], exit 0), 5314 (Stage 2h holder 24776, joined in 3 s,
+  NormalResign L67990) CONSUMED; 5308, 5313, 5315-5317 BURNED.
+- Holder 67984 (5281, G1-5's claim) never touched; it holds to about 04:22:51Z 2026-10-05. MARKER 5318.
+APPENDIX B ANNOTATION, for the seat (this lane does not edit OPUS_EXECUTION_PLAN.md) - below the 5296-5306 block:
+  "- RESULT 2026-10-04 (G1-6 PRE-WARM 20261004T221443Z_run, IRONSTORM_AGG_G1-2026-10-04-6; from the harvest lane): holder
+  branch (a), 67984 (5281) PERSISTENT, nothing claimed for it; 5296 (back end 49644, StopVrf exit 6, no crash), 5298
+  (pre-check 40232 [A]), 5299 (trace 59104), 5300 (app 45264, exit 0), 5301 (Stage 2c 54216 [A]), 5303 (Stage 2h holder
+  52056) CONSUMED; 5297, 5302, 5304-5306 BURNED. W GATE PASS (culvert rule). Marker 5296 -> 5307."
+  and below the 5307-5317 block:
+  "- RESULT 2026-10-04 (G1-6 SCORED 20261004T223015Z_run; from the harvest lane): 5307 (back end 52080, StopVrf exit 6, no
+  crash), 5309 (pre-check 55080 [A]), 5310 (trace 44608), 5311 (app 40880, exit 0), 5312 (Stage 2c 25940 [A]), 5314 (Stage 2h
+  holder 24776) CONSUMED; 5308, 5313, 5315-5317 BURNED. 79 PASS / 0 FAIL, 5 of 5 TASKCMPLT. Marker 5307 -> 5318. Claims
+  nothing."
+
+WHAT IT MEANS (implication, not measurement): on cut A under the M3b planner, the five-task order ran to completion once:
+every tasked member moved, T14 drove both legs and arrived, and every crossing read on a road or a bridge under the registered
+clause; the headless runner path (pre-warm + scored, persistent holder) ran end to end with no crash. That is enough to show
+cut A as work in progress (RL-20261004-04); it does not rehearse Way B (STP pushes its own order, RL-20261004-05), the GUI, or
+the full order. The P-FALS (e) pass judges fixes against OSM ways; it adds nothing on how the sim resolves a road over a
+river line (deferred, sec 7).
+
+NEXT: (1) Fable's cold review of this Result, sized per RL-20261004-04 (RL-20260928-04). (2) The seat's doc sync (sec 6):
+Appendix B as above, PLAN_MOVEMENT row G1-6, RUNBOOK sec 11o, HANDOFF_SEAT sec 2. (3) THE DEMO TRACK (RL-20261004-04/-05):
+Way B - STP's own order (STP-848 durations; leniency is with the owner); the Label decoration by an automated, verifiable
+deploy step (LBL hardened + new pin); the tier-1 full order (c3b2bb5) on the aggregate profile; the DEMO_RUNBOOK rewrite and
+a GUI rehearsal (sec 8 item 3). Deferred, not dropped: the culvert mechanism, the speed dip, N1's cause.
+
+ADVERSARIAL REVIEW: (1) n = 1 - one pre-warm, one scored run; H6 held once; the crash record on this path is now 1 in 5
+runs (G1-3's), so V's MEDIUM stays MEDIUM. (2) THE CULVERT CLAUSE WAS FITTED ON THIS CROSSING: CULVERT_TOL_M 15 came from
+G1-5's chords at the same culvert (1.0-9.2 m), and G1-6's (0.5-6.0 m) fall inside that range, so the P-FALS (e) pass is not
+an independent test of the clause - it re-met the crossing it was built for. What protects the verdict: the clause was
+registered and frozen before the run, its fail-first set (i)-(iv) fires on the 44.3 m dirty control, and the frozen ways rule
+is printed beside it (FAIL). The on-the-road reading itself stays [A] (the path is not printed). (3) CAV1's ON rests on the
+same-river link (lane G1-6's narrowing; 197345450 meets the culvert way at C), the case it was built for; by hand its banks
+are on the network (1.8 / 2.6 m) and its chord 6.0 m from the point. (4) T02's ON now rests on the ways limb's path-via-bridge
+test (crossing point 30.8 m from the bridge, outside the 15 m acceptance that carried it in G1-5); the chord rule calls it
+OFF. (5) StopVrf exit 6 on both runs: the graceful close was refused and the run's own back end force-stopped by pid and
+start time (windows "NVOGLDC invisible" and "Default IME" only, no modal). The registered gate accepts 0 or 6; it comes after
+the window, so it does not bear on V; the rtiexec log shows each back end's LostConnectionResign and the next joins
+succeeded (no stale federate seen). It is a teardown risk for the demo, unexplained, as G1-4 / G1-5. (6) TASKCMPLT is sent
+on ARRIVAL EVIDENCE (T14: nearest member 410 m), before the unit is at the point, and T14 / T02 went OVERDUE first; H6 is read
+on the trace finals (0.9-2.1 m), not on report times. (7) Assumed, not verified: 52056's resign second (22:30:02Z, the seat);
+the pre-check and Stage 2c pids (join order); that no step beyond the artefacts read occurred between W and F (no other
+runner log in runs\launch52 in that interval [V: listing]).
