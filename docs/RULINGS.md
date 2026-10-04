@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-03). 0927-05, -03, -02 archived on 10-04 (for 1004-01..-03).
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-04). 0927-05, -03, -02 archived on 10-04 (for 1004-01..-03).
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -109,3 +109,12 @@ RL-20261004-03 | 2026-10-04 | VERBATIM - Q1005, TYPED
     registered before its run, fail-first on G1-5's pre-warm. (2) The owner looks for the vendor documentation (Adding Content) to install;
     the culvert clause waits on it; work that does not depend on it proceeds.
   pointer: PREREG_IRONSTORM_AGG_G1-5_2026-10-04 Result (N1, COLD REVIEW); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20261004-04 | 2026-10-04 | VERBATIM - Q1275, TYPED, unprompted (after the seat's status and demo-gap list)
+  Q (as put): none - the seat's preceding message listed what is missing to reach the demo and recommended G1-6 first.
+  A (owner, Q1275): "Find a balance between the investigations and getting a demoable version in place. We can tackle the finer points
+    afterwards, provided we can show some level of simulation to make things credible. The demo is presented as work in progress, so we
+    have some space to postpone harder problems that only affect smaller parts of the simulation"
+  A (owner, Q1294, queued mid-turn): "This culvert thing is one such example"
+  supervisor reading: demo readiness first; what does not block a credible WIP demo (the culvert, N1's cause, the speed dip, the G1-3
+    crash stack, verbs/units in a small part of the order) is deferred, not dropped; registered runs go on where cheap or as rehearsals.
+  pointer: HANDOFF_SEAT_2026-09-28 sec 3 item 3-4 (the demo track); PLAN_MOVEMENT row G2.
