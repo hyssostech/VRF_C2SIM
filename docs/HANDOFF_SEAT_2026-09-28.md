@@ -93,6 +93,14 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    between it and the road; effective margin 3.7 m). Machine booted 4x since G1-4 (09-28 23:16Z, 09-30 x3 incl. Windows
    Update KB5121794); c2sim-server-vrf container Exited - `docker start`, not RUNBOOK :1716's `docker run`. Numbers: holder
    5281-5284, pre-warm 5285-5295, scored 5296-5306, marker -> 5307; step R starts rtiexec before the holder.
+   G1-5 GO-LIVE 2026-10-04: R rtiexec 65540 (+fwd 58844); D' holder RtiProbe 67984 on 5281 (to 04:22Z 10-05; NEVER kill);
+   S docker start, REST 200; A 0 FAILED; C3 ok; pre-warm 20261004T202533Z_run (5285-5295, marker 5296, StopVrf exit 6):
+   W GATE FAIL (P-FALS(e)) - STOP before E, scored block never claimed. Every other limb PASSED: SL0-SL4 (4 slots as
+   predicted), H1-H5 (INF3WPN1 moved 1,701 m), W-MOVE, W-DONE, V-CRASH. The miss: all 17 T14 members crossed the
+   Wiersnianka (OSM 197345450 / 1467512812) at 54.01986,23.32848 with both banks on roads; 1467512812 is tagged
+   tunnel=culvert under road 300614718 [V: waytags_t14_crossing.txt] - the ways rule has no culvert clause [reading A].
+   Harness defect: g1_5_rti_federates.py misses the single-form join line of a fresh rtiexec (verified 1 join by hand).
+   NEXT: harvest lane (read-only Result) -> Fable cold -> owner RULE.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
