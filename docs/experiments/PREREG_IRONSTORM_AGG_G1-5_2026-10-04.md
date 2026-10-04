@@ -1,7 +1,9 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-5: G1-4 re-run on the W1 build - nudged member slots clear OSM water by 10 m (the planner's obstacle buffer), H5 gated on every tasked member, the scorer's river rule read on the road and bridge ways (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01, after Fable's cold review of this
-registration's cause claims (RL-20260928-04). Registered by lane G1-5 (session 7207877b; the registration commit's own time is
+STATUS: REGISTERED 2026-10-04, LAUNCH PENDING - the seat's go-live under RL-20260928-01. COLD-REVIEWED 2026-10-04 by Fable
+(RL-20260928-04; scratch 7207877b...\fable_g15\REVIEW_G1-5_PREREG_fable_2026-10-04.txt): GO WITH FIXES - findings 1-7 and ITEM 5
+applied in the commit after a08bad8 (the composite reading and the one to watch, the four boots, the bridge rule's acceptance
+region and two controls, H5's closed-vertex rule in W, step S, the recorded water distance, the moved-member records). Registered by lane G1-5 (session 7207877b; the registration commit's own time is
 the stamp) on branch prereg/g1-5 from main d455092, BEFORE any order push, holder action or launch. PREPARATION ONLY: no
 C2SIM push, no rtiexec or holder start, no VR-Forces or runner launch, no appNumber claimed, no edit of
 docs/OPUS_EXECUTION_PLAN.md, no C:\MAK write, no build. Marks: [V] = checked by this lane while writing this file (read-only
@@ -132,8 +134,8 @@ the old ones [V]. PREDICTED:
 |---|---|---|---|---|---|---|
 | INF1RIF2 (slot 4) | IN lake 197345448 | 125 m north-west, 2.1 m from it | SLOT MOVED 150 m north-west | (54.022263,23.318918) | 15.5 / 15.8 m | 41.0 m |
 | INF1RIF3 (slot 5) | IN lake 197345448 | 125 m south-west, 5.4 m | SLOT MOVED 125 m south-west | (54.019001,23.320008) | 14.3 / 14.4 m | 24.5 m |
-| INF1WPN1 (slot 6) | IN lake 197345448 | 25 m south, 7.4 m | SLOT MOVED 25 m south-west | (54.018026,23.320835) | 11.3 / 11.4 m (THE THINNEST) | 19.1 m |
-| INF3WPN1 (slot 16) | IN lake 16373225 | 75 m south-east, 1.7 m | SLOT MOVED 75 m south | (54.021976,23.308668) | 13.7 / 13.6 m | 48.6 m |
+| INF1WPN1 (slot 6) | IN lake 197345448 | 25 m south, 7.4 m | SLOT MOVED 25 m south-west | (54.018026,23.320835) | 11.3 / 11.4 m (the thinnest RAW distance; a secondary watch) | 19.1 m |
+| INF3WPN1 (slot 16) | IN lake 16373225 | 75 m south-east, 1.7 m | SLOT MOVED 75 m south | (54.021976,23.308668) | 13.7 / 13.6 m (THE ONE TO WATCH: 3.7 m over the buffer with the lake between it and the road network, sec 4 COMPETITORS) | 48.6 m |
 
 Each of the four lines reads, in full: `POPULATE 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE slot <k> of 17: <member>
 (Mech CO (USA, M2), C-USA-BDE-UCI/<INFn>/<suffix>) at (<lat>,<lon>), bearing <b> deg from the container point - SLOT MOVED <d>
@@ -152,6 +154,8 @@ AGAINST FABLE'S W1 HARNESS: the same four slots, the same distances and compass 
 at their points - AGREE. Its water distances (15.5 / 13.6 / 10.9 / 13.6 m) differ from these by 0.0-0.7 m: it rebuilt the
 planned slots from the logged 0.1-degree bearings and the logged F0 radius (its own "rebuild-vs-log" 0.7-0.9 m), where this
 lane's rebuild is 0.01-0.07 m off the log. The registered values are this lane's; +/- 1 m covers both.
+WHAT IS GATED (Fable's review of this registration, finding 6): SL2 gates each landing within 1 m of the predicted point and
+the verdict text; the WATER DISTANCES in the table (C# and Python) are RECORDED, not gated - they follow from the landing.
 
 (z) THE SCORER'S BRIDGE RULE (RL-20261004-01) - designed here, FAIL-FIRST ON REAL DATA [V]. A crossing is found as before (the
 chord between consecutive fixes of a member cut against every OSM river line, g1_4_score.py WaterIndex.crossings), and both
@@ -180,18 +184,35 @@ road - is not used: it needs the planned path, which is not printed, G1-4 Result
   178824546) at (54.004053,23.246005), 713 m from a bridge - FIRES under the ways rule (5.64 x): the bridge clause, not the bank
   clause, does the work; (c3) G1-4's REAL fixes with bridge 218414262 removed from the index - FIRES under both ("ALL AS
   REQUIRED").
-- (d) G1-2's T02 STOP AT THAT RIVER (scored run 20260928T142731Z_run, PREREG_IRONSTORM_AGG_G1-2_2026-09-28.md Result :761;
-  `g1_5_score.py <run> --member-names c1c --bridge-rule ways`): 28ID__FRIENDLY_INFANTRY_DI.HQ1 "river crossings 0 (off a road
-  bridge and driving on 0)", its last fix 2.5 m from the river point, "P-FALS (e) ... (bridge rule: ways): PASS" - no crossing,
-  no fire [<L5>\g1_5_bridge_d_ways_g12scored.txt].
+- (d) A CROSSING-DETECTOR CONTROL (it exercises WaterIndex.crossings, not judge(): there is no crossing to judge) - G1-2's T02
+  STOP AT THAT RIVER (scored run 20260928T142731Z_run; `g1_5_score.py <run> --member-names c1c --bridge-rule ways`):
+  28ID__FRIENDLY_INFANTRY_DI.HQ1 "river crossings 0 (off a road bridge and driving on 0)", "P-FALS (e) ... (bridge rule:
+  ways): PASS" - no crossing, no fire [V: <L5>\g1_5_bridge_d_ways_g12scored.txt]. Its last fix 2.5 m from the straight-line
+  river point is G1-2 Result :761's figure [A]; the scorer's O2/P14 line in the same output prints the same 2.5 m.
 The bank fix past the river in (b) is 0.3 m from unclassified OSM 365845592; G1-4 Result N2 (c) gave its distance to the named
 track 178824546 (9.4 m), not to the nearest drivable way - both are on the network (<L5>\g1_5_waytags_out.txt) [V].
+THE ACCEPTANCE REGION (Fable's review, finding 3). min |AP| + |PB| <= 1.5 |AB| holds for every P inside an ellipse with foci A
+and B and semi-minor axis sqrt(1.5^2 - 1) / 2 = 0.56 x the chord: on G1-4's 145 m chord a bridge over the river up to about
+81 m to the side of the chord is ACCEPTED. So a FORD up to about 80 m from such a bridge, with both bank fixes on roads, reads
+ON A BRIDGE - the rule's BLIND ZONE, which scales with the fix spacing (about 11 m on a 20 m chord). WHY 1.5: a member that
+leaves the road at a right angle to the chord's direction, crosses on the bridge and turns back (the G1-4 corner: road ->
+bridge -> track) drives at most sqrt 2 = 1.41 x the chord when the bridge sits on the chord's perpendicular bisector at half
+its length; 1.5 admits that bend with margin and nothing much wider. TWO CONTROLS ON THE REAL 145 m CHORD (28ID.HQ1's fixes
+t=129.4 (54.006989,23.235646) -> t=131.4 (54.007971,23.237104), a synthetic river across it, a 57 m bridge displaced ALONG the
+river) [V: --selftest, <L5>\g1_5_score_selftest.txt]: displaced 60 m - "ON ... path via it 188.2 m = 1.30 x the 144.9 m chord"
+- ACCEPTED, recorded as the blind zone; displaced 100 m - "OFF ... 247.0 m = 1.70 x" - FIRES. RESIDUAL FALSE FIRE: bridges_over
+is per OSM way id, so a river split across several way ids with the bridge over a different id than the one the chord cuts
+finds no bridge "over that river" and FIRES (the chord acceptance still applies within 15 m) - a scorer false positive, read
+by hand if it occurs.
 
 (aa) H5 ON EVERY TASKED MEMBER (RL-20261004-01). In the W gate AND in the scored run H5 judges EVERY tasked member of T10, T14
 and T02 (5 + 17 + 1 = 23) at every vertex it is sent to that was issued 30 trace-s or more before the last fix. W-MOVE keeps
 G1-4's clause - every dispatched T10 member displaced > 50 m, T14 / T02 members RECORDED - and THAT CLAUSE DOES NOT NARROW H5:
 the two limbs measure different things (> 50 m toward a vertex; > 1.0 m at all), and a T14 or T02 member that does not move
 fails H5 in the pre-warm and stops E. G1-4's N3 cannot recur: this paragraph, sec 3 W, H5's row and MEASURES say the same.
+WHICH VERTICES (Fable's review, finding 4; members_move, G1-4's code unchanged): in the W GATE H5 judges vertex 1 whenever it
+was issued and a vertex k > 1 only once vertex k has CLOSED (a later vertex still open at the window's end is not judged there);
+in the SCORED run it judges every issued vertex. Both modes skip a vertex issued < 30 trace-s before the last fix.
 
 ## Conditions
 
@@ -245,7 +266,7 @@ g1_5_c3_push.sh, g1_5_runner.sh (prewarm-dryrun | prewarm | scored-dryrun | scor
 names aside), g1_5_claim_holder.ps1 (5281 -> 5285; tested on a scratch COPY of the plan, not on the real file [V]),
 g1_5_rti_federates.py <rtiexec pid>, g1_5_score.py; lane E2's cache_manifest.ps1 and lane G1's simcache_listing.ps1 stay in
 G1-3's scratch u3. Python = /c/Users/PauloBarthelmess/AppData/Local/Programs/Python/Python312/python.exe. THE SEAT RUNS R, D',
-A, C3, W, E AND F under RL-20260928-01.
+S, A, C3, W, E AND F under RL-20260928-01.
 
 THE HOLDER - BRANCH (b'), THE ONLY BRANCH [V at 2026-10-04T19:39Z, g1_5_golive_prertiexec_registration.txt: no rtiexec,
 rtiForwarder, rtiAssistant, RtiProbe, vrfSim, VrfC2SimApp or MSBuild process; the machine booted 2026-09-30T21:47:46Z]. Holder
@@ -254,7 +275,7 @@ with exit 2 when no rtiexec runs ("rtiexec is not running - start it first: pwsh
 :24-25, :162-165, :183) [V: read], and the holder step comes BEFORE the runner, so the runner's Stage 2r (StartRtiExec52,
 RUNBOOK :902-904) cannot be the one that starts it for the holder. Hence step R:
 R.  rtiexec, ENSURE-UP, once (no appNumber): golive_checks -Phase prertiexec -MarkerWant 5281 (0 FAILED but the REST limb
-    until C3's server is up - sec 8 item 3); `"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File
+    until step S brings the server up - sec 8 item 3); `"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File
     scripts\StartRtiExec52.ps1 -DryRun`, then without -DryRun - EXPECT "RTIEXEC READY ... tcp=...:4001" and exit 0 (3 = NOT
     LISTENING = STOP); record the rtiexec pid and its log runs\launch52\rtiexec_*-<pid>.log (StartRtiExec52.ps1 :1-48: it
     NEVER kills or restarts one, the rtiexec starts its own rtiForwarder). From here the rtiexec, its forwarder and any
@@ -265,8 +286,13 @@ D'. THE HOLDER: golive_checks -Phase preholder -RtiexecPid <pid> -MarkerWant 528
     JOINED: pid ... appNo ...", exit 0; exit 1 (none joined) or 2 (a precondition) = STOP, no blind relaunch (RUNBOOK 9c).
     THEN THE FEDERATE LIST, read-only: `<python> <L5>/g1_5_rti_federates.py <rtiexec pid>` - EXPECT exactly one joined federate,
     the holder's RtiProbe; any other = STOP before W.
+S.  THE PRIVATE C2SIM SERVER, BEFORE A (Fable's review, finding 5): the container c2sim-server-vrf EXISTS, "Exited (255) 5 days
+    ago", image c2sim-server:4.8.4.9-rev1 [V: `docker ps -a` at 2026-10-04T20:5xZ], so RUNBOOK :1716's `docker run ...` does NOT
+    apply (it would fail on the existing name): `docker start c2sim-server-vrf`, wait about 30 s (RUNBOOK :1717), then EXPECT
+    REST http://127.0.0.1:18080/C2SIMServer -> HTTP 200 (golive_checks' REST limb). No 200 = STOP before A. The operator's
+    8080 / 61613 server is never touched (RL-20260928-01).
 A.  golive_checks -Phase prelaunch -RtiexecPid <pid> -HolderPid <holder pid> -MarkerWant 5285 - EXPECT 0 checks FAILED (the
-    REST limb included: the private server is up by C3). A2 - G1-4's, on the W1 build: the deployed exe's offline suites [A:
+    REST limb included: the private server is up since step S). A2 - G1-4's, on the W1 build: the deployed exe's offline suites [A:
     the W1 deploy line] or re-run by the seat from PowerShell with the 5.2 PATH prefix; --osm-selftest 161 PASS (169 with the
     deployed preflight-cache). A FAIL = STOP before W.
 C.  C3 - `sh <L5>/g1_5_c3_push.sh` (G1-4's two lines, the private server 18080 / 61614, RL-20260928-01). EXPECT both exit 0,
@@ -304,15 +330,27 @@ THE SCORER <L5>\g1_5_score.py (g1_4_score.py + these changes, all [V]): --bridge
 control); WaterIndex reads the drivable highway ways of the same osm tiles and judges each crossing (sec 1(z)); SL0-SL4 read the
 L-SLOT-START and L-SLOT lines against the embedded prediction table of sec 1(y) (SLOT_TOL_M 1.0), gated in the W gate and
 printed in the full score; H5 is labelled and gated on EVERY tasked member in both modes (it already was in G1-4's wgate;
-members_move is G1-4's: > 1.0 m per member per vertex, a vertex issued < 30 trace-s before the last fix NOT EVALUATED); the
-WATCH line (RECORDED). Its --selftest: 67 checks PASS, 0 FAIL [V: <L5>\g1_5_score_selftest.txt] - G1-4's 53 unchanged (the
+members_move is G1-4's: > 1.0 m per member per vertex, a vertex issued < 30 trace-s before the last fix NOT EVALUATED; in the
+W gate a vertex k > 1 is judged only once it has CLOSED, in the scored run whenever issued - sec 1(aa)); the WATCH line and the
+MOVED MEMBER records (both RECORDED, never gating; ITEM 5 of Fable's review): per member whose L-SLOT line says SLOT MOVED, its
+FIRST-LEG BEARING (birth fix -> the first fix >= 50 m from it), the MINIMUM DISTANCE OF ITS FIRST 300 m OF FIXES TO OSM WATER
+(negative = inside a polygon) and the relayed vendor "Movement constrained by features" COUNT (the member's own console, family
+CON-CONSTRAINED). Reference values [V: <L5>\g1_5_bridge_b_ways_g14prewarm.txt, g1_5_bridge_d_ways_g12scored.txt,
+g1_5_records_g12prewarm.txt]: G1-4 pre-warm - INF3WPN1 bearing NONE (never 50 m from its birth fix), 1.7 m, constrained 1;
+INF1RIF2 294 deg, 2.3 m, 0; INF1RIF3 166 deg, 5.5 m, 0; INF1WPN1 189 deg, 7.5 m, 0. G1-2 scored (Literal) - INF3WPN1 136 deg,
+1.7 m, 0; INF1RIF2 NONE, -1.6 m (inside), constrained 1 (G1-2's far-shore stop); INF1RIF3 277 deg, 5.5 m; INF1WPN1 288 deg, 7.5 m.
+Its --selftest: 71 checks PASS, 0 FAIL [V: <L5>\g1_5_score_selftest.txt] - G1-4's 53 unchanged (the
 uuid oracle, the chain checker, the CLEAN control, S7, the must-not controls and every dirty control; the clean synthetic run
-now carries the W1 slot lines and passes the new limbs too) plus 14 NEW: CLEAN - every SL limb passes; both bridge rules pass
+now carries the W1 slot lines and passes the new limbs too) plus 18 NEW: CLEAN - every SL limb passes; both bridge rules pass
 the synthetic crossing ON a bridge; FIVE SLOT DIRTY CONTROLS each caught and the W gate FAILS - slot-old (G1-4's lines: SL0,
 SL2), slot-far (INF3WPN1 5.6 m off: SL2), slot-extra (a fifth SLOT MOVED: SL1), slot-unverified (SL4), slot-nostartup (SL0);
 SEVEN BRIDGE CASES on a synthetic G1-4-shaped corner (the chord cuts the river 16.1 m from the bridge): the oracle, the chord
 rule FIRES, the ways rule does NOT, and the ways rule FIRES with no bridge over that river, with the bridge 250 m upstream
-(5.11 x), with the banks off the network, and does not fire on a chord through the bridge. THE REAL-DATA FAIL-FIRST: sec 1(z)
+(5.11 x), with the banks off the network, and does not fire on a chord through the bridge; TWO CONTROLS ON G1-4's REAL 145 m
+CHORD (Fable finding 3): the bridge displaced 60 m along the river is ACCEPTED (1.30 x - the blind zone, recorded), 100 m
+FIRES (1.70 x); TWO RECORD CHECKS (ITEM 5): the clean run prints 4 MOVED MEMBER records and its W gate still PASSES, and a
+relayed "Movement constrained by features" for INF3WPN1 is counted 1 in its record while the W gate still PASSES (recorded,
+never gating). THE REAL-DATA FAIL-FIRST: sec 1(z)
 (a)-(d). THE G1-4 REPRODUCTION: the copied scorer, before any edit, reproduced G1-4's W gate file line for line (only the run
 path in the header differs) [V: <L5>\_baseline_wgate_g14.txt].
 
@@ -322,9 +360,10 @@ and O1-O12 apply as registered there, their line numbers per sec 2, with the cha
 | # | Prediction | Confidence | What counts as a MISS | Measured |
 |---|---|---|---|---|
 | SL | THE MEMBER SLOTS AS RE-DERIVED (sec 1(y)): SL0 the MEMBER SLOT CHECK start-up line once, verbatim; SL1 23 L-SLOT lines with EXACTLY 4 "SLOT MOVED" - 48_IBCT.INF1RIF2, INF1RIF3, INF1WPN1, INF3WPN1; SL2 each as the table (150 m north-west / 125 m south-west / 25 m south-west / 75 m south, the water id, the landing within 1 m) and ending "- water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01)"; SL3 the other 19 "clear" at their planned points (within 1 m); SL4 0 UNVERIFIED, 0 KEPT ON BAD GROUND. In the pre-warm and the scored run. | HIGH | Any limb = STOP: the deployed W1 code did not do on the live cache what it does offline on the same cache - recorded with the lines, NOT a movement verdict. | |
-| H5 | EVERY TASKED MEMBER MOVES at every vertex it is sent to (displacement > 1.0 m on the trace), ALL 23 - T10's 5, T14's 17, T02's 1 - in the W GATE AND the SCORED run (RL-20261004-01); W-MOVE's T10-only > 50 m clause does not narrow it. THE ROW G1-5 EXISTS TO TEST: 48_IBCT.INF3WPN1, born 13.7 m from lake 16373225 instead of 1.7 m, moves at T14 vertex 1. THE ONE TO WATCH: 48_IBCT.INF1WPN1, 11.3 m from lake 197345448 - 1.3 m outside the planner's 10 m buffer, the thinnest margin (its G1-4 slot, 7.5 m, moved 773.8 m). | HIGH | A member that does not move at a vertex issued 30 trace-s or more before the last fix = STOP (a later vertex is NOT EVALUATED); in the pre-warm it stops E. A member whose plan FAILED (M10 / M12) also reads 0 m: that miss is M10 / M12's. INF3WPN1 at 0 m again from 13.7 m = the "born at the shoreline" reading of N1 does not account for G1-4's stop - recorded with its console (G1-4 N1 (c)'s line-for-line comparison) and the sim's lines; no cause is claimed. | |
+| H5 | EVERY TASKED MEMBER MOVES at every vertex it is sent to (displacement > 1.0 m on the trace), ALL 23 - T10's 5, T14's 17, T02's 1 - in the W GATE AND the SCORED run (RL-20261004-01); W-MOVE's T10-only > 50 m clause does not narrow it. THE ROW G1-5 EXISTS TO TEST, AND THE ONE TO WATCH: 48_IBCT.INF3WPN1, born 13.7 m from lake 16373225 instead of 1.7 m, moves at T14 vertex 1 - its EFFECTIVE margin is the thinnest on cut A: 3.7 m over the planner's 10 m buffer, measured against OSM, with the lake still BETWEEN it and the road network (the segment from its new landing to the nearest drivable road, OSM 595161645, 306 m, cuts lake 16373225 - sec 4 COMPETITORS). A SECONDARY WATCH: 48_IBCT.INF1WPN1, 11.3 m from lake 197345448 (the thinnest raw distance, 1.3 m over the buffer, but no lake between it and its nearest road; its G1-4 slot, 7.5 m, moved 773.8 m). | HIGH | A member that does not move at a vertex issued 30 trace-s or more before the last fix = STOP (a later vertex is NOT EVALUATED); in the pre-warm it stops E. A member whose plan FAILED (M10 / M12) also reads 0 m: that miss is M10 / M12's. INF3WPN1 at 0 m again from 13.7 m = the "born at the shoreline" reading of N1 does not account for G1-4's stop - recorded with its console (G1-4 N1 (c)'s line-for-line comparison) and the sim's lines; no cause is claimed. | |
 | P-FALS(e) | NO RIVER CROSSED OFF A BRIDGE BY THE WAYS RULE and no fix deeper than 25 m inside OSM water (G1-3's P-FALS (e) / P11 / P14 water limb with sec 1(z)'s rule): T02's 28ID.HQ1 is expected to cross river 8011072 again on its MAK_ROAD path (its slot and leg are G1-4's) and to read ON A BRIDGE (218414262) by the ways rule. | HIGH | A crossing OFF A BRIDGE by the ways rule after which the member drove on 50 m or more, or a fix > 25 m inside water = STOP. A crossing that only the chord rule calls off a bridge is RECORDED (both measures print). | |
 | WATCH | INF3WPN1 and INF1WPN1: max displacement and the first instant within 50 m of each T14 vertex (scorer WATCH line). | RECORDED | - | |
+| MM | THE MOVED-MEMBER RECORDS (ITEM 5 of Fable's review; no variable change): per SLOT-MOVED member (the four) the first-leg bearing, the minimum distance of its first 300 m of fixes to OSM water, and the relayed vendor "Movement constrained by features" count (scorer MOVED MEMBER lines; reference values in MEASURES). | RECORDED, never gating | - | |
 
 CHANGES TO G1-4's ROWS: H5 - replaced by the row above (it is G1-4's H5 made explicit about the gate; nothing in its measure
 changes). H6 - unchanged, MEDIUM, scored run only; under W1 T14's vertex 1 is expected to CLOSE in the pre-warm too, because the
@@ -344,21 +383,30 @@ O8, the FALLBACK altitudes, is expected again.
 
 THE CARRIED UNEXPLAINED ITEMS, each with its expectation here: G1-4's list (the crash - expected not to recur, V MEDIUM;
 vertex 2's "Cound not create route" - expected 0; "Pathr" - gone; O8; first-to-return order) unchanged, plus G1-4's own:
-- N1 - WHY INF3WPN1 STOPPED (reading (e) a terrain hold at its birth point [A]; competitor (vi) the planner's 10 m buffer): G1-5
-  does not answer it (sec 7). Expected: it moves (H5).
+- N1 - WHY INF3WPN1 STOPPED (reading (e) a terrain hold at its birth point [A], weakened by G1-2 (sec 7); competitors (vi) the
+  planner's 10 m buffer, (v) a planned first leg into the lake, and the composite of sec 4 COMPETITORS): G1-5 does not answer
+  it (sec 7). Expected: it moves (H5).
 - N1's CONTRAST - why 1.7 m from one lake stopped a unit while 2.3-7.5 m from another did not: G1-5 removes the contrast (every
   moved slot now 11-16 m out), so it cannot answer it either.
 - N2 - the bridge crossing: the ways rule is the scorer's answer to the chord; the crossing itself stays inferred from fixes
   and the model (the planned path is not printed), as N2 (c) says.
 
-COMPETITORS FOR THE ROW G1-5 EXISTS TO TEST (for Fable's cold review). A PASS of H5 with INF3WPN1 moving is CONSISTENT with BOTH
-of N1's readings and so is NOT a test between them: (e) the sim's water (the aggregate actuator's IMPASSABLE MAK_WATERWAY,
-speed-factor 0 at the unit's centre point, UG52 27.1.4 p531) covered a point 1.7 m outside the OSM polygon and does not cover one
-13.7 m out; (vi) the planner's buffer 10 m (navigate-to-location.lua :14) constrained a unit born inside it and does not
-constrain one born outside it. Both predict the member moves at 13.7 m. A FAIL - INF3WPN1 at 0 m from 13.7 m - would weaken
-both as stated (neither predicts a stop 3.7 m outside the buffer and 13.7 m from the polygon) and point at what neither covers:
-the sim's own water layer differing from OSM by more than 13 m there, or a cause not tied to water. THE OBSERVATION THAT WOULD
-DISCRIMINATE (not part of G1-5; sec 7).
+COMPETITORS FOR THE ROW G1-5 EXISTS TO TEST (Fable reviewed them cold, fable_g15). A PASS of H5 with INF3WPN1 moving is
+CONSISTENT with every reading below and so is NOT a test between them: (e) the sim's water (the aggregate actuator's IMPASSABLE
+MAK_WATERWAY, speed-factor 0 at the unit's centre point, UG52 27.1.4 p531) covered a point 1.7 m outside the OSM polygon and does
+not cover one 13.7 m out - WEAKENED by G1-2 (sec 7); (vi) the planner's buffer 10 m (navigate-to-location.lua :14) constrained a
+unit born inside it and does not constrain one born outside it; (v) the planned first leg led into the lake. THE COMPOSITE
+READING (Fable's review, finding 1): a start INSIDE the 10 m planner buffer (featureconfig.txt :405 - MAK_OBSTACLE includes
+MAK_WATERWAY [A: Fable]) WITH THE LAKE BETWEEN THE START AND THE ROAD NETWORK. MEASUREMENT [V: fable_g15\nearest_road.py, re-run
+by this lane, <L5>\g1_5_nearest_road_rerun.txt]: the straight segment from INF3WPN1's G1-4 birth point to the nearest drivable
+road (OSM 595161645, 292.7 m) CUTS lake 16373225; the three siblings' segments (2.3 / 5.5 / 7.5 m from lake 197345448, all of
+which moved) are clear of water; INF3RIF3 (113.6 m from the lake, moved) also cuts it. READING [A]: only INF3WPN1 had BOTH
+conditions - inside the buffer AND the lake between it and the roads - so the composite fits every G1-4 member and both G1-2
+runs (no planner there). W1 removes only the first condition for INF3WPN1: its new landing is 13.7 m out, 3.7 m over the buffer
+measured against OSM, and its segment to the same road (306.0 m) STILL cuts the lake - the thinnest effective margin, hence THE
+one to watch. A FAIL - INF3WPN1 at 0 m from 13.7 m - would weaken (vi) and (v) as stated, and is predicted by the composite only
+if the sim's own water sits more than 3.7 m outside the OSM shoreline there (unmeasured), or by a cause not tied to water.
+H5 stays HIGH. THE OBSERVATION THAT WOULD DISCRIMINATE (not part of G1-5; sec 7).
 
 NAMED STOP-WITH-REPORT BRANCHES: G1-4's S1-S11, and S12 THE SLOTS DIFFER (an SL limb missed): recorded with the L-SLOT lines and
 the start-up line, the deployed dll's offline output (g1_5_slots_out.txt) beside them; STOP. S13 A MOVED MEMBER STILL STOPS (H5
@@ -380,8 +428,12 @@ does; the differences not intended are sec 4a.
   federation held since G1-3 on a long-lived rtiexec (47980, up since 2026-09-26). The STP-825 create refusal (RUNBOOK sec 9c:
   about 42% of creates on the long-lived instance) is unmeasured on a fresh one; the holder's four numbers absorb up to three
   refusals.
-- THE MACHINE HAS REBOOTED TWICE since G1-4 (2026-09-28 23:16:45Z [A]; 2026-09-30 21:47:46Z [V]). The deployed trees, the
-  cache and the fixture hash as registered [V]; the sim's own cache under C:\MAK is listed before and after W as in G1-4.
+- THE MACHINE HAS BOOTED FOUR TIMES since G1-4 (Fable's review, finding 2) [V: System event log 1074 / 6006 / 6005, read
+  2026-10-04]: restarts initiated 2026-09-28 23:16:25Z and 2026-09-30 00:22:48Z by the user (StartMenuExperienceHost), and
+  2026-09-30 01:44:07Z and 21:45:05Z by Windows Update (MoUsoCoreWorker.exe); LastBootUpTime 2026-09-30T21:47:46Z. KB5121794 was
+  installed 2026-09-30 (Get-HotFix) [V]. The deployed trees, the cache and the fixture hash as registered [V]. THE SIM CACHE
+  BASELINE is 21,807 files (G1-4's pre-warm added 2 - the one URI entry, G1-4 Result RECORDED [A]); it is listed before and
+  after W as in G1-4.
 - THE SCORED RUN HAS NO G1-4 CONTROL: G1-4 stopped at its W gate. Its scored rows' control remains G1-2's scored run
   (20260928T142731Z, on 699552c, the Literal path); every scored comparison names that difference.
 - THE SCORER: the bridge rule (sec 1(z)) and the SL limbs are new; every other limb is G1-4's code, reproduced on G1-4's
@@ -415,32 +467,36 @@ not); HANDOFF_SEAT sec 2; Appendix B annotated from the manifests. ASCII + CRLF.
   move; combat; the entity-level profile; the full order; the NONE branch of Auto; Move (Group); the timing; the cause of
   G1-3's refusal; the counter's range; buffer 10 against 0; the Label).
 - N1's MECHANISM: G1-5 CANNOT DISCRIMINATE N1's readings (e) the sim's terrain mobility at the birth point and (vi) the planner's
-  10 m obstacle buffer - both predict that a member born 13.7 m from the water moves (sec 4 COMPETITORS), so an INF3WPN1 that
-  moves says W1's clearance removed the stop on cut A once (n = 1), not which mechanism made it. WHAT WOULD DISCRIMINATE (each
+  10 m obstacle buffer - both predict that a member born 13.7 m from the water moves (sec 4 COMPETITORS) - nor (v) from (vi),
+  nor either from a misalignment of the sim's water with OSM; so an INF3WPN1 that moves says W1's clearance removed the stop on
+  cut A once (n = 1), not which mechanism made it. WHAT WOULD DISCRIMINATE (each
   needs its own registration; buffer 10 also needs a ruling, RL-20260928-03): (1) a member born between the OSM shoreline and
   10 m with buffer 0 (or obstacleQuery none) against the same slot with buffer 10 - (vi) predicts the first moves, (e) predicts
   neither does; (2) a sim-side terrain or feature query at G1-4's birth point (54.022048, 23.309402) through the vendor's API
   (docs first, CLAUDE.md sec 1) - (e) predicts an impassable (water) class there, (vi) predicts nothing about it; (3) a member
   born 2-10 m from water where the sim's water layer is known to match OSM.
 - THE RECORD ALREADY HOLDS ONE OBSERVATION ON (e), unused by G1-4's Result and its cold review (sec 8 item 9). MEASUREMENT
-  [V: g1_5_score.py on G1-2's scored run 20260928T142731Z_run, <L5>\g1_5_bridge_d_ways_g12scored.txt WATCH and member lines;
-  its vrfc2simapp.log L644; its watchvrf-trace.csv]: on the LITERAL path (build 699552c, PA_Move_Along_Route on STP's line, no
+  [V: <L5>\g1_5_inf3wpn1_runs_out.txt (Fable's disp.py with absolute paths) and g1_5_bridge_d_ways_g12scored.txt; G1-2's
+  vrfc2simapp.log L644; its traces]: on the LITERAL path (build 699552c, PA_Move_Along_Route on STP's line, no
   navigate-to-location and so no obstacle buffer) the same member (uuid b6c4756d-e5c1-5d13-a1c9-508222bee540, Mech CO (USA,
-  M2)) was born at the same point, (54.022048,23.309402) at 135.0 m (its first fixes, t=35.6-39.7), and drove 1,662.6 m - within
-  50 m of T14's vertex at t=175.6, on to the -2 hamlet's building stop (54.030655,23.326944; one 'Terrain too steep'); G1-2's
-  Result P10a / N1 [A] count it among the movers. G1-3 (the same point) moved nothing at all (the executor refused every
-  route), so it says nothing here. READING [A]: (e) as written - the sim's impassable water under the unit's centre held it from
+  M2)) was born at the same point, (54.022048,23.309402) at 135.0 m, in BOTH G1-2 runs, and moved 1,662.5 m (scored; first fix
+  more than 1 m away at t=74.1; within 50 m of T14's vertex at t=175.6, on to the -2 hamlet's building stop (54.030655,23.326944;
+  one 'Terrain too steep')) and 1,660.2 m (pre-warm, t=74.4); G1-2's Result P10a / N1 [A] count it among the movers. G1-3 and
+  G1-4 (the same point) read 0.0 m - G1-3's because the executor refused every route, so it says nothing here. READING [A]: (e) as written - the sim's impassable water under the unit's centre held it from
   its first tick - predicts that G1-2's INF3WPN1 would not have left that point either, under the same aggregated movement
   actuator; it did. That weakens (e) and leaves the readings specific to navigate-to-location: (vi) the 10 m buffer, and G1-4
-  N1's (v), a planned first leg into the lake. The strongest competitor to that weakening: the sim's streamed water features
-  differed between the two runs (G1-2 14:27Z, G1-4 22:58Z the same day; unread, as N1 (e) says). Not a G1-5 claim; for the
-  seat and Fable's cold review (RL-20260928-04).
+  N1's (v), a planned first leg into the lake, and the composite of sec 4 COMPETITORS (inside the buffer with the lake between
+  the start and the roads), which fits every run. The strongest competitor to that weakening: the sim's streamed water features
+  differed between the runs (G1-2 14:27Z, G1-4 22:58Z the same day; unread, as N1 (e) says). Fable's cold review of this
+  registration verified the measurement (fable_g15, ITEM 5); G1-4's Result now carries it as an ADDENDUM under N1 (e) - not
+  re-scored. Not a G1-5 claim.
 - THAT 10 m IS ENOUGH IN GENERAL: the clearance is measured from OSM polygons; the sim reads its own streamed features, whose
-  alignment with OSM is unmeasured - INF1WPN1's 11.3 m is the thinnest margin on cut A, and other orders, slots and lakes are not
-  covered.
+  alignment with OSM is unmeasured - INF3WPN1's 3.7 m over the buffer (13.7 m, with the lake between it and the roads) is the
+  thinnest EFFECTIVE margin on cut A, INF1WPN1's 11.3 m the thinnest raw one; other orders, slots and lakes are not covered.
 - THE RIVER CROSSING ITSELF: the ways rule judges fixes against ways; the member's planned path is not printed, so "on the
-  bridge" stays an inference (G1-4 N2). A ford beside a bridge on a plausible path, with both banks on roads, would read ON A
-  BRIDGE under the ways rule - the rule cannot see it.
+  bridge" stays an inference (G1-4 N2). A ford up to about 0.56 x the chord to the side of a bridge over the same river (about
+  80 m on G1-4's 145 m chord), with both banks on roads, reads ON A BRIDGE under the ways rule - the blind zone of sec 1(z); a
+  river split across OSM way ids can make the rule FIRE falsely (sec 1(z)).
 
 ## 8. Where the record was silent or disagreed - open points for the seat
 
@@ -449,16 +505,20 @@ not); HANDOFF_SEAT sec 2; Appendix B annotated from the manifests. ASCII + CRLF.
    :24-25, :162-165) [V]. This registration adds step R (StartRtiExec52.ps1, ensure-up, no appNumber; DEMO_RUNBOOK sec 2 Way B
    step 1 is the same order [V: :255-258]). The record is silent on who starts the trio after a reboot on a scored go-live; the
    seat confirms step R or names another.
-2. A SECOND REBOOT: the machine booted 2026-09-30T21:47:46Z [V], a reboot no record mentions (HANDOFF_SEAT names only
-   2026-09-28 23:16:45Z). Nothing deployed changed (sec Registration hashes) [V]; recorded, the seat's to note.
+2. FOUR BOOTS SINCE G1-4, three of them in no record (HANDOFF_SEAT names only 2026-09-28 23:16:45Z): two user restarts and two
+   Windows Update restarts, KB5121794 installed 2026-09-30 (sec 4a) [V]. Nothing deployed changed (sec Registration hashes) [V];
+   the OS update is an unintended difference, recorded; the seat's to note.
 3. THE PRIVATE C2SIM SERVER IS DOWN: REST http://127.0.0.1:18080/C2SIMServer refused the connection at 2026-10-04T19:39Z [V:
-   g1_5_golive_prertiexec_registration.txt]. RUNBOOK sec 1 (:1704-1719) holds the container recipe (c2sim-server-vrf, 18080 /
-   61614; ~30 s to ready); bringing it up before A / C3 is the seat's (RL-20260928-01 authorises that server). The operator's
+   g1_5_golive_prertiexec_registration.txt]. The container EXISTS, Exited (255) [V: docker ps -a], so RUNBOOK sec 1's
+   `docker run` (:1716) does not apply: step S (sec 3) is `docker start c2sim-server-vrf` then REST 200, before A
+   (RL-20260928-01 authorises that server). RUNBOOK :1716 could say "docker start if it exists" - the seat's. The operator's
    8080 / 61613 server stays out of bounds.
 4. THE BRIDGE RULE'S CONSTANTS are this lane's design, in no ruling: ROAD_TOL_M 15 (BRIDGE_TOL_M's width), DETOUR_MAX 1.5, the 5 m
    "over the river" tolerance. On G1-4 the margins are wide (banks 0.3 / 0.3 m; 1.02 x), and the nearest dirty control is 3.56 x
-   (c4). The ways rule only RELAXES G1-4's (it keeps the 15 m chord acceptance first). The seat approves or alters them before
-   the go-live; changing one after the run is a re-score, not this registration.
+   (c4). The ways rule only RELAXES G1-4's (it keeps the 15 m chord acceptance first). DETOUR_MAX 1.5 accepts a bridge inside an
+   ellipse of semi-minor 0.56 x the chord (about 81 m on G1-4's chord - the blind zone; the 60 m / 100 m controls, sec 1(z));
+   1.5 is set by the right-angle bend (1.41 x). Residual: a false FIRE on a river split across OSM way ids. The seat approves or
+   alters them before the go-live; changing one after the run is a re-score, not this registration.
 5. FABLE'S FIGURES vs THIS LANE'S: 10.9 against 11.3 m for INF1WPN1, 13.6 against 14.3 m for INF1RIF3 (the others within 0.1 m)
    - explained by the planned-slot rebuild (sec 1(y)); the registered landings are this lane's, the +/- 1 m tolerance the
    handoff named. No disagreement on which slots move, where to (compass, ring) or the counts.
@@ -474,8 +534,8 @@ not); HANDOFF_SEAT sec 2; Appendix B annotated from the manifests. ASCII + CRLF.
 
 9. G1-2's INF3WPN1 MOVED FROM G1-4's BIRTH POINT ON THE LITERAL PATH (sec 7; measurement [V], reading [A]): an observation in
    the record that bears on G1-4 N1's readings and that N1 and its cold review did not weigh. It changes no row of this
-   registration (W1 moves the slot either way, and H5 is the test); whether N1's (e) is recorded as weakened is the seat's,
-   after Fable.
+   registration (W1 moves the slot either way, and H5 is the test). Fable verified it (fable_g15, ITEM 5); the G1-4 Result
+   carries it as an ADDENDUM under N1 (e), with the composite reading (sec 4 COMPETITORS), not re-scored.
 
 ## Result (written after the harvest, never from a live read)
 
