@@ -1,6 +1,7 @@
 # PREREG - IRON STORM ON THE AGGREGATE PROFILE, RUN G1-4: G1-3 re-run on the M3b build - member names within 16 characters so the vendor script's route reference is carried whole, a vacuous planned vertex is EXECUTOR REFUSED, a crashed back end voids the window (one unscored pre-warm + one scored run)
 
-STATUS: REGISTERED 2026-09-28, LAUNCH PENDING - the seat's go-live under RL-20260928-01, after Fable's cold review of this
+STATUS: STOPPED AT THE W GATE 2026-09-28 - FAIL (H5, P-FALS(e)) BINDS AS SCORED (RL-20261004-01; the Result below). Was:
+REGISTERED 2026-09-28, LAUNCH PENDING - the seat's go-live under RL-20260928-01, after Fable's cold review of this
 registration's cause claims (RL-20260928-04; HANDOFF_SEAT_2026-09-28 sec 3 item 3). Registered by lane G1-4 (session
 b25cd950; the registration commit's own time is the stamp) on branch prereg/g1-4 from main 9c15ebe, BEFORE any order push,
 holder action or launch. PREPARATION ONLY: no C2SIM push, no holder start, no VR-Forces or runner launch, no appNumber
@@ -463,11 +464,11 @@ ASCII + CRLF.
 ## Result (written after the harvest, never from a live read)
 
 RESULT 2026-09-28: STOPPED AT THE W GATE - NO SCORED RUN. The pre-warm (run 20260928T225800Z_run, launched 22:57:59Z, runner
-exit 0 at 23:07:19Z) scored "W GATE: FAIL (branch A; H5, P-FALS(e)) - STOP before E" (g1_4_score.py --wgate, sha256
+exit 0 at about 23:07:14Z) scored "W GATE: FAIL (branch A; H5, P-FALS(e)) - STOP before E" (g1_4_score.py --wgate, sha256
 8f7f5fd3...; scratch laneG1-4\W_gate_20260928T225800Z_run.txt). E was not launched: P0-P23 and H6 are NOT SCORED and the
-scored block 5281-5291 was never claimed. M3b's question is answered at n = 1 (below): the executor took every route. The two
-misses are not M3b's: one T14 member never moved off a lake shore (N1) and T02's member crossed its river 16 m from a road
-bridge by the scorer's chord (N2); the H5 limb that stopped the gate is one the seat's own W-MOVE decision had meant to confine
+scored block 5281-5291 was never claimed. M3b's question is answered at n = 1 (below): 22 of 23 tasked members moved on the script's routes; the 23rd is read as
+a terrain hold (N1, [A]). The two misses are not read as M3b's: one T14 member never moved off a lake shore (N1) and T02's member crossed its river 16 m from a road
+bridge by the scorer's chord (N2); the H5 limb that stopped the gate governs as written
 (N3). By the stop rules (sec 4) nothing is patched or re-run under this registration; the successor is IRONSTORM_AGG_G1-2026-
 09-28-5 or later, with new numbers. Marks: [V] = checked by this lane after the run (the run directory, the runner log, the
 trace, the reports capture, the vendor script and settings, the OSM tile copy the scorer read, the machine - all read-only);
@@ -542,9 +543,9 @@ N1 - 48_IBCT.INF3WPN1 NEVER MOVED [V]:
     vertex (L27377 / L27369), "Navigation: Initializing" (L27419 / L27387), ROE hold-fire (L27453 / L27421), the
     aggregated-move-along-controller began the move-along subtask at SIM 441.196 / 441.229 (L27533 / L27537) on the WHOLE
     reference "48_IBCT.INF3WPN1 Path part 1" / "48_IBCT.INF3RIF3 Path part 1" (L27535 / L27545). THEN THEY DIVERGE. INF3WPN1
-    printed ONE level-1 line, "Movement constrained by features" (L27577, within 0.4 SIM s of its subtask's start), and
+    printed ONE level-1 line, "Movement constrained by features" (L27577, unstamped, between the SIM 441.262 and 441.862 stamps; the subtask began at 441.196), and
     nothing else to the end: no "Can't receive supplies while moving" (0; INF3RIF3 printed it 92 times from L27869 - the sim's
-    own sign of a unit in motion), only the stationary "Use Supplies ... No nearby supply units" (179 pairs), no subtask end,
+    own sign of a unit in motion), only the stationary "Use Supplies ... No nearby supply units" (179 pairs after L27577, 241 in the whole log), no subtask end,
     no task end (INF3RIF3: subtask Completed SIM 917.524, task Completed 917.757; the 16 movers ended between 528.7 and
     917.8). It is the run's only "Movement constrained" line (app log 1; vendor log count 1). No warning, failure or refusal
     anywhere: 0 "route does not exist", 0 "Could not compute path" / "Invalid path computed" / "Cound not create route",
@@ -562,7 +563,7 @@ N1 - 48_IBCT.INF3WPN1 NEVER MOVED [V]:
     include) and in none of the eight vendor txt files; G1-2 relayed it exactly three times, each for a member at water and
     never for a Mech CO stopped by a building (G1-2 Result :851-853). The script side is silent: navigate-to-location.lua ends
     only when its move-along stops (:252-259) and prints nothing while it runs.
-(e) THE READING [V for the observation; A for the feature]: INF3WPN1 was held at speed factor 0 from its first tick by a terrain
+(e) THE READING MOST CONSISTENT WITH THE EVIDENCE [V for the observation; A for the mechanism and the feature]: INF3WPN1 was held at speed factor 0 from its first tick by a terrain
     feature at its birth point - the mobility table's IMPASSABLE class, which in this run's data means MAK_WATERWAY (the sim's
     Lake layer; ALPINE is not here). The route was planned, created and TAKEN - the subtask ran on the whole reference; the
     executor refused nothing; the unit could not move. WHICH feature, and why the sim's water covers a point 1.7 m outside
@@ -577,13 +578,18 @@ failure lines. (iii) the building slope stop of G1-2 - EXCLUDED: 0 "Terrain too 
 building within 10 m. (iv) the forest (factor 0.25) - not a stop by the table, and INF1RIF3 / INF1WPN1 sat in forest and
 moved. (v) the planned path's first leg led INTO the lake - not excluded (the path is not printed: DEBUG_DETAIL false, lua
 :17; the sysdef's debug-detail false), but it collapses into (e): at 0.0 m over 81 fixes the unit never left its birth cell,
-so the 0-factor terrain is AT the birth point. What would falsify (e): a sim-side feature query at (54.022048, 23.309402)
+so the 0-factor terrain is AT the birth point. (vi) NOT WEIGHED BY THE HARVEST, ADDED BY THE COLD REVIEW (2026-10-04): the
+planner's obstacle constraint - navigate-to-location with obstacleQuery MAK_OBSTACLE and buffer 10 m; a unit born 1.7 m
+from a water polygon starts inside that buffer, and "constrained by features" fits that emitter as well as the speed-factor
+table (the string's emitter is unknown: in no script, header or manual). The siblings at 2.3-7.5 m, also inside 10 m,
+moved - this weakens (vi) but does not exclude it; (e) and (vi) call for different fixes. What would falsify (e): the same
+slot moving with obstacleQuery none or buffer 0; a sim-side feature query at (54.022048, 23.309402)
 returning no impassable feature, or the same line printed for a unit clear of water - neither seen.
 THE CONSEQUENCE FOR T14 (a design fact, not the vendor's): M3 waits for "the LAST of M" (M9); a member whose planning task
 never ends keeps the vertex open, and only the stall watchdog closes the task (an S5-shaped close). M3b (2) cannot see it:
 EXECUTOR REFUSED judges a vertex that CLOSES without movement, not one that never closes.
 
-N2 - T02's RIVER: ON THE BRIDGE BY EVERY FIX; THE 16 m IS THE CHORD [V: scratch laneG1-4\harvest_geom.py on the scorer's
+N2 - T02's RIVER: CONSISTENT WITH THE BRIDGE AT EVERY FIX (NO FIX IS ON IT); THE 16 m IS THE CHORD [V: scratch laneG1-4\harvest_geom.py on the scorer's
 tiles and filters]:
 (a) THE RULE (g1_4_score.py): each chord between consecutive trace fixes is intersected with every river line (:1405-1421); the
     crossing point's distance to the nearest DRIVABLE BRIDGE WAY (bridge not no / boardwalk, highway not in NoDriveHighway -
@@ -602,7 +608,8 @@ tiles and filters]:
     bridge way, 1.3 m over the tolerance. A member that entered the water would have stopped (MAK_WATERWAY is IMPASSABLE,
     N1 (d)); this one drove on 2,990 m to its destination (0.5 m) with no "Movement constrained" line (0 for HQ1), and G1-2's
     T02 member, on the straight line 162 m upstream, was held at this very river ("Movement constrained by features", G1-2
-    Result :761). READING [V for the fixes; A for the path]: the member crossed on bridge 218414262; the scorer's 16 m is the
+    Result :761). READING [V for the fixes; A for the path]: the member most likely crossed on bridge 218414262 - no fix is on it (51.6 m
+and 42.3 m from its ends; the chord passes 13.7 m from it at its nearest); the scorer's 16 m is the
     fix chord's corner cut - inside fix-spacing error, outside the 15 m rule. The competitor, a ford beside the bridge, has no
     fix and no line for it and would need the sim's river layer to have a gap where OSM has none; the fixes alone (145 m
     apart) cannot exclude it, the mobility table does if the sim's river is continuous there.
@@ -614,15 +621,19 @@ tiles and filters]:
     tile copy]. On the scorer's index that bridge is 175 m from G1-3's straight-line point. G1-4 is the first run in which
     T02's member crossed the river and arrived.
 
-N3 - THE REGISTRATION FLAW (recorded, not re-scored) [V: this file and commit 5a400d3]: sec 3 W (:274-278) confines W-MOVE's
+N3 - H5 IN THE W GATE (recorded, not re-scored) [V: this file and commit 5a400d3]: sec 3 W (:274-278) confines W-MOVE's
 per-member clause to T10 - "T14's and T02's member displacements are RECORDED in the W output, not gated - a far-shore member
 stuck at water, G1-2's INF1RIF2 at 13 m, is not M3b's question, and the scored run's H5 covers T14" - and the same sentence
 keeps "H5; the water falsifiers; V-CRASH" in the W gate's list (:278). H5's row (:343) reads "EVERY TASKED MEMBER MOVES at
 every vertex it is sent to ... = STOP" with no pre-warm exemption (sec 4 MEASURES :301-302; sec 8 item 3, :451), and the
 scorer's wgate() gates H5 over every tasked member (g1_4_score.py :1705-1707; W gate output line 135). So the pre-warm
 failed on H5 for a T14 member that the seat's W-MOVE decision had declared not M3b's question. Commit 5a400d3 changed
-:275-278 and :307 and left H5's row and the gate list as they were. The verdict as scored stands; whether its H5 limb binds
-is the seat's, then the owner's, call (NEXT (2)).
+:275-278 and :307 and left H5's row and the gate list as they were. The verdict as scored stands (RULING below).
+COLD REVIEW 2026-10-04: NOT A CONTRADICTION - W-MOVE (> 50 m) and H5 (> 1.0 m) are different limbs (G1-2's INF1RIF2 at 13 m,
+the example behind the W-MOVE decision, passes H5 and fails only W-MOVE), so confining W-MOVE did not confine H5; the gate
+list's "H5; the water falsifiers" was in the first registration (c47df77 :259). The W-MOVE rationale ("the scored run's H5
+covers T14") sits uneasily with H5 in the gate list, but AS WRITTEN H5 GOVERNS; "meant to confine" was an inference about
+intent. Independently of H5 the gate FAILS on P-FALS (e): 16.24 m > BRIDGE_TOL_M 15 under the registered rule.
 
 M3b'S QUESTION AT n = 1 (measurement, then implication): 0 "route does not exist" against G1-3's 15 on the same order, fixture
 and settings; 35 of 35 references carried whole (G1-3: 5 of 5 cut at 35 + "r"); 22 of 23 tasked members moved on the
@@ -649,15 +660,15 @@ RECORDED [V]: O6 - 18 "No creator found" lines, the navigate-to-location twin at
 0 HTTP FETCH (L103983). THE SIM CACHE - ONE URI-cache entry added: __default\uri\26\a0927b0f7e311c767aa5fab66caa661644a25a
 .meta (700 B) and .osgb (151 B), both written 23:02:31.94Z (during T10's move); TOTAL 21,805 -> 21,807 files, 495,598,329 ->
 495,599,180 B (simcache_before / after_prewarm.txt; G1-3's pre-warm added nothing). StopVrf's exit 6 - the forced branch,
-first seen on this path; the stale-federate check the runner names for it is moot after the reboot. The back end's own log
+first seen on this path [A]; the stale-federate check the runner names for it is moot after the reboot. The back end's own log
 (C:\MAK\logs\...-185817-...-40228.log, 15,148,205 B, last written 23:04:37Z) is the vendor copy's twin - names, sizes and
 counts only. Vendor log counts: "Path part" 35, "48_IBCT.INF3WPN1" 13, "Movement constrained" 1, every failure text 0.
 The 5.2 command line was G1-3's byte for byte (the log name aside).
 
-WHAT IT MEANS (implication, not measurement): M3b (1) did what it was built for - the executor took the route on every
-member of every task; M3b (2) had nothing to refuse; M3b (3) had nothing to void. The pre-warm's two misses are a birth slot
-at a shoreline and a scorer chord across a bridge - neither is the M3 planner's or the executor's, and neither is M3b's.
-The W gate's FAIL rests on an H5 limb the seat had meant to confine (N3) and a P-FALS (e) reading the fixes contradict (N2);
+WHAT IT MEANS (implication, not measurement): M3b (1) did what it was built for - every member's move-along took its
+whole reference (35 of 35, 0 refusals) and 22 of 23 members moved, the 23rd read as a terrain hold (N1, [A]); M3b (2) had nothing to refuse; M3b (3) had nothing to void. The pre-warm's two misses are a birth slot
+at a shoreline and a scorer chord across a bridge - neither is read as the M3 planner's, the executor's or M3b's ([A] for N1).
+The W gate's FAIL rests on an H5 limb that governs as written (N3) and a P-FALS (e) reading the fixes can neither confirm nor exclude (N2);
 both are recorded here and neither is re-scored. A member born a metre from water and a vertex held open by a member that
 never ends are the two mechanisms this run adds to the record.
 
@@ -679,6 +690,13 @@ until the stall watchdog). (5) The doc updates of sec 6 - PLAN_MOVEMENT rows M3b
 and 0.5.9, HANDOFF_SEAT sec 2, Appendix B annotated - after the review. (6) The Label follow-up (HANDOFF_SEAT sec 3 item 5)
 is unblocked.
 
+COLD REVIEW AND RULING (2026-10-04): Fable, cold, on the evidence only (RL-20260928-04): ACCEPT WITH FIXES - every number it
+could reproduce held; its fixes are applied above (N1 (c) stamps, (e) to [A] and competitor (vi); N2's headline and
+reading; N3 not a contradiction; M3b's question and WHAT IT MEANS to 22 of 23; the runner's exit time; exit 6 [A]).
+RULING RL-20261004-01 ("As recommended"): (2) the W FAIL BINDS AS SCORED - G1-4 is STOPPED at its W gate, nothing is
+re-scored. (3) G1-5 gates H5 on EVERY tasked member, after a build that gives nudged member slots a water clearance of at
+least the planner's 10 m buffer; the scorer's bridge rule reads the fixes against the road and bridge ways, fail-first on
+this pre-warm. NEXT (4)'s water clearance is thereby ruled; its per-member hold on "the LAST of M" stays the seat's.
 ADVERSARIAL REVIEW: (N1) the strongest competitor to "held by an impassable feature at its birth point" is a defect of the
 planned route itself - a first leg into the lake, or a move-along that never started its motion for a reason the console
 does not print; against it stand the one vendor line that exists, which names features, 0.0 m over 81 fixes (the 0-factor
