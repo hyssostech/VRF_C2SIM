@@ -645,7 +645,7 @@ did not fire: no EXECUTOR REFUSED on a genuine move.
 THE CARRIED UNEXPLAINED ITEMS OF G1-3 [V]:
 - THE CRASH: did not recur (V MEDIUM held; 1 crash in 2 runs on this path). Peak working set 4,030 MB at 23:04:06Z
   (thread-samples.csv; G1-3 3,668, G1-2 3,801 / 3,876), peak 3.60 cores at 23:02:56Z, WS-runaway alerts 930.6 MB/min at
-  22:59:25Z and 1,536.1 at 23:01:45Z (load-time, as before). The vendor's addGeometry comment (buffer > 0) was exercised with
+  22:59:25Z and 1,536.1 at 23:01:45Z (load-time, as before; the manifest records backendWsRunaway true). The vendor's addGeometry comment (buffer > 0) was exercised with
   buffer 10 on 35 routes without a crash. pid 3344's callstack stays unread (the owner's call).
 - "Pathr": gone - every reference whole (R-REF). WHERE the cut at 35 happens stays [A] (sec VENDOR CITATION).
 - VERTEX 2's "Cound not create route": 0 (P7c held). Consistent with the name reading of it; not proven.
@@ -660,7 +660,7 @@ RECORDED [V]: O6 - 18 "No creator found" lines, the navigate-to-location twin at
 0 HTTP FETCH (L103983). THE SIM CACHE - ONE URI-cache entry added: __default\uri\26\a0927b0f7e311c767aa5fab66caa661644a25a
 .meta (700 B) and .osgb (151 B), both written 23:02:31.94Z (during T10's move); TOTAL 21,805 -> 21,807 files, 495,598,329 ->
 495,599,180 B (simcache_before / after_prewarm.txt; G1-3's pre-warm added nothing). StopVrf's exit 6 - the forced branch,
-first seen on this path [A]; the stale-federate check the runner names for it is moot after the reboot. The back end's own log
+first on the M3b StopVrf52 [A] (exit 6 itself was seen live before: E1, E2, E2-2, LIVE2, G1, G1-2 - lane D1, 2026-10-04); the stale-federate check the runner names for it is moot after the reboot. The back end's own log
 (C:\MAK\logs\...-185817-...-40228.log, 15,148,205 B, last written 23:04:37Z) is the vendor copy's twin - names, sizes and
 counts only. Vendor log counts: "Path part" 35, "48_IBCT.INF3WPN1" 13, "Movement constrained" 1, every failure text 0.
 The 5.2 command line was G1-3's byte for byte (the log name aside).
