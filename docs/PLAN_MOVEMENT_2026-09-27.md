@@ -11,6 +11,8 @@ CLOSED - tripwires, one line each; the pointer is the record. A session that wan
 - VRF objects are addressed by their real VRF_UUID, never a name-as-DtUUID -> DESIGN_ORBAT C8 (2026-09-02).
 - G1-3's planned move: the DESTINATION BOUND (level-3 echo L9681-L9713); the executor refused the script's route, whose name-built
   reference a move-along cuts at 35 - do not reopen the binding -> RUNBOOK sec 11o, row M3b, bridge-spikes/ScriptVarSerializeProbe.
+- G1-4 is STOPPED at its W gate, FAIL (H5, P-FALS(e)) AS SCORED - not re-scored, N3 is not a contradiction; G1-5 gates H5 on every
+  member after a >= 10 m water clearance for nudged slots -> RL-20261004-01, PREREG_IRONSTORM_AGG_G1-4 Result.
 - Vendor docs, samples and community material BEFORE any probe; a probe cites the doc it rests on. A suspected VR-Forces bug means we misuse it -> CLAUDE.md Research bias (2026-09-01), AUDIT_REPEATED_INSTRUCTIONS items 1, 11.
 - Hostile side: Chinese preferred, Russian acceptable - RUS for Iron Storm -> L4080 (2026-09-02), RL-20260927-02.
 - The demo is IRON STORM (Suwalki, STP CoaRenderer narrative 1); Mojave is preserved, no new effort -> RL-20260920-01, AUDIT item 12 (runner default Iron Storm cut A since c3cfec6, row AF3).
