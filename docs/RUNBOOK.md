@@ -4221,7 +4221,10 @@ SEEN LIVE ONCE, G1-4's pre-warm (run 20260928T225800Z; PREREG_IRONSTORM_AGG_G1-4
 35 references carried whole (`<member> Path part <n>`, n = 1 on T10 and T14, 1-3 on T02; no `_<counter>` printed), 0 `route
 does not exist` (G1-3: 15); 22 of 23 tasked members moved on the script's routes, and four planned vertices closed 6-55 m from
 their points. The 23rd, 48_IBCT.INF3WPN1, sat at 0.0 m with its move-along running on the whole reference; it is read as a
-terrain hold at its nudged birth point [A], with the planner's 10 m obstacle buffer as the unexcluded competitor (Result N1).
+terrain hold at its nudged birth point [A], with the planner's 10 m obstacle buffer as the unexcluded competitor (Result N1);
+WEAKENED 2026-10-04 (G1-4 Result ADDENDUM under N1 (e)): the same member at the same birth point moved 1,662.5 / 1,660.2 m on
+G1-2's literal path [V]; the composite reading - a start inside the 10 m buffer with the lake between it and the roads - fits
+every run [A].
 The name reading is consistent with this run; n = 1 is not proof of cause, and the "buffer 10 next" branch (the vendor's
 followed route, RoadToKaunasPhaseTwo.oob :72076-72130, was planned with buffer 0) and the unpublished-route suspect did not
 arise. (2) EXECUTOR REFUSED - did not fire: no vertex closed vacuously. T14's vertex 1 never closed at all (one member never
