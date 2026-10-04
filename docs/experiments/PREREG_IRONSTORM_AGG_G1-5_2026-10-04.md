@@ -537,6 +537,15 @@ not); HANDOFF_SEAT sec 2; Appendix B annotated from the manifests. ASCII + CRLF.
    registration (W1 moves the slot either way, and H5 is the test). Fable verified it (fable_g15, ITEM 5); the G1-4 Result
    carries it as an ADDENDUM under N1 (e), with the composite reading (sec 4 COMPETITORS), not re-scored.
 
+SEAT DECISIONS 2026-10-04, before any go-live step (the seat, Opus, under RL-20260928-01 and RL-20260928-04):
+- (1) Step R confirmed as registered (StartRtiExec52 ensure-up before the holder; DEMO_RUNBOOK sec 2 Way B is the same order).
+- (2) The four boots and KB5121794 stand as recorded unintended differences; nothing deployed changed.
+- (3) Step S confirmed (`docker start c2sim-server-vrf`, REST 200); the RUNBOOK :1716 wording is a doc follow-up after the Result.
+- (4) The bridge-rule constants (ROAD_TOL_M 15, DETOUR_MAX 1.5, the 5 m over-the-river tolerance) are APPROVED as registered,
+  blind zone and all; none is changed after the run.
+- (6) The SL limbs stay HIGH in the W gate, as registered.
+- (7) As written: a holder refused on all four numbers STOPS the go-live at D'.
+
 ## Result (written after the harvest, never from a live read)
 
 (empty - the run has not been launched)
