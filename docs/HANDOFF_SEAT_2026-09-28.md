@@ -64,7 +64,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    holder from 5281 (branch b').
    RESULT HARVESTED (Fable lane, 2026-09-28 ~23:55Z): LOCAL branch result/g1-4 at 1184663 (worktree .claude\worktrees\
    result-g1-4), NOT merged, NOT yet cold-reviewed. Its readings, each [A] until reviewed: INF3WPN1 held by an impassable
-   feature at its nudged birth point (1.7 m outside OSM lake 16373225; "Movement constrained by features" L27577; which
+   feature at its nudged birth point [WEAKENED 2026-10-04: G1-2 moved it from the same point twice - G1-4 Result ADDENDUM N1 (e)] (1.7 m outside OSM lake 16373225; "Movement constrained by features" L27577; which
    feature unsettled - siblings 2.3-7.5 m from another lake moved); T02 HQ1 crossed ON wooden bridge OSM 218414262 (the 16 m
    is the fix-chord corner cut vs scorer BRIDGE_TOL_M 15). Owner stopped the session here (~23:58Z). NEXT, in order: Fable
    cold review of the Result -> owner (RULE: does the W FAIL bind as scored, given N3 = the H5/T14 registration flaw);
@@ -88,6 +88,11 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    2026-10-04"; push chained in one command with the suite read - never again); fixed by the next commit. G1-5 must predict (Fable harness, scratchpad 7207877b...\fable_w1\REVIEW_W1_fable_
    2026-10-04.txt): 0 newly moved; the same 4 48_IBCT slots move - INF1RIF2 150 m NW 15.5 m, INF1RIF3 125 m SW 13.6 m,
    INF1WPN1 25 m SW 10.9 m (thinnest), INF3WPN1 75 m S 13.6 m. The scorer's bridge rule is the G1-5 lane's, not W1's.
+   W1 DEPLOYED d455092 (1.0.0+git.52f50e0, pin 03226dd0). G1-5 REGISTERED (IRONSTORM_AGG_G1-2026-10-04-5; Fable GO WITH FIXES,
+   applied) and MERGED 1fdc820; GO-LIVE APPROVED ("Go live is approved", session 7207877b). Watch INF3WPN1 (13.7 m, lake
+   between it and the road; effective margin 3.7 m). Machine booted 4x since G1-4 (09-28 23:16Z, 09-30 x3 incl. Windows
+   Update KB5121794); c2sim-server-vrf container Exited - `docker start`, not RUNBOOK :1716's `docker run`. Numbers: holder
+   5281-5284, pre-warm 5285-5295, scored 5296-5306, marker -> 5307; step R starts rtiexec before the holder.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
