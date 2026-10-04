@@ -597,6 +597,9 @@ runs/launch52/RunScenario-ironstorm-agg-g1-5-prewarm-20261004T202532Z.log, unles
   registered second holder (sec 3 W names it; N4 (b)); REST 200; marker 5296. The sim cache listed 20:35:05Z.
 - THE QUIET PERIOD held: no other runner log in runs\launch52 between W's prelaunch and the post-W inventory (the suite's
   dry-run logs sit at 20:18-20:19Z and 20:36-20:37Z) [V: listing].
+- THE REGISTRATION FREEZE held [V: git commit stamps]: the last registration commit a992def (the seat's decisions, sec 8) at
+  20:21:24Z, step R at 20:21:36Z, the holder claim 3f04f34 at 20:22:46Z, the pre-warm launched 20:25:32Z. The commit stamps
+  govern the DATE line's "about 20:30Z".
 THE CLOCKS [V]: trace t0 = WatchVrf join 20:28:25.609Z; T10 dispatched t=74.0 (SIM 345.6), T14 t=79.2 (SIM 380.2), T02 t=80.2
 (SIM 381.2); every member's last fix t=190.9 (20:31:36.5Z; the window ended 20:31:37.7Z, manifest observationEndUtc); the
 trace's last fix of any object t=221.7. The sim ran about 6.5-6.8 x wall (L64823: 64.1 WALL s = 414.7 SIM s; L77855: 78.0
@@ -618,7 +621,7 @@ member-vertex pairs judged in the W gate (the W gate judges a vertex k > 1 only 
 included; the same scorer in full mode on this run (RECORDED - the pre-warm is unscored) judges 50 pairs, T14 vertex 2
 included, 0 not moved; W-MOVE PASS (T10 5 of 5 > 50 m; T14 17 of 17 and T02 1 of 1 RECORDED); W-DONE PASS (T14 vertex 1
 closed - "the LAST of 17: 17 succeeded, 0 failed", L70619 - and T10's three and T02's one; nothing reached but not closed;
-T14 vertex 2 NOT REACHED, N3); V-CRASH no signal for pid 63444 (C:\MAK\logs holds its .log, 14,814,344 B, last written
+the scorer prints "NOT REACHED []"; T14 vertex 2 is NOT REACHED by this lane's reading of its O1 line, N3); V-CRASH no signal for pid 63444 (C:\MAK\logs holds its .log, 14,814,344 B, last written
 20:31:39Z, and no .callstack.log or .dmp [V: listing]); the fixes-inside-water limb (0 fixes deeper than 25 m; "longest run
 0" for every member). P-FALS (e)'s T02 limb held as predicted: 28ID.HQ1 crossed river 8011072 at 54.007540,23.236524, 13.3 m
 from a drivable road bridge (218414262) - ON A BRIDGE by the 15 m chord acceptance the ways rule keeps first - and drove on
@@ -665,7 +668,17 @@ N1 - THE CULVERT CROSSING:
     - the 12 Mech COs: t=162.4 road 2.9 m, track 5.0 m (at their junction), 46 m / t=164.5 road 0.7 m, 15 m / 67.5-67.7 m /
       4.6 m, 5.3 m.
     Every crossing point lies 1.2-10.2 m from the road's centreline and 1.5-11.5 m from where the road crosses the culvert
-    way; no fix lies off the road within 10 m of the river line. Every member then drove on north along 300614718 (1,194-2,018
+    way; no fix lies off the road within 10 m of the river line. THE OFFSETS ARE THE CHORDS' STRAIGHTNESS [V: Fable's cold
+    review, scratch fable_g15r\rederive_out.txt]: chord by chord, the road's own vertex at the culvert lies off the straight
+    chord line by 2.2 / 4.1 / 10.3 / 4.6 / 3.4 / 3.4 m (CAV1 / HQ1 / INF1HQ1 / the Mech COs / INF2HQ1 / INF3HQ1), against
+    crossing-point offsets of 1.2 / 3.7 / 10.2 / 4.5 / 2.8 / 2.9 m; a chord that follows the road at both ends cuts its bend
+    by that much. THE SPEED DIP [V: same source; m per trace-second, the chord before / the crossing chord / the chord after]:
+    HQ1 103 / 64 / 71; INF1HQ1 103 / 85 / 62; INF2HQ1 104 / 61 / 74; INF3HQ1 105 / 62 / 74; CAV1 85 / 59 / 69; the 12 Mech COs
+    46 / 32 / 58 - every chord at or next to the crossing runs at about 0.6 x its neighbours, on all six tracks. The dip does
+    not move any fix off the road. It is UNEXPLAINED; candidates, no cause claimed: the track-to-road junction 55 m south of C
+    (a turn of about 30 deg); landuse=residential 25 m from C (URBAN is MAK_MECH_RESTRICTED_L2, speed-factor 0.25); the river
+    or culvert in the sim's mobility layer. The last bears on competitor (iii) below: a road entry that outranks every other
+    entry predicts no dip at C. Every member then drove on north along 300614718 (1,194-2,018
     m); 0 "Movement constrained by features" and 0 "Terrain too steep" (app log 0 / vendor log count 0 [V:
     h_counts_out.txt]); 0 stationary runs (the scorer); all were still moving when the window closed (N3).
 (c) THE READING MOST CONSISTENT WITH THE EVIDENCE [V for the ground and the fixes; A for the path]: the members drove the road
@@ -681,14 +694,17 @@ N1 - THE CULVERT CROSSING:
     mech-aggregated-movement.sysdef :116-120, speed-factor 0, priority 200). The same sysdef gives MAK_MECH_UNRESTRICTED_TERRAIN
     = MAK_ROAD (featureconfig.txt :259) speed-factor 1 at priority 100 (:111-115). Which entry governs where a road and a river
     line overlap is not in the docs read here: UG52 27.1.4 p531 defers to "Configuring Aggregate-Level Movement Restrictions"
-    (Adding Content, PDF only, unread) [A].
+    in the Adding Content manual, which is NOT INSTALLED - C:\MAK\vrforces5.2d\doc\AddingContent.pdf is a one-page placeholder
+    ("Documentation Has Not Been Installed": the vendor documentation installer was not run), docs/vendor/mak-5.2 holds no
+    Adding Content text, and the installed txt set has 0 hits for "culvert" [V: Fable's cold review, fable_g15r].
 THE COMPETITORS: (i) A FORD BESIDE THE CULVERT - the members left the road for a few metres to cross the open channel: no fix
 supports it (the fix at the river is 0.8 m from the road), the planner was routing on the road network, and an impassable
 river line would have held them as G1-2's T02 member was held at river 8011072 off the road; but the fixes are 67-170 m apart
 across the river and the path is not printed, so the trace alone cannot exclude it. (ii) THE SIM'S WATER LAYER HAD NO WATER
 THERE - not supported by the vendor filter (no culvert exclusion), but the streamed features the sim used are unread and could
-differ from the tile copy. (iii) THE ROAD'S MOBILITY ENTRY OUTRANKED THE RIVER'S at the overlap - consistent with every fix,
-unverified (the priority rule is unread). (ii) and (iii) bear on WHY a member could pass C, not on WHERE it crossed; all three
+differ from the tile copy. (iii) THE ROAD'S MOBILITY ENTRY OUTRANKED THE RIVER'S at the overlap - consistent with every fix's
+position, unverified (the priority rule is in the uninstalled manual), and in tension with the speed dip at C if the road
+outranks every entry (N1 (b)). (ii) and (iii) bear on WHY a member could pass C, not on WHERE it crossed; all three
 are consistent with a crossing on, or within a few metres of, road 300614718. WHAT WOULD FALSIFY THE ON-THE-ROAD READING: a
 fix in the channel more than about 5 m off the road's centreline; a "Movement constrained" line or a stop at either bank; the
 planned path (a DEBUG_DETAIL run) leaving the road at C; a sim-side feature query showing the road broken at C. None is in
@@ -727,8 +743,10 @@ inside the buffer. The discriminating observations remain sec 7's (1)-(3).
 N3 - T14 VERTEX 2 NOT REACHED IN THE 120 s WINDOW [V: the trace, harvestG1-5\h_tail_out.txt; runner log :270]: vertex 2 was
 issued when the last member closed vertex 1 (t=148.2); at the last fix (t=190.9) the container was 874.0 m from it, the four
 HQ members 297-315 m, CAV1 428 m and the 12 Mech COs 1,103.6 m, all still moving (the Mech COs 91 m and HQ1 about 150 m in
-the last 2 s). The task was open at the cap ("still open: 1075b583..."), so -StopWhenComplete did not fire. By W-DONE's rule a NOT
-REACHED vertex is recorded, not a stop. RECORDED, no reading: the Mech COs' last fix (54.030578,23.327180) is 17.6 m from the
+the last 2 s). The task was open at the cap ("still open: 1075b583..."), so -StopWhenComplete did not fire. The scorer
+classifies W-DONE per task: it prints "NOT REACHED []" (T14 counts as closed on its vertex 1) and shows vertex 2 only as "O1
+vertex 2 of 2: NO member within 50 m"; calling vertex 2 NOT REACHED is this lane's reading of that O1 line, not the scorer's
+print. By W-DONE's rule a NOT REACHED vertex is recorded, not a stop. RECORDED, no reading: the Mech COs' last fix (54.030578,23.327180) is 17.6 m from the
 point where G1-2's INF3WPN1 stopped at a building of the -2 hamlet (sec 7); they were moving west there, on the line the HQs
 and CAV1 had driven about 18 s earlier.
 
@@ -741,7 +759,8 @@ N4 - THE HARNESS [V]:
     that held the holder's join (Dp_federates.txt), and D''s "exactly one joined federate" was not machine-checked. By grep it
     held. The whole log: 7 joins (67984; 68076; 34468, Stage 2c; Federate5, the back end; 67260, the WatchVrf pre-check;
     26380, the trace; 62220, the app) and 5 resigns (34468, 67260, 62220, 26380 normal; the back end LostConnectionResign,
-    forced by the rtiexec after the kill, L25356-25393); 67984 and 68076 still joined at the log's last write (20:37:21Z).
+    forced by the rtiexec after the kill, L25356-25393); 67984 and 68076 still joined at the harvest read. The log now also
+    holds 68076's NormalResign (L25502, stamped 20:40:40Z - the end of its 900 s hold); 67984 remains joined.
 (b) THE POST-W INVENTORY CHECK: golive_checks -Phase prelaunch asserts "exactly one RtiProbe (the persistent holder)"; after
     the pre-warm the registered inventory (sec 3 W) includes the pre-warm's Stage 2h holder (68076, a 900 s hold from about
     20:25:39Z), so the check's FAIL is that expected holder - the check is wrong for the post-W phase, not the inventory.
@@ -782,21 +801,32 @@ no fix off the road at the river. Nothing in the run is read as W1's, the M3 pla
 
 NEXT, in order (the seat's and the owner's): (1) Fable's cold review of this Result (RL-20260928-04). (2) RULE - the owner:
 whether the W gate's FAIL binds as scored, the precedent being RL-20261004-01 for G1-4 (P-FALS (e) there was a chord corner at
-a bridge; here a road over a culvert). (3) DESIGN - the seat's: a culvert clause for the ways rule (N1 IMPLICATION), its
-narrow or wide form, FAIL-FIRST on THIS pre-warm (20261004T202533Z_run) - the clause must turn the 17 crossings ON and keep
-sec 1(z)'s dirty controls (c1)-(c4) firing; reading "Configuring Aggregate-Level Movement Restrictions" (Adding Content) first
-settles how the sim resolves a road over a river line. (4) PREREG G1-6 on the same build and order with that scorer, new
+a bridge; here a road over a culvert). (3) DESIGN - the seat's, its first step the owner's: (3a) INSTALL the VR-Forces 5.2d
+documentation (the vendor's documentation installer; it writes under C:\MAK, so an owner action), then read "Configuring
+Aggregate-Level Movement Restrictions" in Adding Content - it settles how the sim resolves a road over a river line; (3b) a
+culvert clause for the ways rule (N1 IMPLICATION), its narrow or wide form, FAIL-FIRST on THIS pre-warm
+(20261004T202533Z_run) - the clause must turn the 17 crossings ON and keep sec 1(z)'s dirty controls (c1)-(c4) firing;
+(3c) a cheap discriminator for N1 (b)'s speed dip, from this run's trace: T10's and T02's speeds through other road junctions
+and hamlets (not run by this lane). (4) PREREG G1-6 on the same build and order with that scorer, new
 numbers from the marker (5296 or later). (5) Harness: g1_5_rti_federates.py to accept the single join line (and keep the
 doubled form), with a control on each log; the post-W inventory check to allow the run's own Stage 2h holder; the
 StartRtiExec52 log-name test (N4). (6) Doc updates (sec 6): Appendix B annotated from the manifest (the seat's; this lane does
 not edit OPUS_EXECUTION_PLAN.md), PLAN_MOVEMENT rows G1-4 / W1 -> G1-5 and the step table, RUNBOOK sec 11o and sec 9 (W1 seen
 live: SL0-SL4 held), RUNBOOK :1716's "docker start if it exists" (sec 8 item 3), HANDOFF_SEAT sec 2.
 
+COLD REVIEW (2026-10-04): Fable, cold, on the evidence only (RL-20260928-04; scratch 7207877b...\fable_g15r\rederive.py,
+rederive_out.txt): ACCEPT WITH FIXES - every verdict, limb and number re-checked; its fixes are applied above (N1 (b) the speed
+dip and the offsets as the road's bend; N1 (d) Adding Content not installed, NEXT (3a); N3 the scorer's print against this
+lane's reading; N4 (a) 68076's resign; the registration freeze). Its point (C): the FAIL does not depend on any reading - the
+frozen rule fired on fixes nobody disputes. A culvert clause is a NEW clause; applied to G1-5 it would still be a re-score, so
+it belongs to a successor registered before its run.
+
 ADVERSARIAL REVIEW: (N1) the strongest competitor to "they crossed on the road over the culvert" is a ford a few metres
 beside it; against it stand the one fix at the river (0.8 m from the road), both banks of every chord on the network, the
 plan's road query, and the off-road stop of G1-2's member at a river line; for it, only the 67-170 m fix spacing. Unexplained
 and standing: why an impassable River line at C (the vendor filter keeps culverts) did not hold units on the road - the
-priority rule (iii) is the likely mechanism and is unread, so no cause is claimed. (N2) the strongest competitor to "the
+priority rule (iii) is a candidate mechanism, its manual is not installed, and the speed dip at C sits uneasily with a
+road that outranks every entry, so no cause is claimed. (N2) the strongest competitor to "the
 pass leaves (e)-(vi) undiscriminated" would be a reading that predicts a stop from 13.6 m - none was registered; the
 shore-following reading of (2) rests on 2-s fixes and an unprinted path, and on the planner and the actuator reading the
 same water, so it is [A] and is not used to retire (e). (Harness) the federate count rests on grep, not the script.
