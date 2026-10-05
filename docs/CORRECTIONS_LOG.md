@@ -693,3 +693,7 @@ that moved nothing now FAILS (M3b, EXECUTOR REFUSED); (3) the back end had CRASH
   prompt for a worktree/test path (loopback is unfiltered, nothing breaks); per-path rules only for the stable demo paths.
 - CLAIM (seat): "the vendor Adding Content manual is not installed - the owner must install it". WRONG in effect: the
   public MAK library (docs/vendor/README.txt names it) hosts MAK_ONE_2025_Adding_Content.pdf; fetched 2026-10-04.
+- CLAIM (seat, by omission): the Way B rehearsal registered and launched a GUI-on run without the run-owned unattended
+  appData that RUNBOOK sec 0.5.x prescribes since 2026-09-20 (STP-844); the leftover vrfGui and its modals followed. The
+  record had it; the seat did not grep RUNBOOK for GUI-on launches. RUNBOOK amended 2026-10-05 (tree gone after rebuild;
+  label decoration must also be applied to that copy; the owner-authorised clearance procedure).

@@ -193,3 +193,20 @@ treats vendor logs as names/sizes/counts only); then the raw order with --no-gui
 ADVERSARIAL REVIEW: (1) n = 1. (2) Unit attribution of trace uuids rests on the app's IDENTITY marking lines (135 named);
 "moved" is a > 50 m / > 5 m displacement test, not an attribute timestamp - a unit that moved < 5 m after 00:33:19Z is not
 told apart from a frozen one. (3) 6724 = Federate23 is [A] (join order and time). (4) Hang vs slowdown stays open (NEXT).
+
+ADDENDUM 2026-10-05 ~10:20Z (the seat; the vendor-log CONTENT read and the GUI close authorised by the owner, "Go for 1-2";
+lines after the environment block only, nothing quoted from it):
+- THE VENDOR SIM LOG (runs/20261005T002424Z_run/vendor/vendor-vrfSim.log, 363,522 lines): 49,434 terrain feature_source paging
+  jobs (DtVrfCallbackQueue feature_source job: tfs, mvt, dynamic feature set) and 55 MAK_OBSTACLE area jobs (buffer=10; the first
+  at line 159,525; the last ones at 24.26-24.44 E, 54.18-54.26 N - east of every cached tile). 40,737 'queued for <s> seconds'
+  lines: median wait 71 s, p95 192 s, pending queues up to about 122; the log's last lines are still such jobs completing.
+  READING [A]: the back end did NOT hang - it kept completing work until the force - but its terrain feature paging and the
+  planner's obstacle-area collection were backed up by minutes, which fits the observers' 1 -> 0 at 00:33:19Z as an extreme
+  slowdown under the full order's much larger terrain extent (out to about 24.4 E). Competitor: the queues are a side effect of
+  a different stall; against it, jobs keep completing to the end. Thread 20692 (one of the four hot threads) is a feature_source
+  worker by the log's own thread info. Not settled; the demo implication is to bound the order's terrain extent (or pre-page it).
+- X6 HELD: the GUI was closed normally at 10:16:30Z (the Session Status dialog answered Yes, then Quit confirmed); the settings
+  file was not rewritten on exit (mtime 00:25:00Z, the GUI's start) and Enable-LabelDecoration -Verify exits 0 (ON).
+- DEVIATION NOT REGISTERED (found 2026-10-05): the GUI-on launch did NOT pass the run-owned unattended appData
+  (RUNBOOK sec 0.5.x, ADOPTED 2026-09-20, STP-844; the tree was gone after the machine rebuild) - so the vendor prompts
+  were on, and the leftover GUI's two modals are that procedure's known symptom. RUNBOOK AMENDMENT 2026-10-05 records it.

@@ -613,6 +613,22 @@ once, then always launch with `-AppDataDir C:\C2SIM\vrf-appdata-unattended\appDa
 LaunchVrf52 WARNS (never refuses) when a GUI-on launch is about to use a tree whose prompts
 are still on. Restore = delete that tree; nothing under C:\MAK was changed. NOT the same
 tree as `C:\C2SIM\vrf-appdata`, whose one edit is `loadAllNavigationDataOnTerrainLoad 1`.
+AMENDMENT 2026-10-05 (the Way B rehearsal, REHEARSAL_WAYB_2026-10-05.md; the owner: "This should have been on the runbooks.
+Add a note to amend it if not"). The procedure above WAS here and the seat did not apply it: the GUI-on rehearsal launched
+WITHOUT --vrf-appdata-dir, the back end went silent, and vrfGui pid 680 was left behind on "Session Status" (StopVrf52 exit 7,
+nothing answered, as designed). What the record did not say, now said:
+- AFTER A MACHINE REBUILD THE TREE IS GONE: on 2026-10-05 neither C:\C2SIM\vrf-appdata-unattended nor C:\C2SIM\vrf-appdata
+  existed. Before ANY GUI-on run: re-create it (the NewVrfAppData52.ps1 line above) and pass
+  `--vrf-appdata-dir C:\C2SIM\vrf-appdata-unattended\appData` to scripts/RunScenario.sh (-VrfAppDataDir on the .ps1 runner).
+  The pre-launch check of a GUI-on registration must assert the tree exists and is passed.
+- THE LABEL DECORATION LIVES IN appData TOO (RL-20261004-05): a run-owned tree is a SEPARATE settings copy, so after
+  re-creating it run `tools/display/Enable-LabelDecoration.ps1 -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData`
+  (-Verify, -WhatIf, then plain), or the labels will not draw on GUI runs that use it.
+- A LEFT-BEHIND vrfGui WITH THE MODALS (if it happens anyway): the seat does NOT answer vendor dialogs on its own. With the
+  owner's explicit go (2026-10-05, "Go for 1-2"), it was cleared by posting Enter (WM_KEYDOWN/WM_CHAR/WM_KEYUP, no focus
+  needed - the AnswerCrashDumpDialog.ps1 technique) to "Session Status" (default Yes), then CloseMainWindow, then Enter to
+  "Are You Sure?" / "Quit VR-Forces" (default Yes); vrfGui exited at 10:16:30Z. A human may simply click Yes, then File >
+  Exit, then Yes. While it is up, the next launch and tests/RunnerTurnaround.Tests.ps1 (13 checks) refuse.
 
 ASSUMED, NOT VERIFIED: that "Execute session changes without prompting." is
 `DtShowSessionDialogs`. No MAK document ties the checkbox string to the flag, and the
