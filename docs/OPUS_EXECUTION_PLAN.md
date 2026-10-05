@@ -3717,8 +3717,9 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 5343: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
+- 2026-10-05 REHEARSAL_WAYB-2026-10-05-3 (docs/experiments/REHEARSAL_WAYB_HAND_2026-10-05.md), the hand-started Way B path, every join ledgered: 5344 = LaunchVrf52 -FederationHoldAppNumber (its STP-825 holder, attempt 1); 5345 = that holder's automatic retry (+1), consumed only on a refused create; 5346 = back end; 5347 = vrfGui; 5348 = VrfC2SimApp (StartInterface52 -AppNumber). PushInit/PushOrder/StopIface join no federation. CLAIMED. Marker 5344 -> 5349.
 
-*** NEXT FREE: 5344 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5349 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
