@@ -79,6 +79,15 @@ valid ISO 8601 and is NOT valid C2SIM 1.1. `OrderParser.FindTotalIsoMs` refuses 
 **NO VALUE CHANGES - only the spelling.** This is a producer-side defect and the fix
 belongs in STP's connector; it is applied here so the cut can run at all.
 
+**NOTE 2026-10-04 (RL-20261004-06 (3)): the interface now ALSO accepts the short form.**
+The "refuses it" above describes the decoder before branch fix/iso-duration-short-form.
+`OrderParser.FindTotalIsoMs` now decodes `PT20M` to the same milliseconds as
+`P00Y00M00DT00H20M00S` and the order gets ONE warning naming the short-form values
+non-conforming C2SIM 1.1 (accepted for interoperability, STP-848). The raw export now
+decodes 46 of 46 values (`--parse-order`), so as exported T01/T13 are no longer refused
+for want of a Duration. Change (a) STAYS: the derived files remain schema-valid, decode
+exactly as before (10 of 10, pattern form, no warning), and STP-848 stays open for STP.
+
 ### (b) Two MapGraphicID references added
 
 Both name a graphic the order ALREADY carries. **No new geometry is authored.** The

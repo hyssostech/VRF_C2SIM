@@ -47,6 +47,10 @@ VALUE CHANGES - only the spelling.
 requires every field, two digits wide (`C2SIM_SMX_LOX_CWIX2024.xsd:17-24`); `OrderParser.FindTotalIsoMs`
 refuses the short form, so as exported EVERY task has no Duration and every hold is MALFORMED - the survey's
 RAW column below shows what that costs. The fix belongs in STP's connector.
+NOTE 2026-10-04 (RL-20261004-06 (3)): the interface now ALSO accepts the short form - `FindTotalIsoMs` decodes
+`PT20M` to the same milliseconds as its pattern twin, with ONE order warning naming the values non-conforming
+C2SIM 1.1 (STP-848). "Refuses" and the RAW column describe the decoder before that change; the raw export now
+decodes 46 of 46. Change (a) stays: this derived order remains schema-valid and decodes as before (44 of 44).
 
 ### (b) Two MapGraphicID references added - unchanged from cut A
 

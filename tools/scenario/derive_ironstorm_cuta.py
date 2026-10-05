@@ -39,6 +39,10 @@ and the consequences.
       (returns -1 -> DurationMs 0), which is what leaves the export's HoldInPlace tasks
       MALFORMED and their STREND successors waiting out the gate. This rewrite changes
       no VALUE - only the spelling. 46 values in the order; the init carries none.
+      NOTE 2026-10-04 (RL-20261004-06 (3)): the interface now ALSO accepts the short
+      form (same milliseconds, one non-conforming-C2SIM warning per order), so "refuses"
+      above is the old decoder; the rewrite stays so the derived files remain
+      schema-valid. STP-848 stays open for STP.
 
   (b) TWO MapGraphicID REFERENCES ADDED, to existing graphics the order ALREADY carries.
       No new geometry is authored.

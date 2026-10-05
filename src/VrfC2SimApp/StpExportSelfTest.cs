@@ -701,54 +701,70 @@ public static class StpExportSelfTest
     // ---------------------------------------------------------------- 5. the second export defect
 
     /// <summary>
-    /// A DEFECT THIS TEST FOUND, not one it was written for, and the reason it is here rather than
-    /// in a report: the characterisation recorded "all 23 carry a Duration", which is true of the
-    /// ELEMENT and false of the VALUE. Every one of them is the canonical ISO-8601 short form -
-    /// PT20M, PT30M, PT50M - and C2SIM 1.1 does not allow it: IsoTimeDurationBaseType is an
-    /// xs:string restricted to the pattern
+    /// A DEFECT THIS TEST FOUND, not one it was written for: the characterisation recorded "all 23
+    /// carry a Duration", which is true of the ELEMENT and was, until RL-20261004-06, false of the
+    /// VALUE. Every IsoTimeDuration in this export (46: 23 Durations, 23 StartTime delays) is the
+    /// canonical ISO-8601 short form - PT0S, PT10M, PT20M, PT30M, PT50M - and C2SIM 1.1 does not
+    /// allow it: IsoTimeDurationBaseType is an xs:string restricted to the pattern
     ///   [P]{1}[0-9]{2}[Y]{1}[0-9]{2}[M]{1}[0-9]{2}[D]{1}T{1}[0-9]{2}[H]{1}[0-9]{2}[M]{1}[0-9]{2}[S]{1}
     /// (C2SIM_SMX_LOX_CWIX2024.xsd:17-24). Every field, two digits, all present. COA-STP1 obeys it
-    /// (P00Y00M00DT01H20M00S x32, P00Y00M00DT02H00M00S x10); this export does not.
+    /// (P00Y00M00DT01H20M00S x32, P00Y00M00DT02H00M00S x10); this export does not (Jira STP-848).
     ///
-    /// CONSEQUENCE, and it is not small: R4 closes hold-type tasks at dispatch + Duration, and
-    /// almost this entire order is hold-type work. With no decodable Duration NOTHING has an end
-    /// time, no STREND successor is released by a completion, and the whole 9-chain structure runs
-    /// on the flat predecessor floor instead of on the order's own clock.
+    /// WHY IT MATTERS: R4 closes hold-type tasks at dispatch + Duration, and almost this entire
+    /// order is hold-type work. With no decodable Duration NOTHING has an end time, no STREND
+    /// successor is released by a completion, and the ExecutePlanPhase holds are refused as
+    /// MALFORMED (Q4).
     ///
-    /// THE DECODER IS NOT LOOSENED TO ACCEPT IT. Accepting PT20M here would make this interface
-    /// the only thing in the federation that could read the order, and would hide a one-field
-    /// producer fix behind a silent success - the same shape as the ClientId filter in section 2.
+    /// SUPERSEDED 2026-10-04 BY RL-20261004-06 (3): this section used to assert that the decoder
+    /// was NOT loosened (a 2026-09-20 seat choice, not a ruling). The owner ruled that the interface
+    /// ALSO accepts the short form, alongside STP fixing STP-848 on its side. So the export's
+    /// Durations now DECODE, to the same milliseconds as their pattern-form twins - and never
+    /// silently: the order carries ONE warning naming the values non-conforming C2SIM 1.1.
     /// </summary>
     private static int CheckDurations(OrderData order)
     {
         int f = 0;
         Console.WriteLine();
-        Console.WriteLine("--- 5. Duration: the export's SECOND schema violation (found by this test) ---");
+        Console.WriteLine("--- 5. Duration: the export's SECOND schema violation (STP-848), accepted since RL-20261004-06 ---");
         int decodable = order.Tasks.Count(t => t.DurationMs > 0);
-        Check(ref f, decodable == 0,
-              $"{decodable} of {order.Tasks.Count} tasks carry a Duration this interface can decode - the " +
-              "export writes PT20M/PT30M/PT50M, and C2SIM 1.1 requires P##Y##M##DT##H##M##S (xsd:17-24)");
-        Check(ref f, order.Warnings.Count(w => w.Contains("VIOLATES THE C2SIM 1.1 SCHEMA", StringComparison.Ordinal))
-                     == order.Tasks.Count,
-              $"the parser says so ONCE PER TASK ({order.Tasks.Count} warning(s)), names the required pattern " +
-              "and points the fix at the producer");
-        // The reference order proves the decoder is not simply broken.
+        Check(ref f, decodable == order.Tasks.Count && order.Tasks.Count == 23,
+              $"{decodable} of {order.Tasks.Count} tasks carry a Duration this interface decodes - the export " +
+              "writes PT20M/PT30M/PT50M (non-conforming C2SIM 1.1), read as the short form (RL-20261004-06)");
+        Check(ref f, order.Tasks.Count(t => t.DurationMs == 1200000L) == 20
+                     && order.Tasks.Count(t => t.DurationMs == 1800000L) == 2
+                     && order.Tasks.Count(t => t.DurationMs == 3000000L) == 1,
+              "... to the authored values: 20 x PT20M = 1,200,000 ms, 2 x PT30M = 1,800,000 ms, 1 x PT50M = " +
+              "3,000,000 ms - the same numbers the pattern-form rewrite of cut A gives");
+        Check(ref f, order.Tasks.Count(t => t.SimulationStartMs > 0) == 4
+                     && order.Tasks.Count(t => t.SimulationStartMs == 1200000L) == 3
+                     && order.Tasks.Count(t => t.SimulationStartMs == 600000L) == 1,
+              "the 9 SimulationTime delays decode too: 3 x PT20M, 1 x PT10M, 5 x PT0S (the 14 RelativeTime " +
+              "delays are not read by any path, in either form)");
+        Check(ref f, !order.Warnings.Any(w => w.Contains("is MALFORMED", StringComparison.Ordinal)),
+              "NO Duration is reported MALFORMED any more");
+        int shortWarnings = order.Warnings.Count(w => w.Contains(OrderParser.ShortFormWarningMarker, StringComparison.Ordinal));
+        Check(ref f, shortWarnings == 1 && order.ShortFormDurations.Count == 32,
+              $"NEVER SILENTLY: the parser says so ONCE for the order ({shortWarnings} warning(s)) over the " +
+              $"{order.ShortFormDurations.Count} short-form values it reads (23 Durations + 9 SimulationTime delays), " +
+              "naming them non-conforming C2SIM 1.1 and STP-848");
+        // The reference order proves conforming input is untouched.
         string coa = FindData("COA-STP1_Order.xml");
         if (coa != null)
         {
             var refOrder = OrderParser.Parse(File.ReadAllText(coa));
             Check(ref f, refOrder.Tasks.Count > 0 && refOrder.Tasks.All(t => t.DurationMs > 0)
-                         && !refOrder.Warnings.Any(w => w.Contains("VIOLATES", StringComparison.Ordinal)),
+                         && !refOrder.Warnings.Any(w => w.Contains("VIOLATES", StringComparison.Ordinal))
+                         && refOrder.ShortFormDurations.Count == 0
+                         && !refOrder.Warnings.Any(w => w.Contains(OrderParser.ShortFormWarningMarker, StringComparison.Ordinal)),
                   $"and the schema-conforming reference order still decodes every one of its " +
-                  $"{refOrder.Tasks.Count} Durations - the decoder is right, the export is wrong");
+                  $"{refOrder.Tasks.Count} Durations with no duration warning at all");
         }
-        // What it costs the new HoldInPlace verb, said out loud rather than discovered live.
+        // What the decode gives the HoldInPlace verb, said out loud rather than discovered live.
         int markerNoEnd = order.Tasks.Count(t => VerbMapping.Classify(t.ActionCode).Intent == TaskIntent.HoldInPlace
                                                  && t.DurationMs <= 0);
-        Console.WriteLine($"  [--] CONSEQUENCE: {markerNoEnd} ExecutePlanPhase task(s) issue no VR-Forces task " +
-                          "AND have no decodable Duration, so nothing could ever end them - they are refused " +
-                          "as MALFORMED (Q4). Fix the export's Duration form and they run. Every other task " +
-                          "in this order is equally without an end time; they merely hide it behind a move.");
+        Check(ref f, markerNoEnd == 0,
+              $"{markerNoEnd} ExecutePlanPhase task(s) are left with no decodable Duration - every hold now has " +
+              "an end time, so none is refused as MALFORMED (Q4) for want of one");
         return f;
     }
 

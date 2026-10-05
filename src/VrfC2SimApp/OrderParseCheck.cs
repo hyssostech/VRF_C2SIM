@@ -81,7 +81,34 @@ public static class OrderParseCheck
                           $"{data.Tasks.Count(t => t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.AbsoluteStartUtc.HasValue)} " +
                           "of them non-zero");
         Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.SimulationStartMs))}");
+
+        // RL-20261004-06 (3): EVERY IsoTimeDuration in the file, by the decoder the parser uses -
+        // including the ones no dispatch path reads (StartTime/RelativeTime/DelayTimeAmount) - so the
+        // census counts the file, not only what the executor consumes.
+        var values = IsoTimeDurationValues(path);
+        int pattern = 0, shortForm = 0, malformed = 0;
+        foreach (var v in values)
+        {
+            OrderParser.DecodeIsoDuration(v, out var form);
+            if (form == OrderParser.IsoDurationForm.C2SimPattern) pattern++;
+            else if (form == OrderParser.IsoDurationForm.IsoShort) shortForm++;
+            else malformed++;
+        }
+        Console.WriteLine("=== IsoTimeDuration census (every value in the file) ===");
+        Console.WriteLine($"durations decoded: {pattern + shortForm} of {values.Count} " +
+                          $"({pattern} C2SIM pattern form, {shortForm} ISO-8601 short form, {malformed} MALFORMED)");
+        Console.WriteLine($"short-form values the parser read (one order warning): {data.ShortFormDurations.Count}");
         return 0;
+    }
+
+    private static List<string> IsoTimeDurationValues(string path)
+    {
+        try
+        {
+            return System.Xml.Linq.XDocument.Load(path).Descendants()
+                   .Where(e => e.Name.LocalName == "IsoTimeDuration").Select(e => e.Value).ToList();
+        }
+        catch (System.Xml.XmlException) { return new List<string>(); }
     }
 
     /// <summary>"32 x 4800000 ms, 10 x 7200000 ms" - ascending by value, so two runs of the same

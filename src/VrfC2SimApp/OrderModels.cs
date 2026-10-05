@@ -93,4 +93,9 @@ public class OrderData
     // first is honored) or a non-STREND association code (the sequencer assumes
     // start-after-predecessor-END).
     public List<string> Warnings { get; } = new();
+
+    /// <summary>RL-20261004-06 (3): every IsoTimeDuration the parser read in the ISO-8601 short form
+    /// (non-conforming C2SIM 1.1, accepted for interoperability, STP-848), as "where 'value'", in
+    /// document order. The order carries ONE warning for all of them (OrderParser.ShortFormWarning).</summary>
+    public List<string> ShortFormDurations { get; } = new();
 }
