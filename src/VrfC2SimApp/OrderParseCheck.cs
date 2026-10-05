@@ -83,8 +83,8 @@ public static class OrderParseCheck
         Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.SimulationStartMs))}");
 
         // RL-20261004-06 (3): EVERY IsoTimeDuration in the file, by the decoder the parser uses -
-        // including the ones no dispatch path reads (StartTime/RelativeTime/DelayTimeAmount) - so the
-        // census counts the file, not only what the executor consumes.
+        // including any no dispatch path reads (a RelativeTime that is not the task's own
+        // predecessor's end, X9) - so the census counts the file, not only what the executor consumes.
         var values = IsoTimeDurationValues(path);
         int pattern = 0, shortForm = 0, malformed = 0;
         foreach (var v in values)

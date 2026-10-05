@@ -60,6 +60,7 @@ public static class OrderParser
 
         data.OrderId = (order.OrderID ?? "").Trim();
         CollectGraphics(order, data);
+        var relativeNotHandled = new List<string>();   // X9: said ONCE per order, below
 
         foreach (var t in order.Task ?? Array.Empty<S.TaskType>())
         {
@@ -67,7 +68,7 @@ public static class OrderParser
             if (m == null) continue;
 
             string taskLabel = (m.Name ?? "").Trim();
-            var (simMs, startAfter, relMs, absStart) = TimingOf(m, taskLabel, data.ShortFormDurations);
+            var (simMs, startAfter, relMs, absStart) = TimingOf(m, taskLabel, data.ShortFormDurations, relativeNotHandled);
             long durationMs = m.Duration == null ? 0
                             : Decode(m.Duration.IsoTimeDuration, $"task '{taskLabel}' Duration", data.ShortFormDurations);
             var task = new OrderTask
@@ -144,12 +145,25 @@ public static class OrderParser
         // value (an STP export carries dozens) and never none.
         if (data.ShortFormDurations.Count > 0)
             data.Warnings.Add(ShortFormWarning(data.ShortFormDurations));
+        // X9: ONE warning per order for every StartTime/RelativeTime that is not "own predecessor's end".
+        if (relativeNotHandled.Count > 0)
+            data.Warnings.Add($"{relativeNotHandled.Count} {RelativeTimeNotHandledMarker}: their DelayTimeAmount is " +
+                              "NOT applied - only a RelativeTime naming the task's OWN STREND predecessor " +
+                              "(ActionTemporalRelationship/TemporalAssociationWithAction) at IntervalEndTime is read, " +
+                              "as a delay after that predecessor ends (xsd:3288-3300, 4343-4352); each of these " +
+                              "tasks starts when its STREND gate opens, as before: " +
+                              string.Join("; ", relativeNotHandled.Take(5)) +
+                              (relativeNotHandled.Count > 5 ? "; ..." : ""));
         return data;
     }
 
     /// <summary>The phrase every short-form warning carries, so a log grep and the self-tests can
     /// find it (RL-20261004-06 (3)).</summary>
     public const string ShortFormWarningMarker = "accepted for interoperability, STP-848, RL-20261004-06";
+
+    /// <summary>The phrase the once-per-order warning for unhandled StartTime/RelativeTime references
+    /// carries (X9), so a log grep and the self-tests can find it.</summary>
+    public const string RelativeTimeNotHandledMarker = "StartTime/RelativeTime NOT HANDLED";
 
     /// <summary>The once-per-order warning for IsoTimeDuration values read in the ISO-8601 short
     /// form: how many, which (the first three), and that they are non-conforming C2SIM 1.1.</summary>
@@ -257,18 +271,18 @@ public static class OrderParser
     // an absent Duration is not an error, it just leaves the task with no end time.
 
     // Every IsoTimeDuration this parser reads goes through Decode (both forms, RL-20261004-06): the
-    // task Duration (Parse), the SimulationTime DelayTimeAmount and the ActionTemporalRelationship
-    // Duration (here). A malformed delay clamps to 0, as it always has.
+    // task Duration (Parse), the SimulationTime DelayTimeAmount, the ActionTemporalRelationship
+    // Duration and the RelativeTime DelayTimeAmount (here). A malformed delay clamps to 0, as it
+    // always has.
     private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(
-        S.ManeuverWarfareTaskType m, string taskLabel, List<string> shortForms)
+        S.ManeuverWarfareTaskType m, string taskLabel, List<string> shortForms, List<string> relativeNotHandled)
     {
         long simMs = 0;
         DateTime? absStart = null;
-        // StartTime is a TimeInstantType: SimulationTime (a relative DelayTimeAmount - the form
-        // STP exports), DateTime (an absolute IsoDateTime), or RelativeTime. R4 accepts the first
-        // two. (Correction 2026-10-04: RelativeTimeType DOES carry a DelayTimeAmount in the
-        // generated schema types - the STP export writes 14 - but this parser does not read it, in
-        // either duration form; such a task starts when its STREND gate opens.)
+        // StartTime is a TimeInstantType (xsd:4332-4341): SimulationTime (a relative DelayTimeAmount),
+        // DateTime (an absolute IsoDateTime), or RelativeTime (a DelayTimeAmount after the start or
+        // end of a referenced event, xsd:3288-3300). The first two are read here; RelativeTime is read
+        // below, once the task's predecessor is known (X9).
         if (m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null)
             simMs = Math.Max(0, Decode(st.DelayTimeAmount.IsoTimeDuration,
                                        $"task '{taskLabel}' StartTime/SimulationTime/DelayTimeAmount", shortForms));
@@ -288,6 +302,33 @@ public static class OrderParser
             if (atr.Duration != null)
                 relMs = Math.Max(0, Decode(atr.Duration.IsoTimeDuration,
                                            $"task '{taskLabel}' ActionTemporalRelationship/Duration", shortForms));
+        }
+
+        // X9 (REHEARSAL_WAYB_2026-10-05, D6): StartTime/RelativeTime. Read ONLY where it names the
+        // task's OWN STREND predecessor (EventReference == TemporalAssociationWithAction) at
+        // IntervalEndTime - "start at the predecessor's end + DelayTimeAmount" - which is exactly
+        // what the gate serves for RelativeDelayMs (TaskSequencer.WaitForStartAsync: predecessor
+        // completion, then the delay). Every RelativeTime in STP's exports has that shape (raw Iron
+        // Storm 14, cut A 2, FULL 14, COA-STP1 31). With an ActionTemporalRelationship Duration as
+        // well, both are lower bounds on the same start, so the later one wins. Any OTHER reference
+        // (another task, IntervalStartTime, no predecessor) is NOT applied - today's behaviour - and
+        // Parse names it once per order. (An absent TimeReferenceCode deserializes as the enum
+        // default IntervalEndTime; the schema makes it mandatory, xsd:3297.)
+        if (m.StartTime?.Item is S.RelativeTimeType rt)
+        {
+            string evRef = (rt.EventReference ?? "").Trim();
+            if (startAfter.Length > 0 && string.Equals(evRef, startAfter, StringComparison.OrdinalIgnoreCase)
+                && rt.TimeReferenceCode == S.TimeReferenceCodeType.IntervalEndTime)
+            {
+                if (rt.DelayTimeAmount != null)
+                    relMs = Math.Max(relMs, Math.Max(0, Decode(rt.DelayTimeAmount.IsoTimeDuration,
+                                        $"task '{taskLabel}' StartTime/RelativeTime/DelayTimeAmount", shortForms)));
+            }
+            else
+                relativeNotHandled.Add($"task '{taskLabel}' -> {(evRef.Length == 0 ? "(no EventReference)" : evRef)} " +
+                                       $"{rt.TimeReferenceCode}" +
+                                       (startAfter.Length == 0 ? " (the task has no STREND predecessor)"
+                                                               : $" (its predecessor is {startAfter})"));
         }
         return (simMs, startAfter, relMs, absStart);
     }
