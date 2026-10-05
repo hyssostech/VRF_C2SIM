@@ -1,6 +1,6 @@
 # REHEARSAL - WAY B ON THE HAND-STARTED DEMO PATH (DEMO_RUNBOOK secs 1-4), FIRST RUN (light registration)
 
-STATUS: REGISTERED 2026-10-05; NOT RUN. Light registration under RL-20261005-01 (standing go-live, light registration,
+STATUS: REGISTERED 2026-10-05; RUN 2026-10-05 (S8 18:45Z, order 18:57:19Z); Result below. Light registration under RL-20261005-01 (standing go-live, light registration,
 shared resources agreed with the other sessions first). The seat runs it; this lane prepared it and launched nothing.
 Predecessor: REHEARSAL_WAYB_BOUNDED_2026-10-05.md (Way A: the runner played the hand path's part; B1-B7 HELD). This run
 tests what that one did not: the operator's own command sequence in docs/DEMO_RUNBOOK.md secs 1.1-1.6, 2.1-2.4 and 4,
@@ -249,4 +249,55 @@ Any of those = section 4 teardown, record, no retry under this ID (a retry takes
 
 ## Result
 
-(not run)
+RUN 2026-10-05, S8 launch 18:45Z, order 18:57:19.337Z (PushOrder bus), S12 stop after the +8 min shot. Evidence:
+runs\launch52\wayb-hand-3\ (git-ignored) and the vendor copy runs\launch52\vrfSim_5346_20261005T184535Z.log (READ
+locally after its environment block; nothing quoted). Scored by a read-only harvest lane; S1-S7, S9 exit codes, S15
+and S16 are the seat's notes (no file captures them). VERDICT: 8 HELD, 1 HELD-WITH-CAVEAT (H2), 1 NOT OBSERVABLE (H7).
+
+DEMO FIRST (RL-20261004-04): the operator's hand path ran end to end on the Demo profile with one env var. Init ->
+READY TO TASK in 11.7 s; the order's 16 out-of-extent tasks refused in under 1 s; 23 members populated in place;
+48 IBCT drove 2.3 km and arrived; X9's start delay held T2 for 300 SIM s (55.6 wall s) - live for the first time;
+teardown needed the expected forced back end. What the demo can NOT yet show: the map - both shots are blank.
+
+| # | Verdict | Measured |
+|---|---|---|
+| H1 | HELD | s9 l.20 SERVER line (rest 18080 / stomp 61614); l.91 MODEL SET RULE (D2b) 'AggregateTacticalLevel' -> AggregateTacticalLevel; l.97 DEMO EXTENT ON ... + 2 km margin; l.99 TASK CLOCK ... Vrf:DurationScale=0.25; l.116 READY - joined, 1 back-end, FidelityTable. Env: only Vrf__DurationScale by hand (DOTNET_ENVIRONMENT=Demo, AppNumber 5348 from the script) |
+| H2 | HELD, CAVEAT | No "initiating clean stop" before S12 (only l.1226). READY TO TASK - 36 of 36 after 11.7 s (l.499); PushInit QUERYINIT 40 units, 4 skipped at init ("parent fallback TODO", l.154-190) = 36. CAVEAT: S6 read the server UNINITIALIZED, so PushInit's reset produced no UNINITIALIZED transition (the interface saw only -> INITIALIZING, l.132) - the race H2 named was NOT exercised. The 36 shells on screen: not observable (H7) |
+| H3 | HELD | Summary l.617 "23 task(s) in this order, 16 refused"; 16 SENT TASKABRT OUT OF DEMO EXTENT = exactly T3-T9, T12, T15, T16, T18-T23 (the seat's "33 lines" = 16 fail + 16 SENT + the l.97 banner); T17 SKIPPED (l.589-591); D2b "allowed" (l.511), no ORDER REFUSED. Timing: the bus shows 17 short (793-char) reports at 18:57:20.044-.139, 0.71-0.80 s after the ORDER (size-matched, content not decoded) |
+| H4 | HELD | POPULATE IN PLACE x3 only (l.519, 557, 571): 28ID 1/1, 1-112 IN 5/5, 48 IBCT 17/17 created; each container PUBLISHED its count 7.6-7.7 s after populate (l.873-877). 4 slots of 48 IBCT moved off OSM water (25-150 m). Shutdown deleted 64 = 36 + 23 + 5 areas |
+| H5 | HELD (log) | T14 navigate-to-location to 17 members, MAK_ROAD, dispatched 18:58:09.615Z sim 848.2; overdue at 302 SIM s (l.1062); ARRIVAL EVIDENCE 115.3 WALL s / 637.3 SIM s after dispatch, farthest travel 2310 m of a 2768 m route, nearest 463 m from the last vertex; TASKCMPLT l.1122. Holds T1, T13 309 SIM s; T10 456 of 450; T11 306. "Visibly": not observable (H7). See F1 |
+| H6 | HELD | X9 LIVE. l.527 at order receipt: "start delay 300 s (order says 1200 s; Vrf:DurationScale=0.25)", gated on T1 (f7b52ba4, l.525). T1 dispatched sim 537.9 / 18:57:27.707Z, TASKCMPLT at 309 SIM s = sim 846.9, wall about 18:58:08.2Z (bus report pair with T13, inferred). T2 DISPATCHED sim 1150.3 / 18:59:03.761Z = 303.4 SIM s and 55.6 WALL s after T1's TASKCMPLT (ratio 5.5x; logged SIM/WALL 10.2, 6.4, 5.6, then 5.8-7.5). T2 TASKCMPLT at 306 of 300 SIM s (l.1104-1108), before 19:00:04.9Z |
+| H7 | NOT OBSERVABLE | shot_t02/t08: GUI chrome, clock 0:24:45 and 1:01:30, map area BLANK white. Window 2575x1407 vs 1721x1033 in earlier runs - recorded, no cause claim. Log side only: l.75 LABEL rule; members named '48_IBCT.HQ1' etc., no "__" |
+| H8 | HELD | StopIface 0, before RUNNING -> after RESET : UNINITIALIZED; interface l.1222-1236 clean stop, 1884 reports 0 FAILED. StopVrf52 exit 3: vrfGui closed (CloseMainWindow TRUE; absent from s14 inventory), back end ignored taskkill; window diagnostic: only "NVOGLDC invisible"/"Default IME" (invisible, pid 26076) - NO "Session Status" / "Are You Sure?". S14 exit 6 on pid 26076 + start 18:45:40.28Z |
+| H9 | HELD | S16 ON/0 both trees (seat); s8 l.32 ON before launch |
+| H10 | HELD | S8 READY; no STP-822 LOSS line (l.118 is the banner); interface clean stop (exit 0 per seat; not in a file); S15 no new .callstack/.dmp; 65540/58844/41292 alive; vendor copy: only the RTI MOM NameNotFound line after its env block |
+
+FINDINGS (no cause claims)
+- F1 T14's ARRIVAL EVIDENCE (l.1118) judged the container as "ONE POSITION: an aggregate-level unit with no members"
+  (D1) although it had PUBLISHED 17 members (l.877); 15 of 17 member navigates reported COMPLETED by S12, 2 never did
+  (about 2,000 SIM s after arrival). Which rule applies to a populated container is for the seat.
+- F2 H2's race stays open (OP3): a PushInit onto a RUNNING server is untested on the hand path.
+- F3 GUI toolbar shows 1x selected while the sim ran 5.6-10.2x (GUI clock 36:45 in about 6 wall min, about 6x).
+- F4 The interface reads ConnectionConfigFile from the vendor tree C:\MAK\vrforces5.2d\appData (l.112) while VR-Forces
+  ran on the unattended appData; the join worked (READY).
+- F5 Last console line after the clean stop is "fail: C2SIM.C2SIMSDK ... STOMP block reading cancelled" - an audience
+  sees "fail:" at shutdown.
+- F6 Seat note correction: 6 TASKCMPLT were SENT (T13, T1, T10, T2, T11, T14); the 7th match is l.1062 "No TASKCMPLT
+  is sent now" (T14 overdue).
+
+APPENDIX B ANNOTATION (for the seat to append under the S0 entry; marker stays 5349):
+    RESULT REHEARSAL_WAYB-2026-10-05-3: 5344 CONSUMED - LaunchVrf52 holder RtiProbe pid 67036, joined MAK-ONE-2025 on
+    attempt 1/2 (rtiexec join line), left to its 900 s end, never killed. 5345 BURNED UNUSED - the holder's +1 retry,
+    not needed. 5346 CONSUMED - back end pid 26076 (start 18:45:40Z); graceful close refused (StopVrf52 3), FORCED by
+    own pid + start time (exit 6) - the next launch's join is the stale-federate check. 5347 CONSUMED - vrfGui pid
+    65908, closed unattended, no modal. 5348 CONSUMED - VrfC2SimApp, READY with 1 back end, clean stop after
+    StopIface. Marker 5349 unchanged.
+
+DEMO-READINESS
+- D1 The map: H7 and the 36 shells/T14 movement are unseen. Check by eye (or a shot at 1721x1033) before the demo.
+- D2 Teardown: the back end ignored the graceful close in 3 of 3 runs today; DEMO_RUNBOOK 4.2 should carry S14 as the normal second step.
+- D3 OP3: make 2.3 push the init only onto an UNINITIALIZED server (StopIface first), or test the RUNNING case.
+- D4 OP1/OP2/OP4 runbook text still to fix (numbers by parameter, no `^`, stale 0.2/2.2 text) - this run used the
+  registration's sequence, not the runbook's lines.
+- D5 Pace: at 0.25 and 5.5-7x the X9 hold is about 1 wall min; at DurationScale 1.0 it would be about 4x that.
+- D6 F1 (container arrival judged as memberless) and F5 (shutdown "fail:" line) before an audience sees the log.
