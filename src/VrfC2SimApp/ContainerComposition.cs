@@ -677,8 +677,9 @@ public static class CompositionResolver
 /// plain "container.suffix" name and says why otherwise (C1c: the ~k tag that kept it unique within 30). Uuid (C1d,
 /// RL-20260928-02) is the uuid it is CREATED under - the RFC 4122 v5 uuid of "&lt;container uuid&gt;/&lt;suffix&gt;"
 /// (IdentityUuid.Derive), deterministic across runs; "" when the plan was given no container uuid. UuidName is the
-/// name that was hashed, for the one line that states it. Label (LBL) is the member's FULL designation,
-/// "&lt;container designation&gt;.&lt;suffix&gt;", never cut - the vendor Label it is created with (CreationPlan.Label).</summary>
+/// name that was hashed, for the one line that states it. Label (LBL, LBL2) is "&lt;clean container
+/// designator&gt;.&lt;suffix&gt;" (DesignationLabel.ForMember, RL-20261005-03), never cut - the vendor Label it is created with
+/// (CreationPlan.Label).</summary>
 public sealed record PopulateMember(int Slot, string Name, PopulateLeaf Leaf, double NorthMeters, double EastMeters,
                                     double LatDeg, double LonDeg, double BearingDeg, string NameNote = null,
                                     string Uuid = "", string UuidName = "", string Label = "");
@@ -741,9 +742,10 @@ public static class PopulatePlanner
     /// uuid); each member gets the uuid it will be created under, IdentityUuid.Derive(container uuid, leaf suffix) - a
     /// suffix repeated within one population (two table entries of one function) is made unique by its slot,
     /// "&lt;suffix&gt;@&lt;slot&gt;", so every member of a population has its own uuid. None when the uuid is empty.
-    /// LBL: <paramref name="containerLabel"/> is the container's full designation (its plan's Label - the C2SIM name, never
-    /// cut or tagged); each member's Label is "&lt;that&gt;.&lt;suffix&gt;" (DesignationLabel.ForMember), the container's name
-    /// standing in when none is given. The Label is display only: it changes no name and no uuid.
+    /// LBL: <paramref name="containerLabel"/> is the container's designation (its plan's Label - LBL2: the clean designator
+    /// of its C2SIM name); each member's Label is "&lt;clean designator&gt;.&lt;suffix&gt;" (DesignationLabel.ForMember, which
+    /// cleans the parent), the container's name standing in when none is given. The Label is display only: it changes no
+    /// name and no uuid.
     /// </summary>
     public static PopulateLayout Plan(string containerName, double anchorLat, double anchorLon,
                                       IReadOnlyList<PopulateLeaf> leaves, double rotationDeg,

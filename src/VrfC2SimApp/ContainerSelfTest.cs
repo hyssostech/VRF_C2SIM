@@ -46,8 +46,10 @@ namespace VrfC2SimApp;
 ///         not exist'); the fix on the same population ('1-112_IN.RIF2'), its uuids unchanged; every table row fits under
 ///         the longest shipped designator; the source guards
 ///   (p17) LBL - THE FULL DESIGNATION IN THE VENDOR LABEL (HANDOFF_SEAT_2026-09-28 sec 3 item 5; UG52 13.2 Table 21 p363,
-///         13.2.5 p364): every cut-A init unit (36) is planned with its whole C2SIM name as its Label and every member of
-///         G1's three populations (23) - and of every shipped table row - with "&lt;container designation&gt;.&lt;suffix&gt;";
+///         13.2.5 p364) - LBL2 (RL-20261005-03): every created unit of cut A and of STP's raw export (36 + 36) is planned
+///         with the CLEAN DESIGNATOR of its C2SIM name as its Label (before '__', '_' -> ' ': '48 IBCT/28ID'; 13 pinned
+///         survey names; all 80 init units clean and distinct; why a space and not nothing) and every member of G1's
+///         three populations (23) - and of every shipped table row - with "&lt;clean container designator&gt;.&lt;suffix&gt;";
 ///         the names and uuids BYTE-IDENTICAL to before (a pinned sha256 - C1d, M3b); the source guards (every create
 ///         passes the plan's Label; the facade puts it in the vendor's label slot); the linked VrfBridge.dll CARRIES the
 ///         label overloads
@@ -1807,8 +1809,9 @@ public static class ContainerSelfTest
     // 13.2.5 p364 "without the restrictions of uniqueness or character length"), is a create argument
     // (vrfRemoteController.h 5.2 :1289 createEntity, :1302 createAggregate; the message's objectLabel,
     // vrfmsgs/ifCreateVrfObject.h :39-41, :134-136) and is shown by the Label symbol decoration (UG52 21.2 p470). So every
-    // create carries the FULL C2SIM designation as its Label, and NOTHING ELSE changes: the name and the uuid stay exactly
-    // what C1d and M3b made them (identity is the uuid, RL-20260928-02).
+    // create carries a designation as its Label, and NOTHING ELSE changes: the name and the uuid stay exactly what C1d and
+    // M3b made them (identity is the uuid, RL-20260928-02). LBL2 (RL-20261005-03): that designation is the CLEAN
+    // DESIGNATOR - the C2SIM name before '__', underscores as spaces - not the whole name; the verbose suffix is dropped.
     // The pin below is the sha256 of the 'name|uuid' lines this check builds, taken on the code BEFORE LBL (the scaffold
     // commit of feat/full-designation-label, which adds only the defaulted Label fields): 36 aggregate-profile init plans,
     // 36 entity-level init plans, G1's 23 members, and every shipped table row's members under the longest designator.
@@ -1822,7 +1825,7 @@ public static class ContainerSelfTest
 
     private static void P17(string repo, ResolverCatalogue cat, CompositionTable table)
     {
-        Console.WriteLine("--- (p17) LBL: the full C2SIM designation in the vendor Label on every create (UG52 13.2.5) ---");
+        Console.WriteLine("--- (p17) LBL/LBL2: the clean designator in the vendor Label on every create (UG52 13.2.5; RL-20261005-03) ---");
         var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
         var created = init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)).ToList();
         var aggMap = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"));
@@ -1831,61 +1834,143 @@ public static class ContainerSelfTest
         var identity = new System.Text.StringBuilder();
         void Line(string name, string uuid) => identity.Append(name ?? "(null)").Append('|').Append(uuid ?? "(null)").Append('\n');
 
-        // (a) THE INIT: each created cut-A unit as the service plans it on the aggregate profile (UnitTranslator.Plan, its
-        //     C2SIM uuid as C1d sets it, the container rule) and on EntityLevel - the Label is the unit's WHOLE C2SIM name.
-        int aggLabelled = 0, entLabelled = 0, longer = 0;
-        var wrong = new List<string>();
-        foreach (var u in created)
+        // LBL2 (RL-20261005-03): the Label is the CLEAN DESIGNATOR - the C2SIM name's part before the first "__" (the rest
+        // is STP's verbose description), each underscore a SPACE, runs of spaces collapsed, trimmed; a name with no "__"
+        // is cleaned whole; an empty prefix (a name that starts "__") falls back to the whole name cleaned. The test's own
+        // reading of the rule, independent of DesignationLabel, plus the pinned examples below (the survey, the oracle).
+        static string Expect(string name)
         {
-            var unit = u with { ElevationAgl = string.IsNullOrEmpty(u.ElevationAgl) ? "1000.0" : u.ElevationAgl };
-            var plan = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, aggMap, nations)
-                       with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
-            var choice = ContainerTypeRule.Choose(cat, plan.Type.Country, u.SymbolId, u.EchelonCode);
-            plan = ContainerTypeRule.Apply(plan, choice);
-            if (plan.Label == u.Name) aggLabelled++;
-            else wrong.Add($"{u.Name}: '{plan.Label}'");
-            Line(plan.Name, plan.StartingUuid);
-            var ent = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, entMap, nations)
-                      with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
-            if (ent.Label == u.Name) entLabelled++;
-            Line(ent.Name, ent.StartingUuid);
-            if (u.Name.Length > VrfNames.AggregateMarkingField) longer++;
+            string s = name ?? "";
+            int cut = s.IndexOf("__", StringComparison.Ordinal);
+            string pre = cut >= 0 ? s.Substring(0, cut) : s;
+            if (Regex.Replace(pre.Replace('_', ' '), " {2,}", " ").Trim().Length == 0) pre = s;
+            return Regex.Replace(pre.Replace('_', ' '), " {2,}", " ").Trim();
         }
-        Check(created.Count == 36 && aggLabelled == 36 && entLabelled == 36,
-              "INIT: every created cut-A unit is planned with its WHOLE C2SIM name as its Label - 36 of 36 as an Aggregate " +
-              "Container (aggregate profile) and 36 of 36 on EntityLevel",
-              $"aggregate {aggLabelled}, entity {entLabelled} of {created.Count}" + (wrong.Count == 0 ? "" : "; " + string.Join("; ", wrong.Take(3))));
-        Check(longer > 0,
-              $"the Label carries what the NAME cannot: {longer} of the 36 names are longer than the {VrfNames.AggregateMarkingField}-" +
-              "character aggregate marking field VR-Forces keeps of a name (VrfNames)", $"{longer} longer than 31");
+        var pinned = new (string Name, string Label)[]
+        {
+            ("48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE", "48 IBCT/28ID"),
+            ("48IBCT/28ID__FOUR_EIGHT_TH_INFANTRY_BRIGADE_COMBAT_TEAM", "48IBCT/28ID"),
+            ("1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE", "1-112 IN/28ID"),
+            ("4ID/III_Corps__FOUR_TH_US_INFANTRY_DIVISION", "4ID/III Corps"),
+            ("4/278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_BATTALION_4/278_", "4/278 ACR/28ID"),
+            ("105th_AT_BDE_(res)__ENEMY_ARMORED_ANTI_ARMORED_BRIGADE", "105th AT BDE (res)"),
+            ("1st_Battalion,_112th_Infantry_Regiment/28ID__ONE_ST_BATTALION_O", "1st Battalion, 112th Infantry Regiment/28ID"),
+            ("4th_Squadron,_278th_Armored_Cavalry_Regiment/278_Armored_Cavalr", "4th Squadron, 278th Armored Cavalry Regiment/278 Armored Cavalr"),
+            ("TF_SNAKE__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT", "TF SNAKE"),
+            ("28ID__FRIENDLY_INFANTRY_DIVISION", "28ID"),
+            ("III_Corps__III_CORPS", "III Corps"),
+            ("__FRIENDLY_DIVISION_BOUNDARY", "FRIENDLY DIVISION BOUNDARY"),
+            ("", ""),
+        };
+        var pinnedWrong = pinned.Where(p => DesignationLabel.ForUnit(p.Name) != p.Label || Expect(p.Name) != p.Label)
+                                .Select(p => $"'{p.Name}' -> '{DesignationLabel.ForUnit(p.Name)}' (want '{p.Label}')").ToList();
+        Check(pinnedWrong.Count == 0 && DesignationLabel.ForUnit(null) == "",
+              $"THE CLEAN DESIGNATOR on the {pinned.Length} pinned survey names: the part before '__', '_' -> ' ' " +
+              "(e.g. 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE -> '48 IBCT/28ID'); no '__' -> the whole name cleaned",
+              pinnedWrong.Count == 0 ? "all as pinned" : string.Join("; ", pinnedWrong.Take(4)));
 
-        // (b) THE MEMBERS: G1's three populations planned as PopulateInPlace plans them (the container's uuid and its
-        //     designation), then MemberPlan - the plan IssueMemberCreates sends. Label = "<container designation>.<suffix>".
+        // (a) THE INIT: each created unit of cut A AND of STP's raw export as the service plans it on the aggregate profile
+        //     (UnitTranslator.Plan, its C2SIM uuid as C1d sets it, the container rule) and on EntityLevel - the Label is the
+        //     unit's CLEAN DESIGNATOR (LBL2); the identity lines of cut A feed the pin in (d) exactly as before.
+        var initFiles = new[] { "IRONSTORM_CUTA_Initialization.xml", "STP-IRON-STORM-SYNTHETIC_Initialization.xml" };
+        var labelOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        int aggLabelled = 0, entLabelled = 0, createdAll = 0, longer = 0, allUnits = 0, allClean = 0;
+        var wrong = new List<string>();
+        foreach (var file in initFiles)
+        {
+            bool cutA = file == initFiles[0];
+            var fi = cutA ? init : InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", file)));
+            var fc = fi.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)).ToList();
+            foreach (var u in fc)
+            {
+                createdAll++;
+                string want = Expect(u.Name);
+                var unit = u with { ElevationAgl = string.IsNullOrEmpty(u.ElevationAgl) ? "1000.0" : u.ElevationAgl };
+                var plan = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, aggMap, nations)
+                           with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
+                var choice = ContainerTypeRule.Choose(cat, plan.Type.Country, u.SymbolId, u.EchelonCode);
+                plan = ContainerTypeRule.Apply(plan, choice);
+                if (plan.Label == want) aggLabelled++;
+                else wrong.Add($"{u.Name}: '{plan.Label}'");
+                var ent = UnitTranslator.Plan(unit, TypeMapping.FidelityTable, entMap, nations)
+                          with { StartingUuid = IdentityUuid.ForC2SimUnit(u.Uuid) };
+                if (ent.Label == want) entLabelled++;
+                if (cutA)
+                {
+                    Line(plan.Name, plan.StartingUuid);
+                    Line(ent.Name, ent.StartingUuid);
+                    labelOf[u.Name] = plan.Label;
+                    if (u.Name.Length > VrfNames.AggregateMarkingField) longer++;
+                }
+            }
+            // every unit of the init, created or not: the clean designator, no underscore left, no two units alike
+            var labels = fi.Units.Select(u => DesignationLabel.ForUnit(u.Name)).ToList();
+            allUnits += labels.Count;
+            allClean += fi.Units.Count(u => DesignationLabel.ForUnit(u.Name) == Expect(u.Name)
+                                            && !DesignationLabel.ForUnit(u.Name).Contains('_'));
+            if (labels.Distinct(StringComparer.Ordinal).Count() != labels.Count)
+                wrong.Add($"{file}: two units share a clean designator");
+        }
+        Check(createdAll == 72 && aggLabelled == 72 && entLabelled == 72,
+              "INIT: every created unit of cut A and of STP's raw export (36 + 36) is planned with its CLEAN DESIGNATOR as its " +
+              "Label - 72 of 72 as an Aggregate Container (aggregate profile) and 72 of 72 on EntityLevel",
+              $"aggregate {aggLabelled}, entity {entLabelled} of {createdAll}" + (wrong.Count == 0 ? "" : "; " + string.Join("; ", wrong.Take(3))));
+        Check(allUnits == 80 && allClean == 80 && !wrong.Any(w => w.Contains("share")),
+              "INIT: all 80 units of the two inits (40 + 40, created or not) - the clean designator, no '_' left, and no two " +
+              "units of one init alike (the Label need not be unique, UG52 Table 21 - but these are)",
+              $"{allClean} of {allUnits} clean");
+        // the SPACE-versus-NOTHING choice, from the data: dropping the underscores outright merges distinct units
+        var cutANames = init.Units.Select(u => u.Name).ToList();
+        string Nothing(string n) { int c = n.IndexOf("__", StringComparison.Ordinal); return (c >= 0 ? n[..c] : n).Replace("_", ""); }
+        int mergedByNothing = cutANames.Count - cutANames.Select(Nothing).Distinct(StringComparer.Ordinal).Count();
+        Check(mergedByNothing == 3 && DesignationLabel.ForUnit("48_IBCT/28ID__X") != DesignationLabel.ForUnit("48IBCT/28ID__X"),
+              "'_' -> SPACE, not nothing: with nothing, 3 pairs of cut-A units would share one Label (48_IBCT/48IBCT, " +
+              "56_SBCT/56SBCT, 116_ABCT/116ABCT) and 'TF_SNAKE' reads 'TFSNAKE'; with a space each stays its own",
+              $"{mergedByNothing} merged by the nothing-rule");
+        Check(longer > 0,
+              $"the NAME is still the C2SIM name cut to the field: {longer} of the 36 cut-A names are longer than the " +
+              $"{VrfNames.AggregateMarkingField}-character aggregate marking field VR-Forces keeps of a name (VrfNames)", $"{longer} longer than 31");
+
+        // (b) THE MEMBERS: G1's three populations planned as PopulateInPlace plans them (the container's uuid and its plan's
+        //     Label, DesignationLabel.Of), then MemberPlan - the plan IssueMemberCreates sends.
+        //     Label = "<clean container designator>.<suffix>", e.g. '48 IBCT/28ID.HQ1'.
         var uuidOf = created.GroupBy(u => u.Name, StringComparer.Ordinal)
                             .ToDictionary(g => g.Key, g => IdentityUuid.ForC2SimUnit(g.First().Uuid), StringComparer.Ordinal);
         int members = 0, memberLabelled = 0;
         var memberWrong = new List<string>();
+        var memberExamples = new List<string>();
         foreach (var g in G1Populations)
         {
             var leaves = CompositionResolver.ExpandRow(table.ById(g.Row), table, cat).Leaves;
             var lay = PopulatePlanner.Plan(g.Container, 54.0, 23.3, leaves, 0.0, containerUuid: uuidOf[g.Container],
-                                           containerLabel: g.Container);
+                                           containerLabel: labelOf[g.Container]);
             foreach (var m in lay.Members)
             {
                 members++;
                 var mp = ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg);
-                string want = g.Container + "." + m.Leaf.Suffix;
+                string want = Expect(g.Container) + "." + m.Leaf.Suffix;
                 if (m.Label == want && mp.Label == want) memberLabelled++;
                 else memberWrong.Add($"{m.Name}: member '{m.Label}', plan '{mp.Label}'");
+                if (m.Slot == 0) memberExamples.Add(mp.Label);
                 Line(mp.Name, mp.StartingUuid);
             }
         }
         Check(members == 23 && memberLabelled == 23,
-              "MEMBERS: every member of G1's three populations (23) is planned - and MemberPlan sends it - with its FULL " +
-              "designation '<container designation>.<suffix>' as its Label (the name stays the 16-character M3b name)",
-              $"{memberLabelled} of {members}" + (memberWrong.Count == 0 ? "" : "; " + string.Join("; ", memberWrong.Take(3))));
+              "MEMBERS: every member of G1's three populations (23) is planned - and MemberPlan sends it - with " +
+              "'<clean container designator>.<suffix>' as its Label (the name stays the 16-character M3b name)",
+              $"{memberLabelled} of {members}, e.g. {string.Join(", ", memberExamples)}" +
+              (memberWrong.Count == 0 ? "" : "; " + string.Join("; ", memberWrong.Take(3))));
+        // a container whose designation reached the planner RAW (no Label: DesignationLabel.Of falls back to the name,
+        // the 30-character cut one included) still gives its members the clean designator
+        var raw = PopulatePlanner.Plan("1-112_IN/28ID__FRIENDLY_INFANT", 54.0, 23.3,
+                                       CompositionResolver.ExpandRow(table.ById("C-USA-BN-UCI"), table, cat).Leaves, 0.0);
+        Check(!raw.Refused && raw.Members.All(m => m.Label == "1-112 IN/28ID." + m.Leaf.Suffix),
+              "a member whose container has no Label (the name stands in, even cut to 30) is labelled from the CLEAN " +
+              "designator of that name ('1-112 IN/28ID.<suffix>')",
+              string.Join(", ", raw.Members.Select(m => m.Label)));
 
-        // (c) EVERY ROW of the shipped table, under a designation longer than any name field: each member's Label is whole.
+        // (c) EVERY ROW of the shipped table, under a designation longer than any name field: each member's Label is the
+        //     clean designator of that designation and the member's suffix - nothing of the verbose description.
         const string LongDesignation = "Headquarters_and_Headquarters_Brigade,_III_Corps/28ID__A_DESIGNATION_LONGER_THAN_ANY_NAME_FIELD";
         int rows = 0, rowsOk = 0;
         var rowWrong = new List<string>();
@@ -1896,14 +1981,15 @@ public static class ContainerSelfTest
             rows++;
             var lr = PopulatePlanner.Plan(LongDesignation, 54.0, 23.3, pr.Leaves, 0.0, containerLabel: LongDesignation);
             if (!lr.Refused && lr.Members.All(m => ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg).Label
-                                                   == LongDesignation + "." + m.Leaf.Suffix)) rowsOk++;
+                                                   == "Headquarters and Headquarters Brigade, III Corps/28ID." + m.Leaf.Suffix)) rowsOk++;
             else rowWrong.Add(row.Id);
             if (IdentityPinRows.Contains(row.Id))
                 foreach (var m in lr.Members) Line(m.Name, m.Uuid);
         }
         Check(rows > 0 && rowsOk == rows,
-              $"EVERY shipped table row ({rows} expand): each member's Label is the whole '<designation>.<suffix>' under a " +
-              $"{LongDesignation.Length}-character designation (the Label has no length limit, UG52 Table 21)",
+              $"EVERY shipped table row ({rows} expand): each member's Label is '<clean designator>.<suffix>' under a " +
+              $"{LongDesignation.Length}-character designation - 'Headquarters and Headquarters Brigade, III Corps/28ID.<suffix>', " +
+              "the verbose description dropped (RL-20261005-03)",
               rowWrong.Count == 0 ? $"{rowsOk} of {rows}" : string.Join(", ", rowWrong));
 
         // (d) NAMES AND UUIDS BYTE-IDENTICAL TO BEFORE LBL (C1d, M3b): the sha256 of every 'name|uuid' line above.
