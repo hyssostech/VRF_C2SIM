@@ -3699,6 +3699,7 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 - 2026-10-05 IRONSTORM_AGG_G1-2026-10-04-6 PERSISTENT HOLDER, BRANCH (b') (docs/experiments/PREREG_IRONSTORM_AGG_G1-6_2026-10-04.md sec 3 step D' / sec 5; RUNBOOK 9c; holder 67984 (appNo 5281) gone; rtiexec ensured up by step R): scripts/StartFederationHolder52.ps1 -AppNumbers 5329,5330,5331,5332 -SettleSecs 28800; one attempt per number until one joins; numbers not reached are BURNED, never reused. The runs' own runner blocks (the unscored PRE-WARM 5333-5343, then the SCORED run 5344-5354) are written by the runner at its Stage 2. G1-6-CLAIMED (lane G1-6 script, applied by the seat before the holder joins).
+- CORRECTION 2026-10-05 (the seat) TO THE ENTRY ABOVE: it was written by the G1-6 claim helper's template and NAMES G1-6 wrongly. The 5329-5332 holder block belongs to REHEARSAL_WAYB-2026-10-05-2 (docs/experiments/REHEARSAL_WAYB_BOUNDED_2026-10-05.md): 5329 CONSUMED by holder RtiProbe 41292 (joined 12:05:56Z), 5330-5332 BURNED (never reached); the rehearsal's runner block is 5333-5343 (its Stage 2h holder 60332 on 5340); marker 5344. Nothing else claimed.
 
 
 CLAIMED 2026-10-05 12:06 by scripts/RunC2SimScenario.ps1 (run 20261005T120620Z_run). Ledgered BEFORE any join,
