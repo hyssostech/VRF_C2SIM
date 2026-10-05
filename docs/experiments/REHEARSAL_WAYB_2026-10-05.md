@@ -101,7 +101,7 @@ THE ROWS [V]:
   over "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE"); where units stack (48 IBCT, 1-112 IN, 28ID) the labels overprint illegibly.
 - X6 (MEDIUM) UNTESTED: -Verify exit 0 at 01:17:12Z (label_verify_after_gui.txt), but GUI 680 never exited (modal up), so the
   GUI's own save on a normal exit did not happen.
-- X7 (MEDIUM) FAILED: the crash-void signal fired (runner :290); StopVrf EXIT 7 (close refused with the "Session Status" modal
+- X7 (MEDIUM) FAILED: the crash-void signal fired (runner :283); StopVrf EXIT 7 (close refused with the "Session Status" modal
   on 680; 6724 force-stopped; 680 left up, not killed); the app exited 0.
 - X8 (MEDIUM) HELD: preflight-cache now 1,181 files = 520 + 661, 0 zero-byte, newest 00:34:15Z; the app's TILE TOTAL: 33 HITs,
   661 HTTP FETCH, 0 given up, 0 undecodable. No before-listing of preflight-cache this run: the 520 is G1-6's count [A].
@@ -137,20 +137,33 @@ CRASH, HANG OR LOST RTI CONNECTION - measurements [V]:
 (a) The process lived: 6724 was sampled to 01:16:57Z (523 samples after 00:33:19Z, CPU mean 1.72 cores, 6 under 0.05; WS 5,186
     -> 8,740 MB; 68-69 threads); StopVrf's inventory (about 01:15Z) listed it (68 threads); taskkill without /F answered
     SUCCESS, then it was forced. C:\MAK\logs holds its .log (28,414,123 B, last written 01:12:40Z), no .dmp, no .callstack.log.
+    Thread structure: four threads (30784, 20692, 63840, 66924) carry about 1.4 cores 00:32:48-00:36 and fall to about 0 at
+    about 00:37; five others (40464, 52260, 59184, 62704, 66372) then hold about 1.4-2 cores to the force. WS is not monotonic:
+    8.5 GB at 00:37, 6.8 at 00:45, 8.7 at 01:15 (about 63 MB/min 00:45-01:15, against 684-948 MB/min in this run's three
+    WS-RUNAWAY alerts). The machine has 31.7 GB of RAM, so memory exhaustion is a weak competitor.
 (b) The RTI management link held: in the rtiexec log, Federate23 ("VR-Forces Sim Engine 5.2d", joined L76725; = 6724 by join
     order and time [A]) has no resign or drop until "Dropped connection #218" and a LostConnectionResign (DeleteObjects) at
     21:17:00 local = 01:17:00Z (L93410-L93458) - the force. WatchVrf kept reflected=145 to the end (nothing deleted).
-(c) Publication stopped: 1 -> 0 at 00:33:19Z; the app's last good status 00:33:21Z. After it only 2 of 135 trace uuids change
-    position, and the far mover (169.RKT1BTY1MRL2, f5ed1104) runs 8.31 m/s at a constant 91.8 deg for 2,490 s while its
-    altitude climbs linearly 189 -> 494 m - dead reckoning from a last update, not terrain-following movement.
-(d) Before it: SIM/WALL 0.56 between T12's and T7's dispatches (77.4 SIM s / 138.0 WALL s). The GUI clock read 0:00:07:12 at
-    00:31:41Z and 0:00:14:28 at 00:38:57Z (+436 s in 436 s).
+(c) Publishing to the two remote-controller observers (the app, WatchVrf) stopped: 1 -> 0 at 00:33:19Z; the app's last good
+    status 00:33:21Z. After it only 2 of 135 trace uuids change position: 169.RKT1BTY1MRL2 (f5ed1104) at a constant 8.31 m/s,
+    91.8 deg, for 2,490 s while its altitude climbs linearly 189 -> 494 m, and 169 FAB's aggregate (a4777af0) at 0.88 m/s,
+    357 deg, 2,185 m in a straight line - dead reckoning from a last update, not terrain-following movement.
+(d) Before it: SIM/WALL 0.56 between T12's and T7's dispatches (77.4 SIM s / 138.0 WALL s); right after T12's dispatch the
+    sim clock moved 1.6 s in 15.1 WALL s (420.4 -> 422.0 at T2's dispatch). Five-thread bursts of about 5 cores follow T22's
+    (00:28:57-00:29:27), T6's (00:29:37-00:30:17) and T4's (00:31:12-00:31:22) dispatches; after T12's and T14's the back end
+    sat at 0.1-0.9 cores (00:30:37-00:32:48) while the sim clock crawled. The GUI clock read 0:00:07:12 at 00:31:41Z and
+    0:00:14:28 at 00:38:57Z (+436 s in 436 s); shot_after.png (01:17:25Z) shows it FROZEN at 0:00:16:52 (Play enabled, Pause
+    greyed): 1,012 s, which is the app's last reading (497.8 s at 00:32:46.9Z) + 514 s at 1.0x, so the GUI's session ended
+    about 00:41:21Z, about 8 min after the app and WatchVrf lost status.
 READINGS (no cause claim): a crash in the sense of process death is REFUTED by (a). A lost RTI connection is not supported at
 the rtiexec level (b); the data path (rtiForwarder) was not read, so a forwarder-side stall is not excluded. What fits (a)-(c):
 the back end alive, busy and growing but publishing neither status nor entity updates for 44 min - a hang/livelock of its sim
 loop; the competitor is an extreme slowdown (frames longer than the 40 s status window), which the vendor log's content could
 separate and this lane does not read. (d)'s GUI clock is RECORDED only: whether that display is fed by the back end or ticks
-locally is unknown. The runner's "BACK END CRASHED" means "stopped publishing" here, not a process death.
+locally is unknown. Two readings of the GUI's 8 min, no claim: the GUI free-runs its clock with a longer timeout, or the
+back end's time kept reaching the GUI after the two remote controllers lost status. [A] (c)-(d) - the low-CPU crawl after
+T12 / T14 and the thread hand-over at 00:37 - favour a stall tied to route planning over a generic livelock; not settled.
+The runner's "BACK END CRASHED" means "stopped publishing" here, not a process death.
 
 WHAT IT MEANS (implication, separate from the measurements): the raw Way B order with the GUI on the aggregate profile did not
 run to its end on this machine. About 4.8 min after the order, with 99 members populated (4.3x G1-6) and the working set
@@ -160,7 +173,8 @@ dead-reckoned icons drifted straight off (169 FAB, east, climbing). Load (member
 designed (X1, X2, X9) and its refusals were named (X3). The full raw order with the GUI is not demo-ready.
 
 DEMO-READINESS ITEMS:
-- D1 The back end went silent under the full raw order + GUI: bisect (same order --no-gui; a 23-member cut with the GUI) first.
+- D1 The back end went silent under the full raw order + GUI. The one-variable leg is the raw order with --no-gui; a 23-member
+  cut with the GUI changes members AND content (cut A's hand-fixed geometry), so it is not a one-variable test.
 - D2 The "Session Status" modal refused the GUI close (StopVrf 7); 680 is still up and blocks the next launch - the owner's.
 - D3 GUI runs need the run-owned appData (NewVrfAppData52 + LaunchVrf52 -AppDataDir) so no modal is raised.
 - D4 The runner's "CRASHED" fired on a live pid: add pid liveness and rtiexec state to the void line (silent vs dead).
@@ -172,8 +186,10 @@ DEMO-READINESS ITEMS:
 - D10 Labels overprint where units stack (48 IBCT / 1-112 IN / 28ID): demo zoom or placement.
 - D11 This run fetched 661 tiles live (cache 1,181): the demo machine needs the cache carried, or network at show time.
 
+NEXT: the cheapest discriminator is the vendor sim log's lines after 00:33:19Z (frame/time lines continuing = slowdown;
+repeated planner/route lines = planning stall; nothing = hang). Reading vendor-log CONTENT is the OWNER'S call (this record
+treats vendor logs as names/sizes/counts only); then the raw order with --no-gui (D1).
+
 ADVERSARIAL REVIEW: (1) n = 1. (2) Unit attribution of trace uuids rests on the app's IDENTITY marking lines (135 named);
 "moved" is a > 50 m / > 5 m displacement test, not an attribute timestamp - a unit that moved < 5 m after 00:33:19Z is not
-told apart from a frozen one. (3) 6724 = Federate23 is [A] (join order and time). (4) X8's 520 baseline is G1-6's count; the
-arithmetic 1,181 - 661 = 520 agrees but no listing was taken at launch. (5) The hang-vs-slowdown question stays open: nothing
-read here separates them.
+told apart from a frozen one. (3) 6724 = Federate23 is [A] (join order and time). (4) Hang vs slowdown stays open (NEXT).
