@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-03). Archived 10-04/05: 0927-02..-06, 0928-01, -03.
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-04). Archived 10-04/05: 0927-02..-06, 0928-01..-03.
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -11,16 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20260928-02 | 2026-09-28 | VERBATIM
-  Q (seat, P8236): the seat reported C1c merged - "member names are built within the 30 characters VR-Forces keeps, every requested name is
-    checked for uniqueness at 30 before the create" - and G1-2 being registered on it.
-  A (owner, P8241): "Looks like you fell again on a very old trap and are rediscovering the name limit. Look at the record!!!! This field is
-    supposed to carry the uuid not the human name"
-  supervisor reading: object identity is the UUID field (UG52 13.2 Table 21 p362-363: UUID unique; Name length-limited, NOT unique; Label
-    unlimited). The interface passes a startingUUID on every create (the unit's C2SIM uuid - already done for every tactical graphic; G5 of
-    ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this fix for units and its refutation called it optional - reversed) and correlates
-    ObjectCreated by uuid; members get a derived uuid; names are display only. C1c (84c4f62) is demoted to a secondary key; C1d does it.
-  pointer: PLAN_MOVEMENT_2026-09-27 rows C1c, C1d, G1-2; CORRECTIONS_LOG "Name-keyed identity" (2026-09-28); UG52 13.2 p362-363.
 RL-20260928-04 | 2026-09-28 | VERBATIM
   Q (owner, P10345): "DOes it make sense to have opus 5.5 run the seat, and invoke Fable for the real work requiring special skills, rather
     than burn Fable tokens as supervisor?" - the seat (P10347) answered yes with one inversion: Opus 5.5 runs the seat (orchestration, the
@@ -112,3 +102,12 @@ RL-20261005-03 | 2026-10-05 | VERBATIM - Q2752 (queue-operation, typed mid-turn)
     the lane's to show from the data); the verbose suffix goes into a VR-Forces field that can hold it, if one exists (the
     vendor docs decide), else it is dropped. Identity stays the UUID (RL-20260928-02).
   pointer: HANDOFF_SEAT_2026-09-28 sec 3 item 3-4; feat/full-designation-label (the Label plumbing, merged 6a978a5).
+RL-20261005-04 | 2026-10-05 | VERBATIM - Q3018, TYPED
+  Q (seat, Q3015, explaining the open items): 1 extended labels for the verbose suffix now or after the demo; 2 keep RL-20260914-02
+    (a task with no geometry runs where its unit is; missing geometry is STP's); 3 file the STP geometry ask; 4 the stray folder.
+  A (owner, Q3018): "1 after. 2 keep. 3 file. 4 - are you able to do it safelly?"
+  supervisor reading: (1) extended labels (the suffix field) AFTER the demo. (2) RL-20260914-02 KEPT: the interface derives no
+    positions. (3) filed as Jira STP-962 (bug, To Do), with a comment on STP-848 (the interface now accepts the short form).
+    (4) the seat removed the stray C:/C2SIMvrf-appdata-unattended: 3 junctions removed as links only (targets unchanged 8/9/24
+    entries), then the junction-free folder (643 copied files); the real C:/C2SIM/vrf-appdata-unattended untouched.
+  pointer: STP-962; STP-848 comment 13682; scratch laneIMPL (the doctrine research); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
