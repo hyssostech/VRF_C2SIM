@@ -90,7 +90,7 @@ public static class UnitTranslator
     /// </summary>
     public static CreationPlan Plan(InitUnit u, TypeMapping typeMapping = TypeMapping.RealTemplates,
                                     UnitTypeMap map = null, NationRoles nations = null)
-        // LBL: every plan carries the unit's WHOLE C2SIM name as its vendor Label (DesignationLabel) - the one field
+        // LBL: every plan carries the unit's CLEAN DESIGNATOR (LBL2, RL-20261005-03) as its vendor Label (DesignationLabel) - the one field
         // added here; the dispatch below, and so every name and type, is untouched.
         => PlanUnlabelled(u, typeMapping, map, nations) with { Label = DesignationLabel.ForUnit(u.Name) };
 

@@ -3,7 +3,7 @@
 # installed instance of this component. Ok to change C:\MAK, but needs to be automated/reproducible").
 #
 # Turns ON the LABEL symbol decoration in the VR-Forces GUI of EVERY VR-Forces 5.x install on the machine, so the map shows
-# each object's vendor Label - the full C2SIM designation the interface creates every object with (LBL) - beside its cut
+# each object's vendor Label - the clean designator the interface creates every object with (LBL, LBL2) - beside its cut
 # name. The logic is tools\display\LabelDecorationLib.ps1; scripts\LaunchVrf52.ps1 runs its READ-ONLY check before every
 # GUI launch and WARNS when the decoration is off (it never edits).
 #

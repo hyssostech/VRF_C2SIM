@@ -46,8 +46,10 @@ namespace VrfC2SimApp;
 ///         not exist'); the fix on the same population ('1-112_IN.RIF2'), its uuids unchanged; every table row fits under
 ///         the longest shipped designator; the source guards
 ///   (p17) LBL - THE FULL DESIGNATION IN THE VENDOR LABEL (HANDOFF_SEAT_2026-09-28 sec 3 item 5; UG52 13.2 Table 21 p363,
-///         13.2.5 p364): every cut-A init unit (36) is planned with its whole C2SIM name as its Label and every member of
-///         G1's three populations (23) - and of every shipped table row - with "&lt;container designation&gt;.&lt;suffix&gt;";
+///         13.2.5 p364) - LBL2 (RL-20261005-03): every created unit of cut A and of STP's raw export (36 + 36) is planned
+///         with the CLEAN DESIGNATOR of its C2SIM name as its Label (before '__', '_' -> ' ': '48 IBCT/28ID'; 13 pinned
+///         survey names; all 80 init units clean and distinct; why a space and not nothing) and every member of G1's
+///         three populations (23) - and of every shipped table row - with "&lt;clean container designator&gt;.&lt;suffix&gt;";
 ///         the names and uuids BYTE-IDENTICAL to before (a pinned sha256 - C1d, M3b); the source guards (every create
 ///         passes the plan's Label; the facade puts it in the vendor's label slot); the linked VrfBridge.dll CARRIES the
 ///         label overloads
@@ -1807,8 +1809,9 @@ public static class ContainerSelfTest
     // 13.2.5 p364 "without the restrictions of uniqueness or character length"), is a create argument
     // (vrfRemoteController.h 5.2 :1289 createEntity, :1302 createAggregate; the message's objectLabel,
     // vrfmsgs/ifCreateVrfObject.h :39-41, :134-136) and is shown by the Label symbol decoration (UG52 21.2 p470). So every
-    // create carries the FULL C2SIM designation as its Label, and NOTHING ELSE changes: the name and the uuid stay exactly
-    // what C1d and M3b made them (identity is the uuid, RL-20260928-02).
+    // create carries a designation as its Label, and NOTHING ELSE changes: the name and the uuid stay exactly what C1d and
+    // M3b made them (identity is the uuid, RL-20260928-02). LBL2 (RL-20261005-03): that designation is the CLEAN
+    // DESIGNATOR - the C2SIM name before '__', underscores as spaces - not the whole name; the verbose suffix is dropped.
     // The pin below is the sha256 of the 'name|uuid' lines this check builds, taken on the code BEFORE LBL (the scaffold
     // commit of feat/full-designation-label, which adds only the defaulted Label fields): 36 aggregate-profile init plans,
     // 36 entity-level init plans, G1's 23 members, and every shipped table row's members under the longest designator.
@@ -1822,7 +1825,7 @@ public static class ContainerSelfTest
 
     private static void P17(string repo, ResolverCatalogue cat, CompositionTable table)
     {
-        Console.WriteLine("--- (p17) LBL: the full C2SIM designation in the vendor Label on every create (UG52 13.2.5) ---");
+        Console.WriteLine("--- (p17) LBL/LBL2: the clean designator in the vendor Label on every create (UG52 13.2.5; RL-20261005-03) ---");
         var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
         var created = init.Units.Where(u => !string.IsNullOrEmpty(u.Latitude) && !string.IsNullOrEmpty(u.Longitude)).ToList();
         var aggMap = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"));
