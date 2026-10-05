@@ -684,3 +684,12 @@ move-along's DtUUID), and navigate-to-location.lua :252-259 ends SUCCESS whateve
 that moved nothing now FAILS (M3b, EXECUTOR REFUSED); (3) the back end had CRASHED at 19:05:16Z (a crash record for pid 3344 and the
 "Error vrfSimHLA1516e.exe" modal StopVrf52 itself printed) - StopVrf52 now reports that as exit 8, and the runner VOIDS the window.
 
+## Seat recommendations made without the record (2026-10-04)
+
+- CLAIM (seat, to the owner): set `Set-NetFirewallProfile -NotifyOnListen False` to stop firewall prompts broadly.
+  WRONG: the owner RULED against exactly this on 2026-09-02 (RUNBOOK sec 0.5.x "THE testhost FIREWALL PROMPT":
+  "CANCEL the prompt; do NOT Set-NetFirewallProfile -NotifyOnListen False (machine-wide, too broad)"; repeated in
+  HANDOFF_2026-09-01_R9_COMPLETE). The seat did not grep the record before recommending. Standing guidance: cancel a
+  prompt for a worktree/test path (loopback is unfiltered, nothing breaks); per-path rules only for the stable demo paths.
+- CLAIM (seat): "the vendor Adding Content manual is not installed - the owner must install it". WRONG in effect: the
+  public MAK library (docs/vendor/README.txt names it) hosts MAK_ONE_2025_Adding_Content.pdf; fetched 2026-10-04.
