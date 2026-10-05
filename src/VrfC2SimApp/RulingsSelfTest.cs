@@ -61,6 +61,8 @@ public static class RulingsSelfTest
         failures += DoNotRulesSelfTest.Run();
         Console.WriteLine("=== M3 (RL-20260928-03): a tasked container's route is driven by the vendor's PLANNING task per vertex (Auto by default) ===");
         failures += PlannedMoveSelfTest.Run();
+        Console.WriteLine("=== X9: StartTime/RelativeTime on the task's own predecessor's END is \"predecessor end + delay\" (RelativeDelayMs); any other reference is NOT HANDLED, said once ===");
+        failures += RelativeTimeSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

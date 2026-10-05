@@ -738,14 +738,19 @@ public static class StpExportSelfTest
         Check(ref f, order.Tasks.Count(t => t.SimulationStartMs > 0) == 4
                      && order.Tasks.Count(t => t.SimulationStartMs == 1200000L) == 3
                      && order.Tasks.Count(t => t.SimulationStartMs == 600000L) == 1,
-              "the 9 SimulationTime delays decode too: 3 x PT20M, 1 x PT10M, 5 x PT0S (the 14 RelativeTime " +
-              "delays are not read by any path, in either form)");
+              "the 9 SimulationTime delays decode too: 3 x PT20M, 1 x PT10M, 5 x PT0S");
+        // X9: the 14 StartTime/RelativeTime delays are READ (each names its own predecessor's end), as
+        // RelativeDelayMs: T2's PT20M and 13 x PT0S. RelativeTimeSelfTest holds the per-task checks.
+        Check(ref f, order.Tasks.Count(t => t.RelativeDelayMs > 0) == 1
+                     && order.Tasks.Count(t => t.RelativeDelayMs == 1200000L) == 1,
+              "the 14 RelativeTime delays decode too: 1 x PT20M (T2, 20 min after T1's end), 13 x PT0S (X9)");
         Check(ref f, !order.Warnings.Any(w => w.Contains("is MALFORMED", StringComparison.Ordinal)),
               "NO Duration is reported MALFORMED any more");
         int shortWarnings = order.Warnings.Count(w => w.Contains(OrderParser.ShortFormWarningMarker, StringComparison.Ordinal));
-        Check(ref f, shortWarnings == 1 && order.ShortFormDurations.Count == 32,
+        Check(ref f, shortWarnings == 1 && order.ShortFormDurations.Count == 46,
               $"NEVER SILENTLY: the parser says so ONCE for the order ({shortWarnings} warning(s)) over the " +
-              $"{order.ShortFormDurations.Count} short-form values it reads (23 Durations + 9 SimulationTime delays), " +
+              $"{order.ShortFormDurations.Count} short-form values it reads (23 Durations + 9 SimulationTime delays " +
+              "+ 14 RelativeTime delays, X9), " +
               "naming them non-conforming C2SIM 1.1 and STP-848");
         // The reference order proves conforming input is untouched.
         string coa = FindData("COA-STP1_Order.xml");

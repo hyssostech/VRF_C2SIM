@@ -31,7 +31,7 @@ public record OrderTask
     // (TaskSequencer.WaitForStartAsync); DurationMs closes the task (R4, below).
     public long SimulationStartMs { get; init; }             // StartTime/SimulationTime/DelayTimeAmount relative delay
     public string StartAfterTaskUuid { get; init; } = "";    // ActionTemporalRelationship predecessor
-    public long RelativeDelayMs { get; init; }               // ActionTemporalRelationship delay
+    public long RelativeDelayMs { get; init; }               // delay after the predecessor ENDS: ActionTemporalRelationship/Duration, or StartTime/RelativeTime on that predecessor's IntervalEndTime (X9); the later wins
 
     // R4 (user ruling 2026-09-14, "completion is given by the end time"): the task's own
     // Duration (ManeuverWarfareTask/Duration/IsoTimeDuration, schema :4132). The end time is
