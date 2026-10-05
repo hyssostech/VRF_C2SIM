@@ -120,6 +120,16 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    RL-20261004-05: the demo is WAY B (STP pushes its own order: STP-848 durations + no cut-A hand fixes - leniency is the
    owner's call, asked); the Label decoration may be written under C:\MAK ONLY by an automated, verifiable deploy step on
    every install. Tier-1 full order merged c3b2bb5 (22 tasks). NEXT: LBL hardened + new pin; composition sources (public).
+   STATE 2026-10-05 ~12:45Z (main 6d20422, deployed 1.0.0+git.f58de23, pin 9e8c96b5 in all eleven trees; rtiexec 65540 +
+   holder RtiProbe 41292 (5329, to ~20:06Z); marker 5344; c2sim-server-vrf up). DONE since G1-6: labels (clean designator,
+   RL-20261005-03) + the Label decoration deploy (vendor appData and C:/C2SIM/vrf-appdata-unattended); ISO short durations
+   (RL-20261004-06); tier-2a compositions; Vrf:DemoExtent (RL-20261005-02). REHEARSAL_WAYB (raw order, 99 members) VOID: the
+   back end fell minutes behind paging terrain for the far-east routes (vendor log); REHEARSAL_WAYB_BOUNDED PASSED B1-B7
+   (no backlog, GUI exits unattended on the unattended appData, T14 arrived) - content thin (1 mover). Doctrine research
+   (scratch laneIMPL): implied positions are mostly STP's to author; RL-20260914-02 governs. OPEN FOR THE OWNER: extended
+   labels for the suffix (native + new pin); keep RL-20260914-02; file the STP geometry ask; the stray C:/C2SIMvrf-appdata-
+   unattended junction cleanup (his - never recursive before the 3 junctions are rmdir'ed). Demo items: pace (time
+   multiplier), refused containers on the map, label overprint, T14 stray members, StopVrf exit 6.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
