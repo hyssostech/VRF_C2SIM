@@ -826,7 +826,9 @@ Q-A. WHAT DOES A DURATION MEAN FOR A TASK THAT INCLUDES MOVEMENT?
   1 at thirty); neither order carries an end time. [V, measured this pass] Separately: the REAL Iron
   Storm export writes its durations in the short form "PT20M", which the C2SIM 1.1 schema pattern does
   not allow, so the parser refuses all 23 of them and those tasks have no end time at all
-  (OrderParser.cs:87-105). [V] Cut A's derived file uses the long form and parses.
+  (OrderParser.cs:87-105). [V] Cut A's derived file uses the long form and parses. [SUPERSEDED
+  2026-10-04 by RL-20261004-06 (3): the parser now ALSO accepts the short form, with one
+  non-conforming-C2SIM warning per order; the raw export decodes 46 of 46.]
 
 Q-B. WHAT IS REPORTED IF THE END TIME ARRIVES AND THE UNIT HAS NOT REACHED THE OBJECTIVE?
   On file: "The notion that geting stuck midway is a complete is completelly illogical" (W-TIME); "a unit
