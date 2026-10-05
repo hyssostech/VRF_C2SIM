@@ -3825,7 +3825,8 @@ Check '11i both server blocks are given, each with its own PushInit AND PushOrde
 Check '11i and the silent-failure mode is stated where the operator will read it' (
     $wbDemoText -match 'A MISMATCHED PAIR IS SILENT')
 Check '11i Way B step 3 carries the server choice' (
-    $wbDemoText -match 'StartInterface52\.ps1 -ClientId STP -Server standard')
+    # 2026-10-05 (docs/demo-runbook-wayb): Iron Storm's STP export carries SystemName "Not Set", not STP.
+    $wbDemoText -match 'StartInterface52\.ps1 -ClientId "Not Set" -Server standard')
 
 # --- 11j. the honesty note tracks reality: D5c verified the sequence live, STP itself pushing stays owed ---
 Check '11j section 2 names D5c as the run that verified the sequence live, and still names STP itself pushing as owed' (

@@ -23,8 +23,6 @@ docs\CORRECTIONS_LOG.md | T2 | 4c7dfe9661bcb0f770bfd0b5b8d1f6af87468841 | correc
 docs\CORRECTIONS_LOG.md | T2 | 0137279251a79b73bd3665a7c181fe80e109d518 | correction site - F-1 spells out which question R4 actually was
 docs\DEMO_READINESS_2026-09-06.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | falsification site - row 16 cites VRF_ALTITUDE_FRAMES sec 5 falsifying the form it quotes
 docs\DEMO_READINESS_2026-09-06.md | T2 | 3ec642e31e225e249e4473421946a01f230fa8cc | correction site - row 19's CORRECTION block states that R4 was never put about a MOVE
-docs\DEMO_RUNBOOK.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | falsification site - cites VRF_ALTITUDE_FRAMES sec 5 as falsified
-docs\DEMO_RUNBOOK.md | T1 | 43834f299888ee821eb512376d1f90ca00368fa1 | falsification site - cites VRF_ALTITUDE_FRAMES sec 5 as falsified
 docs\experiments\FREEZE_ROOTCAUSE_AGGREGATE_2026-07-21.md | T1 | a24e7593f495a545b250b248777f9cd06dfb4f12 | historical record 2026-07-21 - records the hypothesis as falsified
 docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | 0966ca79ab3d9384ebac8f3c88a4723e41fbe96a | historical investigation record 2026-07-14
 docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | d5a3bd9099af2505a18199208573c11164d11493 | historical investigation record 2026-07-14
