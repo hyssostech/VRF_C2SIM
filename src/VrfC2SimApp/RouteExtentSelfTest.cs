@@ -230,8 +230,223 @@ public static class RouteExtentSelfTest
         Check("a route that starts and ENDS on the Mojave but detours to Sweden in the middle is refused, " +
               "naming vertex 1", mid.Violated && mid.Index == 1);
 
+        DemoExtentSection(Check);
+
         Console.WriteLine(fails == 0 ? "routeextent-selftest: ALL CHECKS PASSED"
                                      : $"routeextent-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;
+    }
+
+    // ===================== RL-20261005-02: THE DEMO TERRAIN EXTENT ==============================
+    // The Demo overlay's value (appsettings.Demo.json; --rulings-selftest (s14) pins the file to it).
+    public const string DemoOverlayExtent = "53.939723,23.108483,54.119385,23.414360";
+    public const double DemoOverlayMarginKm = 2.0;
+
+    private const string IronInit = "STP-IRON-STORM-SYNTHETIC_Initialization.xml";
+    private const string CutAOrder = "IRONSTORM_CUTA_Order.xml";
+    private const string FullOrder = "IRONSTORM_FULL_Order.xml";
+    private const string RawOrder = "STP-IRON-STORM-SYNTHETIC_Order.xml";
+
+    private sealed record Judged(OrderTask Task, string Unit, V.Verdict Verdict, int Points, bool InInit);
+
+    /// <summary>The order-receipt check exactly as OnOrder runs it: the graphics map built as the
+    /// service builds it (init first, then the order's own; the first publisher keeps a uuid), the
+    /// performer's AUTHORED init coordinate as its start, and DemoExtentPoints + CheckDemoExtent.</summary>
+    private static List<Judged> JudgeOrder(InitData init, OrderData order, V.DemoBound? bound)
+    {
+        static List<(double, double, double?)> Pts(IEnumerable<(double Lat, double Lon, double Elev)> src)
+        {
+            var l = new List<(double, double, double?)>();
+            foreach (var p in src) l.Add((p.Lat, p.Lon, p.Elev));
+            return l;
+        }
+        var map = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal);
+        foreach (var a in init.Areas)
+            if (a.Uuid.Length > 0) map[a.Uuid] = new TaskGraphic(a.Uuid, a.Name, TaskGraphic.KindArea, Pts(a.Points));
+        foreach (var l in init.Lines)
+            if (l.Uuid.Length > 0 && l.Points.Count > 0)
+                map[l.Uuid] = new TaskGraphic(l.Uuid, l.Name, TaskGraphic.KindLine, Pts(l.Points));
+        foreach (var p in init.Points)
+            if (p.Uuid.Length > 0 && p.HasPosition)
+                map[p.Uuid] = new TaskGraphic(p.Uuid, p.Name, TaskGraphic.KindPoint,
+                                              new List<(double, double, double?)> { (p.Position.Lat, p.Position.Lon, p.Position.Elev) });
+        foreach (var t in init.TaskGraphics)
+            if (t.Uuid.Length > 0 && t.Points.Count > 0)
+                map[t.Uuid] = new TaskGraphic(t.Uuid, t.Name,
+                                              t.Points.Count >= 2 ? TaskGraphic.KindLine : TaskGraphic.KindPoint, Pts(t.Points));
+        foreach (var g in order.Graphics)
+            if (!map.ContainsKey(g.Uuid)) map[g.Uuid] = new TaskGraphic(g.Uuid, g.Name, g.Kind, Pts(g.Points));
+
+        var byUuid = new Dictionary<string, InitUnit>(StringComparer.Ordinal);
+        foreach (var u in init.Units) byUuid[u.Uuid] = u;
+        var rows = new List<Judged>();
+        foreach (var t in order.Tasks)
+        {
+            if (!byUuid.TryGetValue(t.TaskeeUuid ?? "", out var unit))
+            {
+                rows.Add(new Judged(t, "", V.Verdict.Ok, 0, false));
+                continue;
+            }
+            (double Lat, double Lon)? start = null;
+            if (double.TryParse(unit.Latitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double la)
+                && double.TryParse(unit.Longitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lo))
+                start = (la, lo);
+            var pts = V.DemoExtentPoints(t, map, start);
+            rows.Add(new Judged(t, unit.Name, V.CheckDemoExtent(bound, pts), pts.Count, true));
+        }
+        return rows;
+    }
+
+    private static string FindData(string name)
+    {
+        foreach (var start in new[] { AppContext.BaseDirectory, System.IO.Directory.GetCurrentDirectory() })
+        {
+            var dir = new System.IO.DirectoryInfo(start);
+            for (int i = 0; dir != null && i < 10; i++, dir = dir.Parent)
+            {
+                string candidate = System.IO.Path.Combine(dir.FullName, "data", name);
+                if (System.IO.File.Exists(candidate)) return candidate;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Short task label: the leading "T&lt;n&gt;" of an Iron Storm task name, else the name.</summary>
+    private static string Short(string taskName)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(taskName ?? "", @"^T0*(\d+)");
+        return m.Success ? "T" + m.Groups[1].Value : taskName;
+    }
+
+    private static void DemoExtentSection(Action<string, bool> Check)
+    {
+        static string F(double v, int d) => v.ToString("F" + d, CultureInfo.InvariantCulture);
+
+        Console.WriteLine("--- 11. RL-20261005-02: THE DEMO TERRAIN EXTENT (Vrf:DemoExtent), at ORDER RECEIPT");
+        string initPath = FindData(IronInit), cutPath = FindData(CutAOrder),
+               fullPath = FindData(FullOrder), rawPath = FindData(RawOrder);
+        Check($"the Iron Storm fixtures are on disk (data/{IronInit}, {CutAOrder}, {FullOrder}, {RawOrder})",
+              initPath != null && cutPath != null && fullPath != null && rawPath != null);
+        if (initPath == null || cutPath == null || fullPath == null || rawPath == null) return;
+        var init = InitParser.Parse(System.IO.File.ReadAllText(initPath));
+        var orders = new (string Name, OrderData Order)[]
+        {
+            ("cut A", OrderParser.Parse(System.IO.File.ReadAllText(cutPath))),
+            ("FULL", OrderParser.Parse(System.IO.File.ReadAllText(fullPath))),
+            ("RAW export", OrderParser.Parse(System.IO.File.ReadAllText(rawPath))),
+        };
+
+        Check("the Demo overlay's value parses", V.TryParseDemoExtent(DemoOverlayExtent, DemoOverlayMarginKm, out var demo, out _)
+                                                  && demo != null);
+        var b = demo.Value;
+        Console.WriteLine($"        {b.Describe()}; tested box lat {F(b.Bounded.MinLat, 6)}..{F(b.Bounded.MaxLat, 6)}, " +
+                          $"lon {F(b.Bounded.MinLon, 6)}..{F(b.Bounded.MaxLon, 6)}");
+
+        // ---- 11a. OFF CHANGES NOTHING: no extent -> every task of all three orders is accepted ----
+        Check("OFF: an empty Vrf:DemoExtent parses as OFF (no bound, no error)",
+              V.TryParseDemoExtent("", 0, out var offB, out var offE) && offB == null && offE == null
+              && V.TryParseDemoExtent("   ", 2, out var offB2, out _) && offB2 == null);
+        foreach (var (name, order) in orders)
+        {
+            var rows = JudgeOrder(init, order, null);
+            Check($"OFF: {name} - all {order.Tasks.Count} task(s) accepted exactly as before (no verdict with the bound null)",
+                  rows.TrueForAll(r => !r.Verdict.Violated) && rows.TrueForAll(r => r.InInit));
+        }
+
+        // ---- 11b. ON, the Demo overlay's extent: the pinned refusal lists ----
+        string[] none = Array.Empty<string>();
+        string[] fullOut = { "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T15", "T16", "T18", "T19", "T20", "T21", "T22", "T23" };
+        string[] rawOut = { "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T12", "T15", "T16", "T18", "T19", "T20", "T21", "T22", "T23" };
+        string[] fullUnpop = { "11_CAB", "169_FAB", "278_ACR", "55_MEB", "56_SBCT" };
+        string[] rawUnpop = { "116_ABCT", "11_CAB", "169_FAB", "278_ACR", "55_MEB", "56_SBCT" };
+        var expect = new (string[] Out, string[] Unpop)[] { (none, none), (fullOut, fullUnpop), (rawOut, rawUnpop) };
+        for (int k = 0; k < orders.Length; k++)
+        {
+            var (name, order) = orders[k];
+            var rows = JudgeOrder(init, order, demo);
+            var refused = new List<string>();
+            var accepted = new HashSet<string>(StringComparer.Ordinal);
+            var performers = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var r in rows)
+            {
+                string unit = r.Unit.Split('/')[0];
+                performers.Add(unit);
+                if (r.Verdict.Violated) refused.Add(Short(r.Task.TaskName)); else accepted.Add(unit);
+                Console.WriteLine($"        {name,-10} {Short(r.Task.TaskName),-4} {unit,-9} " +
+                                  (r.Verdict.Violated ? "REFUSED  " + r.Verdict.Reason : "accepted (" + r.Points + " point(s) inside)"));
+            }
+            var unpop = new SortedSet<string>(performers, StringComparer.Ordinal);
+            unpop.ExceptWith(accepted);
+            Check($"ON: {name} - {order.Tasks.Count} task(s) in, {refused.Count} refused [{string.Join(", ", refused)}] " +
+                  $"(expected [{string.Join(", ", expect[k].Out)}])",
+                  string.Join(",", refused) == string.Join(",", expect[k].Out));
+            Check($"ON: {name} - performer(s) NOT populated (every task out): [{string.Join(", ", unpop)}] " +
+                  $"(expected [{string.Join(", ", expect[k].Unpop)}]); populated: [{string.Join(", ", accepted.OrderBy(s => s, StringComparer.Ordinal))}]",
+                  string.Join(",", unpop) == string.Join(",", expect[k].Unpop));
+        }
+        Check("ON: cut A's 5 tasks are all IN - the margin covers its one point outside the authored box (T13's route " +
+              "vertex 53.97205,23.44140, 1.769 km east of it)",
+              orders[0].Order.Tasks.Count == 5 && JudgeOrder(init, orders[0].Order, demo).TrueForAll(r => !r.Verdict.Violated)
+              && JudgeOrder(init, orders[0].Order, new V.DemoBound(b.Authored, 0, b.Authored)).FindAll(r => r.Verdict.Violated).Count == 1);
+
+        // ---- 11c. THE EDGE: 1 m inside is kept, 1 m outside is refused, on the north and the east edge ----
+        double mPerDegLat = V.EarthRadiusMeters * Math.PI / 180.0;
+        double midLat = (b.Bounded.MinLat + b.Bounded.MaxLat) / 2, midLon = (b.Bounded.MinLon + b.Bounded.MaxLon) / 2;
+        double mPerDegLonEast = mPerDegLat * Math.Cos(midLat * Math.PI / 180.0);
+        var pIn = new[] { new V.ExtentPoint("route vertex 1 of 1", b.Bounded.MaxLat - 1.0 / mPerDegLat, midLon) };
+        var pOut = new[] { new V.ExtentPoint("route vertex 1 of 1", b.Bounded.MaxLat + 1.0 / mPerDegLat, midLon) };
+        var eIn = new[] { new V.ExtentPoint("route vertex 1 of 1", midLat, b.Bounded.MaxLon - 1.0 / mPerDegLonEast) };
+        var eOut = new[] { new V.ExtentPoint("route vertex 1 of 1", midLat, b.Bounded.MaxLon + 1.0 / mPerDegLonEast) };
+        var vOut = V.CheckDemoExtent(demo, pOut);
+        var veOut = V.CheckDemoExtent(demo, eOut);
+        Check("EDGE: a vertex 1 m INSIDE the north edge of the tested box is kept", !V.CheckDemoExtent(demo, pIn).Violated);
+        Check($"EDGE: a vertex 1 m OUTSIDE the north edge is refused, {F(vOut.Meters, 3)} m out (expected 1.000 +/- 0.001)",
+              vOut.Violated && vOut.Kind == V.Violation.OutsideExtent && Math.Abs(vOut.Meters - 1.0) < 1e-3);
+        Check("EDGE: a vertex 1 m INSIDE the east edge is kept", !V.CheckDemoExtent(demo, eIn).Violated);
+        Check($"EDGE: a vertex 1 m OUTSIDE the east edge is refused, {F(veOut.Meters, 3)} m out (expected 1.000 +/- 0.001)",
+              veOut.Violated && Math.Abs(veOut.Meters - 1.0) < 1e-3);
+        Check("EDGE: the margin is at least the stated distance - the authored north edge + margin is inside, and the " +
+              "authored east edge + margin (measured at the box's northern edge) is inside",
+              !V.CheckDemoExtent(demo, new[] { new V.ExtentPoint("p", b.Authored.MaxLat + (DemoOverlayMarginKm * 1000.0 - 0.5) / mPerDegLat, midLon) }).Violated
+              && !V.CheckDemoExtent(demo, new[] { new V.ExtentPoint("p", b.Authored.MaxLat,
+                    b.Authored.MaxLon + (DemoOverlayMarginKm * 1000.0 - 0.5) / (mPerDegLat * Math.Cos(b.Authored.MaxLat * Math.PI / 180.0))) }).Violated);
+
+        // ---- 11d. THE TASKABRT TEXT ----
+        string abort = V.DemoExtentAbort("T22_Occupy", vOut);
+        Console.WriteLine("        TASKABRT: " + abort);
+        Check("the TASKABRT reads 'OUT OF DEMO EXTENT: <what> at <lat,lon> is <km> km outside <extent> ... " +
+              "(Vrf:DemoExtent, RL-20261005-02) - task ... refused, not executed'",
+              abort.StartsWith("OUT OF DEMO EXTENT: route vertex 1 of 1 at ", StringComparison.Ordinal)
+              && abort.Contains(" is 0.001 km outside the demo extent S 53.93972 W 23.10848 N 54.11939 E 23.41436 + 2 km margin",
+                                StringComparison.Ordinal)
+              && abort.Contains("(Vrf:DemoExtent, RL-20261005-02)", StringComparison.Ordinal)
+              && abort.Contains("task 'T22_Occupy' refused, not executed", StringComparison.Ordinal));
+        var fab = JudgeOrder(init, orders[2].Order, demo).Find(r => Short(r.Task.TaskName) == "T22");
+        Check("a performer created outside is named FIRST: T22 is refused on 169 FAB's start position (54.15,23.10)",
+              fab != null && fab.Verdict.Reason.StartsWith("the performer's start position at 54.15000,23.10000 is ", StringComparison.Ordinal));
+
+        // ---- 11e. SUCCESSORS CHAIN AS TODAY: a refused task is ABANDONED, so its successor's gate fails at once ----
+        var t16 = orders[1].Order.Tasks.Find(t => Short(t.TaskName) == "T16");
+        var t17 = orders[1].Order.Tasks.Find(t => Short(t.TaskName) == "T17");
+        Check("FULL: T17 (48 IBCT, accepted - its one point is inside) is gated on T16 (refused)",
+              t16 != null && t17 != null && t17.StartAfterTaskUuid == t16.TaskUuid);
+        if (t16 != null && t17 != null)
+        {
+            var seq = new TaskSequencer();
+            seq.NotifyAbandoned(t16.TaskUuid);                       // what the order-receipt refusal does
+            var gate = seq.WaitForStartAsync(t17.StartAfterTaskUuid, 0, 0, 5.0, TaskClock.Wall, System.Threading.CancellationToken.None);
+            bool done = gate.Wait(TimeSpan.FromSeconds(2));
+            Check("... and T17's gate fails at once with PredecessorAbandoned -> \"SKIPPED: predecessor <uuid> was " +
+                  "skipped/abandoned upstream\" (the existing cascade)",
+                  done && gate.Result == GateResult.PredecessorAbandoned
+                  && TaskDispatchPolicy.GateFailureReason(gate.Result, 0, 0) == "was skipped/abandoned upstream");
+        }
+
+        // ---- 11f. A MALFORMED SETTING IS AN ERROR, NEVER A GUESS ----
+        Check("malformed: three fields, a box with south >= north, a non-number, and a negative margin are all REJECTED",
+              !V.TryParseDemoExtent("53.9,23.1,54.1", 0, out _, out var e1) && e1 != null
+              && !V.TryParseDemoExtent("54.2,23.1,54.1,23.4", 0, out _, out _)
+              && !V.TryParseDemoExtent("53.9,abc,54.1,23.4", 0, out _, out _)
+              && !V.TryParseDemoExtent(DemoOverlayExtent, -1, out _, out _));
     }
 }

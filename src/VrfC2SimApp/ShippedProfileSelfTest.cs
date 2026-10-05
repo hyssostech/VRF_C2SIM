@@ -18,6 +18,8 @@ namespace VrfC2SimApp;
 ///   (s12) RL-20260928-03 the planned container move: Vrf:AggregateMovePlanner=Auto everywhere it ships (+ its dirty control).
 ///   (s13) M3b (the G1-3 Result) the EXECUTOR REFUSED bar: Vrf:VertexArrivalRadiusMeters 100 everywhere it ships (+ its dirty
 ///         control) - 0 would let a planned vertex that moved nothing advance again.
+///   (s14) RL-20261005-02 the demo terrain extent: OFF in the base, the Iron Storm centre + 2 km in the Demo overlay (+ its
+///         dirty control).
 /// </summary>
 public static class ShippedProfileSelfTest
 {
@@ -184,6 +186,27 @@ public static class ShippedProfileSelfTest
                             && !VertexChainPolicy.IsExecutorRefusal(1451, 0, barOff.VertexArrivalRadiusMeters),
               "(s13) DIRTY CONTROL: Vrf:VertexArrivalRadiusMeters=0 layered over the two files switches the refusal OFF - the pin " +
               "reads the key");
+
+        // (s14) RL-20261005-02 - the demo is bounded by a terrain extent: OFF in the base (empty), the Iron Storm centre area
+        // + 2 km in the Demo overlay - the very value --routeextent-selftest sec 11 judges cut A / FULL / the raw export with.
+        Check(ref failures, compiled.DemoExtent == "" && shipped.DemoExtent == "" && baseCfg["Vrf:DemoExtent"] == ""
+                            && RouteExtentPolicy.TryParseDemoExtent(shipped.DemoExtent, shipped.DemoExtentMarginKm, out var baseBound, out _)
+                            && baseBound == null && !rsh.Contains("Vrf__DemoExtent", StringComparison.Ordinal),
+              "(s14) RL-20261005-02: Vrf:DemoExtent is OFF (empty) in VrfSettings.cs and as an explicit key in appsettings.json, and " +
+              "RunScenario.sh exports none - a runner opts in with --env Vrf__DemoExtent=...",
+              $"compiled '{compiled.DemoExtent}', base '{shipped.DemoExtent}'");
+        Check(ref failures, demo.DemoExtent == RouteExtentSelfTest.DemoOverlayExtent
+                            && demo.DemoExtentMarginKm == RouteExtentSelfTest.DemoOverlayMarginKm
+                            && RouteExtentPolicy.TryParseDemoExtent(demo.DemoExtent, demo.DemoExtentMarginKm, out var demoBound, out _)
+                            && demoBound != null,
+              "(s14) RL-20261005-02: the Demo overlay bounds the demo by the IRONSTORM-CENTRE area + 2 km " +
+              $"({RouteExtentSelfTest.DemoOverlayExtent}), the value --routeextent-selftest sec 11 pins its refusal lists on",
+              $"demo '{demo.DemoExtent}' + {demo.DemoExtentMarginKm} km");
+        var extentOff = new ConfigurationBuilder().AddJsonFile(appSettings, optional: false).AddJsonFile(demoSettings, optional: false)
+                            .AddInMemoryCollection(new Dictionary<string, string> { ["Vrf:DemoExtent"] = "" })
+                            .Build().GetSection("Vrf").Get<VrfSettings>();
+        Check(ref failures, extentOff != null && extentOff.DemoExtent != RouteExtentSelfTest.DemoOverlayExtent,
+              "(s14) DIRTY CONTROL: Vrf:DemoExtent='' layered over the two files makes the overlay pin FAIL - it reads the key");
         return failures;
     }
 

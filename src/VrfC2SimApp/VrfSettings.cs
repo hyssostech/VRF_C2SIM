@@ -494,6 +494,21 @@ public class VrfSettings
     public double MaxRouteLegKm { get; set; } = 50.0;
     public double MaxVertexFromTaskeeKm { get; set; } = 100.0;
 
+    // THE DEMO TERRAIN EXTENT (RL-20261005-02; RouteExtentPolicy "THE DEMO TERRAIN EXTENT").
+    // *** DEFAULT OFF (empty). *** "south,west,north,east" in decimal degrees. When set, at ORDER
+    // RECEIPT - before any member is populated and before any task is orchestrated - every task
+    // whose performer's authored start, driven route vertices / point / area centroid, or named
+    // area ring has a point outside this box (widened by DemoExtentMarginKm) is REFUSED: one
+    // TASKABRT "OUT OF DEMO EXTENT: <what> at <lat,lon> is <km> km outside <extent> ...", nothing
+    // dispatched, its performer NOT populated for it, and its successors skipped through the
+    // existing abandon cascade. STP's order is not changed. WHY: the Way B rehearsal's back end fell
+    // minutes behind paging terrain features for routes out to ~24.4 E (REHEARSAL_WAYB_2026-10-05
+    // ADDENDUM). Set in appsettings.Demo.json; a runner passes it as --env Vrf__DemoExtent=s,w,n,e
+    // (and --env Vrf__DemoExtentMarginKm=<km>). A malformed value is an ERROR at start-up and the
+    // bound stays OFF.
+    public string DemoExtent { get; set; } = "";
+    public double DemoExtentMarginKm { get; set; } = 0.0;
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level
