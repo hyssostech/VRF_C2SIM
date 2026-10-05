@@ -3698,7 +3698,9 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 5329 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-10-05 IRONSTORM_AGG_G1-2026-10-04-6 PERSISTENT HOLDER, BRANCH (b') (docs/experiments/PREREG_IRONSTORM_AGG_G1-6_2026-10-04.md sec 3 step D' / sec 5; RUNBOOK 9c; holder 67984 (appNo 5281) gone; rtiexec ensured up by step R): scripts/StartFederationHolder52.ps1 -AppNumbers 5329,5330,5331,5332 -SettleSecs 28800; one attempt per number until one joins; numbers not reached are BURNED, never reused. The runs' own runner blocks (the unscored PRE-WARM 5333-5343, then the SCORED run 5344-5354) are written by the runner at its Stage 2. G1-6-CLAIMED (lane G1-6 script, applied by the seat before the holder joins).
+
+*** NEXT FREE: 5333 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
