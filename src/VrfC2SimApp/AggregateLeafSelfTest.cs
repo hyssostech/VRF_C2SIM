@@ -83,10 +83,15 @@ public static class AggregateLeafSelfTest
             string demo = repo == null ? null : Path.Combine(repo, "src", "VrfC2SimApp", "appsettings.Demo.json");
             if (app != null && File.Exists(app) && File.Exists(demo))
             {
-                var shipped = new ConfigurationBuilder().AddJsonFile(app).AddJsonFile(demo).Build();
-                Check(ref failures, UnitPositionPolicy.TryParseModelSet(shipped.GetSection("Vrf")["ModelSet"], out bool s) && !s,
-                      "(d2) the SHIPPED settings resolve to the ENTITY model set (absent, or 'EntityLevel' once the " +
-                      "aggregate lane lands) - D1 changes nothing on an entity-level run");
+                // 2026-10-05: the Demo overlay became the aggregate Iron Storm demo profile (Vrf:ModelSet=AggregateTacticalLevel,
+                // ShippedProfileSelfTest s5/s15), so the ENTITY default is appsettings.json's alone - the runner's base, which
+                // exports Vrf__ModelSet per order. Both are pinned: the base for D1's "changes nothing", the overlay for the demo.
+                var shipped = new ConfigurationBuilder().AddJsonFile(app).Build();
+                var demoCfg = new ConfigurationBuilder().AddJsonFile(app).AddJsonFile(demo).Build();
+                Check(ref failures, UnitPositionPolicy.TryParseModelSet(shipped.GetSection("Vrf")["ModelSet"], out bool s) && !s
+                                    && UnitPositionPolicy.TryParseModelSet(demoCfg.GetSection("Vrf")["ModelSet"], out bool sd) && sd,
+                      "(d2) appsettings.json resolves to the ENTITY model set - D1 changes nothing on an entity-level run - and the " +
+                      "Demo overlay (the Iron Storm demo profile since 2026-10-05) to the AGGREGATE one");
             }
             else Check(ref failures, false, $"(d2) the shipped settings files are on disk ({app})");
         }

@@ -12,7 +12,9 @@
     - the assistant-free RTI posture the sim uses: RTI_ASSISTANT_DISABLE=1 + RTI_RID_FILE =
       config\rid-501-rtiexec-min.mtl (RUNBOOK 0.5.13). A headless rtiexec must already be
       listening on TCP 4001 (scripts\StartRtiExec52.ps1); this script checks and refuses.
-    - DOTNET_ENVIRONMENT=Demo so appsettings.Demo.json overlays appsettings.json
+    - DOTNET_ENVIRONMENT=Demo so appsettings.Demo.json overlays appsettings.json - since 2026-10-05
+      the Iron Storm AGGREGATE demo profile (model set, aggregate type map, scenario, composition,
+      stall clock, demo extent), so no model-set switch is needed here (DEMO_RUNBOOK sec 2.2)
     - Vrf__ClientId / Vrf__ApplicationNumber / Vrf__PositionReportSeconds from the parameters
   Nothing is written under C:\MAK. No observers, no ledger, no scoring - the operator watches
   the VR-Forces GUI and STP.

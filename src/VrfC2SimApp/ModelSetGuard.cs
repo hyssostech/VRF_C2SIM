@@ -140,7 +140,8 @@ public sealed record ModelSetVerdict(
 /// docs/PLAN_MOVEMENT_2026-09-27.md; audit AUDIT_RULINGS_IN_CODE_2026-09-28 sec 4, "the most consequential gap").
 ///
 /// The runner CHOOSES the model set from the order at Stage 0 (RunnerLib Select-ModelSetByEchelon, RUNBOOK sec 11j).
-/// An interface started by hand - scripts/StartInterface52.ps1 with the Demo overlay, Vrf:ModelSet=EntityLevel -
+/// An interface started by hand - scripts/StartInterface52.ps1 with the Demo overlay (Vrf:ModelSet=AggregateTacticalLevel
+/// since 2026-10-05, the Iron Storm demo profile; EntityLevel before) or any configuration a hand sets -
 /// chooses nothing, and VR-Forces has loaded its model set before any order arrives, so the app cannot change it.
 /// The app's twin of the rule is therefore a GUARD AT ORDER RECEIPT, on the runner's own ladder (EchelonLadder):
 ///   * the TASKED units are the order's PerformingEntity values - never the init's untasked units;

@@ -4154,8 +4154,8 @@ runner chooses the model set at Stage 0 on the 5.2 profile. The rule is `Select-
 
 ### 11k. THE SAME RULE INSIDE THE APP - AN ABOVE-BN ORDER ON EntityLevel IS REFUSED (D2b, RL-20260927-06, RL-20260928-01, 2026-09-28)
 
-The runner CHOOSES the model set (11j); an interface started by hand (`scripts/StartInterface52.ps1`, Demo overlay
-`Vrf:ModelSet=EntityLevel`) cannot, because VR-Forces has loaded its model set before an order arrives. So the app
+The runner CHOOSES the model set (11j); an interface started by hand (`scripts/StartInterface52.ps1`, Demo overlay -
+`Vrf:ModelSet=AggregateTacticalLevel` since 2026-10-05, EntityLevel before) cannot, because VR-Forces has loaded its model set before an order arrives. So the app
 applies the rule of RL-20260927-06 / RL-20260928-01 as a GUARD in `OnOrder`, before anything of the order is registered
 or dispatched, on the runner's own ladder (`EchelonLadder`, `src/VrfC2SimApp/ModelSetGuard.cs`; held equal to
 RunnerLib's by `--rulings-selftest` (g1) and RTT 8z). The highest TASKED echelon (init `EchelonCode` read from the RAW
@@ -4167,8 +4167,9 @@ BATTALION IS AGGREGATE-ONLY (RL-20260927-06; no downward override, RL-20260928-0
 DIV (28ID__FRIENDLY_INFANTRY_DIVISION) is ABOVE BN - it tasks ... - and this interface runs Vrf:ModelSet=EntityLevel.
 NONE of its 5 task(s) is executed ...`, INFO `allowed` / `OVERRIDE UP - allowed`, WARN when an EntityLevel order tasks
 a NOS, unknown or missing echelon (named). The TASKABRT reason starts `REFUSED (D2b): ABOVE BATTALION IS
-AGGREGATE-ONLY`. To run Iron Storm by hand, start the interface with `Vrf:ModelSet=AggregateTacticalLevel`, the
-aggregate type map and an aggregate fixture. No 5.0.2 twin is needed: the 5.0.2 app has not compiled from this source
+AGGREGATE-ONLY`. To run Iron Storm by hand, start the interface on the Demo overlay: since 2026-10-05 it IS the aggregate
+Iron Storm profile (ModelSet, aggregate type map, Scenario IronStorm_Centre_52_Aggregate, composition; DEMO_RUNBOOK 2.2;
+pinned by `--rulings-selftest` (s5)/(s15), where the guard ALLOWS STP's raw Iron Storm order under it). No 5.0.2 twin is needed: the 5.0.2 app has not compiled from this source
 since the container bridge members. OFFLINE-PROVEN ONLY (b5c6d02; not deployed, not live).
 
 ### 11l. THE SHIPPED PROFILE, PINNED - AND WHERE THE BASE STILL DISAGREES (audit 2026-09-28 fix 1)
@@ -4176,11 +4177,12 @@ since the container bridge members. OFFLINE-PROVEN ONLY (b5c6d02; not deployed, 
 `--rulings-selftest` section "AUDIT 2026-09-28 fix 1" (`src/VrfC2SimApp/ShippedProfileSelfTest.cs`) reads both shipped
 json files through the real configuration stack, RunScenario.sh's exports and the aggregate type map, and fails when a
 settled value moves: TypeMappingMode=FidelityTable (RL-20260902-01) and CreationPolicy=AtOrder (RL-20260906-02) in the
-Demo overlay and the wrapper; StallDetection ON in the demo only (RL-20260925-01 Q3); ModelSet EntityLevel
-(RL-20260927-06); OpposingNation RUS, and RUS = DIS 260 in the aggregate map (RL-20260927-02); ConfigFileIdentity (Y-2);
+Demo overlay and the wrapper; StallDetection ON in the demo only (RL-20260925-01 Q3); ModelSet EntityLevel in the base and
+AggregateTacticalLevel in the Demo overlay since 2026-10-05 (RL-20260927-06; s15 pins the type map, scenario, composition,
+StallClock sim and the 600 s floor that travel with it); OpposingNation RUS, and RUS = DIS 260 in the aggregate map (RL-20260927-02); ConfigFileIdentity (Y-2);
 ComposeHierarchy ON (C1/C2); AggregateFormation OFF (C4). It pins what SHIPS and chooses nothing: the base
 appsettings.json / VrfSettings.cs still default to RealTemplates, AtInit and the CWIX-2024 identity, and the stall
-window ships as 240 WALL s against the 120 simulated s approved in RL-20260913-03 - each is named in its check as the
+window ships as 240 WALL s (360 SIM s in the Demo overlay since 2026-10-05) against the 120 simulated s approved in RL-20260913-03 - each is named in its check as the
 owner's open question (audit sec 5). `scripts/RunC2SimScenario.ps1 -VrfProfile` now DEFAULTS TO 5.2 (audit row
 5.0.2-ARCHIVE); `-VrfProfile 5.0.2` still selects the historical path (RTT 8b pins the default, 8k/8l the 5.0.2 leg).
 

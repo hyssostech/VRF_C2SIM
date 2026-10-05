@@ -154,9 +154,12 @@ public static class OsmSelfTest
         Check(shipped.ModelSet == "EntityLevel" && shipped.PreflightBuildingClearanceMeters == 10.0
               && shipped.PreflightVertexNudgeMaxMeters == 300.0,
               "appsettings.json WRITES the three defaults down (not only compiled in)");
-        Check(overlay.ModelSet == "EntityLevel" && overlay.PreflightBuildingClearanceMeters == 10.0
+        // 2026-10-05: the Demo overlay is the Iron Storm AGGREGATE demo profile (ShippedProfileSelfTest s5/s15), so its
+        // ModelSet - and with it the pre-flight's leg rule - is AggregateTacticalLevel; the base stays EntityLevel.
+        Check(overlay.ModelSet == "AggregateTacticalLevel" && overlay.PreflightBuildingClearanceMeters == 10.0
               && overlay.PreflightVertexNudgeMaxMeters == 300.0,
-              "the Demo overlay states them too");
+              "the Demo overlay states them too - ModelSet AggregateTacticalLevel (the Iron Storm demo profile since " +
+              "2026-10-05, so the demo pre-flight runs the AGGREGATE leg rule), clearance 10 m, nudge 300 m");
         // (c) RL-20261004-01: the member-slot water clearance, = the planner's 10 m buffer (RL-20260928-03).
         var appCfg = new ConfigurationBuilder().AddJsonFile(app, false).Build().GetSection("Vrf");
         var demoCfg = new ConfigurationBuilder().AddJsonFile(demo, false).Build().GetSection("Vrf");

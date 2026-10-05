@@ -4872,7 +4872,7 @@ public sealed class VrfC2SimService : BackgroundService
         // RL-20260927-06 ("Higher echelons can only be run at aggregate level because of vrf limitations") and
         // RL-20260928-01 (D2 as recommended: no downward override). The runner CHOOSES the model set from the order at
         // Stage 0 (RunnerLib Select-ModelSetByEchelon); an interface started by hand (scripts/StartInterface52.ps1 with the
-        // Demo overlay, Vrf:ModelSet=EntityLevel) chooses nothing, and VR-Forces loaded its model set before this order
+        // Demo overlay - AggregateTacticalLevel since 2026-10-05, EntityLevel before) chooses nothing, and VR-Forces loaded its model set before this order
         // arrived. So the app's twin of the rule is this GUARD: an order that tasks a unit ABOVE BN on EntityLevel is
         // REFUSED - one ERROR line, every task TASKABRT - and never run at entity level in silence. The ladder and the
         // threshold are the runner's (EchelonLadder; --rulings-selftest (g1) and RunnerTurnaround 8z hold them equal).
