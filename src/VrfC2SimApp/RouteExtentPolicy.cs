@@ -219,6 +219,196 @@ public static class RouteExtentPolicy
            "to a standstill). Raise Vrf:MaxVertexFromTaskeeKm / Vrf:MaxRouteLegKm only if the " +
            "move really is that long.";
 
+    // ============= RL-20261005-02: THE DEMO TERRAIN EXTENT (Vrf:DemoExtent) =====================
+    // WHY. The Way B rehearsal (docs/experiments/REHEARSAL_WAYB_2026-10-05.md, Result + ADDENDUM
+    // 2026-10-05) ran STP's raw Iron Storm export, whose routes reach about 24.4 E; the back end's
+    // terrain feature paging and planner obstacle-area collection fell minutes behind and it stopped
+    // publishing 4.8 min after the order. The owner's ruling RL-20261005-02 (option (a)): the
+    // interface bounds the demo by a TERRAIN EXTENT SETTING - a task whose geometry leaves it is
+    // REPORTED out of area (TASKABRT with the reason), not executed; STP's export is unchanged.
+    //
+    // HOW IT RELATES TO RULE (c) ABOVE. Rule (c) is "inside the LOADED terrain", which no remote
+    // controller can read (KnownExtent stays null, and that statement stays true). The demo extent
+    // is NOT that: it is an OPERATOR'S BOUND, configured, never inferred. It reuses rule (c)'s box
+    // (Extent), its verdict (Violation.OutsideExtent) and the same refusal path (NotifyAbandoned +
+    // one TASKABRT through the single emit point), but it runs EARLIER - at ORDER RECEIPT, before
+    // any member is populated and before any task is orchestrated - because the cost it exists to
+    // avoid (terrain paging around a performer) starts at population, not at dispatch.
+    //
+    // WHAT IS TESTED, per task: the performer's AUTHORED start position (the init coordinate, the
+    // one its members are placed around), every point the interface would drive (the resolved
+    // route vertices / point / area centroid - TaskGeometryResolver, the same call dispatch makes),
+    // and every vertex of every AREA graphic the task names (the objective ring itself, not only its
+    // centroid). An embedded Location that a MapGraphicID overrides is NOT tested: nothing drives it.
+
+    /// <summary>The setting and the ruling, as every demo-extent line names them.</summary>
+    public const string DemoExtentRuling = "Vrf:DemoExtent, RL-20261005-02";
+
+    /// <summary>The TASKABRT prefix (locked by --routeextent-selftest).</summary>
+    public const string OutOfDemoExtent = "OUT OF DEMO EXTENT";
+
+    /// <summary>The configured demo extent: the authored box, its margin, and the box widened by
+    /// that margin, which is what is tested.</summary>
+    public readonly record struct DemoBound(Extent Authored, double MarginKm, Extent Bounded)
+    {
+        /// <summary>"the demo extent S 53.93972 W 23.10848 N 54.11939 E 23.41436 + 2 km margin".</summary>
+        public string Describe()
+            => $"the demo extent S {LL(Authored.MinLat)} W {LL(Authored.MinLon)} N {LL(Authored.MaxLat)} " +
+               $"E {LL(Authored.MaxLon)}" + (MarginKm > 0 ? $" + {KmB(MarginKm * 1000.0)} km margin" : "");
+    }
+
+    /// <summary>
+    /// Parse Vrf:DemoExtent ("south,west,north,east", decimal degrees, invariant culture) and
+    /// Vrf:DemoExtentMarginKm. Empty or whitespace = OFF: returns true with <paramref name="bound"/>
+    /// null. Anything else that is not four finite numbers with south &lt; north, west &lt; east,
+    /// latitudes in [-90, 90] and longitudes in [-180, 180], or a negative / non-finite margin,
+    /// returns false with the reason - the caller logs it as an ERROR and runs with the bound OFF.
+    /// </summary>
+    public static bool TryParseDemoExtent(string text, double marginKm, out DemoBound? bound, out string error)
+    {
+        bound = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var parts = text.Split(',');
+        if (parts.Length != 4)
+        {
+            error = $"Vrf:DemoExtent='{text}' must be four numbers 'south,west,north,east' (got {parts.Length} field(s))";
+            return false;
+        }
+        var v = new double[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (!double.TryParse(parts[i].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v[i])
+                || double.IsNaN(v[i]) || double.IsInfinity(v[i]))
+            {
+                error = $"Vrf:DemoExtent='{text}': field {i + 1} ('{parts[i].Trim()}') is not a finite number";
+                return false;
+            }
+        }
+        double s = v[0], w = v[1], n = v[2], e = v[3];
+        if (s < -90 || n > 90 || w < -180 || e > 180 || !(s < n) || !(w < e))
+        {
+            error = $"Vrf:DemoExtent='{text}' is not a box: it needs -90 <= south < north <= 90 and " +
+                    "-180 <= west < east <= 180 (no antimeridian wrap)";
+            return false;
+        }
+        if (double.IsNaN(marginKm) || double.IsInfinity(marginKm) || marginKm < 0)
+        {
+            error = $"Vrf:DemoExtentMarginKm={marginKm.ToString(CultureInfo.InvariantCulture)} must be a finite number >= 0";
+            return false;
+        }
+        var authored = new Extent(s, n, w, e);
+        bound = new DemoBound(authored, marginKm, Widen(authored, marginKm * 1000.0));
+        return true;
+    }
+
+    /// <summary>The box widened by <paramref name="marginMeters"/> on every side. The longitude
+    /// widening is computed at the box's edge FURTHEST from the equator (after the latitude
+    /// widening), where a degree of longitude is shortest - so the margin is at least the stated
+    /// distance everywhere along the east and west edges, never less.</summary>
+    public static Extent Widen(Extent e, double marginMeters)
+    {
+        if (!(marginMeters > 0)) return e;
+        double degLat = marginMeters / (EarthRadiusMeters * Math.PI / 180.0);
+        double worstLat = Math.Min(89.0, Math.Max(Math.Abs(e.MinLat), Math.Abs(e.MaxLat)) + degLat);
+        double degLon = degLat / Math.Cos(worstLat * Math.PI / 180.0);
+        return new Extent(Math.Max(-90.0, e.MinLat - degLat), Math.Min(90.0, e.MaxLat + degLat),
+                          e.MinLon - degLon, e.MaxLon + degLon);
+    }
+
+    /// <summary>Great-circle metres from a point to the nearest point of the box (0 inside or on
+    /// the edge). The nearest point is the point clamped into the box - exact due north/south/east/
+    /// west of an edge, and within a fraction of a percent at a corner at this project's scale.</summary>
+    public static double MetersOutside(Extent box, double lat, double lon)
+    {
+        if (box.Contains(lat, lon)) return 0.0;
+        double cLat = Math.Min(box.MaxLat, Math.Max(box.MinLat, lat));
+        double cLon = Math.Min(box.MaxLon, Math.Max(box.MinLon, lon));
+        return GreatCircleMeters(lat, lon, cLat, cLon);
+    }
+
+    /// <summary>One point the demo-extent check tests, with what it IS (the refusal names it).</summary>
+    public readonly record struct ExtentPoint(string What, double Lat, double Lon);
+
+    /// <summary>
+    /// The points the demo extent tests for ONE task, in the order the refusal reports them: the
+    /// performer's start first, then the driven geometry in route order, then the area rings. PURE:
+    /// the same TaskGeometryResolver.Resolve call ExecuteTaskOnTick makes (its log lines discarded -
+    /// dispatch logs them), so the order-receipt check judges exactly what dispatch would drive.
+    /// </summary>
+    public static List<ExtentPoint> DemoExtentPoints(OrderTask task, IReadOnlyDictionary<string, TaskGraphic> graphics,
+                                                     (double Lat, double Lon)? performerStart)
+    {
+        var outp = new List<ExtentPoint>();
+        if (performerStart is { } ps)
+            outp.Add(new ExtentPoint("the performer's start position", ps.Lat, ps.Lon));
+        if (task == null) return outp;
+        var geometry = TaskGeometryResolver.Resolve(task, graphics, performerStart);
+        var reading = TaskGeometryInterpretation.Interpret(task.ActionCode, geometry.Points, geometry.Source);
+        int n = geometry.Points.Count;
+        string kind = reading.Kind switch
+        {
+            GeometryKind.ObjectiveArea => "objective area vertex",
+            GeometryKind.Point => "task point",
+            _ => "route vertex",
+        };
+        for (int i = 0; i < n; i++)
+            outp.Add(new ExtentPoint(n == 1 ? (reading.Kind == GeometryKind.Route ? "route point" : "task point")
+                                            : $"{kind} {i + 1} of {n}",
+                                     geometry.Points[i].Lat, geometry.Points[i].Lon));
+        // The rings of the AREA graphics the task names. The resolver reduces a MapGraphicID area to
+        // its centroid (the destination); the ring is still the task's ground.
+        if (geometry.Source == GeometrySource.MapGraphic && graphics != null)
+            foreach (var id in task.MapGraphicUuids ?? Array.Empty<string>())
+                if (graphics.TryGetValue(id, out var g) && g.Points is { Count: > 0 }
+                    && string.Equals(g.Kind, TaskGraphic.KindArea, StringComparison.OrdinalIgnoreCase))
+                    for (int j = 0; j < g.Points.Count; j++)
+                        outp.Add(new ExtentPoint($"area '{g.Name}' vertex {j + 1} of {g.Points.Count}",
+                                                 g.Points[j].Lat, g.Points[j].Lon));
+        return outp;
+    }
+
+    /// <summary>
+    /// THE DEMO-EXTENT VERDICT for one task. <paramref name="bound"/> null = OFF = Ok (the OFF arm
+    /// is the same call). The FIRST point outside wins - the performer's start when it is outside,
+    /// which is also why that performer is not populated - and the reason adds how many of the
+    /// task's points are outside and how far the farthest is. Meters = the named point's distance
+    /// outside the widened box; BoundMeters = the margin.
+    /// </summary>
+    public static Verdict CheckDemoExtent(DemoBound? bound, IReadOnlyList<ExtentPoint> points)
+    {
+        if (bound is not DemoBound b || points == null || points.Count == 0) return Verdict.Ok;
+        int first = -1, outside = 0;
+        double farthest = 0.0;
+        for (int i = 0; i < points.Count; i++)
+        {
+            double d = MetersOutside(b.Bounded, points[i].Lat, points[i].Lon);
+            if (d <= 0.0) continue;
+            outside++;
+            if (first < 0) first = i;
+            farthest = Math.Max(farthest, d);
+        }
+        if (first < 0) return Verdict.Ok;
+        var p = points[first];
+        double dm = MetersOutside(b.Bounded, p.Lat, p.Lon);
+        string reason = $"{p.What} at {LL(p.Lat)},{LL(p.Lon)} is {Km3(dm)} km outside {b.Describe()}";
+        string tally = outside == 1
+            ? $"1 of {points.Count} checked point(s) outside"
+            : $"{outside} of {points.Count} checked points outside, the farthest {Km3(farthest)} km out";
+        return new Verdict(Violation.OutsideExtent, first, p.Lat, p.Lon, dm, b.MarginKm * 1000.0,
+                           reason + " - " + tally);
+    }
+
+    /// <summary>The TASKABRT text: "OUT OF DEMO EXTENT: &lt;what&gt; at &lt;lat,lon&gt; is &lt;km&gt; km
+    /// outside &lt;extent&gt; - &lt;tally&gt; (Vrf:DemoExtent, RL-20261005-02) - task 'X' refused, not executed".</summary>
+    public static string DemoExtentAbort(string taskName, Verdict v)
+        => $"{OutOfDemoExtent}: {v.Reason} ({DemoExtentRuling}) - task '{taskName}' refused, not executed; " +
+           "STP's order is unchanged";
+
+    /// <summary>A distance outside, in km to the metre ("0.001", "41.234").</summary>
+    private static string Km3(double meters)
+        => (meters / 1000.0).ToString("F3", CultureInfo.InvariantCulture);
+
     /// <summary>Latitude/longitude as the refusal prints them - 5 decimals, invariant.</summary>
     private static string LL(double v)
         => v.ToString("F5", CultureInfo.InvariantCulture);

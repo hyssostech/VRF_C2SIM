@@ -951,6 +951,23 @@ public sealed class VrfC2SimService : BackgroundService
             _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
         }
 
+        // 0d-iii. THE DEMO TERRAIN EXTENT (RL-20261005-02; Vrf:DemoExtent, DEFAULT OFF). Parsed once
+        // here; OnOrder refuses at receipt every task whose geometry or performer start leaves it.
+        if (!RouteExtentPolicy.TryParseDemoExtent(_vrf.DemoExtent, _vrf.DemoExtentMarginKm,
+                                                   out _demoExtent, out string demoExtentError))
+            _log.LogError("DEMO EXTENT NOT ARMED: {Why}. The bound is OFF for this run - every task is accepted " +
+                          "whatever its geometry ({Ruling}).", demoExtentError, RouteExtentPolicy.DemoExtentRuling);
+        else if (_demoExtent is RouteExtentPolicy.DemoBound demoBound)
+            _log.LogInformation("DEMO EXTENT ON ({Ruling}): {Extent} (tested box lat {S:F5}..{N:F5}, lon {W:F5}..{E:F5}). " +
+                                "At order receipt a task whose performer's start, route vertices, point or area " +
+                                "leaves it is REFUSED with one TASKABRT ({Prefix}) and not populated or executed; " +
+                                "its successors are skipped. STP's order is unchanged.",
+                                RouteExtentPolicy.DemoExtentRuling, demoBound.Describe(),
+                                demoBound.Bounded.MinLat, demoBound.Bounded.MaxLat,
+                                demoBound.Bounded.MinLon, demoBound.Bounded.MaxLon, RouteExtentPolicy.OutOfDemoExtent);
+        else
+            _log.LogInformation("DEMO EXTENT OFF (Vrf:DemoExtent empty): no order is bounded by area.");
+
         // 0d. TASK-CLOCK PRE-FLIGHT (R4/M2). THREE THINGS RIDE ON ONE CLOCK - the Duration that
         // ends a task, the StartTime delay that holds one back, and the STREND predecessor gate -
         // and which one that is decides whether a 42-task order runs or dies at its first gate.
@@ -5038,6 +5055,9 @@ public sealed class VrfC2SimService : BackgroundService
                                 "compress the order with Vrf:DurationScale (E4).", lead, backstop, backstop);
         }
 
+        var demoRefused = new List<string>();                                     // RL-20261005-02
+        var demoRefusedUuids = new HashSet<string>(StringComparer.Ordinal);
+        var demoAcceptedPerformers = new HashSet<string>(StringComparer.Ordinal);  // unit names with a task inside
         foreach (var task in order.Tasks)
         {
             if (string.IsNullOrEmpty(task.TaskeeUuid))
@@ -5080,6 +5100,30 @@ public sealed class VrfC2SimService : BackgroundService
                                "this interface has no unit to task");
                 continue;
             }
+            // RL-20261005-02: THE DEMO TERRAIN EXTENT (Vrf:DemoExtent; RouteExtentPolicy). BEFORE the
+            // population below and before the orchestration: a task with any point outside the bound
+            // is refused here - one ERROR, one TASKABRT, NotifyAbandoned so its successors are skipped
+            // by the existing cascade - and its performer is NOT populated for it. OFF (null) = the
+            // check is not even assembled, so an unbounded run is byte-identical to before.
+            if (_demoExtent is RouteExtentPolicy.DemoBound demo)
+            {
+                (double Lat, double Lon)? start =
+                    _authoredPosByName.TryGetValue(unit.Name, out var sp) ? sp : null;
+                var extentVerdict = RouteExtentPolicy.CheckDemoExtent(
+                    demo, RouteExtentPolicy.DemoExtentPoints(task, _graphicsByC2SimUuid, start));
+                if (extentVerdict.Violated)
+                {
+                    demoRefused.Add(task.TaskName);
+                    demoRefusedUuids.Add(task.TaskUuid ?? "");
+                    _log.LogError("Task '{Task}' ({Unit}) is OUT OF THE DEMO EXTENT and will NOT be executed: {Why}",
+                                  task.TaskName, unit.Name, RouteExtentPolicy.DemoExtentAbort(task.TaskName, extentVerdict));
+                    _sequencer.NotifyAbandoned(task.TaskUuid);
+                    PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                                   RouteExtentPolicy.DemoExtentAbort(task.TaskName, extentVerdict));
+                    continue;
+                }
+                demoAcceptedPerformers.Add(unit.Name);
+            }
             // Orchestrate the task off-thread: wait for its predecessor + start delay
             // (TaskSequencer), THEN marshal the bridge work onto the tick thread. The C++
             // busy-waited inline (one detached thread per task); this awaits without
@@ -5109,6 +5153,23 @@ public sealed class VrfC2SimService : BackgroundService
             var u = unit;
             _ = RunTaskAsync(t, u);
         }
+
+        // RL-20261005-02: one summary line per order while the demo extent is ON.
+        if (_demoExtent is RouteExtentPolicy.DemoBound demoSummary)
+        {
+            var unpopulated = order.Tasks
+                .Where(t => demoRefusedUuids.Contains(t.TaskUuid ?? "") && !string.IsNullOrEmpty(t.TaskeeUuid)
+                            && _unitByC2SimUuid.ContainsKey(t.TaskeeUuid))
+                .Select(t => _unitByC2SimUuid[t.TaskeeUuid].Name)
+                .Where(n => !demoAcceptedPerformers.Contains(n))
+                .Distinct().ToList();
+            _log.LogInformation("DEMO EXTENT ({Ruling}): {In} task(s) in this order, {Refused} refused out of {Extent}" +
+                                "{List}; performer(s) with no task accepted in this order, so not populated by it: " +
+                                "{Unpop}.", RouteExtentPolicy.DemoExtentRuling, order.Tasks.Count, demoRefused.Count,
+                                demoSummary.Describe(),
+                                demoRefused.Count > 0 ? " [" + string.Join(", ", demoRefused) + "]" : "",
+                                unpopulated.Count > 0 ? string.Join(", ", unpopulated) : "none");
+        }
     }
 
     /// <summary>R4: one place applies Vrf:DurationScale to an authored order time, so the Duration
@@ -5126,6 +5187,9 @@ public sealed class VrfC2SimService : BackgroundService
     // the same reason: a value the start-up line has already refused must not be read again by
     // the gate derivation and quietly applied anyway.
     private double _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
+
+    // The VALIDATED Vrf:DemoExtent (RL-20261005-02). Resolved once in ExecuteAsync; null = OFF.
+    private RouteExtentPolicy.DemoBound? _demoExtent;
 
     private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
     {
