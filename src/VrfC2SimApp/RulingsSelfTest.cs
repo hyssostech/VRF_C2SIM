@@ -531,9 +531,10 @@ public static class RulingsSelfTest
               "... and a refused scale leaves the authored time UNCHANGED - the order as written, " +
               "never a task that ends at once");
 
-        // (b11) THE ORDER'S DURATION FORMATS (review item 8). findTotalIsoMs is a strict
-        //       fixed-shape decoder, and R4 now decides completion on its output, so what it
-        //       ACCEPTS and what it REFUSES both matter.
+        // (b11) THE ORDER'S DURATION FORMATS (review item 8). R4 decides completion on
+        //       findTotalIsoMs's output, so what it ACCEPTS and what it REFUSES both matter. Since
+        //       RL-20261004-06 (3) it accepts TWO spellings - the C2SIM 1.1 pattern form and the
+        //       ISO-8601 short form STP writes (STP-848) - and refuses everything else.
         Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00DT01H20M00S") == 4800000L
                          && OrderParser.FindTotalIsoMs("P00Y00M00DT02H00M00S") == 7200000L,
               "the two COA-STP1 Durations decode to 4,800 s and 7,200 s");
@@ -543,8 +544,46 @@ public static class RulingsSelfTest
         Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M01DT00H00M00S") == 86400000L
                          && OrderParser.FindTotalIsoMs("P01Y00M00DT00H00M00S") == 31536000000L,
               "the day and year terms are unchanged (nominal 24 h and 365 d)");
-        Check(ref failures, OrderParser.FindTotalIsoMs("PT1H20M") == -1L,
-              "the SHORT ISO-8601 form PT1H20M is REFUSED (-1), not silently read as zero");
+        // RL-20261004-06 (3): the short form decodes to EXACTLY its pattern-form twin, and is
+        // labelled as the short form (that label is what the order's one warning is built from).
+        foreach (var (shortForm, twin) in new[]
+                 {
+                     ("PT20M", "P00Y00M00DT00H20M00S"), ("PT30M", "P00Y00M00DT00H30M00S"),
+                     ("PT50M", "P00Y00M00DT00H50M00S"), ("PT10M", "P00Y00M00DT00H10M00S"),
+                     ("PT0S", "P00Y00M00DT00H00M00S"), ("PT1H30M", "P00Y00M00DT01H30M00S"),
+                     ("PT1H20M", "P00Y00M00DT01H20M00S"), ("PT2H", "P00Y00M00DT02H00M00S"),
+                     ("P1DT2H", "P00Y00M01DT02H00M00S"), ("PT90M", "P00Y00M00DT00H90M00S"),
+                     ("PT45S", "P00Y00M00DT00H00M45S"), ("P1D", "P00Y00M01DT00H00M00S"),
+                     ("P1Y", "P01Y00M00DT00H00M00S"), ("P1M", "P00Y01M00DT00H00M00S"),
+                     ("P1Y3DT5M", "P01Y00M03DT00H05M00S"),
+                 })
+        {
+            long s = OrderParser.DecodeIsoDuration(shortForm, out var sf);
+            long p = OrderParser.DecodeIsoDuration(twin, out var pf);
+            Check(ref failures, s >= 0 && s == p && sf == OrderParser.IsoDurationForm.IsoShort
+                                && pf == OrderParser.IsoDurationForm.C2SimPattern,
+                  $"RL-20261004-06: the ISO-8601 short form {shortForm} decodes to {s} ms = its pattern twin " +
+                  $"{twin} ({p} ms), labelled {sf} / {pf}");
+        }
+        Check(ref failures, OrderParser.FindTotalIsoMs("P1M") == 2592000000L
+                         && OrderParser.FindTotalIsoMs("PT1M") == 60000L,
+              "the short form's M is MONTHS before the T (nominal 30 d, as the pattern form) and MINUTES after it");
+        Check(ref failures, OrderParser.DecodeIsoDuration("P1Y2M3DT4H5M6S", out var allDesignators) == 36993906000L
+                         && allDesignators == OrderParser.IsoDurationForm.C2SimPattern,
+              "UNCHANGED: a value with EVERY designator but one-digit fields (P1Y2M3DT4H5M6S) was already read by " +
+              "the pattern-form port and still is, by it - the short-form decoder only sees what that port refuses");
+        // ... and a value in NEITHER form is still refused (-1), exactly as before.
+        foreach (var garbage in new[]
+                 {
+                     "P", "PT", "P1DT", "PT20", "20M", "T20M", "PT1.5S", "PT1,5S", "P2W", "-PT20M", "PT-20M",
+                     "P1H", "PT1M1H", "PT20M20M", "pt20m", " PT20M", "PT20M ", "PT20M\n", "PT20MX", "P1S",
+                     "PT" + (char)0x0661 + "M", "PT99999999999999999999S", "PT9999999999999999S",
+                 })
+        {
+            long g = OrderParser.DecodeIsoDuration(garbage, out var gf);
+            Check(ref failures, g == -1L && gf == OrderParser.IsoDurationForm.Malformed,
+                  $"'{garbage.Replace("\n", "\\n")}' is in neither form and is still REFUSED as MALFORMED (-1; got {g}, {gf})");
+        }
         Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00D01H20M00S") == -1L,
               "a Duration with no 'T' separator is REFUSED (-1)");
         Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00DT01H20M00.5S") == -1L,
@@ -560,14 +599,42 @@ public static class RulingsSelfTest
         //       as "no Duration", because those two have different consequences (a warning and no
         //       end time, vs a task that is supposed to have one).
         {
-            var bad = OrderParser.Parse(TimedOrderXml(duration: "PT1H20M", startIso: null));
+            var bad = OrderParser.Parse(TimedOrderXml(duration: "PT1H20X", startIso: null));
             Check(ref failures, bad.Tasks.Count == 1 && bad.Tasks[0].DurationMs == 0
-                             && bad.Warnings.Any(w => w.Contains("PT1H20M")),
-                  $"a Duration that is PRESENT but unreadable gives DurationMs=0 AND a warning naming it " +
-                  $"({bad.Warnings.Count} warning(s))");
+                             && bad.Warnings.Count(w => w.Contains("'PT1H20X' is MALFORMED")) == 1
+                             && !bad.Warnings.Any(w => w.Contains(OrderParser.ShortFormWarningMarker)),
+                  $"a Duration that is PRESENT but unreadable (in neither form) gives DurationMs=0 AND a MALFORMED " +
+                  $"warning naming it ({bad.Warnings.Count} warning(s))");
             var good = OrderParser.Parse(TimedOrderXml(duration: "P00Y00M00DT01H20M00S", startIso: null));
-            Check(ref failures, good.Tasks[0].DurationMs == 4800000L && good.Warnings.Count == 0,
-                  "... and a readable one gives the authored milliseconds with no warning");
+            Check(ref failures, good.Tasks[0].DurationMs == 4800000L && good.Warnings.Count == 0
+                             && good.ShortFormDurations.Count == 0,
+                  "... and a readable pattern-form one gives the authored milliseconds with no warning");
+            // RL-20261004-06 (3): the short form is ACCEPTED, and never silently.
+            var shortOne = OrderParser.Parse(TimedOrderXml(duration: "PT1H20M", startIso: null));
+            Check(ref failures, shortOne.Tasks[0].DurationMs == 4800000L
+                             && shortOne.Warnings.Count == 1
+                             && shortOne.Warnings[0].Contains(OrderParser.ShortFormWarningMarker)
+                             && shortOne.Warnings[0].Contains("NON-CONFORMING C2SIM 1.1")
+                             && shortOne.Warnings[0].Contains("task 'T_Timed' Duration 'PT1H20M'"),
+                  $"RL-20261004-06: a short-form Duration PT1H20M gives the SAME 4,800,000 ms as its pattern twin " +
+                  $"(got {shortOne.Tasks[0].DurationMs}) AND one warning naming it non-conforming C2SIM 1.1, " +
+                  $"'{OrderParser.ShortFormWarningMarker}' ({shortOne.Warnings.Count} warning(s))");
+            // ONCE PER ORDER, however many short-form values it carries and wherever they sit.
+            var many = OrderParser.Parse(ShortFormOrderXml());
+            int shortWarnings = many.Warnings.Count(w => w.Contains(OrderParser.ShortFormWarningMarker));
+            Check(ref failures, many.Tasks.Count == 3 && shortWarnings == 1
+                             && many.ShortFormDurations.Count == 5
+                             && many.Warnings.Single(w => w.Contains(OrderParser.ShortFormWarningMarker))
+                                    .StartsWith("5 IsoTimeDuration value(s)", StringComparison.Ordinal),
+                  $"RL-20261004-06: an order with 5 short-form values over 3 tasks (Durations, a SimulationTime " +
+                  $"delay, an ActionTemporalRelationship Duration) is warned about ONCE (got {shortWarnings} " +
+                  $"warning(s) over {many.ShortFormDurations.Count} value(s))");
+            Check(ref failures, many.Tasks.Count == 3
+                             && many.Tasks[0].DurationMs == 1200000L && many.Tasks[0].SimulationStartMs == 600000L
+                             && many.Tasks[1].DurationMs == 1800000L && many.Tasks[1].RelativeDelayMs == 0L
+                             && many.Tasks[2].DurationMs == 1200000L && many.Tasks[2].SimulationStartMs == 0L,
+                  "... and every one of them decodes: T1 20 min after a 10 min delay, T2 30 min (ATR PT0S), " +
+                  "T3 20 min with a pattern-form zero delay");
         }
 
         // (b13) THE ABSOLUTE StartTime (review item 8). STP exports the SimulationTime delay form,
@@ -1316,6 +1383,35 @@ public static class RulingsSelfTest
            : "<StartTime><DateTime><IsoDateTime>" + startIso + "</IsoDateTime></DateTime></StartTime>")
         + "</ManeuverWarfareTask></Task>"
         + "</OrderBody>";
+
+    /// <summary>RL-20261004-06 (3): a three-task order carrying FIVE short-form values at every site
+    /// the parser reads one (task Duration x3, a SimulationTime delay, an ActionTemporalRelationship
+    /// Duration) plus one pattern-form delay, the mix the STP export writes.</summary>
+    private static string ShortFormOrderXml()
+    {
+        static string Task(string name, string uuid, string duration, string start, string atr) =>
+            "<Task><ManeuverWarfareTask>"
+            + (atr ?? "")
+            + "<Duration><IsoTimeDuration>" + duration + "</IsoTimeDuration></Duration>"
+            + "<Name>" + name + "</Name>"
+            + "<PerformingEntity>88888888-8888-8888-8888-888888888888</PerformingEntity>"
+            + (start == null ? ""
+               : "<StartTime><SimulationTime><DelayTimeAmount><IsoTimeDuration>" + start
+                 + "</IsoTimeDuration></DelayTimeAmount></SimulationTime></StartTime>")
+            + "<TaskActionCode>SECURE</TaskActionCode>"
+            + "<UUID>" + uuid + "</UUID>"
+            + "</ManeuverWarfareTask></Task>";
+        return "<OrderBody xmlns=\"http://www.sisostds.org/schemas/C2SIM/1.1\">"
+             + "<OrderID>rulings-selftest-shortform</OrderID>"
+             + Task("T_S1", "71111111-7777-7777-7777-777777777777", "PT20M", "PT10M", null)
+             + Task("T_S2", "72222222-7777-7777-7777-777777777777", "PT30M", null,
+                    "<ActionTemporalRelationship><ActionTemporalAssociationCode>STREND</ActionTemporalAssociationCode>"
+                    + "<Duration><IsoTimeDuration>PT0S</IsoTimeDuration></Duration>"
+                    + "<TemporalAssociationWithAction>71111111-7777-7777-7777-777777777777</TemporalAssociationWithAction>"
+                    + "</ActionTemporalRelationship>")
+             + Task("T_S3", "73333333-7777-7777-7777-777777777777", "PT20M", "P00Y00M00DT00H00M00S", null)
+             + "</OrderBody>";
+    }
 
     /// <summary>
     /// Run ONE STREND gate against the real TaskSequencer and the real TimedCompletionPolicy on a

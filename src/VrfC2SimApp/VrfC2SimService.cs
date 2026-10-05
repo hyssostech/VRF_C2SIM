@@ -5634,9 +5634,9 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogError("Task '{Task}' is MALFORMED and will NOT be executed: its verb '{Code}' names no " +
                               "movement, so no VR-Forces task is issued and NOTHING but its own Duration could " +
                               "ever end it - and the order gives it no USABLE Duration. Either " +
-                              "ManeuverWarfareTask/Duration is absent, or it is present in a form the C2SIM 1.1 " +
-                              "schema does not allow (IsoTimeDuration must be P##Y##M##DT##H##M##S with every " +
-                              "field present, xsd:17-24; the short ISO form PT20M is NOT valid C2SIM) - the " +
+                              "ManeuverWarfareTask/Duration is absent, or it is present in a form the interface " +
+                              "cannot read (neither the C2SIM 1.1 P##Y##M##DT##H##M##S, xsd:17-24, nor the ISO-8601 " +
+                              "short form such as PT20M that it also accepts since RL-20261004-06) - the " +
                               "order-parse warnings above say which. Left alone this task would sit in flight " +
                               "for the run and its STREND successors would wait out the chain backstop. FIX THE " +
                               "ORDER (Q4, user ruling 2026-09-14).", task.TaskName, verb.ActionCode);

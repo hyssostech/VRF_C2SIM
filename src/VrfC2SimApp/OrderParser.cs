@@ -66,8 +66,10 @@ public static class OrderParser
             var m = t?.Item;
             if (m == null) continue;
 
-            var (simMs, startAfter, relMs, absStart) = TimingOf(m);
-            long durationMs = DurationMsOf(m.Duration);
+            string taskLabel = (m.Name ?? "").Trim();
+            var (simMs, startAfter, relMs, absStart) = TimingOf(m, taskLabel, data.ShortFormDurations);
+            long durationMs = m.Duration == null ? 0
+                            : Decode(m.Duration.IsoTimeDuration, $"task '{taskLabel}' Duration", data.ShortFormDurations);
             var task = new OrderTask
             {
                 TaskUuid = (m.UUID ?? "").Trim(),
@@ -86,21 +88,24 @@ public static class OrderParser
             };
             // R4: a Duration that is PRESENT but unreadable must not pass as "no duration" - the
             // task would then have no end time at all and (for a hold-type verb) never complete.
-            // THE FORM IS THE SCHEMA'S, NOT THIS PARSER'S PREFERENCE (2026-09-20). IsoTimeDurationBaseType
-            // is an xs:string restricted by the pattern
+            // THE C2SIM FORM IS THE SCHEMA'S. IsoTimeDurationBaseType is an xs:string restricted by the pattern
             //   [P]{1}[0-9]{2}[Y]{1}[0-9]{2}[M]{1}[0-9]{2}[D]{1}T{1}[0-9]{2}[H]{1}[0-9]{2}[M]{1}[0-9]{2}[S]{1}
             // (C2SIM_SMX_LOX_CWIX2024.xsd:17-24), i.e. EVERY field two digits, all of them present. The
             // canonical ISO-8601 short form "PT20M" is NOT valid C2SIM 1.1 - and it is what the real STP
-            // export writes on all 23 of its tasks (measured on data/STP-IRON-STORM-SYNTHETIC_Order.xml).
-            // The decoder is therefore RIGHT to refuse it and is deliberately NOT loosened: accepting the
-            // short form here would hide a schema violation in the producer and make this interface the
-            // only thing in the federation that could read the order. The warning names the pattern so the
-            // fix is on the right side of the wire.
+            // export writes (all 46 values in data/STP-IRON-STORM-SYNTHETIC_Order.xml; Jira STP-848).
+            // SUPERSEDED 2026-10-04 BY RL-20261004-06 (3): the 2026-09-20 choice to REFUSE the short form
+            // here was a seat choice, not a ruling, and the owner reversed it - the interface ALSO accepts
+            // the short form, decoded to the same milliseconds as its pattern-form twin (FindTotalIsoMs).
+            // It is never accepted SILENTLY: every short-form value read is collected and the order gets
+            // ONE warning (ShortFormWarning, below) naming it non-conforming C2SIM 1.1, accepted for
+            // interoperability, STP-848 - the producer fix stays open on STP's side. What remains refused
+            // is a value in NEITHER form; that one still leaves the task with no end time.
             if (m.Duration != null && durationMs < 0)
-                data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' VIOLATES THE " +
-                                  "C2SIM 1.1 SCHEMA: IsoTimeDuration must match P##Y##M##DT##H##M##S with every " +
-                                  "field present and two digits wide (xsd:17-24), e.g. P00Y00M00DT00H20M00S for " +
-                                  "20 minutes. The short ISO-8601 form (PT20M) is not valid C2SIM. This task " +
+                data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' is MALFORMED " +
+                                  "and VIOLATES THE C2SIM 1.1 SCHEMA: IsoTimeDuration must match " +
+                                  "P##Y##M##DT##H##M##S with every field present and two digits wide (xsd:17-24), " +
+                                  "e.g. P00Y00M00DT00H20M00S for 20 minutes; the interface also accepts the ISO-8601 " +
+                                  "short form (PT20M, RL-20261004-06), and this value is neither. This task " +
                                   "therefore has NO END TIME: R4 cannot close it on its Duration, and its STREND " +
                                   "successors will wait out the gate. FIX THE PRODUCER'S EXPORT");
             // LocationType (schema :3610-3625) is a CHOICE of GeodeticCoordinate or
@@ -135,7 +140,33 @@ public static class OrderParser
 
             data.Tasks.Add(task);
         }
+        // RL-20261004-06 (3): ONE warning per order for every short-form value it read, never one per
+        // value (an STP export carries dozens) and never none.
+        if (data.ShortFormDurations.Count > 0)
+            data.Warnings.Add(ShortFormWarning(data.ShortFormDurations));
         return data;
+    }
+
+    /// <summary>The phrase every short-form warning carries, so a log grep and the self-tests can
+    /// find it (RL-20261004-06 (3)).</summary>
+    public const string ShortFormWarningMarker = "accepted for interoperability, STP-848, RL-20261004-06";
+
+    /// <summary>The once-per-order warning for IsoTimeDuration values read in the ISO-8601 short
+    /// form: how many, which (the first three), and that they are non-conforming C2SIM 1.1.</summary>
+    public static string ShortFormWarning(IReadOnlyList<string> shortForms)
+        => $"{shortForms.Count} IsoTimeDuration value(s) in this order are in the ISO-8601 SHORT form " +
+           $"(e.g. {string.Join("; ", shortForms.Take(3))}{(shortForms.Count > 3 ? "; ..." : "")}) - " +
+           "NON-CONFORMING C2SIM 1.1 (IsoTimeDurationBaseType requires P##Y##M##DT##H##M##S, every field " +
+           $"two digits, xsd:17-24) - {ShortFormWarningMarker}: each is decoded to the same milliseconds " +
+           "as its pattern-form twin (PT20M = P00Y00M00DT00H20M00S). The producer's export should still be fixed";
+
+    /// <summary>Decode one IsoTimeDuration and, if it was in the ISO-8601 short form, record where
+    /// (<paramref name="where"/> and the value) for the order's one warning.</summary>
+    private static long Decode(string value, string where, List<string> shortForms)
+    {
+        long ms = DecodeIsoDuration(value, out var form);
+        if (form == IsoDurationForm.IsoShort) shortForms.Add($"{where} '{value}'");
+        return ms;
     }
 
     /// <summary>
@@ -221,23 +252,26 @@ public static class OrderParser
         return "";
     }
 
-    /// <summary>
-    /// R4: the task's own Duration (ManeuverWarfareTaskType.Duration, schema :4132) in ms.
-    /// Returns -1 when the element is present but undecodable (the caller warns) and 0 when it
-    /// is absent - an absent Duration is not an error, it just leaves the task with no end time.
-    /// </summary>
-    private static long DurationMsOf(S.DurationType d)
-        => d == null ? 0 : FindTotalIsoMs(d.IsoTimeDuration);
+    // R4: the task's own Duration (ManeuverWarfareTaskType.Duration, schema :4132) is decoded in
+    // Parse: -1 when the element is present but undecodable (Parse warns) and 0 when it is absent -
+    // an absent Duration is not an error, it just leaves the task with no end time.
 
-    private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(S.ManeuverWarfareTaskType m)
+    // Every IsoTimeDuration this parser reads goes through Decode (both forms, RL-20261004-06): the
+    // task Duration (Parse), the SimulationTime DelayTimeAmount and the ActionTemporalRelationship
+    // Duration (here). A malformed delay clamps to 0, as it always has.
+    private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(
+        S.ManeuverWarfareTaskType m, string taskLabel, List<string> shortForms)
     {
         long simMs = 0;
         DateTime? absStart = null;
         // StartTime is a TimeInstantType: SimulationTime (a relative DelayTimeAmount - the form
-        // STP exports), DateTime (an absolute IsoDateTime), or RelativeTime (no delay amount in
-        // the schema, so nothing to honour). R4 accepts the first two.
+        // STP exports), DateTime (an absolute IsoDateTime), or RelativeTime. R4 accepts the first
+        // two. (Correction 2026-10-04: RelativeTimeType DOES carry a DelayTimeAmount in the
+        // generated schema types - the STP export writes 14 - but this parser does not read it, in
+        // either duration form; such a task starts when its STREND gate opens.)
         if (m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null)
-            simMs = Math.Max(0, FindTotalIsoMs(st.DelayTimeAmount.IsoTimeDuration));
+            simMs = Math.Max(0, Decode(st.DelayTimeAmount.IsoTimeDuration,
+                                       $"task '{taskLabel}' StartTime/SimulationTime/DelayTimeAmount", shortForms));
         else if (m.StartTime?.Item is S.DateTimeType dt && !string.IsNullOrWhiteSpace(dt.IsoDateTime)
                  && DateTime.TryParse(dt.IsoDateTime, System.Globalization.CultureInfo.InvariantCulture,
                                       System.Globalization.DateTimeStyles.AdjustToUniversal
@@ -251,7 +285,9 @@ public static class OrderParser
         if (atr != null)
         {
             startAfter = (atr.TemporalAssociationWithAction ?? "").Trim();
-            if (atr.Duration != null) relMs = Math.Max(0, FindTotalIsoMs(atr.Duration.IsoTimeDuration));
+            if (atr.Duration != null)
+                relMs = Math.Max(0, Decode(atr.Duration.IsoTimeDuration,
+                                           $"task '{taskLabel}' ActionTemporalRelationship/Duration", shortForms));
         }
         return (simMs, startAfter, relMs, absStart);
     }
@@ -269,10 +305,88 @@ public static class OrderParser
         => (arr ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s))
                                          .Select(s => s.Trim()).ToArray();
 
+    /// <summary>Which spelling an IsoTimeDuration value was decoded from.</summary>
+    public enum IsoDurationForm
+    {
+        /// <summary>Neither form (or a negative pattern-form total): refused.</summary>
+        Malformed,
+        /// <summary>The C2SIM 1.1 pattern form P##Y##M##DT##H##M##S (xsd:17-24).</summary>
+        C2SimPattern,
+        /// <summary>The ISO-8601 short form (PT20M, P1DT2H): NOT valid C2SIM 1.1, accepted
+        /// for interoperability since RL-20261004-06 (STP-848).</summary>
+        IsoShort,
+    }
+
     /// <summary>
-    /// Port of C2SIMxmlHandler::findTotalIsoMs (C2SIMxmlHandler.cpp:245).
-    /// Decodes "P00Y00M00DT00H00M00S" to milliseconds; returns -1 if the format is
-    /// invalid (every P/Y/M/DT/H/M/S designator must be present).
+    /// Decodes an IsoTimeDuration to milliseconds in EITHER accepted spelling and says which one it
+    /// was (RL-20261004-06 (3)); returns -1 (form Malformed) for a value in neither.
+    /// (1) The C2SIM 1.1 pattern form is tried FIRST, by the unchanged port below, so conforming
+    ///     input decodes exactly as it always has (its quirks included - every designator must be
+    ///     present but any field width is read, so P1Y2M3DT4H5M6S is pattern form here; a negative
+    ///     term still gives a negative total, reported as Malformed).
+    /// (2) Only if that refuses the value is the ISO-8601 short form tried:
+    ///       P [n Y] [n M] [n D] [T [n H] [n M] [n S]]
+    ///     designators in that order, each at most once, n = one or more ASCII digits (any width),
+    ///     at least one component, and a 'T' must be followed by at least one time component.
+    ///     Y and M take the pattern form's NOMINAL values (365 d, 30 d), so P1Y equals
+    ///     P01Y00M00DT00H00M00S and P1M equals P00Y01M00DT00H00M00S - the same calendar
+    ///     approximation, applied the same way, so twins always agree.
+    ///     REFUSED (-1), as the pattern form refuses its equivalents: fractions (PT1.5S, PT1,5S),
+    ///     signs (-PT20M, PT-20M), weeks (P2W - the C2SIM pattern has no week field, so there is no
+    ///     twin to agree with), lower case, surrounding whitespace, an empty "P" or "PT", and any
+    ///     total that overflows.
+    /// </summary>
+    public static long DecodeIsoDuration(string duration, out IsoDurationForm form)
+    {
+        long ms = FindTotalIsoMsPatternForm(duration);
+        if (ms != -1)
+        {
+            form = ms >= 0 ? IsoDurationForm.C2SimPattern : IsoDurationForm.Malformed;
+            return ms;
+        }
+        ms = FindTotalIsoMsShortForm(duration);
+        form = ms >= 0 ? IsoDurationForm.IsoShort : IsoDurationForm.Malformed;
+        return ms;
+    }
+
+    /// <summary>
+    /// Decodes an IsoTimeDuration in the C2SIM 1.1 pattern form OR the ISO-8601 short form
+    /// (RL-20261004-06); -1 when it is neither. See <see cref="DecodeIsoDuration"/>.
+    /// </summary>
+    public static long FindTotalIsoMs(string duration) => DecodeIsoDuration(duration, out _);
+
+    private static readonly System.Text.RegularExpressions.Regex IsoShortForm = new(
+        @"\AP(?:([0-9]+)Y)?(?:([0-9]+)M)?(?:([0-9]+)D)?(?:(T)(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?)?\z",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>The ISO-8601 short form, by the rules in <see cref="DecodeIsoDuration"/>.</summary>
+    private static long FindTotalIsoMsShortForm(string duration)
+    {
+        if (string.IsNullOrEmpty(duration)) return -1;
+        var mt = IsoShortForm.Match(duration);
+        if (!mt.Success) return -1;
+        bool anyDate = mt.Groups[1].Success || mt.Groups[2].Success || mt.Groups[3].Success;
+        bool anyTime = mt.Groups[5].Success || mt.Groups[6].Success || mt.Groups[7].Success;
+        if (mt.Groups[4].Success && !anyTime) return -1;   // "PT", "P1DT": a T with nothing after it
+        if (!anyDate && !anyTime) return -1;               // "P": no component at all
+        long[] secondsPer = { 0, 31536000L, 2592000L, 86400L, 0, 3600L, 60L, 1L };   // same terms as the pattern form
+        try
+        {
+            long total = 0;
+            for (int g = 1; g <= 7; g++)
+                if (g != 4 && mt.Groups[g].Success)
+                    total = checked(total + secondsPer[g] * long.Parse(mt.Groups[g].Value,
+                                        System.Globalization.NumberStyles.None,
+                                        System.Globalization.CultureInfo.InvariantCulture));
+            return checked(1000L * total);
+        }
+        catch (OverflowException) { return -1; }
+    }
+
+    /// <summary>
+    /// Port of C2SIMxmlHandler::findTotalIsoMs (C2SIMxmlHandler.cpp:245) - the C2SIM 1.1
+    /// pattern form only. Decodes "P00Y00M00DT00H00M00S" to milliseconds; returns -1 if the
+    /// format is invalid (every P/Y/M/DT/H/M/S designator must be present).
     ///
     /// THE MONTH TERM IS CORRECTED, not reproduced (m4 of the cold-start review of 5c67d41).
     /// The C++ multiplies months by 30*60*60 = 108,000 s - thirty HOURS - and the port carried
@@ -285,7 +399,7 @@ public static class OrderParser
     /// measured, and correct where it now matters. Thirty days is the same convention the day
     /// and year terms already use (86,400 and 365*86,400: nominal, not calendar).
     /// </summary>
-    public static long FindTotalIsoMs(string duration)
+    private static long FindTotalIsoMsPatternForm(string duration)
     {
         try
         {
