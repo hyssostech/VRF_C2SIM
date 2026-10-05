@@ -59,16 +59,16 @@ NUMBERS: from the marker read at launch (5318 expected): the runner's 11-number 
 
 | # | Expectation | Confidence | Measured |
 |---|---|---|---|
-| R1 | Parse: 23 tasks; 46 of 46 IsoTimeDuration values decoded; exactly ONE short-form WARN naming STP-848 and RL-20261004-06 | HIGH | |
-| R2 | Population at order receipt: the performers with a composition are populated (28ID, 1-112 IN, 48 IBCT, 116 ABCT, 278 ACR, 56 SBCT, 169 FAB); 55 MEB and 11 CAB refused with the no-composition reason; total members about 99 (G1-6's 23 + tier 2a + 116 ABCT's 26) | MEDIUM | |
-| R3 | Refusals named, not silent: the leg-limit tasks (T15, T23) and the MEB/CAB tasks report TASKABRT with their reason; their successors are skipped with a reason | MEDIUM | |
-| R4 | Cut A's movers (T02, T10, T14) move on STP's ORIGINAL lines (no cut-A hand fixes in this order) under the Auto planner; arrival is RECORDED, not predicted | MEDIUM (move) | |
-| R5 | The map shows the full C2SIM designation as the Label under each unit symbol (screenshot) | MEDIUM (never observed live) | |
-| R6 | After the GUI's normal exit, Enable-LabelDecoration -Verify exits 0 (the GUI's own save kept the Label ON); exit 1 = the falsifier | MEDIUM | |
-| R7 | No back-end crash; StopVrf exit 0 or 6; the app exits 0 | MEDIUM (load 4x G1-6) | |
-| R8 | The pre-flight fetches the OSM tiles the new routes need (cache count rises from 520; 0-byte tiles counted) | MEDIUM | |
-| R9 | The 14 StartTime/RelativeTime delays of the raw export are still unread: the dispatch times follow the predecessor chains and Durations only - RECORDED with the per-task dispatch times | HIGH | |
-| R10 | Peak working set and CPU of the back end RECORDED against G1-6's (thread-samples) | - | |
+| X1 | Parse: 23 tasks; 46 of 46 IsoTimeDuration values decoded; exactly ONE short-form WARN naming STP-848 and RL-20261004-06 | HIGH | |
+| X2 | Population at order receipt: the performers with a composition are populated (28ID, 1-112 IN, 48 IBCT, 116 ABCT, 278 ACR, 56 SBCT, 169 FAB); 55 MEB and 11 CAB refused with the no-composition reason; total members about 99 (G1-6's 23 + tier 2a + 116 ABCT's 26) | MEDIUM | |
+| X3 | Refusals named, not silent: the leg-limit tasks (T15, T23) and the MEB/CAB tasks report TASKABRT with their reason; their successors are skipped with a reason | MEDIUM | |
+| X4 | Cut A's movers (T02, T10, T14) move on STP's ORIGINAL lines (no cut-A hand fixes in this order) under the Auto planner; arrival is RECORDED, not predicted | MEDIUM (move) | |
+| X5 | The map shows the full C2SIM designation as the Label under each unit symbol (screenshot) | MEDIUM (never observed live) | |
+| X6 | After the GUI's normal exit, Enable-LabelDecoration -Verify exits 0 (the GUI's own save kept the Label ON); exit 1 = the falsifier | MEDIUM | |
+| X7 | No back-end crash; StopVrf exit 0 or 6; the app exits 0 | MEDIUM (load 4x G1-6) | |
+| X8 | The pre-flight fetches the OSM tiles the new routes need (cache count rises from 520; 0-byte tiles counted) | MEDIUM | |
+| X9 | The 14 StartTime/RelativeTime delays of the raw export are still unread: the dispatch times follow the predecessor chains and Durations only - RECORDED with the per-task dispatch times | HIGH | |
+| X10 | Peak working set and CPU of the back end RECORDED against G1-6's (thread-samples) | - | |
 
 STOP RULE: none gates the window except the crash-void (V, G1-6's). The harvest is read-only; a failed expectation becomes a
 demo-readiness item, not a re-run under this registration.
