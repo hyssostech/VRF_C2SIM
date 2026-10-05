@@ -141,6 +141,10 @@ public static class ContainerSelfTest
             ["C-USA-DIV-UCI"] = (1, 0), ["C-USA-BDE-UCI"] = (17, 3), ["C-USA-BN-UCI"] = (5, 0),
             ["C-USA-BDE-UCA"] = (26, 6), ["C-USA-BN-UCIZ"] = (8, 1),
             ["C-USA-DIV-UCI-A"] = (1, 0), ["C-USA-BDE-UCI-A"] = (8, 0), ["C-USA-BDE-UCA-A"] = (29, 6),
+            // tier 2a (RL-20261004-06): 278 ACR, 56 SBCT (POL stand-ins), 169 FAB and its two battalion rows
+            ["C-USA-RGT-UCRVA"] = (26, 6), ["C-USA-BDE-UCAW"] = (5, 0), ["C-USA-BDE-UCF"] = (19, 8),
+            ["C-USA-BN-UCF"] = (9, 3), ["C-USA-BN-HIMARS"] = (9, 3),
+            ["C-USA-RGT-UCRVA-A"] = (29, 6), ["C-USA-BDE-UCAW-A"] = (8, 0), ["C-USA-BDE-UCF-A"] = (12, 4),
         };
         foreach (var other in full.Rows.Where(r => !CompositionVariants.RowBelongsTo(r.Variant, selected.Name)))
             Skip($"row {other.Id} [{other.Variant}] is not a row of variant {selected.Name}",
@@ -871,8 +875,9 @@ public static class ContainerSelfTest
         var tc = full.ForVariant(sc.Name);
         string tcIds = string.Join(",", tc.Rows.Select(r => r.Id));
         Check(!sc.Refused && sc.Name == "catalogue" && tc.SelectedVariant == "catalogue" && tc.FileRowCount == full.Rows.Count
-              && tcIds == "C-USA-DIV-UCI,C-USA-BDE-UCI,C-USA-BN-UCI,C-USA-BDE-UCA,C-USA-BN-UCIZ",
-              "Vrf:CompositionVariant=catalogue: its 3 rows plus the 2 'all' rows, in file order", tcIds);
+              && tcIds == "C-USA-DIV-UCI,C-USA-BDE-UCI,C-USA-BN-UCI,C-USA-BDE-UCA,C-USA-BN-UCIZ," +
+                          "C-USA-RGT-UCRVA,C-USA-BDE-UCAW,C-USA-BDE-UCF,C-USA-BN-UCF,C-USA-BN-HIMARS",
+              "Vrf:CompositionVariant=catalogue: its 7 rows plus the 3 'all' rows, in file order (tier 2a, RL-20261004-06)", tcIds);
         var pc = CompositionResolver.Resolve("48_IBCT", bde, "F-UCI-H", null, tc, cat);
         Check(!pc.Refused && pc.RowId == "C-USA-BDE-UCI" && pc.Leaves.Count == 17,
               "... and 48 IBCT's F-UCI-H resolves to C-USA-BDE-UCI, 17 leaves (the C1 draft) - one variant, one row",
@@ -885,9 +890,10 @@ public static class ContainerSelfTest
         string taIds = string.Join(",", ta.Rows.Select(r => r.Id));
         var fa = ta.ForMapRow("F-UCI-H");
         Check(!sa.Refused && sa.Name == "authored" && sa.Info?.ModelSet == CompositionVariants.DerivedModelSet
-              && taIds == "C-USA-BN-UCI,C-USA-BN-UCIZ,C-USA-DIV-UCI-A,C-USA-BDE-UCI-A,C-USA-BDE-UCA-A"
+              && taIds == "C-USA-BN-UCI,C-USA-BN-UCIZ,C-USA-DIV-UCI-A,C-USA-BDE-UCI-A,C-USA-BDE-UCA-A," +
+                          "C-USA-BN-HIMARS,C-USA-RGT-UCRVA-A,C-USA-BDE-UCAW-A,C-USA-BDE-UCF-A"
               && fa.Count == 1 && fa[0].Id == "C-USA-BDE-UCI-A",
-              "Vrf:CompositionVariant=Authored (any case): its 3 rows plus the 2 'all' rows; F-UCI-H -> C-USA-BDE-UCI-A",
+              "Vrf:CompositionVariant=Authored (any case): its 6 rows plus the 3 'all' rows; F-UCI-H -> C-USA-BDE-UCI-A",
               $"{taIds}; F-UCI-H -> {string.Join(",", fa.Select(r => r.Id))}");
         var su = CompositionVariants.Select(full, "autored");
         Check(su.Refused && su.Refusal.StartsWith("COMPOSITION VARIANT 'autored'", StringComparison.Ordinal)
@@ -1808,6 +1814,12 @@ public static class ContainerSelfTest
     // 36 entity-level init plans, G1's 23 members, and every shipped table row's members under the longest designator.
     private const string IdentityPinBeforeLbl = "0e54c4dae412c7c2feea2fa2fc3ffa2d43cdb18a3be443ac56b2afdd48f7c94e";
 
+    // The table rows the pin above was taken over (the catalogue variant as it stood at LBL). Rows added later - tier 2a,
+    // RL-20261004-06 - get the same Label check in (c) but stay OUT of the hash, so the pin keeps meaning "LBL moved no
+    // name and no uuid" instead of being re-taken on code it never saw (152 lines: 72 init plans, 23 members, 57 rows).
+    private static readonly HashSet<string> IdentityPinRows = new(StringComparer.Ordinal)
+        { "C-USA-DIV-UCI", "C-USA-BDE-UCI", "C-USA-BN-UCI", "C-USA-BDE-UCA", "C-USA-BN-UCIZ" };
+
     private static void P17(string repo, ResolverCatalogue cat, CompositionTable table)
     {
         Console.WriteLine("--- (p17) LBL: the full C2SIM designation in the vendor Label on every create (UG52 13.2.5) ---");
@@ -1886,7 +1898,8 @@ public static class ContainerSelfTest
             if (!lr.Refused && lr.Members.All(m => ContainerTypeRule.MemberPlan(m, Force.Friendly, m.LatDeg, m.LonDeg).Label
                                                    == LongDesignation + "." + m.Leaf.Suffix)) rowsOk++;
             else rowWrong.Add(row.Id);
-            foreach (var m in lr.Members) Line(m.Name, m.Uuid);
+            if (IdentityPinRows.Contains(row.Id))
+                foreach (var m in lr.Members) Line(m.Name, m.Uuid);
         }
         Check(rows > 0 && rowsOk == rows,
               $"EVERY shipped table row ({rows} expand): each member's Label is the whole '<designation>.<suffix>' under a " +
@@ -1898,7 +1911,7 @@ public static class ContainerSelfTest
                           System.Text.Encoding.UTF8.GetBytes(identity.ToString()))).ToLowerInvariant();
         int lines = identity.ToString().Count(ch => ch == '\n');
         Check(hash == IdentityPinBeforeLbl,
-              $"NAMES AND UUIDS UNCHANGED: the {lines} 'name|uuid' lines (36 + 36 init plans, 23 members, the table rows) hash " +
+              $"NAMES AND UUIDS UNCHANGED: the {lines} 'name|uuid' lines (36 + 36 init plans, 23 members, the LBL-era table rows) hash " +
               "to the value pinned on the code BEFORE LBL - the Label is added and nothing else moves",
               "sha256 " + hash);
 

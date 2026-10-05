@@ -16,11 +16,13 @@ Gates (each exits non-zero on failure):
               composes (a row ref, or CATALOGUE with non-empty configured subordinates, recursively)
   echelon     every subordinate is of a LOWER echelon than its container (UG52 40.80 p902: "For aggregate-level
               scenarios, the superior must be a higher echelon unit")
-  nation      every simulated leaf carries the row's DIS country (unless its note says WRONG NATION)
+  nation      every simulated leaf carries the row's DIS country (unless its entry's note says WRONG NATION - a
+              labelled STAND-IN such as 56 SBCT's Polish motorized battalions, RL-20261004-06)
   recursion   no compose cycle; depth <= MAX_DEPTH; every compose ref names a row
   mapKeys     every mapRowId exists in the aggregate type map; the row key equals its first map row's key
   coverage    every PERFORMER of the cut-A order resolves (the UnitTypeMap port in typemap_check.py) to a map row
-              a composition row covers
+              a composition row covers (--order names another order, e.g. data/IRONSTORM_FULL_Order.xml; its
+              uncovered performers are then listed by name - the tier-2a refusals, RL-20261004-06)
 VARIANTS (package C2, RL-20260927-04): every row carries "variant" - "catalogue" (catalogue units only; the vendor
 SMS), "authored" (the doctrinal composition with the AUTHORED US types; the derived set C2SIM_AggregateTacticalLevel,
 tools/sms) or "all" (both). Each variant is gated AS A WHOLE on ITS OWN chain: the catalogue variant (catalogue +
@@ -129,7 +131,7 @@ def travel_footprint(tmpl):
 # ---------------------------------------------------------------------------------------------
 
 class Node(object):
-    __slots__ = ("path", "role", "t8", "tmpl", "count_path", "children", "source", "function")
+    __slots__ = ("path", "role", "t8", "tmpl", "count_path", "children", "source", "function", "note")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -156,7 +158,7 @@ def expand_row(comp, row_id, chain, problems, depth=0, stack=()):
         tmpl = chain.resolve(t8) if t8 else None
         for i in range(max(0, s.get("count", 0) if isinstance(s.get("count"), int) else 0)):
             n = Node(path="%s/%s%d" % (row_id, s.get("function", "?"), i + 1), role=s.get("role"), t8=t8,
-                     tmpl=tmpl, children=[], source=row_id, function=s.get("function"))
+                     tmpl=tmpl, children=[], source=row_id, function=s.get("function"), note=s.get("note", ""))
             if s.get("role") == "CONTAINER":
                 ref = s.get("compose", "")
                 if ref == "CATALOGUE":
@@ -360,7 +362,8 @@ def gate_resolution_and_tree(g, comp, chain):
                 if parent_rank is not None and (nr is None or nr >= parent_rank):
                     problems.append(("echelon", "%s (%s, %s) is not below its container %s" % (
                         n.path, n.tmpl.name, sm.echelon_of(n.tmpl), parent_where)))
-                if n.role == "UNIT" and nation_code is not None and n.tmpl.otype[3] != nation_code:
+                if n.role == "UNIT" and nation_code is not None and n.tmpl.otype[3] != nation_code and \
+                        "WRONG NATION" not in (n.note or ""):
                     problems.append(("nation", "%s (%s) is DIS country %d, the row's container is %d" % (
                         n.path, n.tmpl.name, n.tmpl.otype[3], nation_code)))
                 if n.role == "CONTAINER":
@@ -434,7 +437,8 @@ def gate_coverage(g, comp, typemap, init_path=IRON_STORM_INIT, order_path=CUTA_O
         lines.append((u["name"], kind, row["id"] if row else "-", ok))
         if kind == "performer" and not ok:
             bad.append("%s -> %s has no composition row" % (u["name"], row["id"] if row else "no map row"))
-    g.check(not bad, "coverage: every performer of the cut-A order has a composition (%d performers)" % len(perf),
+    g.check(not bad, "coverage: every performer of %s has a composition (%d performers)" % (
+        "the cut-A order" if order_path == CUTA_ORDER else os.path.basename(order_path), len(perf)),
             "; ".join(bad[:6]))
     return lines
 
@@ -482,7 +486,8 @@ def gate_authored_entries(g, comp, typemap):
             "; ".join(bad[:6]))
 
 
-def run_gates(comp, typemap, chain, quiet=False, derived=None, derived_why="", authored_chain=None):
+def run_gates(comp, typemap, chain, quiet=False, derived=None, derived_why="", authored_chain=None,
+              order_path=CUTA_ORDER):
     """Returns (gate, {variant: {row id: nodes}}, {variant: coverage lines}). authored_chain overrides the chain the
     authored variant is gated on (the selftest's pairing control passes the VENDOR chain)."""
     g = Gate(quiet=quiet)
@@ -503,7 +508,7 @@ def run_gates(comp, typemap, chain, quiet=False, derived=None, derived_why="", a
         trees[v] = gate_resolution_and_tree(pg, comp_v, ch)
         gate_map_keys(pg, comp_v, typemap)
         gate_variant_unique(pg, comp_v)
-        cov[v] = gate_coverage(pg, comp_v, typemap)
+        cov[v] = gate_coverage(pg, comp_v, typemap, order_path=order_path)
     gate_authored_entries(g, comp, typemap)
     return g, trees, cov
 
@@ -843,7 +848,14 @@ def selftest(path=DEF_COMPOSITION, derived_path=None):
               # 116 ABCT = the catalogue row + FA, ENG, SPT
               ("authored", "C-USA-DIV-UCI-A"): (1, 0), ("authored", "C-USA-BDE-UCI-A"): (8, 0),
               ("authored", "C-USA-BDE-UCA-A"): (29, 6), ("authored", "C-USA-BN-UCI"): (5, 0),
-              ("authored", "C-USA-BN-UCIZ"): (8, 1)}
+              ("authored", "C-USA-BN-UCIZ"): (8, 1),
+              # tier 2a (RL-20261004-06): 278 ACR = the ABCT pattern; 56 SBCT = HQ + 3 POL stand-ins + CAV
+              # (+ FA, ENG, SPT authored); 169 FAB = HQ + a cannon BN + a HIMARS BN (+ SPT authored)
+              ("catalogue", "C-USA-RGT-UCRVA"): (26, 6), ("catalogue", "C-USA-BDE-UCAW"): (5, 0),
+              ("catalogue", "C-USA-BDE-UCF"): (19, 8), ("catalogue", "C-USA-BN-UCF"): (9, 3),
+              ("catalogue", "C-USA-BN-HIMARS"): (9, 3), ("authored", "C-USA-BN-HIMARS"): (9, 3),
+              ("authored", "C-USA-RGT-UCRVA-A"): (29, 6), ("authored", "C-USA-BDE-UCAW-A"): (8, 0),
+              ("authored", "C-USA-BDE-UCF-A"): (12, 4)}
     if trees:
         for (v, rid), (nl, nc) in sorted(pinned.items()):
             lv, ct = leaves_and_containers((trees.get(v) or {}).get(rid, []))
@@ -929,6 +941,18 @@ def selftest(path=DEF_COMPOSITION, derived_path=None):
     dirty("a PROXY with no note", proxy_no_note, "schema")
     dirty("a row with no subordinates", empty_row, "schema")
 
+    def unlabelled_stand_in(d):
+        s = next(x for x in row(d, "C-USA-BDE-UCAW")["subordinates"] if x["function"] == "INF")
+        s["note"] = s["note"].replace("WRONG NATION", "foreign")
+
+    dirty("a POL stand-in whose note does not say WRONG NATION (RL-20261004-06)", unlabelled_stand_in, "nation")
+    dirty("the FULL order: 55 MEB stays refused (RL-20261004-06)", lambda d: None,
+          "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE -> F-UCE-H has no composition row",
+          order_path=os.path.join(REPO, "data", "IRONSTORM_FULL_Order.xml"))
+    dirty("the FULL order: 11 CAB stays refused (RL-20261004-06)", lambda d: None,
+          "11_CAB/28ID__FRIENDLY_ATTACK_HELICOPTER_BRIGADE -> F-UCVRA-H has no composition row",
+          order_path=os.path.join(REPO, "data", "IRONSTORM_FULL_Order.xml"))
+
     # the variants and the authored types (package C2)
     def authored_in_catalogue(d):
         a = next(s for s in row(d, "C-USA-BDE-UCI-A")["subordinates"] if s["fidelity"] == "AUTHORED")
@@ -974,6 +998,8 @@ def main(argv=None):
                     help="print what TODAY's EntityLevel-rooted materialization would do with each container type")
     ap.add_argument("--derived-sms", default=None, metavar="SMS",
                     help="the deployed derived set the authored variant runs on (default %s)" % sm.DERIVED_AGGREGATE_SMS)
+    ap.add_argument("--order", default=CUTA_ORDER, metavar="ORDER_XML",
+                    help="the order whose performers the coverage gate checks (default: cut A, %s)" % CUTA_ORDER)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -983,11 +1009,12 @@ def main(argv=None):
     typemap = json.load(open(a.map, encoding="utf-8"))
     chain = sm.Chain()
     derived, why = tc.load_derived(a.derived_sms)
-    g, trees, cov = run_gates(comp, typemap, chain, derived=derived, derived_why=why)
+    g, trees, cov = run_gates(comp, typemap, chain, derived=derived, derived_why=why, order_path=a.order)
+    tag = "cut-A" if a.order == CUTA_ORDER else "order"
     for v in VARIANTS:
         for name, kind, rid, ok in (cov or {}).get(v, []):
-            print("  [info] [%s] cut-A %-9s %-52s -> map row %-10s %s" % (v, kind, name[:52], rid,
-                                                                        "composed" if ok else "NOT composed"))
+            print("  [info] [%s] %s %-9s %-52s -> map row %-10s %s" % (v, tag, kind, name[:52], rid,
+                                                                     "composed" if ok else "NOT composed"))
     if trees and a.tree:
         for v in VARIANTS:
             if v not in trees:
