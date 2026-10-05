@@ -3718,6 +3718,7 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 - 2026-10-05 REHEARSAL_WAYB-2026-10-05-3 (docs/experiments/REHEARSAL_WAYB_HAND_2026-10-05.md), the hand-started Way B path, every join ledgered: 5344 = LaunchVrf52 -FederationHoldAppNumber (its STP-825 holder, attempt 1); 5345 = that holder's automatic retry (+1), consumed only on a refused create; 5346 = back end; 5347 = vrfGui; 5348 = VrfC2SimApp (StartInterface52 -AppNumber). PushInit/PushOrder/StopIface join no federation. CLAIMED. Marker 5344 -> 5349.
+- RESULT 2026-10-05 (REHEARSAL_WAYB-2026-10-05-3): 5344 CONSUMED (LaunchVrf52 holder pid 67036, attempt 1); 5345 BURNED unused; 5346 CONSUMED (back end pid 26076, forced exit 6 after StopVrf52 exit 3); 5347 CONSUMED (vrfGui pid 65908, closed with no modal); 5348 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5349.
 
 *** NEXT FREE: 5349 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)

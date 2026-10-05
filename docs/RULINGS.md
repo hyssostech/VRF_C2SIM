@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-05). Archived 10-04/05: 0927-02..-06, 0928-01..-04.
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-06). Archived 10-04/05: 0927-02..-06, 0928-01..-04.
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -110,3 +110,11 @@ RL-20260928-05 | 2026-09-28 (recorded 2026-10-05) | VERBATIM - GitHub PR #1 comm
   supervisor reading: the default IS Receipt, decided 2026-09-28; the seat re-asked because the ruling sat in the PR comment, not
     in this ledger - recorded here now. PredecessorCompletion is the rollback, ReceiptAbsolute the no-rebase variant.
   pointer: PR #1 (fix/stp-850-start-at-max); the review scratch lanePR1; CORRECTIONS_LOG 2026-10-05.
+RL-20261005-06 | 2026-10-05 | VERBATIM - Q3456, TYPED (queued mid-turn)
+  Q (seat): the open items "2. Pace ... 3. Refused units on the map: keep, mark, or hide them. 4. T14: a 120 s settle hold."
+  A (owner, Q3456): "In any case? 3 is keep. Tell memore about 4 if it is really new"
+  supervisor reading: (3) units whose tasks the demo extent refuses STAY on the map as empty labelled containers (RL-20260927-03
+    unchanged). (4) not new: the early TASKCMPLT is RL-20260921-09's arrival rule; the 60 s hold is the runner's window only; on
+    the Way B demo path nothing stops the sim, so stragglers keep driving - dropped. (2) the time multiplier stays parked at 1x
+    (2026-09-02 "ok on the multipliers for now"); the demo DurationScale (0.25 rehearsed, 1.0 in the profile) is not ruled.
+  pointer: REHEARSAL_WAYB_HAND_2026-10-05 Result; DEMO_RUNBOOK 2.2 PACE.

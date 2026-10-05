@@ -130,6 +130,17 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    labels for the suffix (native + new pin); keep RL-20260914-02; file the STP geometry ask; the stray C:/C2SIMvrf-appdata-
    unattended junction cleanup (his - never recursive before the 3 junctions are rmdir'ed). Demo items: pace (time
    multiplier), refused containers on the map, label overprint, T14 stray members, StopVrf exit 6.
+   SEAT END 2026-10-05 ~19:30Z (session 7207877b; the owner noticed lapses - re-asked settled items - and a fresh seat is due).
+   Since 12:45Z: RL-20260928-05 (STP-850 default Receipt, from the PR #1 comment) and RL-20261005-04..-06 recorded; STP-962
+   filed (task geometry), STP-848 commented; the Demo overlay IS the aggregate Iron Storm profile (a73ede5); X9 (RelativeTime
+   start delays) live; DEMO_RUNBOOK rewritten for Way B; REHEARSAL_WAYB_HAND PASSED on the real hand-started path (H1-H6,
+   H8-H10; H7 clean labels on screen NOT observable - blank map in PrintWindow captures). NEXT for the new seat, in order:
+   (1) merge PR #1 (STP-850, default Receipt) - 4 conflicts + the X9 hunks in OrderParser.cs/OrderParseCheck.cs; managed
+   deploy; (2) look at the map by eye in the next GUI run (H7) and decide the demo DurationScale with the owner (0.25
+   recommended); (3) DEMO_RUNBOOK fixes from the Result (S14 forced stop in 4.2, PushInit vs a running server, OP1-OP4);
+   (4) when STP-962 lands: re-run Way B; the warm-cache test (scratch laneTERR) if the owner wants a wider extent.
+   Read first: this file, RULINGS.md (ids 1004-*, 1005-*, 0928-05), CORRECTIONS_LOG tail (the seat's six re-asks), and
+   memory feedback-read-ledger-before-asking (PR and Jira COMMENTS are record).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
