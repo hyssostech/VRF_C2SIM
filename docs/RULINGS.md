@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01, -02). Archived 10-04/05: 0927-02..-06, 0928-01.
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-03). Archived 10-04/05: 0927-02..-06, 0928-01, -03.
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -21,19 +21,6 @@ RL-20260928-02 | 2026-09-28 | VERBATIM
     ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this fix for units and its refutation called it optional - reversed) and correlates
     ObjectCreated by uuid; members get a derived uuid; names are display only. C1c (84c4f62) is demoted to a secondary key; C1d does it.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1c, C1d, G1-2; CORRECTIONS_LOG "Name-keyed identity" (2026-09-28); UG52 13.2 p362-363.
-RL-20260928-03 | 2026-09-28 | VERBATIM
-  Q (seat, P9695, after the owner's P9693 "What does the documentation say for regions with no roads. Are you basing the default to use
-    roads just on the Kaunas sample?"): "no global default. An AUTO mode decides per leg the way the manual tells an operator to: every
-    member plans with obstacleQuery MAK_OBSTACLE and a 10 m buffer regardless [...]; pathQuery MAK_ROAD when the OSM road network lies
-    within a proximity setting of the leg's line (default 500 m, from the manual's 'fairly wide area'), otherwise NONE [...]. Your
-    ruling then confirms AUTO as the default or picks an explicit mode"
-  A (owner, P9739): "AUTO it is"
-  supervisor reading: a tasked container moves by the vendor's PLANNING tasks per STP vertex (FINDING_AGGREGATE_MOVEMENT_OBSTACLES
-    _2026-09-28; UG52 35.5.11 p735, 30.5 p587): per member navigate-to-location, obstacleQuery MAK_OBSTACLE, buffer 10 m, pathQuery
-    MAK_ROAD where roads lie within Vrf:RoadProximityMeters (500) of the leg, else NONE; Vrf:AggregateMovePlanner=Auto is the default;
-    Group, PerMemberOffRoad and Literal stay selectable for registered comparisons; the pre-flight is report + fallback; the first
-    registered run is G1-3 on T14's line. Y-11/Y-13 (entity-level Ignore Roads) are untouched.
-  pointer: PLAN_MOVEMENT_2026-09-27 rows M3, G1-3; feat/aggregate-planned-move; appsettings.json _AggregateMovePlanner.
 RL-20260928-04 | 2026-09-28 | VERBATIM
   Q (owner, P10345): "DOes it make sense to have opus 5.5 run the seat, and invoke Fable for the real work requiring special skills, rather
     than burn Fable tokens as supervisor?" - the seat (P10347) answered yes with one inversion: Opus 5.5 runs the seat (orchestration, the
@@ -115,3 +102,13 @@ RL-20261005-02 | 2026-10-05 | VERBATIM - the user record after Q2570, TYPED
     REPORTED out of area (TASKABRT with the reason), not executed; STP's export stays unchanged (Way B); then a light GUI rehearsal
     of the bounded order on the run-owned unattended appData. (b) terrain pre-load is a later improvement; (c) dropped.
   pointer: REHEARSAL_WAYB_2026-10-05 Result ADDENDUM 2026-10-05 (the vendor-log backlog); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20261005-03 | 2026-10-05 | VERBATIM - Q2752 (queue-operation, typed mid-turn), unprompted
+  Q (as put): none - sent while the bounded Way B rehearsal ran (labels drawn as name + full C2SIM name).
+  A (owner, Q2752): "Add a note regarding g the Labels: C2SIM names: use just the prefix separated with "__", and remove
+    underscores to recover the clean designators. The suffix is a verbose description. Use it if there is a field that can
+    accommodate that, discard otherwise." (the owner's quotes around __ were typographic; transliterated)
+  supervisor reading: the LABEL shows the CLEAN DESIGNATOR: the C2SIM name's part before the first "__" with underscores removed
+    (e.g. 48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE -> 48 IBCT/28ID - whether "_" becomes a space or nothing is
+    the lane's to show from the data); the verbose suffix goes into a VR-Forces field that can hold it, if one exists (the
+    vendor docs decide), else it is dropped. Identity stays the UUID (RL-20260928-02).
+  pointer: HANDOFF_SEAT_2026-09-28 sec 3 item 3-4; feat/full-designation-label (the Label plumbing, merged 6a978a5).

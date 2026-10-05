@@ -13,6 +13,7 @@
 #      RL-20260927-04 (moved 2026-10-04, unchanged, to make room for RL-20261004-05; C1 decisions D-1..D-8, implemented; C2 built).
 #      RL-20260927-06 (moved 2026-10-04, unchanged, to make room for RL-20261004-06; the model-set rule, implemented as D2/D2b).
 #      RL-20260928-01 (moved 2026-10-05, unchanged, to make room for RL-20261005-01; D2 as recommended + the private server, implemented).
+#      RL-20260928-03 (moved 2026-10-05, unchanged, to make room for RL-20261005-03; AUTO planner, implemented as M3/M3b, live in G1-6).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -544,3 +545,17 @@ RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
     run - E1/E2 stay as records. (2) "Go for the server" authorises the private validation server push (127.0.0.1:18080 / 61614) for G1 and its
     successors; the operator's 8080/61613 server stays out of bounds as before.
   pointer: PLAN_MOVEMENT_2026-09-27 rows D2, G1; PREREG_IRONSTORM_AGG_G1_2026-09-28 sec 3 (C3); feat/modelset-selector.
+
+RL-20260928-03 | 2026-09-28 | VERBATIM
+  Q (seat, P9695, after the owner's P9693 "What does the documentation say for regions with no roads. Are you basing the default to use
+    roads just on the Kaunas sample?"): "no global default. An AUTO mode decides per leg the way the manual tells an operator to: every
+    member plans with obstacleQuery MAK_OBSTACLE and a 10 m buffer regardless [...]; pathQuery MAK_ROAD when the OSM road network lies
+    within a proximity setting of the leg's line (default 500 m, from the manual's 'fairly wide area'), otherwise NONE [...]. Your
+    ruling then confirms AUTO as the default or picks an explicit mode"
+  A (owner, P9739): "AUTO it is"
+  supervisor reading: a tasked container moves by the vendor's PLANNING tasks per STP vertex (FINDING_AGGREGATE_MOVEMENT_OBSTACLES
+    _2026-09-28; UG52 35.5.11 p735, 30.5 p587): per member navigate-to-location, obstacleQuery MAK_OBSTACLE, buffer 10 m, pathQuery
+    MAK_ROAD where roads lie within Vrf:RoadProximityMeters (500) of the leg, else NONE; Vrf:AggregateMovePlanner=Auto is the default;
+    Group, PerMemberOffRoad and Literal stay selectable for registered comparisons; the pre-flight is report + fallback; the first
+    registered run is G1-3 on T14's line. Y-11/Y-13 (entity-level Ignore Roads) are untouched.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows M3, G1-3; feat/aggregate-planned-move; appsettings.json _AggregateMovePlanner.
