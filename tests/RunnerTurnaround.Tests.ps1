@@ -2256,11 +2256,20 @@ if (-not (Test-Path -LiteralPath $msBash)) {
     Check '8y RunScenario.sh --model-set AggregateTacticalLevel --dry-run: accepted and echoed in the wrapper banner' (
         $msShOut -notmatch 'unknown option' -and ($msShOut -replace '\s+', ' ') -match 'model set : AggregateTacticalLevel')
 }
-# THE KEY IN BOTH APPSETTINGS FILES, default EntityLevel, with the house explanation in Demo.
+# THE KEY IN BOTH APPSETTINGS FILES, with the house explanation in Demo. EntityLevel in the base (the
+# default is not in C# only); since 2026-10-05 the Demo overlay is the Iron Storm aggregate demo profile
+# (RL-20260927-06, RL-20261004-05), so it says AggregateTacticalLevel AND carries the keys that travel with
+# it - the aggregate type map and the Iron Storm fixture - so StartInterface52.ps1 needs no hand-set env.
 $msDemo = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\appsettings.Demo.json') -Raw | ConvertFrom-Json
 $msBase = Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\appsettings.json') -Raw | ConvertFrom-Json
-Check '8y appsettings: Vrf:ModelSet is EntityLevel in BOTH files (the default is not in C# only)' (
-    $msDemo.Vrf.ModelSet -eq 'EntityLevel' -and $msBase.Vrf.ModelSet -eq 'EntityLevel')
+Check '8y appsettings.json: Vrf:ModelSet is EntityLevel (the default is not in C# only)' (
+    $msBase.Vrf.ModelSet -eq 'EntityLevel')
+Check '8y appsettings.Demo.json: Vrf:ModelSet is AggregateTacticalLevel, with the aggregate map, the Iron Storm fixture, catalogue' (
+    $msDemo.Vrf.ModelSet -eq 'AggregateTacticalLevel' -and
+    $msDemo.Vrf.TypeMapFile -eq (Get-ModelSetTypeMapDefault -ModelSet 'AggregateTacticalLevel') -and
+    $msDemo.Vrf.Scenario -eq 'IronStorm_Centre_52_Aggregate' -and $msDemo.Vrf.CompositionVariant -eq 'catalogue') (
+    'ModelSet={0} TypeMapFile={1} Scenario={2} CompositionVariant={3}' -f $msDemo.Vrf.ModelSet, $msDemo.Vrf.TypeMapFile,
+    $msDemo.Vrf.Scenario, $msDemo.Vrf.CompositionVariant)
 Check '8y appsettings.Demo.json: the _ModelSet explanation names RL-20260927-01, the map and the fixture' (
     $msDemo.Vrf._ModelSet -match 'RL-20260927-01' -and $msDemo.Vrf._ModelSet -match 'unit-type-map-52-aggregate\.json' -and
     $msDemo.Vrf._ModelSet -match 'IronStorm_Centre_52_Aggregate\.scnx')
@@ -3844,6 +3853,16 @@ foreach ($wbF in @('scripts\StartInterface52.ps1', 'scripts\StartFederationHolde
     $null = [System.Management.Automation.Language.Parser]::ParseFile($wbPath, [ref]$null, [ref]$wbErr)
     Check ('11k parses with zero errors: ' + $wbF) ($wbErr.Count -eq 0) ("errors: " + $wbErr.Count)
 }
+
+# --- 11l. 2026-10-05 (feat/demo-overlay-aggregate): the Demo overlay IS the aggregate Iron Storm profile, so Way B sets
+#     no model-set / map / scenario / clock env var by hand. 881d52e's section 2.2 typed six `$env:Vrf__...` lines (its
+#     workaround for the EntityLevel overlay, on which D2b refuses the Iron Storm order); none may come back as a command.
+$wbHandEnv = @([regex]::Matches($wbDemoText, '(?m)^\s*\$env:Vrf__(ModelSet|TypeMapFile|Scenario|StallClock|StallDetection|TaskPredecessorTimeoutSeconds|DemoExtent)\b'))
+Check '11l DEMO_RUNBOOK types no $env:Vrf__ModelSet / TypeMapFile / Scenario / StallClock / TaskPredecessorTimeoutSeconds line (the overlay carries them)' (
+    $wbHandEnv.Count -eq 0) (($wbHandEnv | ForEach-Object { $_.Value.Trim() }) -join '; ')
+Check '11l section 2.2 points at the overlay as the profile, and still marks Way B on Iron Storm UNVERIFIED' (
+    $wbDemoText -match 'appsettings\.Demo\.json IS THE IRON STORM AGGREGATE\s+DEMO PROFILE' -and
+    $wbDemoText -match 'Way B as typed below, on Iron Storm \| NEVER RUN - UNVERIFIED')
 
 # === 12. every Say-* call in scripts\*.ps1 resolves to a defined function ===
 # STP: LaunchVrf52.ps1:1158 called Say-Info from the standalone federation-holder path

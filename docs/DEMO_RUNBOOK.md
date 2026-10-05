@@ -21,6 +21,7 @@ WHAT HAS ACTUALLY RUN (read this before promising anything):
 | Way A, raw export, bounded, GUI on | PASSED 2026-10-05 (docs/experiments/REHEARSAL_WAYB_BOUNDED_2026-10-05.md) |
 | Way A, derived cut-A order | PASSED headless 2026-10-04 (G1-6); with the GUI: UNVERIFIED |
 | Way B as typed below, on Iron Storm | NEVER RUN - UNVERIFIED. The hand-started sequence ran once, on Mojave (D5c, Appendix A) |
+| The Demo profile as the Iron Storm aggregate profile (2.2, 2026-10-05) | OFFLINE ONLY (the D2b guard accepts the order under it); never run live - UNVERIFIED |
 | STP itself pushing (not a stand-in) | NEVER RUN - UNVERIFIED |
 | Clean labels ("48 IBCT/28ID", RL-20261005-03) | deployed 2026-10-05 12:39Z; not yet seen on a GUI run - UNVERIFIED |
 
@@ -159,35 +160,53 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   exit 6/7) the back end never resigned: for a second launch on the same rtiexec use numbers not used
   before (e.g. 9104/9105) - a reused number can hang on a stale federate (RUNBOOK sec 0). UNVERIFIED.
 
-2.2 THE INTERFACE, ON THE DEMO PROFILE PLUS THE AGGREGATE SETTINGS. StartInterface52 loads the Demo profile
-  (appsettings.Demo.json, which carries the demo area), but that profile says ModelSet = EntityLevel, and on
-  EntityLevel the Iron Storm order is REFUSED at receipt (it tasks brigades; RL-20260927-06,
-  RL-20260928-01). StartInterface52 has no switch for it, so set these in the SAME PowerShell window first -
-  they are the values the passing rehearsal ran with:
-      $env:Vrf__ModelSet = 'AggregateTacticalLevel'
-      $env:Vrf__TypeMapFile = 'data/unit-type-map-52-aggregate.json'
-      $env:Vrf__Scenario = 'IronStorm_Centre_52_Aggregate'
-      $env:Vrf__DurationScale = '0.25'
-      $env:Vrf__StallClock = 'sim'
-      $env:Vrf__TaskPredecessorTimeoutSeconds = '600'
+2.2 THE INTERFACE, ON THE DEMO PROFILE - SET NOTHING BY HAND. appsettings.Demo.json IS THE IRON STORM AGGREGATE
+  DEMO PROFILE (since 2026-10-05, branch feat/demo-overlay-aggregate): StartInterface52 loads it, and it carries
+  the aggregate model set (above BN is aggregate-only, RL-20260927-06 - on EntityLevel the D2b guard REFUSES this
+  order at receipt), the aggregate type map, the Iron Storm fixture (Vrf:Scenario), the catalogue composition,
+  stall detection on the SIMULATION clock (RL-20260925-01 Q3), the 600 s successor floor and the demo area
+  (RL-20261005-02) - the values the passing runs used (G1-6, the bounded rehearsal). Use a FRESH PowerShell
+  window: a window that ran the older version of this step still carries `Vrf__...` variables, and a variable
+  beats the profile. Check it:
+      Get-ChildItem Env:Vrf__* -ErrorAction SilentlyContinue
+  SEE: nothing (or only Vrf__DurationScale, see PACE below). Anything else: close the window, open a new one.
+  THE DEPLOYED PROFILE must be this one - the f58de23 deploy named in 0.2 PREDATES it and still says EntityLevel:
+      Select-String -Path src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\appsettings.Demo.json -Pattern '"ModelSet": "AggregateTacticalLevel"'
+  SEE: exactly one line. Nothing = an older deploy: stop, call an engineer (a redeploy, RUNBOOK sec 9).
       pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId "Not Set" -Server standard -WhatIf
-  Read the plan, then run the same line without -WhatIf. Use this window for nothing else, and close it
-  after the demo (the variables would leak into the next tool started from it).
+  Read the plan, then run the same line without -WhatIf. Use this window for nothing else.
   - `-ClientId` MUST equal the SystemName in the initialization STP pushes. STP's Iron Storm export says
     `Not Set`; whether STP sends the same when it pushes live is UNVERIFIED - ask the STP operator. A
     mismatch creates NOTHING and looks healthy.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
-  - DurationScale 0.25 is the rehearsed order clock (every task ends about 3 min after the order). 1.0 runs
-    STP's authored durations - longer holds - and is UNVERIFIED on this order. The choice is the owner's.
-  - The Demo profile still differs from the runner's base settings in other keys: this combination has
-    not run on Iron Storm (UNVERIFIED).
+  - PACE - THE OWNER'S OPEN DECISION. The profile keeps DurationScale 1.0: STP's authored durations, longer
+    holds, UNVERIFIED on this order. Every rehearsal ran 0.25 (every task ends about 3 min after the order).
+    Until the owner decides, for the rehearsed pace type this in the same window BEFORE the line above, and
+    close the window after the demo:
+      $env:Vrf__DurationScale = '0.25'
+  - UNVERIFIED: the profile has not run on the hand-started path, and is not deployed. It is proven OFFLINE only,
+    on its branch's build: under it the app's D2b guard ALLOWS STP's raw Iron Storm order (`--rulings-selftest`
+    (s5)), and `--runtime-check` with DOTNET_ENVIRONMENT=Demo passes.
+  WHAT THE RUNNER SET IN THE REHEARSED RUNS THAT THE PROFILE DOES NOT CARRY, AND WHY:
+  - application number (a fresh ledger number per run): the demo has its own block - 9101, StartInterface52.
+  - Vrf__ClientId and the C2SIM server pair: StartInterface52's -ClientId and -Server.
+  - Vrf__DurationScale=0.25: the owner's open decision (PACE above).
+  - object-console levels 4 / 4 (RunScenario.sh's defaults, for the scorers): the profile keeps -1, the vendor
+    default - a diagnostic channel nothing in the demo reads. A difference from the rehearsed runs (UNVERIFIED).
+  - Vrf__ConnectionConfigFile in the unattended appData tree: the profile names the vendor tree's copy; the two
+    files were byte-identical on 2026-10-05. If the unattended copy is ever edited, set it to that file.
+  - Vrf__Scenario as a rooted path: the profile names the fixture, which resolves under VrfHome to the same file.
+  - RunScenario.sh's Vrf__TaskPredecessorTimeoutSeconds=7200: every rehearsed run overrode it with 600 (--env).
+  - the MAK PATH / MAK_*DIR / RTI variables: StartInterface52 and the app's own MakRuntime bootstrap set them.
+  - RunScenario.sh's DeStackRotationDeg 0 and DropOriginVertexMeters 100 are the code defaults, inherited as is.
   SEE, in the interface console:
       *** C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=...  stomp=... ***   (must be STP's server)
       MODEL SET RULE (D2b; ...): Vrf:ModelSet='AggregateTacticalLevel' -> AggregateTacticalLevel ...
       DEMO EXTENT ON (Vrf:DemoExtent, RL-20261005-02): the demo extent S 53.93972 ... + 2 km margin ...
       READY - joined the federation, 1 VR-Forces back-end(s), type mapping = FidelityTable, ...
   If READY never appears, the interface did not join: stop and fix that before STP pushes anything.
-  "DEMO EXTENT NOT ARMED" or "-> EntityLevel" in those lines: stop (Ctrl+C), fix the variables, restart.
+  "DEMO EXTENT NOT ARMED" or "-> EntityLevel" in those lines: stop (Ctrl+C) - a stale `Vrf__` variable is
+  overriding the profile; open a fresh window and start again.
 
 2.3 STP PUSHES: the initialization first, then - after the interface prints
   `READY TO TASK - N of N init unit(s) bound` - the order. Never push a second initialization into a running
@@ -207,7 +226,9 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   <what> at <lat,lon> is <km> km outside ..."; one "POPULATE IN PLACE ... N of N created" per populated
   unit; TASKCMPLT per finished task; position reports every 10 s.
   IF THE UNITS NEVER APPEAR: (1) the server pair (2.2's loud line vs where STP pushed); (2) the ClientId;
-  (3) an ERROR "MODEL SET RULE ... REFUSED" line = 2.2's variables were not set in that window.
+  (3) an ERROR "MODEL SET RULE ... REFUSED" line = the interface did not run the Demo profile's aggregate model
+  set - a stale `Vrf__ModelSet` in the window, or the appsettings.Demo.json deployed beside the exe predates the
+  2026-10-05 profile (0.2: the deployed build must include it).
 
 2.4 STANDING IN FOR STP (rehearsal, or STP not in the room) - the endpoints MUST MATCH the pair the
   interface printed. Use BOTH lines of ONE block, never one from each:
@@ -311,7 +332,8 @@ unit map at initialization, so it must be restarted. Leave a few minutes between
   Storm rehearsal. The ratio is LOAD-DEPENDENT and moves within a run (Mojave: 2.6x under load to 4.7x
   idle, RUNBOOK sec 11f), so never quote one number; the interface's per-minute `SIM/WALL RATIO` line is
   the instrument. The real-time fixture is not in the demo path (RL-20260921-02); a time-multiplier setting
-  was never decided (HANDOFF_SEAT_2026-09-28 sec 4). With DurationScale 0.25 the show lasts about 3 min.
+  was never decided (HANDOFF_SEAT_2026-09-28 sec 4). With DurationScale 0.25 the show lasts about 3 min; the
+  Demo profile's 1.0 is longer and UNVERIFIED - the pace is the owner's open decision (2.2 PACE).
 - LABELS OVERPRINT where units stack (48 IBCT over 1-112 IN, the 28ID headquarters). Zoom in. The long
   C2SIM description after "__" is dropped for now; an extended label comes after the demo (RL-20261005-04).
 - SOME 48 IBCT MEMBERS END OFF THE OBJECTIVE: 6 of 17 stopped 262-790 m from it in the rehearsal; not yet

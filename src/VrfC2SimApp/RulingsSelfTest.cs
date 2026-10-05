@@ -2291,7 +2291,7 @@ public static class RulingsSelfTest
     private static void ChainTopology(ref int failures)
     {
         const double configured = 600.0;       // the shipped Vrf:TaskPredecessorTimeoutSeconds
-        const double demoConfigured = 7200.0;  // appsettings.Demo.json's overlay
+        const double demoConfigured = 7200.0;  // RunScenario.sh's export (the Demo overlay's floor until 2026-10-05, now 600)
         const double margin = 60.0;            // the shipped Vrf:TaskPredecessorEndMarginSeconds
         const double backstop = 86400.0;       // the shipped Vrf:TaskChainBackstopSeconds
         // Every authored time in COA-STP1 (4,800 s, 7,200 s, 12,000 s) is a whole multiple of
@@ -2325,7 +2325,7 @@ public static class RulingsSelfTest
 
             var demo = WalkChain(chain, demoConfigured, margin, 1.0, backstop, step);
             Check(ref failures, demo.Dispatched == 4 && demo.SkippedCount == 0,
-                  $"(i) ... and the same chain under the Demo overlay's 7200 s floor: " +
+                  $"(i) ... and the same chain under RunScenario.sh's 7200 s floor (the Demo overlay's until 2026-10-05): " +
                   $"{demo.Dispatched} of 4 dispatched, {demo.SkippedCount} skipped");
         }
 
@@ -2759,7 +2759,7 @@ public static class RulingsSelfTest
 
                 var demo = WalkChain(graph, demoConfigured, margin, 1.0, backstop, step);
                 Check(ref failures, demo.Dispatched == 42 && demo.SkippedCount == 0,
-                      $"(v) ... and under the Demo overlay's {demoConfigured:F0} s floor: " +
+                      $"(v) ... and under RunScenario.sh's {demoConfigured:F0} s floor (the Demo overlay's until 2026-10-05): " +
                       $"{demo.Dispatched} dispatches, {demo.SkippedCount} skipped");
 
                 // DETERMINISM. The compressed profile is where the pre-fix rule put a task on the
