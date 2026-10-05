@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-04). Archived 10-04/05: 0927-02..-06, 0928-01..-03.
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01..-05). Archived 10-04/05: 0927-02..-06, 0928-01..-04.
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -11,17 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20260928-04 | 2026-09-28 | VERBATIM
-  Q (owner, P10345): "DOes it make sense to have opus 5.5 run the seat, and invoke Fable for the real work requiring special skills, rather
-    than burn Fable tokens as supervisor?" - the seat (P10347) answered yes with one inversion: Opus 5.5 runs the seat (orchestration, the
-    record discipline, go-lives, routine adversarial reading); Fable is invoked as the cold-start REVIEWER of every cause claim and design
-    brief before it reaches the owner, and as the executor of the few judgment-heavy lanes; switch at a natural cut (after M3b / G1-4).
-  A (owner, P10359): "Ok. Slot this switch for the soonest appropriate opportunity then"
-  supervisor reading: the soonest appropriate cut is the M3b merge (the lane in flight at 19:56Z): the Fable seat merges M3b, writes the seat
-    handoff (docs/HANDOFF_SEAT_2026-09-28.md) and stops; the next session starts on Opus 5.5 and runs the deploy, the G1-4 registration and
-    the go-live on holder 5255 (RtiProbe 56380, up to ~03:00Z 09-29), invoking Fable through the Agent tool (model fable) for reviews and
-    judgment lanes. Seat quality is measured by the owner's corrections per day (2026-09-28: six).
-  pointer: docs/HANDOFF_SEAT_2026-09-28.md; CLAUDE.md sec 5 (the seat rule); memory feedback-seat-model-policy.
 RL-20261004-01 | 2026-10-04 | VERBATIM - Q171, TYPED
   Q (seat, Q159, after Fable's cold review of the G1-4 Result; markdown emphasis dropped): "My recommendation on the RULE is that the W FAIL
     binds as scored, whatever you decide about N3." [...] "(a) Keep H5 on all members and first give nudged slots a water clearance of at
@@ -111,3 +100,13 @@ RL-20261005-04 | 2026-10-05 | VERBATIM - Q3018, TYPED
     (4) the seat removed the stray C:/C2SIMvrf-appdata-unattended: 3 junctions removed as links only (targets unchanged 8/9/24
     entries), then the junction-free folder (643 copied files); the real C:/C2SIM/vrf-appdata-unattended untouched.
   pointer: STP-962; STP-848 comment 13682; scratch laneIMPL (the doctrine research); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20260928-05 | 2026-09-28 (recorded 2026-10-05) | VERBATIM - GitHub PR #1 comment by pbarthelmess, 2026-09-28T21:06:19Z
+  Q (as put): the STP-850 PR's default for Vrf:StartTimeAnchor (HANDOFF_SEAT_2026-09-28 sec 2: "the DEFAULT anchor (Receipt) is
+    the owner's to confirm").
+  A (owner, PR #1 comment): "Owner decision (Paulo Barthelmess, 2026-09-28): `Vrf:StartTimeAnchor` default = `Receipt` (start =
+    max(predecessor completion, receipt + (offset - order minOffset))). No code change needed - it is already the shipped
+    default in appsettings."
+  A (owner, Q3367, 2026-10-05, when the seat re-asked): "We already had this discussion. What does the record say?"
+  supervisor reading: the default IS Receipt, decided 2026-09-28; the seat re-asked because the ruling sat in the PR comment, not
+    in this ledger - recorded here now. PredecessorCompletion is the rollback, ReceiptAbsolute the no-rebase variant.
+  pointer: PR #1 (fix/stp-850-start-at-max); the review scratch lanePR1; CORRECTIONS_LOG 2026-10-05.

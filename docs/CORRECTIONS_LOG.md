@@ -697,3 +697,6 @@ that moved nothing now FAILS (M3b, EXECUTOR REFUSED); (3) the back end had CRASH
   appData that RUNBOOK sec 0.5.x prescribes since 2026-09-20 (STP-844); the leftover vrfGui and its modals followed. The
   record had it; the seat did not grep RUNBOOK for GUI-on launches. RUNBOOK amended 2026-10-05 (tree gone after rebuild;
   label decoration must also be applied to that copy; the owner-authorised clearance procedure).
+- CLAIM (seat, by omission, 2026-10-05): re-asked the owner for the STP-850 default anchor. The owner had decided it on
+  2026-09-28 (Receipt) in a comment on PR #1 itself; the seat and the review lane read the PR body and RULINGS but not the PR's
+  comments. Owner: "We already had this discussion. What does the record say?" Recorded as RL-20260928-05.

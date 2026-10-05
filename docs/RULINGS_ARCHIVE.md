@@ -15,6 +15,7 @@
 #      RL-20260928-01 (moved 2026-10-05, unchanged, to make room for RL-20261005-01; D2 as recommended + the private server, implemented).
 #      RL-20260928-03 (moved 2026-10-05, unchanged, to make room for RL-20261005-03; AUTO planner, implemented as M3/M3b, live in G1-6).
 #      RL-20260928-02 (moved 2026-10-05, unchanged, to make room for RL-20261005-04; identity by uuid, implemented as C1d; CLOSED list keeps the tripwire).
+#      RL-20260928-04 (moved 2026-10-05, unchanged, to make room for RL-20260928-05; the seat model, live since 09-28).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -571,3 +572,15 @@ RL-20260928-02 | 2026-09-28 | VERBATIM
     ORBAT_LOADING_REQUIREMENTS_2026-09-06 named this fix for units and its refutation called it optional - reversed) and correlates
     ObjectCreated by uuid; members get a derived uuid; names are display only. C1c (84c4f62) is demoted to a secondary key; C1d does it.
   pointer: PLAN_MOVEMENT_2026-09-27 rows C1c, C1d, G1-2; CORRECTIONS_LOG "Name-keyed identity" (2026-09-28); UG52 13.2 p362-363.
+
+RL-20260928-04 | 2026-09-28 | VERBATIM
+  Q (owner, P10345): "DOes it make sense to have opus 5.5 run the seat, and invoke Fable for the real work requiring special skills, rather
+    than burn Fable tokens as supervisor?" - the seat (P10347) answered yes with one inversion: Opus 5.5 runs the seat (orchestration, the
+    record discipline, go-lives, routine adversarial reading); Fable is invoked as the cold-start REVIEWER of every cause claim and design
+    brief before it reaches the owner, and as the executor of the few judgment-heavy lanes; switch at a natural cut (after M3b / G1-4).
+  A (owner, P10359): "Ok. Slot this switch for the soonest appropriate opportunity then"
+  supervisor reading: the soonest appropriate cut is the M3b merge (the lane in flight at 19:56Z): the Fable seat merges M3b, writes the seat
+    handoff (docs/HANDOFF_SEAT_2026-09-28.md) and stops; the next session starts on Opus 5.5 and runs the deploy, the G1-4 registration and
+    the go-live on holder 5255 (RtiProbe 56380, up to ~03:00Z 09-29), invoking Fable through the Agent tool (model fable) for reviews and
+    judgment lanes. Seat quality is measured by the owner's corrections per day (2026-09-28: six).
+  pointer: docs/HANDOFF_SEAT_2026-09-28.md; CLAUDE.md sec 5 (the seat rule); memory feedback-seat-model-policy.
