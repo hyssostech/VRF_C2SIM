@@ -3,7 +3,7 @@
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
 #   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260927-02 to -06, RL-20260928-01 to -04). Archived (cap): -08, 0914-02 on 09-26;
-#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (RL-20261004-01..-06). 0927-05, -03, -02, -04, -06 archived on 10-04 (1004-01..-03, -05, -06).
+#   Q<n> = session 7207877b-f104-4515-91f7-c662e3fce85c.jsonl (1004-01..-06, 1005-01). Archived 10-04/05: 0927-02..-06, 0928-01.
 #   0925-01, 0921-05, 0926-01 on 09-27; 0927-01 on 09-28; 0921-09 on 09-28 (for -03).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
@@ -11,18 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
-  Q (as put, P7308 - the D2 lane's two side effects: "1. The runner's default Mojave order becomes aggregate-only ... 1.BdeHQ carries EchelonCode BDE
-    ... 2. The cut-A entity-level command lines (E1, E2) are refused ... My recommendation on both: keep the rule as ruled, with no escape hatch. For (1),
-    fix the test data, not the rule: 1.BdeHQ is a company-sized element and its code should say so (COY) ... For (2), accept it"; and P7452 - the G1
-    push blocked by the permission classifier: "This is yours to authorize, not mine to work around. Options: 1. Allow it here ... 2. A fresh executor
-    ... 3. Run step C3 yourself ... I recommend option 1: the server is the sanctioned private validation target")
-  A (owner, P7459): "D2 as recommended. Go for the server"
-  supervisor reading: (1) RL-20260927-06 stands with no downward override; the Mojave test order's HQ unit is re-coded below battalion in the TEST DATA in
-    a way that keeps its current single-vehicle representation (the executor verifies with --parse-init), and cut A keeps no entity-level regression
-    run - E1/E2 stay as records. (2) "Go for the server" authorises the private validation server push (127.0.0.1:18080 / 61614) for G1 and its
-    successors; the operator's 8080/61613 server stays out of bounds as before.
-  pointer: PLAN_MOVEMENT_2026-09-27 rows D2, G1; PREREG_IRONSTORM_AGG_G1_2026-09-28 sec 3 (C3); feat/modelset-selector.
 RL-20260928-02 | 2026-09-28 | VERBATIM
   Q (seat, P8236): the seat reported C1c merged - "member names are built within the 30 characters VR-Forces keeps, every requested name is
     checked for uniqueness at 30 before the create" - and G1-2 being registered on it.
@@ -111,3 +99,11 @@ RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
     the canonical ISO-8601 short form too (reverses the 2026-09-20 strict-decoder choice in OrderParser.cs, a seat choice, not a ruling).
     (4) a question: the commands are shown; any change to the host firewall is the owner's to run (elevated).
   pointer: STP-848 (Jira, To Do); scratch laneCOMP (sources); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20261005-01 | 2026-10-05 | VERBATIM - Q2088, TYPED
+  Q (seat, Q2085): "for the Way B rehearsal, STP's raw export run once with the GUI, do you want a full registration or a lighter
+    rehearsal registration? Either way it records its expectations before launch, and it needs your go-live."
+  A (owner, Q2088): "Lighter rehearsal go now. You are free to go live, pending agreement with other sessions for shared resources"
+  supervisor reading: (1) the Way B rehearsal is registered LIGHT (expectations written before launch, no Fable pre-review) and goes
+    now. (2) STANDING go-live authority for the seat, conditional on agreeing shared resources (machine quiet, desktop, ports) with
+    the other sessions first; a PREREG before every launch still applies (CLAUDE.md sec 5, the house rite).
+  pointer: docs/experiments/REHEARSAL_WAYB_2026-10-05.md; HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

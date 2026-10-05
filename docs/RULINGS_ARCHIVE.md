@@ -12,6 +12,7 @@
 #      RL-20260927-02 (moved 2026-10-04, unchanged, to make room for RL-20261004-03; container population, implemented and live since G1-2).
 #      RL-20260927-04 (moved 2026-10-04, unchanged, to make room for RL-20261004-05; C1 decisions D-1..D-8, implemented; C2 built).
 #      RL-20260927-06 (moved 2026-10-04, unchanged, to make room for RL-20261004-06; the model-set rule, implemented as D2/D2b).
+#      RL-20260928-01 (moved 2026-10-05, unchanged, to make room for RL-20261005-01; D2 as recommended + the private server, implemented).
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
 #   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
@@ -530,3 +531,16 @@ RL-20260927-06 | 2026-09-27 | status VERBATIM - P6635, TYPED (mid-turn, unprompt
     (2) a setting (Vrf:ModelSet / runner -ModelSet) overrides the automatic choice, so battalion-and-below may run at aggregate level too; (3) above
     battalion is aggregate-only (the entity catalogue stops at BN). "bow" read as "below". Package D2 builds the automatic selector.
   pointer: PLAN_MOVEMENT_2026-09-27 row D2; VRF_5.2_DECISION_EVIDENCE Y-15 (dated note); scripts/RunC2SimScenario.ps1 -ModelSet (A1).
+
+RL-20260928-01 | 2026-09-28 | status VERBATIM - P7459, TYPED
+  Q (as put, P7308 - the D2 lane's two side effects: "1. The runner's default Mojave order becomes aggregate-only ... 1.BdeHQ carries EchelonCode BDE
+    ... 2. The cut-A entity-level command lines (E1, E2) are refused ... My recommendation on both: keep the rule as ruled, with no escape hatch. For (1),
+    fix the test data, not the rule: 1.BdeHQ is a company-sized element and its code should say so (COY) ... For (2), accept it"; and P7452 - the G1
+    push blocked by the permission classifier: "This is yours to authorize, not mine to work around. Options: 1. Allow it here ... 2. A fresh executor
+    ... 3. Run step C3 yourself ... I recommend option 1: the server is the sanctioned private validation target")
+  A (owner, P7459): "D2 as recommended. Go for the server"
+  supervisor reading: (1) RL-20260927-06 stands with no downward override; the Mojave test order's HQ unit is re-coded below battalion in the TEST DATA in
+    a way that keeps its current single-vehicle representation (the executor verifies with --parse-init), and cut A keeps no entity-level regression
+    run - E1/E2 stay as records. (2) "Go for the server" authorises the private validation server push (127.0.0.1:18080 / 61614) for G1 and its
+    successors; the operator's 8080/61613 server stays out of bounds as before.
+  pointer: PLAN_MOVEMENT_2026-09-27 rows D2, G1; PREREG_IRONSTORM_AGG_G1_2026-09-28 sec 3 (C3); feat/modelset-selector.
