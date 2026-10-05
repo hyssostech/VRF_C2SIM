@@ -103,7 +103,8 @@ T14 4,169 m (resolved by `leg_check.py --dump-resolved` on this file: 2.8 km / 4
 ### Not done - compositions
 
 NO composition rows are added (tier 2, the owner's call is pending). Five taskees therefore have none - see
-the table.
+the table. [2026-10-04 TIER 2A, RL-20261004-06: three of the five are now composed (56 SBCT, 278 ACR, 169
+FAB); 55 MEB and 11 CAB stay refused - see "TIER 2A" at the end. The order file is unchanged.]
 
 --------------------------------------------------------------------------------
 ## Verification (2026-10-04, offline only - nothing launched)
@@ -178,4 +179,56 @@ data/IRONSTORM_CUTA_Initialization.xml` stays (byte-identical to the export's). 
 and the sim span is ~17.5 min at 0.25. `--stop-when-complete` now waits for 8 taskees / 22 terminal reports;
 every refused or skipped task sends a TASKABRT, so it still closes. Scenario `IronStorm_Centre_52_Aggregate`
 stays: the init (hence every created unit) is the same as cut A's, and the only movers are cut A's three,
-inside the Centre area.
+inside the Centre area. [Before tier 2a - no longer true: see TIER 2A below.]
+
+--------------------------------------------------------------------------------
+## TIER 2A - 2026-10-04 (RL-20261004-06, owner Q1858) - three compositions added; the table above is kept as the pre-tier-2a prediction
+
+WHAT CHANGED: `data/unit-composition-52-aggregate.json` only (plus `composition_check.py --order`); the order
+and init files are byte-unchanged. Rows from public doctrine (FM 3-96 Jan 2021; ATP 3-09.24 Mar 2022), never
+the real units' 2026 MBCT conversions:
+
+- 278 ACR (`F-UCRVA-G`, container RGT, Reconnaissance PA) - the ABCT pattern: HQ + 2 Armor CAB Group + the
+  mech-heavy CAB + cavalry squadron; authored adds FA BN (ABCT), BEB (ABCT), BSB. 26 / 29 members.
+- 56 SBCT (`F-UCAW-H`) - HQ + 3 x Motorized BN (POL, Rosomak) as a LABELLED STAND-IN for the Stryker infantry
+  battalions + Stryker Cavalry SQDN (USA); authored adds FA BN (IBCT) and BEB (ABCT) - both labelled
+  stand-ins - and the BSB. 5 / 8 members.
+- 169 FAB (`F-UCF-H`) - HHB + ONE cannon BN + ONE HIMARS BN (three batteries of MRL BTY PA (USA, HIMARS)).
+  TWO battalions: ATP 3-09.24 1-35 allows one to five, 1-6 gives a National Guard FAB cannon as well as
+  rocket battalions; one of each is the fewest that shows both, at the lowest load. Cannon = FA BN (USA,
+  ABCT) authored / 3 x FA BTY PA (USA, 155mm) catalogue; authored adds the BSB. 19 / 12 members.
+- 55 MEB and 11 CAB stay REFUSED by ruling (reasons in the composition file's notes: the MEB has no fixed
+  structure, FM 3-81 2-2/2-25; the catalogue has no US Army helicopter unit, FM 3-04 2-9).
+
+TASK BY TASK against the table above (offline: `composition_check.py --order data/IRONSTORM_FULL_Order.xml`
+covers 6 of 8 performers; before tier 2a 3 of 8):
+
+| T | taskee | table above | after tier 2a | what decides it now |
+|---|---|---|---|---|
+| 03 | 56 SBCT | EXECUTES (hold), no comp | EXECUTES (hold), populated | - |
+| 04 | 56 SBCT | REPORTED no composition | PASSES the guard - moves 36.7 km | route wholly off the cached tiles: UNKNOWN (terrain) |
+| 05 | 56 SBCT | skipped | follows T04 | in place after T04 |
+| 06 | 278 ACR | REPORTED no composition | PASSES - patrol 44.3 km | off-cache: UNKNOWN (terrain) |
+| 07-09 | 278 ACR | skipped | follow T06 (T08 BREACH 12.7 km, T09 35.7 km) | off-cache |
+| 22 | 169 FAB | REPORTED no composition | PASSES - OCCUPY, 14.1 km loop | off-cache |
+| 19 | 55 MEB | REPORTED | REPORTED - no composition (ruled) | - |
+| 20, 21 | 55 MEB | skipped | skipped | - |
+| 23 | 11 CAB | REPORTED | REPORTED - STP-833 extent + no composition (ruled) | - |
+
+Every other row of the table is unchanged. NOT PREDICTED offline: how the off-cache moves end (no tiles, no
+pre-flight) and how a patrol (T06) ends. MEMBERS POPULATED (full order): catalogue variant 23 -> 73 (+5 SBCT,
++26 ACR, +19 FAB); authored 63 (1 + 5 + 8 + 8 + 29 + 12).
+
+ROUTES OUTSIDE THE DEPLOYED PREFLIGHT-CACHE (53.93-54.12 N, 23.09-23.42 E; DR1 resolver output): ALL of the
+newly enabled ones - T04 54.22-54.40 N, 23.76-24.04 E; T06 54.19-54.36 N, 23.59-23.90 E; T08 54.31-54.36 N,
+23.71-23.75 E; T09 54.29-54.39 N, 23.62-23.88 E; T22 54.13-54.17 N, 23.07-23.13 E. The three taskees are
+also created outside it (56 SBCT 54.217 N 23.764 E, 278 ACR 54.190 N 23.585 E, 169 FAB 54.150 N 23.100 E), so
+their member rings are placed outside the cached water tiles too. One box covers all: 54.13-54.41 N,
+23.06-24.05 E (the tile fetch is a later step).
+
+CHECKS (2026-10-04, offline): `composition_check.py` PASS; `--selftest` PASS (54 checks, was 42: 9 new pins,
+the stand-in WRONG NATION control, 55 MEB and 11 CAB refused on the full order); `typemap_check.py` PASS. The
+DEPLOYED exe (LBL pin, 2a5406e5...) on this data: `--parse-order` 22 tasks, 22 of 22 durations;
+`--populate-selftest` 222 PASS / 3 FAIL - the row-id lists and the identity hash it pins, which this commit's
+`ContainerSelfTest.cs` updates; the same source built to a scratch output: 230 PASS / 0 FAIL (authored 233 /
+0). NEEDS A MANAGED REBUILD before the deployed selftest is green again.

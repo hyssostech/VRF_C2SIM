@@ -19,7 +19,10 @@
     "PROXY = a real catalogue unit of the wrong branch, mobility, echelon or service standing in; 'note' says which. The US catalogue has NO Army infantry unit at any echelon, no US Army battalion-level maneuver unit other than the Stryker cavalry squadron, no US engineer or brigade-support unit, and no infantry division container.",
     "provenance keys: FM3-96 = FM 3-96 Brigade Combat Team, HQDA, January 2021 (supersedes 8 October 2015), chapter 1, paragraph numbers as cited; CAT = the named container template's configured subordinates (docs/experiments/AGGREGATE_CATALOGUE_2026-09-27.md sec 3); RTK = the vendor's Road to Kaunas scenario ORBAT (RoadToKaunas.scnx .orb/.oob); TASK = the C2SIM task text in data/IRONSTORM_CUTA_Order.xml.",
     "ASCII only; CRLF; every row re-proved against the installed chain by composition_check.py.",
-    "VARIANTS (package C2): every row carries 'variant' - 'catalogue' (the C1 draft rows), 'authored' (FM 3-96 composition with the AUTHORED US types, flat leaf units per D-8) or 'all' (rows valid in both: 1-112 IN's companies, the ABCT's mech-heavy CAB). A resolver picks ONE variant (defaultVariant, or the run's setting) and uses the rows of that variant plus the 'all' rows; each variant covers each map row at most once. The catalogue rows come FIRST, so a resolver that ignores 'variant' and takes the first row of a map key gets the catalogue composition, which runs on the shipped SMS. composition_check.py gates the catalogue variant on the vendor chain and the authored variant on the DEPLOYED derived chain (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md)."
+    "VARIANTS (package C2): every row carries 'variant' - 'catalogue' (the C1 draft rows), 'authored' (FM 3-96 composition with the AUTHORED US types, flat leaf units per D-8) or 'all' (rows valid in both: 1-112 IN's companies, the ABCT's mech-heavy CAB). A resolver picks ONE variant (defaultVariant, or the run's setting) and uses the rows of that variant plus the 'all' rows; each variant covers each map row at most once. The catalogue rows come FIRST, so a resolver that ignores 'variant' and takes the first row of a map key gets the catalogue composition, which runs on the shipped SMS. composition_check.py gates the catalogue variant on the vendor chain and the authored variant on the DEPLOYED derived chain (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md).",
+    "TIER 2A (2026-10-04, RL-20261004-06, owner Q1858): three more taskees of the FULL order are composed from PUBLIC doctrine (Distribution A: FM 3-96 Jan 2021, ATP 3-09.24 Mar 2022), never from the real units' 2026 MBCT conversions - the scenario is synthetic. 278 ACR (F-UCRVA-G) = the ABCT pattern (C-USA-RGT-UCRVA / -A); 56 SBCT (F-UCAW-H) = HQ + three Motorized BN (POL, Rosomak) as a LABELLED STAND-IN for the three Stryker infantry battalions + the Stryker cavalry squadron (C-USA-BDE-UCAW / -A; each stand-in entry says STAND-IN and WRONG NATION in its note); 169 FAB (F-UCF-H) = HHB + one cannon BN + one HIMARS BN (C-USA-BDE-UCF / -A, C-USA-BN-UCF, C-USA-BN-HIMARS). STAND-IN = a labelled PROXY or AUTHORED entry of another unit's type, chosen by ruling or because no closer type exists; the note names the unit it stands in for.",
+    "REFUSED (RL-20261004-06), NO ROW ON PURPOSE: 55 MEB (F-UCE-H) - FM 3-81 2-2, 2-25: beyond its HSC and signal company the MEB has no fixed structure and must be task-organized for every mission, so doctrine gives no composition to compose, and the catalogue has no US engineer, military police or CBRN unit to compose one from. 11 CAB (F-UCVRA-H) - FM 3-04 2-9: the CAB is attack, assault, general-support and air cavalry helicopter battalions (AH-64, UH-60, CH-47, HH-60), and the aggregate catalogue has no US Army rotary-wing unit (its US helicopters are the USMC AH-1 platoon/section); T23 is also refused on STP-833 route extent (first leg 74.2 km). A move of either stays REFUSED as a memberless container (RL-20260927-03).",
+    "provenance keys (tier 2a): ATP3-09.24 = ATP 3-09.24 The Field Artillery Brigade, HQDA, 30 March 2022 (supersedes 21 November 2012), paragraph and figure numbers as cited; FM3-81 = FM 3-81 Maneuver Enhancement Brigade, 9 November 2021; FM3-04 = FM 3-04 Army Aviation, 27 March 2025 - all approved for public release, distribution unlimited (armypubs.army.mil)."
   ],
   "rows": [
     {
@@ -166,6 +169,160 @@
       ],
       "omitted": [
         {"function": "FSC", "doctrine": "FM3-96 1-7, 1-11, 1-12, 1-13, 1-27: six forward support companies, one with each battalion and the squadron, normally in direct support", "reason": "not separate leaves and not inside the BSB leaf: each supports its battalion forward - an owner item (docs/experiments/AGGREGATE_AUTHORED_UNITS_2026-09-27.md)"}
+      ]
+    },
+    {
+      "id": "C-USA-RGT-UCRVA",
+      "variant": "catalogue",
+      "key": {"functionId": "UCRVA", "echelon": "G", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCRVA-G"],
+      "servesUnits": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT (full order T06 SCREEN->patrol 44.3 km, T07 SCREEN, T08 BREACH 12.7 km, T09 SCREEN 35.7 km); the same map row also serves the TO twin 278_Armored_Cavalry_Regiment/28ID and TF_SNAKE",
+      "container": {"objectType": "3:11:1:225:7:30:1:0", "templateName": "RGT, Reconnaissance PA", "fidelity": "EXACT", "note": "the generic reconnaissance regiment container the init rule lands for the armored cavalry regiment (composition_check.py --init-census)"},
+      "depth": "MANEUVER",
+      "provenance": "RL-20261004-06 (owner Q1858 '1 ok': 278 ACR composed on the ABCT pattern - doctrine, not the unit's 2026 MBCT conversion; the scenario is synthetic); FM3-96 1-39 (the ABCT pattern), 1-40, 1-41 (three combined arms battalions: two armor-heavy, one mech-heavy), 1-42, 1-43 (the Cavalry squadron); HQ first (RTK)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the regimental HHT - no US brigade headquarters unit is in the catalogue or authored", "provenance": "FM3-96 1-39; RTK (HQ is designator 1)"},
+        {"function": "AR", "count": 2, "role": "CONTAINER", "objectType": "3:11:1:225:6:2:1:0", "templateName": "Armor CAB Group (USA)", "compose": "CATALOGUE", "fidelity": "EXACT", "note": "the vendor's own US combined arms battalion: HHC PA (USA, CAB) + 2 Tank CO (USA, M1A2) + 1 Mech CO (USA, M2) - FM3-96 1-41's armor-heavy battalion, as in C-USA-BDE-UCA", "provenance": "CAT (Armor CAB Group (USA).entity); FM3-96 1-40, 1-41"},
+        {"function": "MECH", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:4:1:0", "templateName": "BN, Mech Infantry", "compose": "C-USA-BN-UCIZ", "fidelity": "EXACT", "note": "the mech-heavy combined arms battalion, as in C-USA-BDE-UCA", "provenance": "FM3-96 1-41"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "PROXY", "note": "the Stryker cavalry squadron stands in for the ABCT cavalry squadron (FM3-96 1-43: HHT, three ground Cavalry troops of Bradleys and an Armor company - tracked)", "provenance": "FM3-96 1-39, 1-42, 1-43 (the Cavalry squadron is organic to the ABCT pattern)"}
+      ],
+      "omitted": [
+        {"function": "FA, ENG, SPT", "doctrine": "FM3-96 1-39 (field artillery, engineer and sustainment units are organic to the ABCT), 1-44 (FA battalion: HHB + three batteries of six M109)", "reason": "not maneuver elements; the catalogue has no US FA battalion, engineer or brigade-support unit (as C-USA-BDE-UCA). D-2. The authored variant (C-USA-RGT-UCRVA-A) adds them."}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCAW",
+      "variant": "catalogue",
+      "key": {"functionId": "UCAW", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCAW-H"],
+      "servesUnits": "56_SBCT/28ID__FRIENDLY_WHEELED_ARMORED_BRIGADE_TASK_FORCE (full order T03 hold, T04 FIX->advance 36.7 km, T05 RETAIN); the same map row also serves the TO twin 56SBCT/28ID",
+      "container": {"objectType": "3:11:1:225:8:4:1:0", "templateName": "BDE, Mech Infantry", "fidelity": "PROXY", "note": "the init rule's container for a wheeled armored brigade (UCAW -> branch 4): the mechanized-infantry brigade is the nearest branch (display only - a container has no warfare model)"},
+      "depth": "MANEUVER",
+      "provenance": "RL-20261004-06 (owner Q1858 '2 standin': the Polish motorized battalion as a LABELLED STAND-IN for the three Stryker infantry battalions; doctrine, not the unit's 2026 MBCT conversion); FM3-96 1-28, 1-29 (SBCT organization), 1-30 (three SBCT Infantry battalions), 1-31 (the Cavalry squadron)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the SBCT HHC - no US brigade headquarters unit is in the catalogue or authored", "provenance": "FM3-96 1-29; RTK (HQ is designator 1)"},
+        {"function": "INF", "count": 3, "role": "UNIT", "objectType": "3:11:1:175:6:18:1:0", "templateName": "Motorized BN (POL, Rosomak)", "fidelity": "PROXY", "note": "STAND-IN: POL Motorized BN (Rosomak) for a US Stryker infantry BN - RL-20261004-06 (owner Q1858 '2 standin'). WRONG NATION: DIS country 175 (Poland) in a US brigade - the catalogue has no US Army infantry unit at any echelon. Wheeled 8x8 battalion as the SBCT's is, but it is the Polish battalion's model: AMPHIBIOUS movement (amphibious-aggregated-movement.sysdef - it can swim a waterway a Stryker cannot) and its own combat power (Base-Health 102520 vs 18760 for the authored US IBCT battalion built from this donor). The SBCT battalion's own organization: HHC + three rifle companies, 120-mm mortars (FM3-96 1-30).", "provenance": "FM3-96 1-28, 1-30 (three SBCT Infantry battalions); RL-20261004-06"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "EXACT", "note": "the SBCT's own Cavalry squadron type (Stryker reconnaissance vehicles, FM3-96 1-31); the vendor's squadron rolls up HHT + three cavalry troops + CSS (Stryker Cavalry SQDN PA (USA)) - the weapons troop's three ATGM and three MGS platoons (FM3-96 1-33) are not in it", "provenance": "FM3-96 1-29, 1-31, 1-32"}
+      ],
+      "omitted": [
+        {"function": "FA, ENG, SPT", "doctrine": "FM3-96 1-34 (FA battalion: HHB + three six-gun M777 batteries), 1-13, 1-19 (BEB; the Stryker breach section has bridging), 1-27 (BSB)", "reason": "not maneuver elements; the catalogue has no US FA battalion, engineer or brigade-support unit (as C-USA-BDE-UCI). D-2. The authored variant (C-USA-BDE-UCAW-A) adds them."},
+        {"function": "weapons troop", "doctrine": "FM3-96 1-29, 1-33 (three ATGM and three MGS platoons, unique to the SBCT)", "reason": "the catalogue has no US ATGM or MGS Stryker unit; the vendor's Stryker Cavalry SQDN (USA) does not carry the troop"}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCF",
+      "variant": "catalogue",
+      "key": {"functionId": "UCF", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCF-H"],
+      "servesUnits": "169_FAB/28ID__FRIENDLY_FIELD_ARTILLERY_BRIGADE (full order T22 OCCUPY, a 14.1 km closed loop)",
+      "container": {"objectType": "3:11:1:225:8:7:1:0", "templateName": "BDE, Artillery", "fidelity": "EXACT", "note": "the generic artillery brigade container the init rule lands for the FAB"},
+      "depth": "FIRES",
+      "provenance": "RL-20261004-06 (owner Q1858 '1 ok': 169 FAB composed from public doctrine); ATP3-09.24 1-6 (corps FABs: MLRS and HIMARS BNs; National Guard FABs may have cannon BNs as well), 1-35 (organic HHB, network support company, BSB; one to five FA BNs task-organized), figure 1-1 (example FAB: SP cannon, towed cannon, MLRS, HIMARS BNs), figure 1-2 (HIMARS BN: HHB + two or three firing batteries)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the FAB HHB (ATP3-09.24 1-35) - no US brigade headquarters unit is in the catalogue or authored", "provenance": "ATP3-09.24 1-35; RTK (HQ is designator 1)"},
+        {"function": "FA", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:7:1:0", "templateName": "BN, Artillery", "compose": "C-USA-BN-UCF", "fidelity": "EXACT", "note": "the cannon battalion of catalogue towed 155-mm batteries (C-USA-BN-UCF)", "provenance": "ATP3-09.24 1-6, 1-35, figure 1-1 (a cannon BN task-organized to the FAB)"},
+        {"function": "RKT", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:7:1:0", "templateName": "BN, Artillery", "compose": "C-USA-BN-HIMARS", "fidelity": "EXACT", "note": "the HIMARS battalion (C-USA-BN-HIMARS)", "provenance": "ATP3-09.24 1-6, 1-46, figure 1-2"}
+      ],
+      "omitted": [
+        {"function": "network support company; TAP", "doctrine": "ATP3-09.24 1-35 (organic: HHB with the target acquisition platoon, a signal network support company, a BSB), 1-37 (TAP: two AN/TPQ-53, two AN/TPQ-50)", "reason": "the catalogue has no US signal or radar unit; the HHB leaf stands for the HQ and its TAP"},
+        {"function": "BSB", "doctrine": "ATP3-09.24 1-35, 1-44 (organic BSB: an HSC that derives its capability from attached units; FSCs attached to the firing BNs)", "reason": "the catalogue has no US brigade-support unit (CSS CO (USA) is a company). The authored variant (C-USA-BDE-UCF-A) adds the AUTHORED Brigade Support BN (USA)."},
+        {"function": "more FA BNs", "doctrine": "ATP3-09.24 1-35 ('a combination of one to five FA BNs'), 1-6 (corps FABs: MLRS and HIMARS BNs; Army National Guard FABs may have cannon BNs as well)", "reason": "TWO battalions chosen - one cannon, one HIMARS: the fewest that carry both kinds 1-6 names for a National Guard FAB, at 12 (authored) / 19 (catalogue) leaves for load; a second rocket battalion is one more C-USA-BN-HIMARS entry (+9 leaves)"}
+      ]
+    },
+    {
+      "id": "C-USA-BN-UCF",
+      "variant": "catalogue",
+      "key": {"functionId": "UCF", "echelon": "F", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": [],
+      "servesUnits": "the cannon FA battalion of C-USA-BDE-UCF (no Iron Storm unit maps to this key directly)",
+      "container": {"objectType": "3:11:1:225:6:7:1:0", "templateName": "BN, Artillery", "fidelity": "EXACT", "note": "the generic artillery battalion container"},
+      "depth": "BTY",
+      "provenance": "FM3-96 1-34, 1-44 (an FA battalion: HHB + three six-gun batteries, each two firing platoons of three); ATP3-09.24 figure 1-1",
+      "subordinates": [
+        {"function": "BTY", "count": 3, "role": "CONTAINER", "objectType": "3:11:1:225:4:7:0:128", "templateName": "FA BTY PA (USA, 155mm)", "compose": "CATALOGUE", "fidelity": "PROXY", "note": "the vendor's US 155-mm battery (3 x FA PLT (USA, 155mm), TOWED - trucks, motorized movement) stands in for a six-gun battery of the FAB's cannon battalion; used only where the authored FA BN does not exist (the catalogue variant)", "provenance": "CAT (FA BTY PA (USA, 155mm).entity); FM3-96 1-44 (three batteries)"}
+      ],
+      "omitted": [
+        {"function": "HHB", "doctrine": "FM3-96 1-44 (FA battalion: HHB + three six-gun batteries)", "reason": "the catalogue has no US FA battalion headquarters unit"}
+      ]
+    },
+    {
+      "id": "C-USA-BN-HIMARS",
+      "variant": "all",
+      "key": {"functionId": "UCFRM", "echelon": "F", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": [],
+      "servesUnits": "the HIMARS battalion of C-USA-BDE-UCF and C-USA-BDE-UCF-A (no Iron Storm unit maps to this key directly)",
+      "container": {"objectType": "3:11:1:225:6:7:1:0", "templateName": "BN, Artillery", "fidelity": "EXACT", "note": "the generic artillery battalion container"},
+      "depth": "BTY",
+      "provenance": "ATP3-09.24 1-6, 1-46, figure 1-2 (MLRS/HIMARS battalion: HHB + two or three firing batteries; the three-firing-battery configuration)",
+      "subordinates": [
+        {"function": "BTY", "count": 3, "role": "CONTAINER", "objectType": "3:11:1:225:4:8:0:127", "templateName": "MRL BTY PA (USA, HIMARS)", "compose": "CATALOGUE", "fidelity": "EXACT", "note": "the vendor's US HIMARS battery: 3 x MRL PLT (USA, HIMARS) (motorized)", "provenance": "CAT (MRL BTY PA (USA, HIMARS).entity); ATP3-09.24 figure 1-2"}
+      ],
+      "omitted": [
+        {"function": "HHB, FSC", "doctrine": "ATP3-09.24 figure 1-2 (MLRS/HIMARS battalion: HHB + two or three firing batteries organic; FSC task-organized)", "reason": "the catalogue has no US rocket battalion headquarters (MRL HQ PLT is RUS) and no forward support company; the three firing batteries are the battalion's leaves"}
+      ]
+    },
+    {
+      "id": "C-USA-RGT-UCRVA-A",
+      "variant": "authored",
+      "key": {"functionId": "UCRVA", "echelon": "G", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCRVA-G"],
+      "servesUnits": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT (full order T06 SCREEN->patrol 44.3 km, T07 SCREEN, T08 BREACH 12.7 km, T09 SCREEN 35.7 km); the same map row also serves the TO twin 278_Armored_Cavalry_Regiment/28ID and TF_SNAKE - as C-USA-RGT-UCRVA",
+      "container": {"objectType": "3:11:1:225:7:30:1:0", "templateName": "RGT, Reconnaissance PA", "fidelity": "EXACT", "note": "the generic reconnaissance regiment container the init rule lands for the armored cavalry regiment (composition_check.py --init-census)"},
+      "depth": "FULL",
+      "provenance": "RL-20261004-06 (owner Q1858 '1 ok': 278 ACR composed on the ABCT pattern - doctrine, not the unit's 2026 MBCT conversion; the scenario is synthetic); FM3-96 1-39 (the ABCT pattern), 1-40, 1-41 (three combined arms battalions: two armor-heavy, one mech-heavy), 1-42, 1-43 (the Cavalry squadron); HQ first (RTK); 1-44 (FA), 1-13, 1-18, 1-19 (BEB), 1-27 (BSB); the authored types of RL-20260927-04, as C-USA-BDE-UCA-A",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the regimental HHT - no US brigade headquarters unit is in the catalogue or authored", "provenance": "FM3-96 1-39; RTK (HQ is designator 1)"},
+        {"function": "AR", "count": 2, "role": "CONTAINER", "objectType": "3:11:1:225:6:2:1:0", "templateName": "Armor CAB Group (USA)", "compose": "CATALOGUE", "fidelity": "EXACT", "note": "the vendor's own US combined arms battalion: HHC PA (USA, CAB) + 2 Tank CO (USA, M1A2) + 1 Mech CO (USA, M2) - FM3-96 1-41's armor-heavy battalion, as in C-USA-BDE-UCA", "provenance": "CAT (Armor CAB Group (USA).entity); FM3-96 1-40, 1-41"},
+        {"function": "MECH", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:4:1:0", "templateName": "BN, Mech Infantry", "compose": "C-USA-BN-UCIZ", "fidelity": "EXACT", "note": "the mech-heavy combined arms battalion, as in C-USA-BDE-UCA", "provenance": "FM3-96 1-41"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "PROXY", "note": "the Stryker cavalry squadron stands in for the ABCT cavalry squadron (FM3-96 1-43: HHT, three ground Cavalry troops of Bradleys and an Armor company - tracked)", "provenance": "FM3-96 1-39, 1-42, 1-43 (the Cavalry squadron is organic to the ABCT pattern)"},
+        {"function": "FA", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:8:1:206", "templateName": "FA BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "the AUTHORED ABCT field artillery battalion, 18 M109 Paladin (authoredRows A-FA-BN-ABCT)", "provenance": "FM3-96 1-44"},
+        {"function": "ENG", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:10:1:207", "templateName": "Brigade Engineer BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "the AUTHORED ABCT brigade engineer battalion (authoredRows A-BEB-ABCT), tracked, with bridging and Volcano", "provenance": "FM3-96 1-13, 1-18, 1-19"},
+        {"function": "SPT", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:31:1:204", "templateName": "Brigade Support BN (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade support battalion (authoredRows A-BSB)", "provenance": "FM3-96 1-27"}
+      ],
+      "omitted": [
+        {"function": "FSC", "doctrine": "FM3-96 1-27 (one forward support company per battalion and squadron, normally in direct support)", "reason": "not separate leaves and not inside the BSB leaf (as C-USA-BDE-UCA-A) - an owner item"}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCAW-A",
+      "variant": "authored",
+      "key": {"functionId": "UCAW", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCAW-H"],
+      "servesUnits": "56_SBCT/28ID__FRIENDLY_WHEELED_ARMORED_BRIGADE_TASK_FORCE (full order T03 hold, T04 FIX->advance 36.7 km, T05 RETAIN); the same map row also serves the TO twin 56SBCT/28ID - as C-USA-BDE-UCAW",
+      "container": {"objectType": "3:11:1:225:8:4:1:0", "templateName": "BDE, Mech Infantry", "fidelity": "PROXY", "note": "the init rule's container for a wheeled armored brigade (UCAW -> branch 4): the mechanized-infantry brigade is the nearest branch (display only - a container has no warfare model)"},
+      "depth": "FULL",
+      "provenance": "RL-20261004-06 (owner Q1858 '2 standin': the Polish motorized battalion as a LABELLED STAND-IN for the three Stryker infantry battalions; doctrine, not the unit's 2026 MBCT conversion); FM3-96 1-28, 1-29 (SBCT organization), 1-30 (three SBCT Infantry battalions), 1-31 (the Cavalry squadron); 1-34 (FA), 1-13, 1-19 (BEB), 1-27 (BSB); flat leaf units, HQ first (RTK)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the SBCT HHC - no US brigade headquarters unit is in the catalogue or authored", "provenance": "FM3-96 1-29; RTK (HQ is designator 1)"},
+        {"function": "INF", "count": 3, "role": "UNIT", "objectType": "3:11:1:175:6:18:1:0", "templateName": "Motorized BN (POL, Rosomak)", "fidelity": "PROXY", "note": "STAND-IN: POL Motorized BN (Rosomak) for a US Stryker infantry BN - RL-20261004-06 (owner Q1858 '2 standin'). WRONG NATION: DIS country 175 (Poland) in a US brigade - the catalogue has no US Army infantry unit at any echelon. Wheeled 8x8 battalion as the SBCT's is, but it is the Polish battalion's model: AMPHIBIOUS movement (amphibious-aggregated-movement.sysdef - it can swim a waterway a Stryker cannot) and its own combat power (Base-Health 102520 vs 18760 for the authored US IBCT battalion built from this donor). The SBCT battalion's own organization: HHC + three rifle companies, 120-mm mortars (FM3-96 1-30).", "provenance": "FM3-96 1-28, 1-30 (three SBCT Infantry battalions); RL-20261004-06"},
+        {"function": "CAV", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:5:1:30", "templateName": "Stryker Cavalry SQDN (USA)", "fidelity": "EXACT", "note": "the SBCT's own Cavalry squadron type (Stryker reconnaissance vehicles, FM3-96 1-31); the vendor's squadron rolls up HHT + three cavalry troops + CSS (Stryker Cavalry SQDN PA (USA)) - the weapons troop's three ATGM and three MGS platoons (FM3-96 1-33) are not in it", "provenance": "FM3-96 1-29, 1-31, 1-32"},
+        {"function": "FA", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:7:1:202", "templateName": "FA BN (USA, IBCT)", "fidelity": "AUTHORED", "note": "STAND-IN: the AUTHORED IBCT field artillery battalion (12 M119 105-mm + 6 M777 155-mm, towed, motorized) for the SBCT FA battalion (18 M777 155-mm, FM3-96 1-34) - no SBCT FA battalion is authored; the towed, motorized type is the nearer of the two authored FA battalions", "provenance": "FM3-96 1-29, 1-34; authoredRows A-FA-BN-IBCT"},
+        {"function": "ENG", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:10:1:207", "templateName": "Brigade Engineer BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "STAND-IN: the AUTHORED ABCT brigade engineer battalion (tracked, bridging, Volcano) for the SBCT BEB - FM3-96 1-19: 'The Stryker and Armored breach section consist of bridging', which the authored IBCT BEB deliberately lacks; its tracked movement is the ABCT's, not the Stryker's wheels", "provenance": "FM3-96 1-13, 1-19; authoredRows A-BEB-ABCT"},
+        {"function": "SPT", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:31:1:204", "templateName": "Brigade Support BN (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade support battalion (authoredRows A-BSB); FM3-96 1-27: the ABCT and SBCT BSBs have the same general configuration", "provenance": "FM3-96 1-27"}
+      ],
+      "omitted": [
+        {"function": "weapons troop", "doctrine": "FM3-96 1-29, 1-33 (three ATGM and three MGS platoons, unique to the SBCT)", "reason": "the catalogue has no US ATGM or MGS Stryker unit; the vendor's Stryker Cavalry SQDN (USA) does not carry the troop"},
+        {"function": "FSC", "doctrine": "FM3-96 1-27 (one forward support company per battalion and squadron, normally in direct support)", "reason": "not separate leaves and not inside the BSB leaf (as C-USA-BDE-UCA-A) - an owner item"}
+      ]
+    },
+    {
+      "id": "C-USA-BDE-UCF-A",
+      "variant": "authored",
+      "key": {"functionId": "UCF", "echelon": "H", "nationRole": "friendly", "nation": "USA"},
+      "mapRowIds": ["F-UCF-H"],
+      "servesUnits": "169_FAB/28ID__FRIENDLY_FIELD_ARTILLERY_BRIGADE (full order T22 OCCUPY, a 14.1 km closed loop) - as C-USA-BDE-UCF",
+      "container": {"objectType": "3:11:1:225:8:7:1:0", "templateName": "BDE, Artillery", "fidelity": "EXACT", "note": "the generic artillery brigade container the init rule lands for the FAB"},
+      "depth": "FULL",
+      "provenance": "RL-20261004-06 (owner Q1858 '1 ok': 169 FAB composed from public doctrine); ATP3-09.24 1-6 (corps FABs: MLRS and HIMARS BNs; National Guard FABs may have cannon BNs as well), 1-35 (organic HHB, network support company, BSB; one to five FA BNs task-organized), figure 1-1 (example FAB: SP cannon, towed cannon, MLRS, HIMARS BNs), figure 1-2 (HIMARS BN: HHB + two or three firing batteries); 1-44 (the BSB); FM3-96 1-44 (the M109 battalion)",
+      "subordinates": [
+        {"function": "HQ", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:5:5:1:30", "templateName": "Stryker  HHT (USA)", "fidelity": "PROXY", "note": "a Stryker cavalry headquarters troop stands in for the FAB HHB (ATP3-09.24 1-35) - no US brigade headquarters unit is in the catalogue or authored", "provenance": "ATP3-09.24 1-35; RTK (HQ is designator 1)"},
+        {"function": "FA", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:8:1:206", "templateName": "FA BN (USA, ABCT)", "fidelity": "AUTHORED", "note": "the AUTHORED M109 Paladin battalion (authoredRows A-FA-BN-ABCT: HHB + three six-gun batteries, 18 M109A6, tracked) as the FAB's task-organized self-propelled cannon battalion (ATP3-09.24 figure 1-1) - the same organization as the ABCT's; chosen over the IBCT type because a FAB's cannon battalions are 155-mm and the IBCT type is mostly 105-mm", "provenance": "ATP3-09.24 1-6, 1-35, figure 1-1; FM3-96 1-44"},
+        {"function": "RKT", "count": 1, "role": "CONTAINER", "objectType": "3:11:1:225:6:7:1:0", "templateName": "BN, Artillery", "compose": "C-USA-BN-HIMARS", "fidelity": "EXACT", "note": "the HIMARS battalion (C-USA-BN-HIMARS)", "provenance": "ATP3-09.24 1-6, 1-46, figure 1-2"},
+        {"function": "SPT", "count": 1, "role": "UNIT", "objectType": "3:11:1:225:6:31:1:204", "templateName": "Brigade Support BN (USA)", "fidelity": "AUTHORED", "note": "the AUTHORED brigade support battalion (authoredRows A-BSB) as the FAB's organic BSB (ATP3-09.24 1-35, 1-44) - a resupplier, as for the BCTs", "provenance": "ATP3-09.24 1-35, 1-44"}
+      ],
+      "omitted": [
+        {"function": "network support company; TAP", "doctrine": "ATP3-09.24 1-35 (organic: HHB with the target acquisition platoon, a signal network support company, a BSB), 1-37 (TAP: two AN/TPQ-53, two AN/TPQ-50)", "reason": "the catalogue has no US signal or radar unit; the HHB leaf stands for the HQ and its TAP"},
+        {"function": "more FA BNs", "doctrine": "ATP3-09.24 1-35 ('a combination of one to five FA BNs'), 1-6 (corps FABs: MLRS and HIMARS BNs; Army National Guard FABs may have cannon BNs as well)", "reason": "TWO battalions chosen - one cannon, one HIMARS: the fewest that carry both kinds 1-6 names for a National Guard FAB, at 12 (authored) / 19 (catalogue) leaves for load; a second rocket battalion is one more C-USA-BN-HIMARS entry (+9 leaves)"}
       ]
     }
   ]
