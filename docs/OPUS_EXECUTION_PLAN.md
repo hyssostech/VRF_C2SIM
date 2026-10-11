@@ -3721,8 +3721,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-05 (REHEARSAL_WAYB-2026-10-05-3): 5344 CONSUMED (LaunchVrf52 holder pid 67036, attempt 1); 5345 BURNED unused; 5346 CONSUMED (back end pid 26076, forced exit 6 after StopVrf52 exit 3); 5347 CONSUMED (vrfGui pid 65908, closed with no modal); 5348 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5349.
 - 2026-10-11 REHEARSAL_WAYB-2026-10-11-4 (docs/experiments/REHEARSAL_WAYB_HAND2_2026-10-11.md), the hand-started Way B path after the reboot, every join ledgered: 5349-5352 = StartFederationHolder52 -AppNumbers (the day holder; tried in order, unjoined = burned); 5353 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5354 = its automatic retry (+1); 5355 = back end; 5356 = vrfGui; 5357 = VrfC2SimApp (StartInterface52 -AppNumber). PushInit/PushOrder/StopIface join no federation. CLAIMED. Marker 5349 -> 5358.
 - RESULT 2026-10-11 (REHEARSAL_WAYB-2026-10-11-4): 5349, 5350 BURNED (day-holder creates failed, STP-825); 5351 CONSUMED (day holder RtiProbe 29456, 28800 s from 18:03:36Z); 5352 BURNED unused; 5353 CONSUMED (LaunchVrf52 holder 43000, attempt 1); 5354 BURNED unused; 5355 CONSUMED (back end 44220, forced exit 6 after StopVrf52 exit 3); 5356 CONSUMED (vrfGui 53336, closed with no modal); 5357 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5358.
+- 2026-10-11 REHEARSAL_WAYB-2026-10-11-5 (docs/experiments/REHEARSAL_WAYB_HAND3_2026-10-11.md), RL-20261011-01 as deployed: 5358 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5359 = its automatic retry (+1); 5360 = back end; 5361 = vrfGui; 5362 = VrfC2SimApp (StartInterface52 -AppNumber). The day holder 29456 (5351) is -4's. CLAIMED. Marker 5358 -> 5363.
 
-*** NEXT FREE: 5358 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5363 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
