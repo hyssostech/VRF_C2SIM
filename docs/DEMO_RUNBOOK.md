@@ -257,6 +257,16 @@ retry), b (back end), f (front end), i (the interface). Numbers not used are bur
   is created, every console looks healthy. Never hand-edit an initialization or order in the room.
   Each command is ONE line: PowerShell 7 has no `^` continuation (cmd's `^` would become a stray argument).
 
+  STP ITSELF, FROM A CONTAINER (passed 2026-10-11, REHEARSAL_WAYB_STPPUSH_2026-10-11; PRIVATE server only). Host ports
+  must NOT be STP's defaults (9500-9599 are live testing's) - 39500/39599 were free; check first. Start it (the bridge
+  connects ONCE at start-up, so the C2SIM server must already be up), wait about 60 s, then check
+  `curl.exe -s http://127.0.0.1:39500/api/mgmt/status` -> "engineState":"Running":
+    docker run -d --name stp-vrf-push --restart no -p 127.0.0.1:39500:9500 -p 127.0.0.1:39599:9599 -e STP_C2SimBridge__App__RestUrl=http://host.docker.internal:18080/C2SIMServer -e STP_C2SimBridge__App__StompUrl=http://host.docker.internal:61614/topic/C2SIM -e STP_C2SimBridge__App__RestPassword=v0lgenau -e STP_C2SimBridge__App__ResetBeforeInitialize=True -e STP_C2SimBridge__App__RunAfterInitialize=True -e "STP_C2SimBridge__App__SystemName=Not Set" stp-server:coa-l13
+    pwsh -NoProfile -File tools\stp\StpPush.ps1 -Action initialization -File data\STP-IRON-STORM-SYNTHETIC_Initialization.xml -Url ws://127.0.0.1:39599
+    pwsh -NoProfile -File tools\stp\StpPush.ps1 -Action order -File data\STP-IRON-STORM-SYNTHETIC_Order.xml -Url ws://127.0.0.1:39599
+  SEE: "PUSH OK (initialization)" / "PUSH OK (order)", exit 0 each (the order only after READY TO TASK). Afterwards:
+  `docker stop stp-vrf-push` and `docker rm stp-vrf-push`. (v0lgenau is the reference server's public default password.)
+
 ---
 
 ## 3. WAY A - the runner plays STP (fallback)

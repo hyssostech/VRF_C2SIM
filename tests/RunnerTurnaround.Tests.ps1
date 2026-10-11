@@ -4540,6 +4540,88 @@ try {
     if (Test-Path -LiteralPath $lblTmp) { Remove-Item -LiteralPath $lblTmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+Write-Host '=== 16. STP PUSH CLIENT: tools\stp\StpPush.ps1 against a FAKE STP WebSocket (wire format of REHEARSAL_WAYB-2026-10-11-6) ==='
+# The 2026-10-11 rehearsal pushed the Iron Storm init and order through a real STP container with this client. Here a fake
+# STP (HttpListener WebSocket on a free loopback port, in a thread job) answers Register and PushC2SIMContent so the
+# envelope, the exact dataType spelling, the content passthrough and the exit codes are pinned without any container.
+$stpScript = Join-Path $RepoRoot 'tools\stp\StpPush.ps1'
+$stpTmp = Join-Path ([System.IO.Path]::GetTempPath()) ('stp16-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force -Path $stpTmp | Out-Null
+try {
+    $stpErr = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($stpScript, [ref]$null, [ref]$stpErr)
+    $stpText = [System.IO.File]::ReadAllText($stpScript)
+    $stpBytes = [System.IO.File]::ReadAllBytes($stpScript)
+    $stpAscii = @($stpBytes | Where-Object { $_ -gt 127 }).Count -eq 0
+    $stpT = [System.Text.Encoding]::ASCII.GetString($stpBytes)
+    $stpCrlf = ([regex]::Matches($stpT, "`n")).Count -eq ([regex]::Matches($stpT, "`r`n")).Count
+    Check '16a StpPush.ps1 parses with zero errors, is ASCII with CRLF, and offers exactly initialization / order / regen' (
+        $stpErr.Count -eq 0 -and $stpAscii -and $stpCrlf -and
+        $stpText -match "ValidateSet\('initialization', 'order', 'regen'\)") ("errors {0}, ascii {1}, crlf {2}" -f $stpErr.Count, $stpAscii, $stpCrlf)
+    $stpPort = if ($stpText -match "Url = 'ws://127\.0\.0\.1:(\d+)'") { [int]$Matches[1] } else { 0 }
+    Check '16a the default -Url port is a NON-default host port (not 9500-9599 stp-lt, not 19500-19620; the owner 2026-10-11)' (
+        $stpPort -gt 0 -and -not ($stpPort -ge 9500 -and $stpPort -le 9599) -and -not ($stpPort -ge 19500 -and $stpPort -le 19620)) ("port {0}" -f $stpPort)
+
+    # a free loopback port for the fake STP
+    $l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0); $l.Start(); $fakePort = $l.LocalEndpoint.Port; $l.Stop()
+    $logFile = Join-Path $stpTmp 'fake.jsonl'
+    function Start-FakeStp([int]$port, [string]$log, [bool]$pushOk) {
+        Start-ThreadJob -ArgumentList $port, $log, $pushOk -ScriptBlock {
+            param($port, $log, $pushOk)
+            $h = [System.Net.HttpListener]::new(); $h.Prefixes.Add("http://127.0.0.1:$port/"); $h.Start()
+            try {
+                $ctx = $h.GetContextAsync(); if (-not $ctx.Wait(30000)) { return }
+                $wsc = $ctx.Result.AcceptWebSocketAsync([NullString]::Value).GetAwaiter().GetResult(); $ws = $wsc.WebSocket
+                $buf = New-Object byte[] 1048576
+                while ($ws.State -eq 'Open') {
+                    $ms = [System.IO.MemoryStream]::new()
+                    do {
+                        $r = $ws.ReceiveAsync([ArraySegment[byte]]::new($buf), [Threading.CancellationToken]::None).GetAwaiter().GetResult()
+                        if ($r.MessageType -eq 'Close') { break }
+                        $ms.Write($buf, 0, $r.Count)
+                    } until ($r.EndOfMessage)
+                    if ($r.MessageType -eq 'Close') { break }
+                    $text = [Text.Encoding]::UTF8.GetString($ms.ToArray())
+                    Add-Content -LiteralPath $log -Value $text
+                    $outer = $text | ConvertFrom-Json; $inner = $outer.params.jsonRequest | ConvertFrom-Json
+                    $ok = if ($inner.method -eq 'PushC2SIMContent') { $pushOk } else { $true }
+                    $reply = @{ method = 'RequestResponse'; params = @{ cookie = $outer.params.cookie; success = $ok; result = $(if ($ok) { 'S1' } else { 'refused by fake' }) } } | ConvertTo-Json -Compress
+                    $b = [Text.Encoding]::UTF8.GetBytes($reply)
+                    $null = $ws.SendAsync([ArraySegment[byte]]::new($b), 'Text', $true, [Threading.CancellationToken]::None).GetAwaiter().GetResult()
+                }
+            } catch { } finally { $h.Stop() }
+        }
+    }
+    $content = Join-Path $stpTmp 'init.xml'
+    [System.IO.File]::WriteAllText($content, '<MessageBody><SystemName>Not Set</SystemName></MessageBody>')
+    # (b) a push that STP accepts: exit 0, Register then PushC2SIMContent with dataType "initialization" and the file as content
+    $job = Start-FakeStp $fakePort $logFile $true
+    Start-Sleep -Milliseconds 500
+    $outB = & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -NonInteractive -File $stpScript -Action initialization -File $content -Url "ws://127.0.0.1:$fakePort" -TimeoutSec 10 2>&1 | Out-String
+    $codeB = $LASTEXITCODE
+    $null = Wait-Job $job -Timeout 15; Remove-Job $job -Force
+    $sent = @(if (Test-Path $logFile) { Get-Content -LiteralPath $logFile | ForEach-Object { $o = $_ | ConvertFrom-Json; [pscustomobject]@{ Outer = $o; Inner = ($o.params.jsonRequest | ConvertFrom-Json) } } })
+    Check '16b accepted push: exit 0, "PUSH OK (initialization)", two Request envelopes - Register, then PushC2SIMContent with dataType "initialization" and the file text as content' (
+        $codeB -eq 0 -and $outB -match 'PUSH OK \(initialization\)' -and $sent.Count -eq 2 -and
+        $sent[0].Outer.method -eq 'Request' -and $sent[0].Inner.method -eq 'Register' -and
+        $sent[1].Inner.method -eq 'PushC2SIMContent' -and $sent[1].Inner.params.dataType -ceq 'initialization' -and
+        $sent[1].Inner.params.content -ceq [System.IO.File]::ReadAllText($content) -and $outB -notmatch 'VoidTaskResult') ("exit {0}, sent {1}" -f $codeB, $sent.Count)
+    # (c) a push that STP refuses: exit 1, the refusal said
+    Remove-Item -LiteralPath $logFile -ErrorAction SilentlyContinue
+    $job = Start-FakeStp $fakePort $logFile $false
+    Start-Sleep -Milliseconds 500
+    $outC = & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -NonInteractive -File $stpScript -Action order -File $content -Url "ws://127.0.0.1:$fakePort" -TimeoutSec 10 2>&1 | Out-String
+    $codeC = $LASTEXITCODE
+    $null = Wait-Job $job -Timeout 15; Remove-Job $job -Force
+    Check '16c refused push: exit 1 and "PUSH FAILED (order): refused by fake"' (
+        $codeC -eq 1 -and $outC -match 'PUSH FAILED \(order\): refused by fake') ("exit {0}" -f $codeC)
+    # (d) no STP listening: exit 1, an ERROR line, no hang
+    $outD = & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -NonInteractive -File $stpScript -Action order -File $content -Url "ws://127.0.0.1:$fakePort" -TimeoutSec 5 2>&1 | Out-String
+    Check '16d nothing listening: exit 1 with an ERROR line' ($LASTEXITCODE -eq 1 -and $outD -match 'ERROR') ("exit {0}" -f $LASTEXITCODE)
+} finally {
+    if (Test-Path -LiteralPath $stpTmp) { Remove-Item -LiteralPath $stpTmp -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Write-Host ''
 if ($script:PendingCount -gt 0) {
     Write-Host ('  ' + $script:PendingCount + ' record check(s) PENDING, not enforced. Keys: ' +
