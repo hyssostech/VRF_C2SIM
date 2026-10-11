@@ -52,7 +52,9 @@ param(
     [string[]] $RunningGuiPath,
     [int[]]    $ModelSets        = @(5),
     [string[]] $Types            = @('Ground', 'Default'),
-    [string]   $Decoration       = 'DtLabelSymbolDecoration'
+    [string]   $Decoration       = 'DtLabelSymbolDecoration',
+    # RL-20261011-01: the vendor NAME decoration is taken OUT of the same ON sets ('' = hide nothing).
+    [string[]] $Hide = @('DtNameSymbolDecoration')
 )
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -62,8 +64,10 @@ function Say      { param([string]$m) Write-Host $m }
 try {
     . (Join-Path $PSScriptRoot 'LabelDecorationLib.ps1')
     if ($Decoration -notmatch '^Dt[A-Za-z]+SymbolDecoration$') { Say "[FAIL] -Decoration '$Decoration' is not a symbol decoration creator name"; exit 2 }
+    $Hide = @(Split-LblList $Hide | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    foreach ($h in $Hide) { if ($h -notmatch '^Dt[A-Za-z]+SymbolDecoration$' -or $h -eq $Decoration) { Say "[FAIL] -Hide '$h' is not a symbol decoration creator name other than -Decoration"; exit 2 } }
     $mode = if ($Verify) { 'VERIFY (read-only)' } elseif ($WhatIfPreference) { 'WHATIF (writes nothing)' } else { 'DEPLOY' }
-    Say ("=== Enable-LabelDecoration.ps1 - {0}: {1} for model set(s) {2}, type(s) {3} (RL-20261004-05) ===" -f $mode, $Decoration, ($ModelSets -join ','), ($Types -join ','))
+    Say ("=== Enable-LabelDecoration.ps1 - {0}: {1} ON{4} for model set(s) {2}, type(s) {3} (RL-20261004-05, RL-20261011-01) ===" -f $mode, $Decoration, ($ModelSets -join ','), ($Types -join ','), $(if ($Hide.Count) { ', ' + ($Hide -join ', ') + ' OFF' } else { '' }))
 
     # ---- the targets ---------------------------------------------------------------------------------------------
     $targets = [System.Collections.Generic.List[object]]::new()
@@ -93,7 +97,7 @@ try {
     $worst = 0
     foreach ($t in $targets) {
         Say $t.Header
-        $st = Test-LabelDecorationFile -Path $t.File -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+        $st = Test-LabelDecorationFile -Path $t.File -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
         if ($Verify) {
             switch ($st.Status) {
                 'on'          { Say ("  [ON]          {0} - {1}" -f $t.File, $st.Detail) }
@@ -120,7 +124,7 @@ try {
             continue
         }
         $r = Read-LabelSettingsText -Path $t.File
-        $edit = Set-LabelDecorationText -Text $r.Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+        $edit = Set-LabelDecorationText -Text $r.Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
         foreach ($l in $edit.Lines) { Say $l }
         if ($PSCmdlet.ShouldProcess($t.File, "enable $Decoration ($($edit.Changes) change(s))")) {
             $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
@@ -131,7 +135,7 @@ try {
             $tmp = "$($t.File).tmp-$stamp"
             [System.IO.File]::WriteAllText($tmp, $edit.Text, [System.Text.UTF8Encoding]::new($r.Bom))
             [System.IO.File]::Move($tmp, $t.File, $true)
-            $re = Test-LabelDecorationFile -Path $t.File -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+            $re = Test-LabelDecorationFile -Path $t.File -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
             $back = Read-LabelSettingsText -Path $t.File
             if ($re.Status -ne 'on' -or $back.Text -cne $edit.Text) {
                 Say ("  [FAIL] the re-read is not ON ({0}) - restore from {1}" -f $re.Detail, $backup)

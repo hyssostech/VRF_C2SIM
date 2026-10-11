@@ -59,14 +59,17 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
   SEE: exit 0 (0 = tree present, both prompts off). Then do 0.4 for it. Never use the older
   C:\C2SIM\vrf-appdata tree for a demo: it lacks the teardown fix.
 
-0.4 LABELS ON THE MAP (RL-20261004-05). The Label decoration is a GUI setting that lives in EACH appData,
-  so it is deployed into the vendor install AND the unattended tree. With NO vrfGui running:
+0.4 LABELS ON THE MAP (RL-20261004-05, RL-20261011-01). The map shows each unit's clean LABEL and NOT its
+  VR-Forces NAME (the 30-character cut C2SIM name): the Label decoration ON, the Name decoration OFF. That is
+  a GUI setting that lives in EACH appData, so it is deployed into the vendor install AND the unattended
+  tree. With NO vrfGui running:
       pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -Verify
       pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -AppDataDir 'C:\C2SIM\vrf-appdata-unattended\appData' -Verify
-  SEE: exit 0, "ON" for 5/Ground and 5/Default. Exit 1 (OFF) or 2 (file missing): run the same line with
+  SEE: exit 0, "ON for 5/Ground, 5/Default, NameSymbol hidden". Exit 1 (OFF - "Label off" and/or
+  "NameSymbol shown") or 2 (file missing): run the same line with
   -WhatIf, then with neither switch, then -Verify again (RUNBOOK sec 9 "LABEL DECORATION DEPLOY"). Exit 4 =
-  a vrfGui is running - close it first. Without it the map shows only the 30-character unit names, and
-  LaunchVrf52 prints "[WARN] LABEL DECORATION NOT ON" at every launch.
+  a vrfGui is running - close it first. Without it the map shows the 30-character names (with the "__"
+  text) and/or no clean labels, and LaunchVrf52 prints "[WARN] LABEL DECORATION NOT ON" at every launch.
 
 0.5 FIREWALL (the stable demo paths only). Windows prompts the first time each program path listens.
   The owner runs this once, in an ELEVATED PowerShell (safe to re-run; one group, easy to remove). The
@@ -151,12 +154,17 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
 
 ## 2. WAY B - STP drives (primary)
 
-UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to end, before the audience.
+Rehearsed twice on Iron Storm with PushInit/PushOrder standing in for STP (table at the top); STP itself
+pushing is UNVERIFIED. Rehearse it once, end to end, before the audience.
+
+APPLICATION NUMBERS (RL-20261011-01): every federate takes a FRESH number from the ledger - the ONE marker
+`*** NEXT FREE: <n> ***` in docs\OPUS_EXECUTION_PLAN.md Appendix B; advance it and record the claim BEFORE
+launching; never reuse a number (a reused number can hang on a stale federate after a forced teardown,
+RUNBOOK sec 0). Each launch of 2.1 + 2.2 needs FIVE: h and h+1 (LaunchVrf52's own short-lived holder and its
+retry), b (back end), f (front end), i (the interface). Numbers not used are burned.
 
 2.1 VR-FORCES WITH THE GUI - the audience's window:
-      pwsh -NoProfile -File scripts\LaunchVrf52.ps1 -Scenario IronStorm_Centre_52_Aggregate `
-           -BackendAppNumber 9102 -FrontendAppNumber 9103 `
-           -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData
+      pwsh -NoProfile -File scripts\LaunchVrf52.ps1 -Scenario IronStorm_Centre_52_Aggregate -FederationHoldAppNumber h -BackendAppNumber b -FrontendAppNumber f -AppDataDir 'C:\C2SIM\vrf-appdata-unattended\appData'
   SEE, in order: its own short-lived holder (a "Federation HOLDER (STP-825)" section; with 1.3's holder up
   it simply JOINS); "vrfGui teardown prompts are OFF in ..."; NO "[WARN] LABEL DECORATION NOT ON" line;
   "back-end started (pid N)" - WRITE N DOWN (section 4); "scenario LOAD CONFIRMED"; "READY: 5.2d back-end
@@ -164,14 +172,7 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   If not: exit 4 BLOCKED = a dialog is waiting on screen - answer it, never kill; exit 3 = not ready or
   crashed at start-up - read its lines, run section 4, call an engineer; exit 2 = a precondition, most
   often a leftover process (1.1).
-  APPLICATION NUMBERS: the demo block 9101-9199 sits outside the engineering ledger. 9101 is the interface,
-  9102/9103 the back end / front end, and LaunchVrf52's own federation holder already sits in
-  that block at 9190/9191, so the block is not reserved to interfaces. After a FORCED teardown (section 4,
-  exit 6/7) the back end never resigned: for a second launch on the same rtiexec use numbers not used
-  before (e.g. 9104/9105) - a reused number can hang on a stale federate (RUNBOOK sec 0). UNVERIFIED.
-  OPEN (the owner's choice, REHEARSAL_WAYB_HAND OP1): fixed numbers here vs fresh numbers per launch from a
-  marker. Both rehearsals took fresh numbers from the engineering ledger and passed them by parameter: LaunchVrf52
-  -FederationHoldAppNumber h (it also uses h+1) -BackendAppNumber b -FrontendAppNumber f; StartInterface52 -AppNumber i.
+  (h, b, f: the claimed numbers - APPLICATION NUMBERS above. The fixed 9101-9199 demo block is retired.)
 
 2.2 THE INTERFACE, ON THE DEMO PROFILE - SET NOTHING BY HAND. appsettings.Demo.json IS THE IRON STORM AGGREGATE
   DEMO PROFILE (since 2026-10-05, branch feat/demo-overlay-aggregate): StartInterface52 loads it, and it carries
@@ -182,27 +183,24 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   window: a window that ran the older version of this step still carries `Vrf__...` variables, and a variable
   beats the profile. Check it:
       Get-ChildItem Env:Vrf__* -ErrorAction SilentlyContinue
-  SEE: nothing (or only Vrf__DurationScale, see PACE below). Anything else: close the window, open a new one.
+  SEE: nothing. Anything else: close the window, open a new one.
   THE DEPLOYED PROFILE must be this one:
       Select-String -Path src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\appsettings.Demo.json -Pattern '"ModelSet": "AggregateTacticalLevel"'
   SEE: exactly one line. Nothing = an older deploy: stop, call an engineer (a redeploy, RUNBOOK sec 9).
-      pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId "Not Set" -Server standard -WhatIf
-  Read the plan, then run the same line without -WhatIf. Use this window for nothing else.
+      pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId "Not Set" -Server standard -AppNumber i -WhatIf
+  (i: the claimed number.) Read the plan, then run the same line without -WhatIf. Use this window for nothing
+  else. Without -AppNumber the script warns and falls back to 9101 - do not.
   - `-ClientId` MUST equal the SystemName in the initialization STP pushes. STP's Iron Storm export says
     `Not Set`; whether STP sends the same when it pushes live is UNVERIFIED - ask the STP operator. A
     mismatch creates NOTHING and looks healthy.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
-  - PACE - THE OWNER'S OPEN DECISION. The profile keeps DurationScale 1.0: STP's authored durations. RAN
-    2026-10-11: the accepted tasks were terminal about 13 wall min after the order. At 0.25 (the earlier
-    rehearsals) about 3 min.
-    Until the owner decides, for the rehearsed pace type this in the same window BEFORE the line above, and
-    close the window after the demo:
-      $env:Vrf__DurationScale = '0.25'
-  - RAN LIVE on this hand-started path 2026-10-05 (0.25 by hand) and 2026-10-11 (nothing by hand).
+  - PACE (RL-20261011-01): the profile runs DurationScale 0.25 - every authored duration and start delay is a
+    quarter; the accepted tasks are terminal about 3 wall min after the order (2026-10-05). At 1.0 (STP's own
+    durations) it took about 13 min (2026-10-11). Nothing to type for it.
+  - RAN LIVE on this hand-started path 2026-10-05 (0.25 by hand) and 2026-10-11 (the profile, then at 1.0).
   WHAT THE RUNNER SET IN THE REHEARSED RUNS THAT THE PROFILE DOES NOT CARRY, AND WHY:
-  - application number (a fresh ledger number per run): the demo has its own block - 9101, StartInterface52.
+  - application number (a fresh ledger number per run): StartInterface52 -AppNumber (RL-20261011-01).
   - Vrf__ClientId and the C2SIM server pair: StartInterface52's -ClientId and -Server.
-  - Vrf__DurationScale=0.25: the owner's open decision (PACE above).
   - object-console levels 4 / 4 (RunScenario.sh's defaults, for the scorers): the profile keeps -1, the vendor
     default - a diagnostic channel nothing in the demo reads. A difference from the rehearsed runs (UNVERIFIED).
   - Vrf__ConnectionConfigFile in the unattended appData tree: the profile names the vendor tree's copy; the two
@@ -342,13 +340,12 @@ unit map at initialization, so it must be restarted. Leave a few minutes between
   Storm rehearsal. The ratio is LOAD-DEPENDENT and moves within a run (Mojave: 2.6x under load to 4.7x
   idle, RUNBOOK sec 11f; 4.1-9.9x on 2026-10-11), so never quote one number; the interface's per-minute `SIM/WALL RATIO` line is
   the instrument. The real-time fixture is not in the demo path (RL-20260921-02); a time-multiplier setting
-  was never decided (HANDOFF_SEAT_2026-09-28 sec 4). With DurationScale 0.25 the show lasts about 3 min; the
-  Demo profile's 1.0 ran about 13 min (2026-10-11) - the pace is the owner's open decision (2.2 PACE).
+  was never decided (HANDOFF_SEAT_2026-09-28 sec 4). The demo runs DurationScale 0.25 (RL-20261011-01): the
+  show lasts about 3 min, every task a quarter of STP's authored time - say so. At 1.0 it ran about 13 min.
 - LABELS OVERPRINT where units stack (48 IBCT over 1-112 IN, the 28ID headquarters). Zoom in. The long
   C2SIM description after "__" is dropped for now; an extended label comes after the demo (RL-20261005-04).
-  Each unit shows TWO text lines (seen 2026-10-11): its VR-Forces NAME, the C2SIM name cut to 30 characters
-  (e.g. "169_FAB/28ID__FRIENDLY_FIELD_A"), above the clean label ("169 FAB/28ID"). The name line is a separate
-  GUI decoration; whether to hide it is open (HANDOFF_SEAT).
+  The VR-Forces NAME line (the C2SIM name cut to 30 characters, e.g. "169_FAB/28ID__FRIENDLY_FIELD_A") is
+  hidden by the 0.4 deploy (RL-20261011-01); only the clean label shows. Identity is the UUID, never the name.
 - SOME 48 IBCT MEMBERS END OFF THE OBJECTIVE: 6 of 17 stopped 262-790 m from it in the rehearsal; not yet
   explained. Do not promise that every vehicle reaches its point.
 - WHAT STP SHOWS (as last checked 2026-09-14, STP pinned to SDK 1.3.1; UNVERIFIED since): STP displays the

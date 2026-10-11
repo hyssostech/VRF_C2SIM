@@ -11,12 +11,16 @@
 #     (vrvCore/DtSymbolDecorationSettings.h :44, :189; enableDecoration :76-77); model set keys are DtModelSetId
 #     (vrvCore/DtModelSetEnums.h :19-28: 0 Models3D, 1 ModelsColorized, 5 Icons2D); the Label's creator is
 #     DtLabelSymbolDecoration (vrfGuiCore/labelSymbolDecoration.h :22, :52).
+#   - RL-20261011-01 ("there is no reason to display this name, GUID or not on the map"): the DEPLOYED state is the Label
+#     ON and the vendor NAME decoration (DtNameSymbolDecoration, the 30-character cut C2SIM name) OFF in the same ON sets -
+#     the -Hide list. "ON" below means exactly that deployed state; the mouse-over map and other model sets are untouched.
 # ASCII only.
 
 $LblSettingsLeaf = 'default_SymbolDecorationSettings.symx'
 $LblDefaultModelSets = @(5)
 $LblDefaultTypes = @('Ground', 'Default')
 $LblDefaultDecoration = 'DtLabelSymbolDecoration'
+$LblDefaultHide = @('DtNameSymbolDecoration')     # RL-20261011-01
 
 # One model set's entry inside the map: <item ...><first>KEY</first><second><count>N</count><bucket_count>..
 $LblKeyRx = '(?s)<item(?: class_id="\d+" tracking_level="\d+" version="\d+")?>\s*<first>(\d+)</first>\s*<second>\s*<count>\d+</count>\s*<bucket_count>\d+</bucket_count>\s*<item_version>\d+</item_version>'
@@ -25,8 +29,10 @@ $LblTypeRx = '(?s)(<item(?: class_id="\d+" tracking_level="\d+" version="\d+")?>
 
 function Get-LabelDecorationState {
     # Parse the archive text; never throws. Parsed=false + Error when the shape is not the 5.2d one.
+    # An entry is On when its ON set holds $Decoration AND none of $Hide (RL-20261011-01).
     param([string]$Text, [int[]]$ModelSets = $LblDefaultModelSets, [string[]]$Types = $LblDefaultTypes,
-          [string]$Decoration = $LblDefaultDecoration)
+          [string]$Decoration = $LblDefaultDecoration, [string[]]$Hide = $LblDefaultHide)
+    $Hide = @($Hide | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     $fail = { param($why) [pscustomobject]@{ Parsed = $false; Error = $why; Entries = @(); AllOn = $false } }
     if ([string]::IsNullOrEmpty($Text)) { return (& $fail 'empty file') }
     if ($Text -notmatch '<SymbolDecorationSettings class_id="0" tracking_level="0" version="8">') {
@@ -56,8 +62,11 @@ function Get-LabelDecorationState {
             $items = @([regex]::Matches($m.Groups[4].Value, '<item>([^<]+)</item>') | ForEach-Object { $_.Groups[1].Value })
             if ($items.Count -ne $count) { return (& $fail "model set $ms '$t': <count>$count</count> but $($items.Count) item(s)") }
             $indent = if ($m.Groups[4].Value -match '(\r?\n)(\t+)<item>') { $Matches[2] } else { "`t`t`t`t`t`t" }
+            $shown = @($Hide | Where-Object { $items -contains $_ })
             $entries += [pscustomobject]@{
-                ModelSet = $ms; Type = $t; Count = $count; Items = $items; On = ($items -contains $Decoration)
+                ModelSet = $ms; Type = $t; Count = $count; Items = $items
+                LabelOn = ($items -contains $Decoration); Shown = $shown
+                On = (($items -contains $Decoration) -and $shown.Count -eq 0)
                 Start = $a + $s + $m.Index; Length = $m.Length; Head = $m.Groups[1].Value; Mid = $m.Groups[3].Value
                 Tail = $m.Groups[5].Value; Indent = $indent
             }
@@ -68,12 +77,14 @@ function Get-LabelDecorationState {
 }
 
 function Set-LabelDecorationText {
-    # The archive with $Decoration added to every requested ON set that lacks it: that set's <count> + 1 and one
-    # <item>, kept in byte-ordinal order (a std::set - the order the GUI writes). Throws when the shape is wrong or the
-    # result does not re-parse as ON. Changes = 0 means nothing to do (Text is returned unchanged).
+    # The archive with $Decoration added to, and every $Hide decoration removed from, each requested ON set that is not
+    # already in that state: the set's <count> follows its <item>s, kept in byte-ordinal order (a std::set - the order the
+    # GUI writes). Throws when the shape is wrong or the result does not re-parse as ON. Changes = 0 means nothing to do
+    # (Text is returned unchanged).
     param([string]$Text, [int[]]$ModelSets = $LblDefaultModelSets, [string[]]$Types = $LblDefaultTypes,
-          [string]$Decoration = $LblDefaultDecoration)
-    $st = Get-LabelDecorationState -Text $Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+          [string]$Decoration = $LblDefaultDecoration, [string[]]$Hide = $LblDefaultHide)
+    $Hide = @($Hide | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $st = Get-LabelDecorationState -Text $Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
     if (-not $st.Parsed) { throw "the archive does not read as expected: $($st.Error)" }
     $nl = if ($Text.Contains("`r`n")) { "`r`n" } else { "`n" }
     $new = $Text
@@ -81,7 +92,7 @@ function Set-LabelDecorationText {
     $changes = 0
     foreach ($en in @($st.Entries | Sort-Object Start -Descending)) {
         if ($en.On) { continue }
-        [string[]]$after = @($en.Items) + @($Decoration)
+        [string[]]$after = @(@($en.Items) + @($Decoration) | Where-Object { $Hide -notcontains $_ } | Select-Object -Unique)
         [Array]::Sort($after, [System.StringComparer]::Ordinal)
         $itemsText = ($after | ForEach-Object { "$nl$($en.Indent)<item>$_</item>" }) -join ''
         $replacement = $en.Head + $after.Count + $en.Mid + $itemsText + $en.Tail
@@ -91,7 +102,7 @@ function Set-LabelDecorationText {
         $changes++
     }
     if ($changes -gt 0) {
-        $re = Get-LabelDecorationState -Text $new -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+        $re = Get-LabelDecorationState -Text $new -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
         if (-not $re.Parsed -or -not $re.AllOn) { throw "internal: the edited archive does not re-read as ON ($($re.Error))" }
         $null = [xml]$new    # well-formed XML or throw
     }
@@ -110,16 +121,21 @@ function Read-LabelSettingsText {
 function Test-LabelDecorationFile {
     # READ-ONLY. Status: on | off | missing | unparseable. Never throws.
     param([string]$Path, [int[]]$ModelSets = $LblDefaultModelSets, [string[]]$Types = $LblDefaultTypes,
-          [string]$Decoration = $LblDefaultDecoration)
+          [string]$Decoration = $LblDefaultDecoration, [string[]]$Hide = $LblDefaultHide)
     if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return [pscustomobject]@{ Status = 'missing'; Detail = 'no such file'; State = $null }
     }
     try { $r = Read-LabelSettingsText -Path $Path }
     catch { return [pscustomobject]@{ Status = 'unparseable'; Detail = $_.Exception.Message; State = $null } }
-    $st = Get-LabelDecorationState -Text $r.Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration
+    $st = Get-LabelDecorationState -Text $r.Text -ModelSets $ModelSets -Types $Types -Decoration $Decoration -Hide $Hide
     if (-not $st.Parsed) { return [pscustomobject]@{ Status = 'unparseable'; Detail = $st.Error; State = $st } }
-    $off = @($st.Entries | Where-Object { -not $_.On } | ForEach-Object { "$($_.ModelSet)/$($_.Type)" })
-    if ($off.Count -eq 0) { return [pscustomobject]@{ Status = 'on'; Detail = 'ON for ' + (($st.Entries | ForEach-Object { "$($_.ModelSet)/$($_.Type)" }) -join ', '); State = $st } }
+    $hidden = if (@($Hide).Count -gt 0) { ', ' + (($Hide | ForEach-Object { ($_ -replace '^Dt|SymbolDecoration$', '') }) -join '/') + ' hidden' } else { '' }
+    $off = @($st.Entries | Where-Object { -not $_.On } | ForEach-Object {
+        $why = @()
+        if (-not $_.LabelOn) { $why += 'Label off' }
+        if (@($_.Shown).Count -gt 0) { $why += ((@($_.Shown) | ForEach-Object { ($_ -replace '^Dt|SymbolDecoration$', '') }) -join '/') + ' shown' }
+        "$($_.ModelSet)/$($_.Type) ($($why -join ', '))" })
+    if ($off.Count -eq 0) { return [pscustomobject]@{ Status = 'on'; Detail = 'ON for ' + (($st.Entries | ForEach-Object { "$($_.ModelSet)/$($_.Type)" }) -join ', ') + $hidden; State = $st } }
     return [pscustomobject]@{ Status = 'off'; Detail = 'OFF for ' + ($off -join ', '); State = $st }
 }
 

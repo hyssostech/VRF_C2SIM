@@ -11,6 +11,7 @@
 #      RL-20260927-03 (moved 2026-10-04, unchanged, to make room for RL-20261004-02; C13 for containers, implemented and live since G1-2).
 #      RL-20260927-02 (moved 2026-10-04, unchanged, to make room for RL-20261004-03; container population, implemented and live since G1-2).
 #      RL-20260927-04 (moved 2026-10-04, unchanged, to make room for RL-20261004-05; C1 decisions D-1..D-8, implemented; C2 built).
+#      RL-20261004-01, RL-20261004-02 (moved 2026-10-11, unchanged, to make room for RL-20261011-01; the G1-4 W FAIL and the W1 slot clearance, both closed).
 #      RL-20260927-06 (moved 2026-10-04, unchanged, to make room for RL-20261004-06; the model-set rule, implemented as D2/D2b).
 #      RL-20260928-01 (moved 2026-10-05, unchanged, to make room for RL-20261005-01; D2 as recommended + the private server, implemented).
 #      RL-20260928-03 (moved 2026-10-05, unchanged, to make room for RL-20261005-03; AUTO planner, implemented as M3/M3b, live in G1-6).
@@ -584,3 +585,20 @@ RL-20260928-04 | 2026-09-28 | VERBATIM
     the go-live on holder 5255 (RtiProbe 56380, up to ~03:00Z 09-29), invoking Fable through the Agent tool (model fable) for reviews and
     judgment lanes. Seat quality is measured by the owner's corrections per day (2026-09-28: six).
   pointer: docs/HANDOFF_SEAT_2026-09-28.md; CLAUDE.md sec 5 (the seat rule); memory feedback-seat-model-policy.
+RL-20261004-01 | 2026-10-04 | VERBATIM - Q171, TYPED
+  Q (seat, Q159, after Fable's cold review of the G1-4 Result; markdown emphasis dropped): "My recommendation on the RULE is that the W FAIL
+    binds as scored, whatever you decide about N3." [...] "(a) Keep H5 on all members and first give nudged slots a water clearance of at
+    least the 10 m buffer. That is a build change, so G1-5 would test two variables at once." [...] "I recommend (a)." [...] "the bridge
+    rule should judge fixes against the road and bridge ways, with a fail-first test on G1-4's pre-warm data."
+  A (owner, Q171): "As recommended"
+  supervisor reading: (1) G1-4 is STOPPED at its W gate, FAIL (H5, P-FALS(e)) as scored; nothing re-scored (H5 governs as written; P-FALS(e)
+    fails alone, 16.24 m > 15). (2) G1-5 gates H5 on every tasked member, on a build whose nudged member slots clear OSM water by >= the
+    planner's 10 m buffer; its scorer's bridge rule reads the fixes against the road/bridge ways, fail-first on G1-4's pre-warm.
+  pointer: PREREG_IRONSTORM_AGG_G1-4_2026-09-28 Result (N1-N3, COLD REVIEW AND RULING); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+RL-20261004-02 | 2026-10-04 | VERBATIM - Q478, TYPED
+  Q (seat, Q475, after Fable's GO WITH FIXES on lane W1): "Should slots that lie within 10 m of water, not only in it, be moved, with no bridge
+    exemption for slots? I recommend keeping both, since they change nothing on cut A. Reply "keep both" or "inside-only"."
+  A (owner, Q478): "Keep both"
+  supervisor reading: RL-20261004-01's slot clearance applies to a member slot IN OSM water or WITHIN the clearance of it (a slot at
+    exactly the clearance is in the band), and a road bridge exempts nothing for a slot; STP route vertices are untouched (M2's rule).
+  pointer: fix/slot-water-clearance (e4badc8, 03a350d, 377ce98); Vrf:PreflightSlotWaterClearanceMeters; --osm-selftest 8b, (d), (g)-(j).

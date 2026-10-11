@@ -11,23 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261004-01 | 2026-10-04 | VERBATIM - Q171, TYPED
-  Q (seat, Q159, after Fable's cold review of the G1-4 Result; markdown emphasis dropped): "My recommendation on the RULE is that the W FAIL
-    binds as scored, whatever you decide about N3." [...] "(a) Keep H5 on all members and first give nudged slots a water clearance of at
-    least the 10 m buffer. That is a build change, so G1-5 would test two variables at once." [...] "I recommend (a)." [...] "the bridge
-    rule should judge fixes against the road and bridge ways, with a fail-first test on G1-4's pre-warm data."
-  A (owner, Q171): "As recommended"
-  supervisor reading: (1) G1-4 is STOPPED at its W gate, FAIL (H5, P-FALS(e)) as scored; nothing re-scored (H5 governs as written; P-FALS(e)
-    fails alone, 16.24 m > 15). (2) G1-5 gates H5 on every tasked member, on a build whose nudged member slots clear OSM water by >= the
-    planner's 10 m buffer; its scorer's bridge rule reads the fixes against the road/bridge ways, fail-first on G1-4's pre-warm.
-  pointer: PREREG_IRONSTORM_AGG_G1-4_2026-09-28 Result (N1-N3, COLD REVIEW AND RULING); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
-RL-20261004-02 | 2026-10-04 | VERBATIM - Q478, TYPED
-  Q (seat, Q475, after Fable's GO WITH FIXES on lane W1): "Should slots that lie within 10 m of water, not only in it, be moved, with no bridge
-    exemption for slots? I recommend keeping both, since they change nothing on cut A. Reply "keep both" or "inside-only"."
-  A (owner, Q478): "Keep both"
-  supervisor reading: RL-20261004-01's slot clearance applies to a member slot IN OSM water or WITHIN the clearance of it (a slot at
-    exactly the clearance is in the band), and a road bridge exempts nothing for a slot; STP route vertices are untouched (M2's rule).
-  pointer: fix/slot-water-clearance (e4badc8, 03a350d, 377ce98); Vrf:PreflightSlotWaterClearanceMeters; --osm-selftest 8b, (d), (g)-(j).
 RL-20261004-03 | 2026-10-04 | VERBATIM - Q1005, TYPED
   Q (seat, Q987, after Fable's ACCEPT WITH FIXES on the G1-5 Result; markdown dropped): "1. Does G1-5's W FAIL bind as scored? I recommend
     yes. [...] G1-6 would register the culvert clause before its run and test it first on G1-5's pre-warm. 2. Will you install the VR-Forces
@@ -118,3 +101,14 @@ RL-20261005-06 | 2026-10-05 | VERBATIM - Q3456, TYPED (queued mid-turn)
     the Way B demo path nothing stops the sim, so stragglers keep driving - dropped. (2) the time multiplier stays parked at 1x
     (2026-09-02 "ok on the multipliers for now"); the demo DurationScale (0.25 rehearsed, 1.0 in the profile) is not ruled.
   pointer: REHEARSAL_WAYB_HAND_2026-10-05 Result; DEMO_RUNBOOK 2.2 PACE.
+RL-20261011-01 | 2026-10-11 | VERBATIM - R843 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, TYPED
+  Q (seat, markdown dropped): "1. Demo pace: 0.25 [...] or 1.0 [...]. I recommend 0.25. 2. The name line on the map: I recommend hiding it, so
+    the audience sees only the clean label. 3. Application numbers for the demo (OP1): fixed numbers in the 9101-9199 block, or fresh ledger
+    numbers per launch, as both rehearsals did. I recommend the ledger, because it keeps the house rule of one marker."
+  A (owner, R843): "As recommended. On 2:Isn't the vrf name a GUID? We went back and forth on this multiple times. In any case, there is no
+    reason to display this name, GUID or not on the map. The ask was to find a place to store the description (suffix after __) somewhere, if a
+    viable slot were available in vrf, something a user could see when digging into details, for example. Ok not to include that if no obvious
+    fit for a description exists."
+  supervisor reading: (1) the Demo profile runs DurationScale 0.25. (2) the vendor NAME decoration is OFF on the map (the Label stays ON); the
+    name is display only, identity is the UUID (RL-20260928-02). The "__" suffix goes in a VR-Forces field a user sees on inspection, else is
+    dropped - after the demo (RL-20261005-04). (3) every demo federate takes a fresh number from the Appendix B marker; the 9101 block retires.

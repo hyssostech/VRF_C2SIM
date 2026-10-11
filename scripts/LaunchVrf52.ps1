@@ -963,7 +963,7 @@ if (-not $NoGui) {
         } else {
             $lblWhy = if ($lblState.Status -eq 'off') { $lblState.Detail } else { $lblState.Status.ToUpperInvariant() + ' - ' + $lblState.Detail }
             Say-Warn ('LABEL DECORATION NOT ON in {0}: {1}' -f $lblFile, $lblWhy)
-            Say-Warn '  The map will show only the CUT names (30 characters a unit, 16 a member), not the clean designators (LBL2).'
+            Say-Warn '  The map then shows the CUT NAME line (30 characters a unit, 16 a member) and/or lacks the clean designator (LBL2); the deployed state is Label ON, NAME OFF (RL-20261011-01).'
             Say-Warn '  FIX (the deploy step, RL-20261004-05; with NO vrfGui running): pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -WhatIf, then without -WhatIf. NOT A REFUSAL - this launch goes on.'
         }
     } catch {

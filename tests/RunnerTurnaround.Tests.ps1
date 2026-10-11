@@ -3736,15 +3736,17 @@ Check '11b C2SIM__RestUrl / C2SIM__StompUrl are added to the SAME $envVars map t
 # --- 11c. DR-2 / DR-8: the Way B application numbers are inside the documented demo block ---
 Check '11c no TYPED command in DEMO_RUNBOOK still passes 9201 / 9202 (the note recording the change may name them)' (
     $wbDemoText -notmatch '-BackendAppNumber 9201' -and $wbDemoText -notmatch '-FrontendAppNumber 9202')
-Check '11c the Way B launch command uses 9102 / 9103, inside the 9101-9199 demo block' (
-    $wbDemoText -match '-BackendAppNumber 9102 -FrontendAppNumber 9103')
-Check '11c and those two collide with neither the interface (9101) nor LaunchVrf52 holder (9190/9191)' (
-    @(9102, 9103 | Where-Object { $_ -in @(9101, 9190, 9191) }).Count -eq 0 -and
-    @(9102, 9103 | Where-Object { $_ -lt 9101 -or $_ -gt 9199 }).Count -eq 0)
-Check '11c the runbook SAYS why the block covers the back end and front end, not only interfaces' (
-    $wbDemoText -match 'federation holder already sits in\s+that block at 9190/9191' -and
-    $wbDemoText -match 'the block is not reserved to interfaces' -and
-    $wbDemoText -match 'sit outside the\s+block\s+entirely and were therefore exempt from nothing')
+# RL-20261011-01 (2026-10-11) RETIRED the fixed 9101-9199 demo block: every demo federate takes a FRESH number from the
+# Appendix B marker and the runbook's commands carry them as placeholders (h, b, f, i).
+Check '11c (RL-20261011-01) the Way B launch passes the claimed holder / back-end / front-end numbers and the interface its -AppNumber' (
+    $wbDemoText -match '-FederationHoldAppNumber h -BackendAppNumber b -FrontendAppNumber f' -and
+    $wbDemoText -match 'StartInterface52\.ps1 -ClientId "Not Set" -Server standard -AppNumber i' -and
+    $wbDemoText -notmatch '-BackendAppNumber 9102')
+Check '11c (RL-20261011-01) the runbook takes the numbers from the ONE ledger marker and says the demo block is retired' (
+    $wbDemoText -match 'APPLICATION NUMBERS \(RL-20261011-01\)' -and $wbDemoText -match 'NEXT FREE' -and
+    $wbDemoText -match 'demo block is retired')
+Check '11c (RL-20261011-01) StartInterface52 WARNS when -AppNumber is not given (the 9101 fallback)' (
+    $wbIfaceText -match "PSBoundParameters\.ContainsKey\('AppNumber'\)" -and $wbIfaceText -match 'RL-20261011-01')
 Check '11c LaunchVrf52 stops claiming the runbook example sits outside the block' (
     (Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1') -Raw) -match 'that example now uses\s*\r?\n?\s*# 9102/9103')
 
@@ -4358,8 +4360,10 @@ $lblTmp    = Join-Path ([System.IO.Path]::GetTempPath()) ('lbl15-' + [guid]::New
 $lblRel    = 'appData\settings\vrfGui\default_SymbolDecorationSettings.symx'
 # A synthetic SymbolDecorationSettings v8 archive: model sets 0 and 5, types Ground and Default; $LabelOn5 puts
 # DtLabelSymbolDecoration in model set 5's two ON sets; the MOUSE-OVER map always carries it (it must never count as ON).
+# $NameOn5 keeps DtNameSymbolDecoration in them (RL-20261011-01: the deployed state is Label ON, Name OFF; by default
+# the Name is on exactly when the Label is off - the vendor default before the deploy, the deployed state after it).
 function New-LblSymx {
-    param([bool]$LabelOn5)
+    param([bool]$LabelOn5, [bool]$NameOn5 = (-not $LabelOn5))
     function Set-Lbl([string[]]$items) {
         $s = ($items | ForEach-Object { "`t`t`t`t`t`t<item>$_</item>" }) -join "`r`n"
         return @("`t`t`t`t`t<second>", ("`t`t`t`t`t`t<count>{0}</count>" -f $items.Count), "`t`t`t`t`t`t<item_version>0</item_version>", $s, "`t`t`t`t`t</second>") -join "`r`n"
@@ -4384,10 +4388,11 @@ function New-LblSymx {
         $l += "`t</$tag>"
         return $l -join "`r`n"
     }
-    $off = @('DtHeadingIndicatorSymbolDecoration', 'DtNameSymbolDecoration')
-    $on  = @('DtHeadingIndicatorSymbolDecoration', 'DtLabelSymbolDecoration', 'DtNameSymbolDecoration')
+    $set5 = @('DtHeadingIndicatorSymbolDecoration')
+    if ($LabelOn5) { $set5 += 'DtLabelSymbolDecoration' }
+    if ($NameOn5)  { $set5 += 'DtNameSymbolDecoration' }
     $main = @{ '0/Ground' = @('DtNameSymbolDecoration'); '0/Default' = @('DtNameSymbolDecoration')
-               '5/Ground' = $(if ($LabelOn5) { $on } else { $off }); '5/Default' = $(if ($LabelOn5) { $on } else { $off }) }
+               '5/Ground' = $set5; '5/Default' = $set5 }
     $mouse = @{ '0/Ground' = @('DtSpeedSymbolDecoration'); '0/Default' = @('DtSpeedSymbolDecoration')
                 '5/Ground' = @('DtLabelSymbolDecoration', 'DtSpeedSymbolDecoration'); '5/Default' = @('DtSpeedSymbolDecoration') }
     return (@('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>', '<!DOCTYPE boost_serialization>',
@@ -4399,7 +4404,7 @@ function New-LblSymx {
               '</SymbolDecorationSettings>', '</boost_serialization>', '') -join "`r`n")
 }
 function New-LblInstall {
-    param([string]$Name, [string]$State)     # State: off | on | missing | corrupt
+    param([string]$Name, [string]$State)     # State: off | on | labelonly (Label ON, Name still ON: the 10-05 deploy) | missing | corrupt
     $root = Join-Path $lblTmp $Name
     New-Item -ItemType Directory -Force -Path (Join-Path $root 'bin64'), (Join-Path $root 'appData\settings\vrfGui') | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $root 'bin64\vrfGui.exe'), 'stub')
@@ -4407,6 +4412,7 @@ function New-LblInstall {
     switch ($State) {
         'off'     { [System.IO.File]::WriteAllText($f, (New-LblSymx -LabelOn5 $false)) }
         'on'      { [System.IO.File]::WriteAllText($f, (New-LblSymx -LabelOn5 $true)) }
+        'labelonly' { [System.IO.File]::WriteAllText($f, (New-LblSymx -LabelOn5 $true -NameOn5 $true)) }
         'corrupt' { [System.IO.File]::WriteAllText($f, '<SymbolDecorationSettings class_id="0" tracking_level="0" version="8"><oops') }
     }
     return $root
@@ -4434,6 +4440,10 @@ try {
     }
     Check '15a the library reads a v8 archive: OFF where only the MOUSE-OVER set holds the Label, ON where model set 5 Ground and Default both do' (
         $lblLibOk -and $stOff.Parsed -and -not $stOff.AllOn -and $stOn.Parsed -and $stOn.AllOn -and @($stOn.Entries).Count -eq 2) $lblLib
+    # RL-20261011-01: the NAME decoration on the map is not the deployed state either - Label ON with the Name still ON is OFF
+    $stBoth = if ($lblLibOk) { & { param($l, $t) . $l; Get-LabelDecorationState -Text $t } $lblLib (New-LblSymx -LabelOn5 $true -NameOn5 $true) } else { $null }
+    Check '15a (RL-20261011-01) the Label ON with the NAME decoration still ON in model set 5 is NOT the deployed state (AllOn false)' (
+        $lblLibOk -and $stBoth.Parsed -and -not $stBoth.AllOn) $lblLib
     # (b) -Verify: 0 on, 1 off, 2 missing/unparseable - each install reported
     $hA00 = Get-LblHash $iA
     $vA = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
@@ -4457,7 +4467,7 @@ try {
     $aA = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
     $txtA = [System.IO.File]::ReadAllText((Join-Path $iA $lblRel))
     $vA2 = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iA) + $noGui)
-    Check '15d apply on an OFF install: exit 0, the file is BYTE-FOR-BYTE the ON archive (2 counts + 2 items, CRLF kept, mouse-over untouched), ONE backup, -Verify then exits 0' (
+    Check '15d apply on an OFF install: exit 0, the file is BYTE-FOR-BYTE the deployed archive (Label in, Name out of both model-set-5 ON sets, CRLF kept, mouse-over and model set 0 untouched), ONE backup, -Verify then exits 0' (
         $aA.Code -eq 0 -and $txtA -ceq (New-LblSymx -LabelOn5 $true) -and (Get-LblBackups $iA) -eq 1 -and $vA2.Code -eq 0 -and $aA.Out -match 'verified') ("exit {0}; verify {1}" -f $aA.Code, $vA2.Code)
     # (e) idempotent
     $hA1 = Get-LblHash $iA
@@ -4514,6 +4524,18 @@ try {
         if (([regex]::Matches($t, "`n")).Count -ne ([regex]::Matches($t, "`r`n")).Count) { $lblBad += "$p bare LF" }
     }
     Check '15k the deploy script and its library are ASCII with CRLF line endings' ($lblBad.Count -eq 0) ($lblBad -join '; ')
+    # (l) RL-20261011-01: an install deployed on 2026-10-05 (Label ON, Name still ON) - -Verify says OFF naming the Name,
+    #     the deploy takes ONLY the Name out (the Label stays), and a second run is a no-op
+    $iL = New-LblInstall 'vrforces5.2l' 'labelonly'
+    $vL = Invoke-Lbl (@('-Verify', '-NoAutoDiscover', '-VrfRoot', $iL) + $noGui)
+    $aL = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iL) + $noGui)
+    $txtL = [System.IO.File]::ReadAllText((Join-Path $iL $lblRel))
+    $aL2 = Invoke-Lbl (@('-NoAutoDiscover', '-VrfRoot', $iL) + $noGui)
+    Check '15l (RL-20261011-01) Label ON + Name ON: -Verify exit 1 naming the Name; the deploy leaves the deployed archive (Name out, Label kept), one backup; a second run changes nothing' (
+        $vL.Code -eq 1 -and $vL.Out -match 'Name' -and $aL.Code -eq 0 -and $txtL -ceq (New-LblSymx -LabelOn5 $true) -and
+        (Get-LblBackups $iL) -eq 1 -and $aL2.Code -eq 0 -and (Get-LblBackups $iL) -eq 1) ("verify {0}, apply {1}, again {2}" -f $vL.Code, $aL.Code, $aL2.Code)
+    Check '15l (RL-20261011-01) the deploy hides DtNameSymbolDecoration by default (-Hide) and the LaunchVrf52 WARN names the Name line' (
+        [System.IO.File]::ReadAllText($lblScript) -match '\$Hide\s*=\s*@\(''DtNameSymbolDecoration''\)' -and $lbBlock -match 'NAME') $lblScript
 } finally {
     if (Test-Path -LiteralPath $lblTmp) { Remove-Item -LiteralPath $lblTmp -Recurse -Force -ErrorAction SilentlyContinue }
 }

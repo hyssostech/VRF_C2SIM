@@ -25,8 +25,9 @@
 .PARAMETER ClientId
   Must equal the SystemName of the init STP pushes (RUNBOOK sec 2). Default STP.
 .PARAMETER AppNumber
-  HLA application number of the interface federate. Demo block 9101-9199 (outside the test
-  ledger); two interfaces on one network must differ. Default 9101.
+  HLA application number of the interface federate. PASS A FRESH NUMBER from the ledger marker
+  (docs/OPUS_EXECUTION_PLAN.md Appendix B, "NEXT FREE") on every launch - RL-20261011-01 retired the
+  fixed demo block 9101-9199. Default 9101 is only a fallback, and the script WARNS when it is used.
 .PARAMETER PositionReportSeconds
   Period of the C2SIM position reports (0 = off). Default 10.
 .PARAMETER Server
@@ -218,6 +219,11 @@ foreach ($p in @(@{p=$VrfRoot; w='VR-Forces 5.2d root'}, @{p=$Bin64; w='VR-Force
     if (-not (Test-Path -LiteralPath $p.p)) { $problems += ('missing {0}: {1}' -f $p.w, $p.p) }
 }
 if ($AppNumber -lt 1 -or $AppNumber -gt 65535) { $problems += "AppNumber must be 1..65535 (got $AppNumber)" }
+if (-not $PSBoundParameters.ContainsKey('AppNumber')) {
+    # RL-20261011-01: every demo federate takes a FRESH number from the ledger marker; a reused number can hang on a
+    # stale federate after a forced teardown (RUNBOOK sec 0). Advisory - the launch goes on.
+    Write-Host ('  [WARN] *** -AppNumber not given: using the fallback {0}. Claim a fresh number from the Appendix B marker and pass it (RL-20261011-01). ***' -f $AppNumber)
+}
 foreach ($u in @(@{v=$EffRestUrl; n='-RestUrl'}, @{v=$EffStompUrl; n='-StompUrl'})) {
     if ([string]::IsNullOrWhiteSpace($u.v)) { continue }
     $parsed = $null
