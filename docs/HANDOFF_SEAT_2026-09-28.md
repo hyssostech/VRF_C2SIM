@@ -146,6 +146,12 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    SEAT 2026-10-11 (session d0bba772): queue item (1) DONE - PR #1 merged as b50b9f1 (4 conflicts + X9 resolved; the stale
    "RelativeTime not honoured" clause fixed at 3 sites), deployed 1.0.0+git.b50b9f1 (pin 9e8c96b5; RUNBOOK sec 9 "STP-850 DEPLOY"),
    803/0/1. The Way B export has minOffset 0, so Receipt does not rebase it. NEXT: queue items (2)-(4) above.
+   REHEARSAL_WAYB-2026-10-11-4 RAN (profile as shipped, pace 1.0, nothing by hand): 6 of 6 HELD; THE MAP IS SEEN (H7):
+   clean labels on screen, each under a 30-char NAME line; 13.1 wall min to the last TASKCMPLT. DEMO_RUNBOOK fixed (OP2-OP4,
+   1.5 server UNINITIALIZED first, 4.2 forced stop expected). Up: rtiexec 32260, fwd 50916, day holder 29456 (5351, to ~02:03Z
+   10-12), c2sim-server-vrf; marker 5358. OWNER: pace 0.25 vs 1.0; hide the NAME line; OP1 numbers. LATER: STP itself pushing -
+   STP-1055 seat pointers: env STP_C2SimBridge__App__RestUrl/StompUrl/RestPassword, OAA push_c2sim_content via StpSDK
+   PushC2SIMContentAsync (no Pro UI), non-default host ports (stp-lt holds 9500-9599); STP-850 split export is STP PR #179.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.

@@ -20,10 +20,11 @@ WHAT HAS ACTUALLY RUN (read this before promising anything):
 |---|---|
 | Way A, raw export, bounded, GUI on | PASSED 2026-10-05 (docs/experiments/REHEARSAL_WAYB_BOUNDED_2026-10-05.md) |
 | Way A, derived cut-A order | PASSED headless 2026-10-04 (G1-6); with the GUI: UNVERIFIED |
-| Way B as typed below, on Iron Storm | NEVER RUN - UNVERIFIED. The hand-started sequence ran once, on Mojave (D5c, Appendix A) |
-| The Demo profile as the Iron Storm aggregate profile (2.2, 2026-10-05) | OFFLINE ONLY (the D2b guard accepts the order under it); never run live - UNVERIFIED |
+| Way B hand path (2.1-2.4, 4) on Iron Storm, PushInit/PushOrder standing in for STP | PASSED twice: 2026-10-05 at DurationScale 0.25 (docs/experiments/REHEARSAL_WAYB_HAND_2026-10-05.md) and 2026-10-11 on the profile as shipped, 1.0 (REHEARSAL_WAYB_HAND2_2026-10-11.md) |
+| The Demo profile as the Iron Storm aggregate profile (2.2) | RAN LIVE 2026-10-05 and 2026-10-11 (the second with nothing set by hand) |
 | STP itself pushing (not a stand-in) | NEVER RUN - UNVERIFIED |
-| Clean labels ("48 IBCT/28ID", RL-20261005-03) | deployed 2026-10-05 12:39Z; not yet seen on a GUI run - UNVERIFIED |
+| Clean labels ("48 IBCT/28ID", RL-20261005-03) | SEEN ON SCREEN 2026-10-11 - each under a second text line carrying the 30-character name (section 5) |
+| STP-850 start anchor (Receipt, RL-20260928-05) | deployed and run live 2026-10-11; STP's export has minOffset 0, so nothing is rebased |
 
 All commands run from the repository root of the MAIN checkout, in PowerShell 7 unless Git Bash is named.
 
@@ -40,13 +41,13 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
 
 0.2 THE DEPLOYED INTERFACE. Check the build, then smoke-test it (it starts nothing and joins nothing):
       (Get-Item src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe).VersionInfo.ProductVersion
-  SEE: `1.0.0+git.f58de23.Release-5.2` (2026-10-05), or the version of the latest deploy line in RUNBOOK
+  SEE: `1.0.0+git.b50b9f1.Release-5.2` (2026-10-11), or the version of the latest deploy line in RUNBOOK
   sec 9 - never one ending in DIRTY.
       $env:DOTNET_ENVIRONMENT = 'Demo'
       & src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe --runtime-check
       Remove-Item Env:DOTNET_ENVIRONMENT
   SEE: "VrfBridge loaded; native stack = 5.2 | C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll", "runtime-check: OK",
-  exit 0 (last confirmed by RUNBOOK sec 9 "CLEAN LABEL DEPLOY"). Anything else: stop, call an engineer.
+  exit 0 (last confirmed by RUNBOOK sec 9 "STP-850 DEPLOY"). Anything else: stop, call an engineer.
 
 0.3 THE UNATTENDED appData - *** ONE TREE, AND IT IS `C:\C2SIM\vrf-appdata-unattended\appData`. ***
   It is the only tree whose TWO GUI TEARDOWN PROMPTS ARE PRE-DISABLED (STP-844), so the GUI closes without
@@ -130,10 +131,19 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
       pwsh -NoProfile -File scripts\StartFederationHolder52.ps1 -AppNumbers a,b,c,d -SettleSecs 28800
   SEE: "HOLDER JOINED: pid ... appNo ...", exit 0. Numbers tried and not joined are burned. Exit 1 (none
   joined): stop - do not keep launching; ask an engineer. Exit 2: a precondition (rtiexec down, a sim or an
-  RtiProbe already running). LEAVE THIS WINDOW OPEN all day: the holder shares its console.
+  RtiProbe already running). LEAVE THIS WINDOW OPEN all day: the holder shares its console, so the script does
+  not return. A number or two failing first ("create FAILED ... STP-825, this number is now burned") is normal:
+  on 2026-10-11 the third of four joined.
 
 1.4 LABELS: the two `-Verify` lines of 0.4, exit 0 both.
-1.5 SERVER: REST 200 on whichever server the demo uses (0.6).
+1.5 SERVER: REST 200 on whichever server the demo uses (0.6), and the server UNINITIALIZED before 2.2 starts
+  the interface. Read its state (nothing is sent), with the pair the demo uses - private shown:
+      tools\StopIface\bin\Release\net10.0\StopIface.exe http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM --dry-run
+  SEE: "before      : UNINITIALIZED". Anything else (after `docker start` the private server came back RUNNING
+  on 2026-10-11): on the PRIVATE server run the same line with --yes instead of --dry-run - SEE "after RESET :
+  UNINITIALIZED", exit 0. On the STANDARD server that is STP's session: ask the STP operator to reset it.
+  Why: the interface stops itself when the server goes UNINITIALIZED, and pushing the initialization onto a
+  RUNNING server passes through that state while the interface listens - untested (REHEARSAL_WAYB_HAND2 K1).
 1.6 After a reboot, do one throw-away launch first: the MAK RTI connection dialog can appear on the first
   start after a reboot (pick the rtiexec connection). A same-day rehearsal is the simplest way.
 
@@ -159,6 +169,9 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   that block at 9190/9191, so the block is not reserved to interfaces. After a FORCED teardown (section 4,
   exit 6/7) the back end never resigned: for a second launch on the same rtiexec use numbers not used
   before (e.g. 9104/9105) - a reused number can hang on a stale federate (RUNBOOK sec 0). UNVERIFIED.
+  OPEN (the owner's choice, REHEARSAL_WAYB_HAND OP1): fixed numbers here vs fresh numbers per launch from a
+  marker. Both rehearsals took fresh numbers from the engineering ledger and passed them by parameter: LaunchVrf52
+  -FederationHoldAppNumber h (it also uses h+1) -BackendAppNumber b -FrontendAppNumber f; StartInterface52 -AppNumber i.
 
 2.2 THE INTERFACE, ON THE DEMO PROFILE - SET NOTHING BY HAND. appsettings.Demo.json IS THE IRON STORM AGGREGATE
   DEMO PROFILE (since 2026-10-05, branch feat/demo-overlay-aggregate): StartInterface52 loads it, and it carries
@@ -170,7 +183,7 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   beats the profile. Check it:
       Get-ChildItem Env:Vrf__* -ErrorAction SilentlyContinue
   SEE: nothing (or only Vrf__DurationScale, see PACE below). Anything else: close the window, open a new one.
-  THE DEPLOYED PROFILE must be this one - the f58de23 deploy named in 0.2 PREDATES it and still says EntityLevel:
+  THE DEPLOYED PROFILE must be this one:
       Select-String -Path src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\appsettings.Demo.json -Pattern '"ModelSet": "AggregateTacticalLevel"'
   SEE: exactly one line. Nothing = an older deploy: stop, call an engineer (a redeploy, RUNBOOK sec 9).
       pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId "Not Set" -Server standard -WhatIf
@@ -179,14 +192,13 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
     `Not Set`; whether STP sends the same when it pushes live is UNVERIFIED - ask the STP operator. A
     mismatch creates NOTHING and looks healthy.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
-  - PACE - THE OWNER'S OPEN DECISION. The profile keeps DurationScale 1.0: STP's authored durations, longer
-    holds, UNVERIFIED on this order. Every rehearsal ran 0.25 (every task ends about 3 min after the order).
+  - PACE - THE OWNER'S OPEN DECISION. The profile keeps DurationScale 1.0: STP's authored durations. RAN
+    2026-10-11: the accepted tasks were terminal about 13 wall min after the order. At 0.25 (the earlier
+    rehearsals) about 3 min.
     Until the owner decides, for the rehearsed pace type this in the same window BEFORE the line above, and
     close the window after the demo:
       $env:Vrf__DurationScale = '0.25'
-  - UNVERIFIED: the profile has not run on the hand-started path, and is not deployed. It is proven OFFLINE only,
-    on its branch's build: under it the app's D2b guard ALLOWS STP's raw Iron Storm order (`--rulings-selftest`
-    (s5)), and `--runtime-check` with DOTNET_ENVIRONMENT=Demo passes.
+  - RAN LIVE on this hand-started path 2026-10-05 (0.25 by hand) and 2026-10-11 (nothing by hand).
   WHAT THE RUNNER SET IN THE REHEARSED RUNS THAT THE PROFILE DOES NOT CARRY, AND WHY:
   - application number (a fresh ledger number per run): the demo has its own block - 9101, StartInterface52.
   - Vrf__ClientId and the C2SIM server pair: StartInterface52's -ClientId and -Server.
@@ -218,9 +230,10 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
     7 accepted tasks belong to 28ID, 1-112 IN and 48 IBCT, which are populated in place: 1 + 5 + 17 = 23
     member units appear. Nothing else is populated.
   - 48 IBCT (T14) drives about 2.8 km along STP's own line (the aggregate Auto planner); T1, T2, T10, T11
-    and T13 are holds. All 23 tasks were terminal about 2 min 47 s after the order (DurationScale 0.25).
-  - Labels: the clean designator, e.g. "48 IBCT/28ID" on the container and "48 IBCT/28ID.HQ1" on a member
-    (RL-20261005-03; UNVERIFIED on screen - the rehearsal ran the build before, which drew the full name).
+    and T13 are holds. All 23 tasks were terminal about 2 min 47 s after the order at DurationScale 0.25, about
+    13 min at the profile's 1.0.
+  - Labels: the clean designator, e.g. "48 IBCT/28ID" on the container and "48 IBCT/28ID.INF3RIF1" on a member
+    (RL-20261005-03; SEEN 2026-10-11), each under a line with the unit's 30-character name (section 5).
   EXPECTED INTERFACE LINES: one "DEMO EXTENT (Vrf:DemoExtent, RL-20261005-02): 23 task(s) in this order, 16
   refused out of ..." summary naming the units it will not populate; one TASKABRT per refused task, "OUT OF DEMO EXTENT:
   <what> at <lat,lon> is <km> km outside ..."; one "POPULATE IN PLACE ... N of N created" per populated
@@ -234,20 +247,17 @@ UNVERIFIED AS A WHOLE on Iron Storm (table at the top). Rehearse it once, end to
   interface printed. Use BOTH lines of ONE block, never one from each:
 
   PRIVATE server - use with `StartInterface52.ps1 -Server private` (rehearsal):
-    tools\PushInit\bin\Release\net10.0\PushInit.exe  data\STP-IRON-STORM-SYNTHETIC_Initialization.xml ^
-        http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
-    tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\STP-IRON-STORM-SYNTHETIC_Order.xml 60 ^
-        http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
+    tools\PushInit\bin\Release\net10.0\PushInit.exe data\STP-IRON-STORM-SYNTHETIC_Initialization.xml http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
+    tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\STP-IRON-STORM-SYNTHETIC_Order.xml 60 http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
 
   STANDARD server - use with `StartInterface52.ps1 -Server standard` (only when the demo is meant to run
   on the operator's own server):
-    tools\PushInit\bin\Release\net10.0\PushInit.exe  data\STP-IRON-STORM-SYNTHETIC_Initialization.xml ^
-        http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
-    tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\STP-IRON-STORM-SYNTHETIC_Order.xml 60 ^
-        http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+    tools\PushInit\bin\Release\net10.0\PushInit.exe data\STP-IRON-STORM-SYNTHETIC_Initialization.xml http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+    tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\STP-IRON-STORM-SYNTHETIC_Order.xml 60 http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
 
   A MISMATCHED PAIR IS SILENT: the interface waits on one server, the push succeeds on the other, nothing
   is created, every console looks healthy. Never hand-edit an initialization or order in the room.
+  Each command is ONE line: PowerShell 7 has no `^` continuation (cmd's `^` would become a stray argument).
 
 ---
 
@@ -292,15 +302,15 @@ never the vendor .log (it prints the whole environment, secrets included).
 WAY B, in this order - THE INTERFACE FIRST, so it resigns from the federation cleanly:
   1. Ctrl+C in the interface's own window does the same thing as `tools\StopIface` (RUNBOOK sec 4) and is
      the simple choice at the keyboard. The scripted stop is
-         tools\StopIface\bin\Release\net10.0\StopIface.exe ^
-             http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM --yes
+         tools\StopIface\bin\Release\net10.0\StopIface.exe http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM --yes
      with the SAME pair the interface listens to (18080 / 61614 for -Server private). It drives that
      server to UNINITIALIZED - on the standard server that is STP's session too, so agree it with STP.
   2. VR-Forces:
          pwsh -NoProfile -File scripts\StopVrf52.ps1
      0 = down. 3 = still running, NOTHING was killed - the back end ignored the graceful close (the same
-     refusal the runner answers with exit 6). Then force ONLY the back end 2.1 started (pid N), identified
-     by pid AND start time (UNVERIFIED by hand; the runner does exactly this):
+     refusal the runner answers with exit 6). EXPECT 3: every run from 2026-10-05 to 2026-10-11 (4 of 4) got it.
+     Then force ONLY the back end 2.1 started (pid N), identified by pid AND start time (done by hand on
+     2026-10-05 and 2026-10-11, exit 6 both; the runner does exactly this):
          $p = Get-Process -Id N
          pwsh -NoProfile -File scripts\StopVrf52.ps1 -ForceOwnBackendPid $p.Id -ForceOwnBackendStartUtc $p.StartTime.ToUniversalTime().ToString('o')
      6 = done; 7 and 8 as for Way A. 5 = unexpected error - VR-Forces may still be up; call an engineer.
@@ -330,12 +340,15 @@ unit map at initialization, so it must be restarted. Leave a few minutes between
   as STP-962. Inside the area that leaves one mover (48 IBCT) and five holds - say it is a thin slice.
 - PACE. The simulation runs faster than real time while the GUI clock reads 1x: 3.0-7.4x in the Iron
   Storm rehearsal. The ratio is LOAD-DEPENDENT and moves within a run (Mojave: 2.6x under load to 4.7x
-  idle, RUNBOOK sec 11f), so never quote one number; the interface's per-minute `SIM/WALL RATIO` line is
+  idle, RUNBOOK sec 11f; 4.1-9.9x on 2026-10-11), so never quote one number; the interface's per-minute `SIM/WALL RATIO` line is
   the instrument. The real-time fixture is not in the demo path (RL-20260921-02); a time-multiplier setting
   was never decided (HANDOFF_SEAT_2026-09-28 sec 4). With DurationScale 0.25 the show lasts about 3 min; the
-  Demo profile's 1.0 is longer and UNVERIFIED - the pace is the owner's open decision (2.2 PACE).
+  Demo profile's 1.0 ran about 13 min (2026-10-11) - the pace is the owner's open decision (2.2 PACE).
 - LABELS OVERPRINT where units stack (48 IBCT over 1-112 IN, the 28ID headquarters). Zoom in. The long
   C2SIM description after "__" is dropped for now; an extended label comes after the demo (RL-20261005-04).
+  Each unit shows TWO text lines (seen 2026-10-11): its VR-Forces NAME, the C2SIM name cut to 30 characters
+  (e.g. "169_FAB/28ID__FRIENDLY_FIELD_A"), above the clean label ("169 FAB/28ID"). The name line is a separate
+  GUI decoration; whether to hide it is open (HANDOFF_SEAT).
 - SOME 48 IBCT MEMBERS END OFF THE OBJECTIVE: 6 of 17 stopped 262-790 m from it in the rehearsal; not yet
   explained. Do not promise that every vehicle reaches its point.
 - WHAT STP SHOWS (as last checked 2026-09-14, STP pinned to SDK 1.3.1; UNVERIFIED since): STP displays the

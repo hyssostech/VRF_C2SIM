@@ -1,6 +1,6 @@
 # REHEARSAL - WAY B HAND PATH, SECOND RUN: THE MAP BY EYE, THE PROFILE'S OWN PACE, STP-850 LIVE (light registration)
 
-STATUS: REGISTERED 2026-10-11, before any launch (the commit stamp is authoritative). Light registration under
+STATUS: REGISTERED 2026-10-11 (bca93c5), RUN 2026-10-11 (S8 18:10Z, order 18:23:00Z), Result below; registered before any launch (the commit stamp is authoritative). Light registration under
 RL-20261005-01 (standing go-live; quiet machine agreed 2026-10-11 with the two busy local sessions, STP-1055 and STP-1021
 L13 - both replied "no objection", no builds until released). The seat runs it.
 Predecessor: REHEARSAL_WAYB_HAND_2026-10-05.md (REHEARSAL_WAYB-2026-10-05-3): H1-H6, H8-H10 HELD, H7 NOT OBSERVABLE.
@@ -69,4 +69,36 @@ STOP RULE: a crash, the interface leaving at PushInit, or S2 hash mismatch = sec
 
 ## Result
 
-(to be written)
+RUN 2026-10-11, scored by the seat from runs\launch52\wayb-hand-4\ (git-ignored): s9-interface.log (1,344 lines), the
+s3-s16 logs, shot_init / t01 / t05 / t10 / t15 (-pw and -scr). The vendor log copy was not read. VERDICT: 6 of 6 HELD
+(J4 with caveats). The hand path ran end to end on the Demo profile with NO variable set by hand.
+
+| # | Verdict | Measured |
+|---|---|---|
+| J1 | HELD | SERVER line 18080/61614; MODEL SET RULE -> AggregateTacticalLevel; DEMO EXTENT ON + 2 km; TASK CLOCK sim; "START TIME ANCHOR (STP-850): ... from Receipt"; READY - joined, 1 back end, FidelityTable. At the order: "START TIME BASE (STP-850): this order's smallest SimulationTime offset is 0 s over 9 task(s)"; T10 "start delay 1200 s (order says 1200 s; Vrf:DurationScale=1; authored SimulationTime offset 1200 s -> offset used 1200 s, rebased on the order's smallest offset 0 s), counted from ORDER RECEIPT"; T2 "start delay 1200 s (... relative delay 1200 s), counted from its predecessor's completion" (X9) |
+| J2 | HELD | READY TO TASK - 36 of 36 after 11.7 s, IDENTITY 36 of 36 by uuid; D2b allowed; 23 tasks, 16 refused out of the extent, T17 SKIPPED; populated 28ID 1 of 1, 1-112 IN 5 of 5, 48 IBCT 17 of 17 |
+| J3 | HELD | Profile pace 1.0. Dispatch / end on the SIM clock: T1, T13 at 592 s, TASKCMPLT at their 1200 s Duration; T14 dispatched 1810.6 s after T13, ARRIVAL EVIDENCE at 2545.4 s (734.8 SIM s / 174.6 WALL s; farthest travel 2351 m of 2768 m, nearest 484 m), TASKCMPLT at its Duration end (early arrival held to start + Duration, RL-20260921-09); T10 at receipt + 1200 s, TASKCMPLT at its 1800 s Duration; T2 dispatched 3022.3 s (T1's end + 1200 s relative delay); T11 dispatched 3493.5 s; last TASKCMPLT (T11) about 18:36:05Z = 13.1 WALL min after the order (predicted 8-16). SIM/WALL 9.9, 6.3, 6.5, 6.2 before T14 moved, 4.1-5.0 while it moved and after. GUI toolbar showed 1x throughout (-3's F3) |
+| J4 | HELD, CAVEATS | THE MAP IS VISIBLE (the first live look): both capture methods show terrain, symbols and labels - the -pw (PrintWindow) shots too, once the window had been restored (the init -pw was 3862x2110, the restored window 2582x1330); -3's blank map stays UNEXPLAINED (no cause claimed). Init: the containers on the Suwalki imagery at 1:200,000, each with TWO text lines - the 30-character NAME (e.g. "169_FAB/28ID__FRIENDLY_FIELD_A") above the clean LABEL ("169 FAB/28ID") - so "__" text IS on screen, from the name decoration, not the label. Members: "48 IBCT/28ID.INF3RIF1"-style labels. 48 IBCT's members visibly displaced about 1.5 km NE between t01 and t10. Labels overprint where units stack (48 IBCT and 1-112 IN; the 278 ACR / 4ID stacks). Green bars over the populated units: not identified. A light-blue polygon fills the map's east edge: not identified |
+| J5 | HELD | StopIface 0 (RUNNING -> UNINITIALIZED); interface clean stop, exit 0, last line "fail: C2SIM.C2SIMSDK ... STOMP block reading cancelled" (-3's F5); StopVrf52 3 (graceful close refused; "NVOGLDC invisible" / "Default IME" only, no modal); S14 forced back end 44220 by pid + start -> 6 (4 of 4 runs since 2026-10-05); no VR-Forces process left; labels ON in both trees after; no .callstack.log / .dmp since 18:00Z; rtiexec 32260, rtiForwarder 50916, day holder 29456 alive |
+| J6 | HELD | no RTI connection dialog after the reboot; S8 exit 0 |
+
+FINDINGS (no cause claims)
+- K1 OP3 ANSWERED FOR THE RUNBOOK: after `docker start` the private server came back RUNNING (S6). The interface stops on
+  UNINITIALIZED (VrfC2SimService.cs:1536-1538) and PushInit's ResetToInitializing sends STOP, RESET, INITIALIZE unless the
+  server is INITIALIZING (C2SIMSDK C2SIMSSDK.cs:298-313), so starting the interface on a RUNNING server and then pushing
+  the init is the untested race. S6b (StopIface --yes BEFORE the interface) put it at UNINITIALIZED and PushInit went
+  UNINITIALIZED -> INITIALIZING -> RUNNING with the interface staying up. DEMO_RUNBOOK 1.5 gains that step.
+- K2 1.3 burned two numbers: 5349 and 5350 create FAILED (exit -1073741819 on NETN-BASE.xml / MAK-VRLExt-3_evolved.xml,
+  STP-825), 5351 JOINED. StartFederationHolder52 does not return while its holder lives (its console is the holder's).
+- K3 The "START TIME BASE" line says "every offset is rebased on it, so the order starts on its receipt" when the
+  minimum is 0 (a rebase by nothing) - wording only.
+- K4 T14's ARRIVAL EVIDENCE again judged the populated container as "ONE POSITION: an aggregate-level unit with no
+  members" (-3's F1, reproduced).
+- K5 PACE DATA for the owner: at 1.0 the accepted slice runs about 13 wall min (6 holds of 1200-1800 SIM s and one
+  2.8 km move); at 0.25 (-3) about 3 min. The mover's own drive does not scale (734.8 SIM s here, 637.3 in -3).
+
+APPENDIX B ANNOTATION (appended under the CLAIMED entry; marker stays 5358):
+    RESULT REHEARSAL_WAYB-2026-10-11-4: 5349, 5350 BURNED (day-holder creates failed, STP-825); 5351 CONSUMED (day holder
+    RtiProbe 29456, 28800 s from 18:03:36Z, never killed); 5352 BURNED unused; 5353 CONSUMED (LaunchVrf52 holder 43000,
+    attempt 1, its 900 s end); 5354 BURNED unused; 5355 CONSUMED (back end 44220, forced exit 6 after StopVrf52 3);
+    5356 CONSUMED (vrfGui 53336, closed, no modal); 5357 CONSUMED (VrfC2SimApp, clean stop via StopIface).
