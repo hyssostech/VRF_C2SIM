@@ -143,6 +143,9 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    memory feedback-read-ledger-before-asking (PR and Jira COMMENTS are record).
    PARKED 2026-10-06 for an owner reboot: nothing running; after it the RTI trio and holder 41292 are gone - the next
    go-live starts with StartRtiExec52 + a holder claim from the marker (5349) and docker start c2sim-server-vrf.
+   SEAT 2026-10-11 (session d0bba772): queue item (1) DONE - PR #1 merged as b50b9f1 (4 conflicts + X9 resolved; the stale
+   "RelativeTime not honoured" clause fixed at 3 sites), deployed 1.0.0+git.b50b9f1 (pin 9e8c96b5; RUNBOOK sec 9 "STP-850 DEPLOY"),
+   803/0/1. The Way B export has minOffset 0, so Receipt does not rebase it. NEXT: queue items (2)-(4) above.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
