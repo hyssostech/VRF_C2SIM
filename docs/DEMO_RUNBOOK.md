@@ -41,13 +41,13 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
 
 0.2 THE DEPLOYED INTERFACE. Check the build, then smoke-test it (it starts nothing and joins nothing):
       (Get-Item src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe).VersionInfo.ProductVersion
-  SEE: `1.0.0+git.b50b9f1.Release-5.2` (2026-10-11), or the version of the latest deploy line in RUNBOOK
+  SEE: `1.0.0+git.473f20a.Release-5.2` (2026-10-11), or the version of the latest deploy line in RUNBOOK
   sec 9 - never one ending in DIRTY.
       $env:DOTNET_ENVIRONMENT = 'Demo'
       & src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe --runtime-check
       Remove-Item Env:DOTNET_ENVIRONMENT
   SEE: "VrfBridge loaded; native stack = 5.2 | C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll", "runtime-check: OK",
-  exit 0 (last confirmed by RUNBOOK sec 9 "STP-850 DEPLOY"). Anything else: stop, call an engineer.
+  exit 0 (last confirmed by RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). Anything else: stop, call an engineer.
 
 0.3 THE UNATTENDED appData - *** ONE TREE, AND IT IS `C:\C2SIM\vrf-appdata-unattended\appData`. ***
   It is the only tree whose TWO GUI TEARDOWN PROMPTS ARE PRE-DISABLED (STP-844), so the GUI closes without
@@ -65,8 +65,8 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
   tree. With NO vrfGui running:
       pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -Verify
       pwsh -NoProfile -File tools\display\Enable-LabelDecoration.ps1 -AppDataDir 'C:\C2SIM\vrf-appdata-unattended\appData' -Verify
-  SEE: exit 0, "ON for 5/Ground, 5/Default, NameSymbol hidden". Exit 1 (OFF - "Label off" and/or
-  "NameSymbol shown") or 2 (file missing): run the same line with
+  SEE: exit 0, "ON for 5/Ground, 5/Default, Name hidden". Exit 1 (OFF - "Label off" and/or "Name shown")
+  or 2 (file missing): run the same line with
   -WhatIf, then with neither switch, then -Verify again (RUNBOOK sec 9 "LABEL DECORATION DEPLOY"). Exit 4 =
   a vrfGui is running - close it first. Without it the map shows the 30-character names (with the "__"
   text) and/or no clean labels, and LaunchVrf52 prints "[WARN] LABEL DECORATION NOT ON" at every launch.
