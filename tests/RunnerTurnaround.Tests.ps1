@@ -4618,6 +4618,17 @@ try {
     # (d) no STP listening: exit 1, an ERROR line, no hang
     $outD = & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -NonInteractive -File $stpScript -Action order -File $content -Url "ws://127.0.0.1:$fakePort" -TimeoutSec 5 2>&1 | Out-String
     Check '16d nothing listening: exit 1 with an ERROR line' ($LASTEXITCODE -eq 1 -and $outD -match 'ERROR') ("exit {0}" -f $LASTEXITCODE)
+    # (e) the rehearsals' capture helper is in the repo, parses, is ASCII/CRLF, and sends no input (no SendInput/keybd_event/mouse_event)
+    $capPath = Join-Path $RepoRoot 'tools\display\Capture-VrfGui.ps1'
+    $capErr = $null
+    $capOk = Test-Path -LiteralPath $capPath
+    if ($capOk) { $null = [System.Management.Automation.Language.Parser]::ParseFile($capPath, [ref]$null, [ref]$capErr) }
+    $capB = if ($capOk) { [System.IO.File]::ReadAllBytes($capPath) } else { @() }
+    $capT = [System.Text.Encoding]::ASCII.GetString($capB)
+    Check '16e tools\display\Capture-VrfGui.ps1: present, parses, ASCII with CRLF, and sends no keyboard or mouse input' (
+        $capOk -and $capErr.Count -eq 0 -and @($capB | Where-Object { $_ -gt 127 }).Count -eq 0 -and
+        ([regex]::Matches($capT, "`n")).Count -eq ([regex]::Matches($capT, "`r`n")).Count -and
+        $capT -notmatch 'SendInput|keybd_event|mouse_event|SendKeys') $capPath
 } finally {
     if (Test-Path -LiteralPath $stpTmp) { Remove-Item -LiteralPath $stpTmp -Recurse -Force -ErrorAction SilentlyContinue }
 }

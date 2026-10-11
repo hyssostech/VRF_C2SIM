@@ -156,7 +156,10 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    fresh ledger app numbers per demo launch. DEPLOYED 473f20a (RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). CHECKED LIVE (-5, 5 of 5:
    one clean label per unit, 0.25 from the overlay, 4 wall min). STP ITSELF PUSHED (-6, REHEARSAL_WAYB_STPPUSH: container
    stp-server:coa-l13 via WebSocket PushC2SIMContent, client scratch laneSTPPUSH\StpPush.ps1; init and order success=true, same
-   counts); its map was BLANK - display OFF at launch, as -3 (correlation n=4, no cause claimed). Marker 5368. WAS NEXT: the STP-pushes lane (avoid host ports 9500-9599 stp-lt, 19500-19620 STP-1055). AFTER the demo:
+   counts); its map was BLANK - display OFF at launch, as -3 (correlation n=4, no cause claimed). Marker 5368.
+   Push client in the repo: tools/stp/StpPush.ps1 (suite 16a-d); capture helper tools/display/Capture-VrfGui.ps1. VRF_C2SIM has
+   NO open PR. STP PR #179 (STP-850 export): its VRF gate is met (commented 10-11); draft, sidc-leak-gate failing - the STP
+   side's merge. STP #180 (STP-847) will change the pushed SystemName from "Not Set": the interface's -ClientId must follow. WAS NEXT: the STP-pushes lane (avoid host ports 9500-9599 stp-lt, 19500-19620 STP-1055). AFTER the demo:
    the "__" description in a VR-Forces field a user can inspect, if one fits (RL-20261005-04, RL-20261011-01).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
