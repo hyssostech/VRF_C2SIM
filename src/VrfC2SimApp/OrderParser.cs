@@ -68,7 +68,7 @@ public static class OrderParser
             if (m == null) continue;
 
             string taskLabel = (m.Name ?? "").Trim();
-            var (simMs, startAfter, relMs, absStart) = TimingOf(m, taskLabel, data.ShortFormDurations, relativeNotHandled);
+            var (simMs, hasSim, startAfter, relMs, absStart) = TimingOf(m, taskLabel, data.ShortFormDurations, relativeNotHandled);
             long durationMs = m.Duration == null ? 0
                             : Decode(m.Duration.IsoTimeDuration, $"task '{taskLabel}' Duration", data.ShortFormDurations);
             var task = new OrderTask
@@ -82,6 +82,7 @@ public static class OrderParser
                 MapGraphicUuid = FirstOrEmpty(m.MapGraphicID),
                 MapGraphicUuids = AllNonEmpty(m.MapGraphicID),
                 SimulationStartMs = simMs,
+                HasSimulationStart = hasSim,
                 StartAfterTaskUuid = startAfter,
                 RelativeDelayMs = relMs,
                 DurationMs = Math.Max(0, durationMs),
@@ -270,22 +271,32 @@ public static class OrderParser
     // Parse: -1 when the element is present but undecodable (Parse warns) and 0 when it is absent -
     // an absent Duration is not an error, it just leaves the task with no end time.
 
+    /// <summary>R4 timing. hasSim (STP-850, split orders): the task CARRIES a readable
+    /// StartTime/SimulationTime - an explicit P...0S counts; an absent StartTime, a DateTime or RelativeTime
+    /// start and an undecodable duration do not. Only such tasks set the order's minimum offset
+    /// (TaskDispatchPolicy.MinSimulationOffsetMs). Decoded HERE, from the same value as simMs, so the flag
+    /// and the offset cannot drift apart.</summary>
     // Every IsoTimeDuration this parser reads goes through Decode (both forms, RL-20261004-06): the
     // task Duration (Parse), the SimulationTime DelayTimeAmount, the ActionTemporalRelationship
     // Duration and the RelativeTime DelayTimeAmount (here). A malformed delay clamps to 0, as it
     // always has.
-    private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(
+    private static (long simMs, bool hasSim, string startAfter, long relMs, DateTime? absStart) TimingOf(
         S.ManeuverWarfareTaskType m, string taskLabel, List<string> shortForms, List<string> relativeNotHandled)
     {
         long simMs = 0;
+        bool hasSim = false;
         DateTime? absStart = null;
         // StartTime is a TimeInstantType (xsd:4332-4341): SimulationTime (a relative DelayTimeAmount),
         // DateTime (an absolute IsoDateTime), or RelativeTime (a DelayTimeAmount after the start or
         // end of a referenced event, xsd:3288-3300). The first two are read here; RelativeTime is read
         // below, once the task's predecessor is known (X9).
         if (m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null)
-            simMs = Math.Max(0, Decode(st.DelayTimeAmount.IsoTimeDuration,
-                                       $"task '{taskLabel}' StartTime/SimulationTime/DelayTimeAmount", shortForms));
+        {
+            long decoded = Decode(st.DelayTimeAmount.IsoTimeDuration,
+                                  $"task '{taskLabel}' StartTime/SimulationTime/DelayTimeAmount", shortForms);
+            simMs = Math.Max(0, decoded);
+            hasSim = decoded >= 0;
+        }
         else if (m.StartTime?.Item is S.DateTimeType dt && !string.IsNullOrWhiteSpace(dt.IsoDateTime)
                  && DateTime.TryParse(dt.IsoDateTime, System.Globalization.CultureInfo.InvariantCulture,
                                       System.Globalization.DateTimeStyles.AdjustToUniversal
@@ -330,7 +341,7 @@ public static class OrderParser
                                        (startAfter.Length == 0 ? " (the task has no STREND predecessor)"
                                                                : $" (its predecessor is {startAfter})"));
         }
-        return (simMs, startAfter, relMs, absStart);
+        return (simMs, hasSim, startAfter, relMs, absStart);
     }
 
     private static double? ElevOf(S.GeodeticCoordinateType g)

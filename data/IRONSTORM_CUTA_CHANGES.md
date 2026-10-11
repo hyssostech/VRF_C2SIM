@@ -556,7 +556,8 @@ Note T10's `StartTime/SimulationTime/DelayTimeAmount` is `PT20M`, **not zero** -
 task with a real 20-minute authored delay, which only becomes visible once (a) makes it
 decodable. T02's and T14's `StartTime/RelativeTime/DelayTimeAmount` are NOT read
 (`OrderParser.TimingOf` handles `SimulationTime` and `DateTime` only), so they start when
-their predecessor's Duration ends.
+their predecessor's Duration ends. SUPERSEDED 2026-10-05 by X9 (fix/relativetime-start-delay): a
+RelativeTime naming the task's own STREND predecessor at IntervalEndTime IS read as its relative delay.
 
 | scale | T01/T13 hold ends | T02 | T10 | T14 | last |
 |---|---|---|---|---|---|
