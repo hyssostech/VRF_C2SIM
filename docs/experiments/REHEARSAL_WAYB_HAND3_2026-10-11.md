@@ -1,6 +1,6 @@
 # REHEARSAL - WAY B HAND PATH, THIRD RUN: RL-20261011-01 AS DEPLOYED (light registration)
 
-STATUS: REGISTERED 2026-10-11, before any launch (the commit stamp is authoritative). Light registration under
+STATUS: REGISTERED 2026-10-11 (3557792), RUN 2026-10-11 (S8 19:30Z, order 19:33Z), Result below; registered before any launch (the commit stamp is authoritative). Light registration under
 RL-20261005-01; quiet machine requested from STP-1055 and STP-1021 L13 before S8.
 Predecessor: REHEARSAL_WAYB_HAND2_2026-10-11.md (REHEARSAL_WAYB-2026-10-11-4, 6 of 6 HELD).
 
@@ -35,4 +35,18 @@ STOP RULE: a crash, the interface leaving at PushInit, or an S2 mismatch = secti
 
 ## Result
 
-(to be written)
+Scored by the seat from runs\launch52\wayb-hand-5\ (git-ignored): s8/s9 logs, shot_init / t01 / t02 / t04 (-scr), the
+teardown logs. VERDICT: 5 of 5 HELD - RL-20261011-01 is live as deployed.
+
+| # | Verdict | Measured |
+|---|---|---|
+| L1 | HELD | Every unit shows ONE text line, its clean label ("169 FAB/28ID", "1-112 IN/28ID", "4ID/III Corps", members "48 IBCT/28ID.INF..."); no 30-character name line and no "__" text in any shot. Stacks still overprint (48 IBCT's members; the 278 ACR stack at 54 N 23 12 E, whose labels run together); a yellow triangle beside 48 IBCT and the green bars over populated units: not identified |
+| L2 | HELD | Nothing set by hand (Env:Vrf__* empty); start delays "Vrf:DurationScale=0.25"; T2 "start delay 300 s (order says 1200 s ...)"; every timed completion "reached the end time ... (300 s after dispatch)" or (450 s) - T10 |
+| L3 | HELD | 6 TASKCMPLT by 19:37:02Z, order 19:33:00Z: at most 4.0 wall min (SIM/WALL 5.4, 4.6, 4.4) |
+| L4 | HELD | StartInterface52: 0 "-AppNumber not given" WARN (5362 passed); LaunchVrf52: "Label decoration ON ... (ON for 5/Ground, 5/Default, Name hidden)", 0 "LABEL DECORATION NOT ON" |
+| L5 | HELD | READY TO TASK 36 of 36 after 7.4 s, 36 by uuid; 16 refused out of the extent; StopIface 0, interface exit 0; StopVrf52 3 then forced back end 27624 -> 6 (5 of 5 runs); no VR-Forces process left; no crash record; labels still deployed after the GUI exit (-Verify 0); rtiexec 32260, forwarder 50916, holder 29456 alive |
+
+APPENDIX B ANNOTATION (marker stays 5363):
+    RESULT REHEARSAL_WAYB-2026-10-11-5: 5358 CONSUMED (LaunchVrf52 holder 56476, attempt 1); 5359 BURNED unused; 5360
+    CONSUMED (back end 27624, forced exit 6 after StopVrf52 3); 5361 CONSUMED (vrfGui, closed, no modal); 5362 CONSUMED
+    (VrfC2SimApp, clean stop via StopIface).

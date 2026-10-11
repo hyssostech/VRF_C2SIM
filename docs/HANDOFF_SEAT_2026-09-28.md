@@ -153,8 +153,8 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    STP-1055 seat pointers: env STP_C2SimBridge__App__RestUrl/StompUrl/RestPassword, OAA push_c2sim_content via StpSDK
    PushC2SIMContentAsync (no Pro UI), non-default host ports (stp-lt holds 9500-9599); STP-850 split export is STP PR #179.
    RULED RL-20261011-01 ("As recommended"): pace 0.25 in the Demo overlay; NAME decoration hidden (deployed both trees, -Verify 0);
-   fresh ledger app numbers per demo launch. DEPLOYED 473f20a (RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). NEXT: a short GUI check
-   that the name line is gone; then the STP-pushes lane (avoid host ports 9500-9599 stp-lt, 19500-19620 STP-1055). AFTER the demo:
+   fresh ledger app numbers per demo launch. DEPLOYED 473f20a (RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). CHECKED LIVE (-5, 5 of 5:
+   one clean label per unit, 0.25 from the overlay, 4 wall min); marker 5363. NEXT: the STP-pushes lane (avoid host ports 9500-9599 stp-lt, 19500-19620 STP-1055). AFTER the demo:
    the "__" description in a VR-Forces field a user can inspect, if one fits (RL-20261005-04, RL-20261011-01).
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a

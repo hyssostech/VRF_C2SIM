@@ -20,10 +20,10 @@ WHAT HAS ACTUALLY RUN (read this before promising anything):
 |---|---|
 | Way A, raw export, bounded, GUI on | PASSED 2026-10-05 (docs/experiments/REHEARSAL_WAYB_BOUNDED_2026-10-05.md) |
 | Way A, derived cut-A order | PASSED headless 2026-10-04 (G1-6); with the GUI: UNVERIFIED |
-| Way B hand path (2.1-2.4, 4) on Iron Storm, PushInit/PushOrder standing in for STP | PASSED twice: 2026-10-05 at DurationScale 0.25 (docs/experiments/REHEARSAL_WAYB_HAND_2026-10-05.md) and 2026-10-11 on the profile as shipped, 1.0 (REHEARSAL_WAYB_HAND2_2026-10-11.md) |
+| Way B hand path (2.1-2.4, 4) on Iron Storm, PushInit/PushOrder standing in for STP | PASSED twice: 2026-10-05 at DurationScale 0.25 (docs/experiments/REHEARSAL_WAYB_HAND_2026-10-05.md) and 2026-10-11 on the profile as shipped, 1.0 (REHEARSAL_WAYB_HAND2_2026-10-11.md); and once more 2026-10-11 as now written, 0.25 from the profile (REHEARSAL_WAYB_HAND3_2026-10-11.md) |
 | The Demo profile as the Iron Storm aggregate profile (2.2) | RAN LIVE 2026-10-05 and 2026-10-11 (the second with nothing set by hand) |
 | STP itself pushing (not a stand-in) | NEVER RUN - UNVERIFIED |
-| Clean labels ("48 IBCT/28ID", RL-20261005-03) | SEEN ON SCREEN 2026-10-11 - each under a second text line carrying the 30-character name (section 5) |
+| Clean labels ("48 IBCT/28ID", RL-20261005-03), the name line hidden (RL-20261011-01) | SEEN ON SCREEN 2026-10-11: one clean label per unit (REHEARSAL_WAYB_HAND3_2026-10-11) |
 | STP-850 start anchor (Receipt, RL-20260928-05) | deployed and run live 2026-10-11; STP's export has minOffset 0, so nothing is rebased |
 
 All commands run from the repository root of the MAIN checkout, in PowerShell 7 unless Git Bash is named.
