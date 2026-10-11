@@ -3860,9 +3860,10 @@ foreach ($wbF in @('scripts\StartInterface52.ps1', 'scripts\StartFederationHolde
 $wbHandEnv = @([regex]::Matches($wbDemoText, '(?m)^\s*\$env:Vrf__(ModelSet|TypeMapFile|Scenario|StallClock|StallDetection|TaskPredecessorTimeoutSeconds|DemoExtent)\b'))
 Check '11l DEMO_RUNBOOK types no $env:Vrf__ModelSet / TypeMapFile / Scenario / StallClock / TaskPredecessorTimeoutSeconds line (the overlay carries them)' (
     $wbHandEnv.Count -eq 0) (($wbHandEnv | ForEach-Object { $_.Value.Trim() }) -join '; ')
-Check '11l section 2.2 points at the overlay as the profile, and still marks Way B on Iron Storm UNVERIFIED' (
+Check '11l section 2.2 points at the overlay as the profile; the status table cites the hand-path rehearsals and still marks STP itself pushing UNVERIFIED' (
     $wbDemoText -match 'appsettings\.Demo\.json IS THE IRON STORM AGGREGATE\s+DEMO PROFILE' -and
-    $wbDemoText -match 'Way B as typed below, on Iron Storm \| NEVER RUN - UNVERIFIED')
+    $wbDemoText -match 'Way B hand path .* PASSED twice: .*REHEARSAL_WAYB_HAND_2026-10-05.*REHEARSAL_WAYB_HAND2_2026-10-11' -and
+    $wbDemoText -match 'STP itself pushing \(not a stand-in\) \| NEVER RUN - UNVERIFIED')  # 2026-10-11: the hand path ran twice
 
 # === 12. every Say-* call in scripts\*.ps1 resolves to a defined function ===
 # STP: LaunchVrf52.ps1:1158 called Say-Info from the standalone federation-holder path
