@@ -1298,6 +1298,40 @@ Say-Head 'Launch'
 $simStartFloor = (Get-Date).AddSeconds(-5)
 $simProc = Start-Process -FilePath $simExe -WorkingDirectory $bin64 -ArgumentList $simArgString -PassThru
 Say-Ok ("back-end started (pid {0})" -f $simProc.Id)
+# DISPLAY PRE-FLIGHT (2026-10-12) - IS THE DISPLAY AWAKE WHEN THE GUI STARTS? ADVISORY, NEVER BLOCKS.
+# In 4 of 4 GUI rehearsals the map area came up BLANK WHITE exactly when the display had gone off (idle timeout) before
+# the GUI started, and drew when it was on (REHEARSAL_WAYB_STPPUSH_2026-10-11 finding - a correlation, no cause claimed).
+# Reads the last Windows Kernel-Power 566 session transition (NextSessionType 1 = screen off, 0 = on) and calls
+# SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED) once - "Forces the display to be on by resetting the
+# display idle timer" (learn.microsoft.com, SetThreadExecutionState). Seen 2026-10-12 11:55:06Z: with the screen OFF since
+# 05:51Z, that one call produced a Kernel-Power 566 "screen ON" (reason 8) within a second - n = 1. If the screen still
+# reads OFF two seconds later the launch WARNS. Nothing here can fail a launch.
+if (-not $NoGui) {
+    try {
+        $lastScreen = Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 566 } -MaxEvents 1 -ErrorAction Stop
+        $nst = ([xml]$lastScreen.ToXml()).Event.EventData.Data | Where-Object { $_.Name -eq 'NextSessionType' } | ForEach-Object { $_.'#text' }
+        $screenWas = if ($nst -eq '1') { 'OFF' } elseif ($nst -eq '0') { 'ON' } else { 'UNKNOWN' }
+        if (-not ('VrfLaunchDisplay' -as [type])) {
+            Add-Type -Namespace '' -Name 'VrfLaunchDisplay' -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);'
+        }
+        $prev = [VrfLaunchDisplay]::SetThreadExecutionState([uint32]3)   # ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED, once
+        $screenNow = $screenWas
+        if ($screenWas -eq 'OFF') {
+            Start-Sleep -Seconds 2
+            $after = Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 566 } -MaxEvents 1 -ErrorAction Stop
+            $nst2 = ([xml]$after.ToXml()).Event.EventData.Data | Where-Object { $_.Name -eq 'NextSessionType' } | ForEach-Object { $_.'#text' }
+            if ($after.TimeCreated -gt $lastScreen.TimeCreated -and $nst2 -eq '0') { $screenNow = 'ON (woken now)' }
+        }
+        $msg = 'display: last Kernel-Power 566 transition {0}Z -> screen {1}; ES_DISPLAY_REQUIRED sent ({2}); screen now {3}' -f
+               $lastScreen.TimeCreated.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'), $screenWas, $(if ($prev -ne 0) { 'accepted' } else { 'REFUSED' }), $screenNow
+        if ($screenNow -eq 'OFF') {
+            Say-Warn ($msg + ' - the display is still OFF: in every recorded blank-map run it was. Wake it before trusting the GUI map; a white map = section 4 teardown and relaunch with the display on (DEMO_RUNBOOK sec 6).')
+        } else { Say-Ok $msg }
+    } catch {
+        Say-Warn ('could not read the display state: {0} (advisory only - the launch is not affected).' -f $_.Exception.Message)
+    }
+}
+# END DISPLAY PRE-FLIGHT
 $guiProc = $null
 if (-not $NoGui) {
     $guiProc = Start-Process -FilePath $guiExe -WorkingDirectory $bin64 -ArgumentList $guiArgString -PassThru

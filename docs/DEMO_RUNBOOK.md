@@ -369,7 +369,8 @@ unit map at initialization, so it must be restarted. Leave a few minutes between
 - LAUNCH REFUSED, A VR-FORCES PROCESS IS UP: section 4, then launch again. Never "force it through".
 - THE MAP AREA IS BLANK WHITE (toolbars and clock fine): in every recorded case the display was OFF (idle
   timeout) when the GUI started (REHEARSAL_WAYB_STPPUSH_2026-10-11 finding; a correlation, n = 4). Keep the display
-  awake before 2.1; if it happens, run section 4 and launch again with the display on.
+  awake before 2.1; if it happens, run section 4 and launch again with the display on. Since 2026-10-12 LaunchVrf52
+  wakes the display itself before starting the GUI ("display: ... screen now ON (woken now)"; it WARNS if it stays off).
 - "the federation HOLDER could not join ... after 4 attempt(s)" (STP-825): 1.3 was skipped or its holder
   has ended (8 h). Start it, then launch again. If the holder itself exhausts its numbers: stop, ask.
 - UNITS NEVER APPEAR: 2.3's three checks - server pair, ClientId, model set.

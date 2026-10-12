@@ -4629,6 +4629,15 @@ try {
         $capOk -and $capErr.Count -eq 0 -and @($capB | Where-Object { $_ -gt 127 }).Count -eq 0 -and
         ([regex]::Matches($capT, "`n")).Count -eq ([regex]::Matches($capT, "`r`n")).Count -and
         $capT -notmatch 'SendInput|keybd_event|mouse_event|SendKeys') $capPath
+    # (f) LaunchVrf52's DISPLAY PRE-FLIGHT (2026-10-12): advisory, GUI launches only, inside try, wakes the display with
+    #     ES_DISPLAY_REQUIRED (0x2) | ES_SYSTEM_REQUIRED (0x1) once - never ES_CONTINUOUS - and sits before the GUI start
+    $lvText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'))
+    $dpBlock = if ($lvText -match '(?s)# DISPLAY PRE-FLIGHT.*?# END DISPLAY PRE-FLIGHT') { $Matches[0] } else { '' }
+    $dpPos = $lvText.IndexOf('# END DISPLAY PRE-FLIGHT'); $guiPos = $lvText.IndexOf('$guiProc = Start-Process')
+    Check '16f LaunchVrf52 DISPLAY PRE-FLIGHT: GUI-only, inside try, reads Kernel-Power 566, sends SetThreadExecutionState(3) once (no ES_CONTINUOUS), WARNS only, before the GUI start' (
+        $dpBlock -match 'if \(-not \$NoGui\)' -and $dpBlock -match 'try \{' -and $dpBlock -match 'Id = 566' -and
+        $dpBlock -match 'SetThreadExecutionState\(\[uint32\]3\)' -and $dpBlock -notmatch '0x80000000|ES_CONTINUOUS\b.*\|' -and
+        $dpBlock -notmatch 'exit \d|throw' -and $dpPos -gt 0 -and $guiPos -gt $dpPos) ('block {0} chars' -f $dpBlock.Length)
 } finally {
     if (Test-Path -LiteralPath $stpTmp) { Remove-Item -LiteralPath $stpTmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
