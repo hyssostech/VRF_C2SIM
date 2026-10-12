@@ -41,13 +41,13 @@ All commands run from the repository root of the MAIN checkout, in PowerShell 7 
 
 0.2 THE DEPLOYED INTERFACE. Check the build, then smoke-test it (it starts nothing and joins nothing):
       (Get-Item src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe).VersionInfo.ProductVersion
-  SEE: `1.0.0+git.473f20a.Release-5.2` (2026-10-11), or the version of the latest deploy line in RUNBOOK
+  SEE: `1.0.0+git.f3dfb43.Release-5.2` (2026-10-12), or the version of the latest deploy line in RUNBOOK
   sec 9 - never one ending in DIRTY.
       $env:DOTNET_ENVIRONMENT = 'Demo'
       & src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe --runtime-check
       Remove-Item Env:DOTNET_ENVIRONMENT
   SEE: "VrfBridge loaded; native stack = 5.2 | C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll", "runtime-check: OK",
-  exit 0 (last confirmed by RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). Anything else: stop, call an engineer.
+  exit 0 (last confirmed by RUNBOOK sec 9 "SDKLOG DEPLOY"). Anything else: stop, call an engineer.
 
 0.3 THE UNATTENDED appData - *** ONE TREE, AND IT IS `C:\C2SIM\vrf-appdata-unattended\appData`. ***
   It is the only tree whose TWO GUI TEARDOWN PROMPTS ARE PRE-DISABLED (STP-844), so the GUI closes without
