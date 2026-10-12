@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using S = C2SIM.Schema102;
 
 namespace VrfC2SimApp;
@@ -337,10 +338,50 @@ public static class LivenessSelfTest
                   && xml.Contains("VR-Forces back end lost", StringComparison.Ordinal));
         }
 
+        // SHUTDOWN NOISE (REHEARSAL_WAYB_HAND_2026-10-05 F5): on every clean stop the C2SIM SDK's STOMP reader is cancelled and
+        // the SDK logs that EXPECTED cancellation at Error ("STOMP block reading cancelled", C2SIMClientSTOMPLib.cs
+        // GetNext_Block), so the interface's last console line read "fail:" in front of an audience. The interface hands the
+        // SDK a logger factory (SdkLogging.Wrap) that logs exactly that message at Information; every other SDK message,
+        // and that text at any other level, passes unchanged. Fail-first: the raw factory still logs it at Error.
+        {
+            var raw = new CaptureLoggerFactory();
+            raw.CreateLogger("C2SIM.C2SIMSDK").LogError(new OperationCanceledException(), SdkLogging.ExpectedCancel);
+            var cap = new CaptureLoggerFactory();
+            var log = SdkLogging.Wrap(cap).CreateLogger("C2SIM.C2SIMSDK");
+            log.LogError(new OperationCanceledException(), SdkLogging.ExpectedCancel);   // same text the SDK formats
+            log.LogError("STOMP connection lost");                                       // a real error: unchanged
+            log.LogWarning(SdkLogging.ExpectedCancel);                                    // only Error is re-levelled
+            Check("SDK shutdown noise: the RAW factory logs the expected STOMP cancellation at Error (the 'fail:' line, F5)",
+                  raw.Entries.Count == 1 && raw.Entries[0].Level == LogLevel.Error);
+            Check("SDK shutdown noise: through SdkLogging.Wrap the same call is logged at Information, with the same text and category",
+                  cap.Entries.Count == 3 && cap.Entries[0].Level == LogLevel.Information
+                  && cap.Entries[0].Message == SdkLogging.ExpectedCancel && cap.Entries[0].Category == "C2SIM.C2SIMSDK");
+            Check("SDK shutdown noise: any OTHER SDK error stays Error, and the cancellation text at Warning stays Warning",
+                  cap.Entries.Count == 3 && cap.Entries[1].Level == LogLevel.Error && cap.Entries[2].Level == LogLevel.Warning);
+        }
+
         Console.WriteLine(fails == 0 ? "liveness-selftest: ALL CHECKS PASSED" : $"liveness-selftest: {fails} FAILED");
         if (!featureEnabled)
             Console.WriteLine("liveness-selftest: the --disabled arm is EXPECTED to fail - it is the V6d "
                             + "behaviour (543 position reports off a stopped back end, 0 warnings, 0 TASKABRT).");
         return fails == 0 ? 0 : 1;
+    }
+    /// <summary>An in-memory logger factory for the SDK shutdown-noise checks: records category, level and message.</summary>
+    private sealed class CaptureLoggerFactory : ILoggerFactory
+    {
+        public readonly List<(string Category, LogLevel Level, string Message)> Entries = new();
+        public ILogger CreateLogger(string categoryName) => new CaptureLogger(this, categoryName);
+        public void AddProvider(ILoggerProvider provider) { }
+        public void Dispose() { }
+        private sealed class CaptureLogger : ILogger
+        {
+            private readonly CaptureLoggerFactory _owner; private readonly string _category;
+            public CaptureLogger(CaptureLoggerFactory owner, string category) { _owner = owner; _category = category; }
+            public IDisposable BeginScope<TState>(TState state) => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
+                                    Func<TState, Exception, string> formatter)
+                => _owner.Entries.Add((_category, logLevel, formatter(state, exception)));
+        }
     }
 }

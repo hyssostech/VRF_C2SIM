@@ -555,7 +555,9 @@ public sealed class VrfC2SimService : BackgroundService
         // every stage at a PRIVATE test server (C2SIM__RestUrl / C2SIM__StompUrl override
         // appsettings.json), and a run that heard the wrong server must say so in its own log.
         _log.LogInformation("C2SIM endpoints: rest={Rest} stomp={Stomp}", c2.RestUrl, c2.StompUrl);
-        _sdk = new C2SIMSDK(loggerFactory, c2);
+        // SdkLogging.Wrap: the SDK's EXPECTED "STOMP block reading cancelled" at shutdown is logged at Information, not
+        // as a "fail:" line (REHEARSAL_WAYB_HAND_2026-10-05 F5); every other SDK message passes unchanged.
+        _sdk = new C2SIMSDK(SdkLogging.Wrap(loggerFactory), c2);
         _sdk.StatusChangedReceived += OnStatusChanged;
         _sdk.InitializationReceived += OnInitialization;
         _sdk.ObjectInitializationReceived += OnObjectInitialization;
