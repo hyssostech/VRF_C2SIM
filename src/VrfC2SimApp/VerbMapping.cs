@@ -165,6 +165,9 @@ public static class VerbMapping
             ["FOLASS"] = (TaskIntent.FollowAndSupport, FollowComposition),
             // Conduct forward passage of lines (xsd:3899). Held in place for now (RL-20260926-01 A6).
             ["CNFPSL"] = (TaskIntent.PassageOfLines, PassageComposition),
+            // CNRPSL (rearward passage of lines): STP exports it since STP PR #184 (STP-866, 2026-10-12) when the
+            // task name says rearward. The same RL-20260926-01 A6 hold as CNFPSL; unlisted it fell back to a bare move.
+            ["CNRPSL"] = (TaskIntent.PassageOfLines, PassageComposition),
             ["CLRLND"] = (TaskIntent.Clear,           "composite move + engage sweep"),
 
             // ---- THE TWO VERBS THE IRON STORM EXPORT ADDED (2026-09-20) ------------------------

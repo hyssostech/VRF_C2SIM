@@ -2786,7 +2786,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   ... (STP-865) ...", no DtBreachTask is issued, and it completes by time. FOLSPT / FOLASS: advance along the graphic
   to its end and hold; no engagement; ROE as ordered - the coordinator's direction, not decided by the owner
   (RL-20260926-01 scope line). CNFPSL (forward passage of lines): HELD IN PLACE for now, like ExecutePlanPhase (the
-  owner's answer, RL-20260926-01 A6); line to look for: "CNFPSL (forward passage of lines): held in place for now -
+  owner's answer, RL-20260926-01 A6); line to look for: "CNFPSL/CNRPSL (passage of lines): held in place for now -
   route by graphic role ... is not implemented; see STP-866". NOT YET SEEN LIVE: that the unit's fire-at-will reaches its members
   (the vendor header says a set on an aggregate applies to the whole aggregate, `vrfRemoteController.h:1436-1438`) -
   the next live run should show member fire events or a member console's ROE after an ATTACK dispatch.

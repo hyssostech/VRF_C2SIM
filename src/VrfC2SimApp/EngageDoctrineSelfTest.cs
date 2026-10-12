@@ -140,9 +140,18 @@ public static class EngageDoctrineSelfTest
                   "(e12) only the CNFPSL decision holds in place; every other decision moves as before");
             Check(ref failures,
                   TaskDispatchPolicy.PassageOfLinesHeldLine ==
-                  "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> " +
+                  "CNFPSL/CNRPSL (passage of lines): held in place for now - route by graphic role (start point -> " +
                   "passage point -> lane -> release point) is not implemented; see STP-866",
                   "(e12) the CNFPSL line is the coordinator's plain sentence with the Jira key");
+            // (e12b) CNRPSL - conduct REARWARD passage of lines. STP exports it since STP PR #184 (STP-866, merged
+            //        2026-10-12: "CNRPSL when the AS task name says rearward"). Same RL-20260926-01 A6 hold as CNFPSL;
+            //        before this it was UNLISTED and fell back to a bare move along the graphics.
+            {
+                var r = VerbMapping.Classify("CNRPSL");
+                Check(ref failures, r.Recognized && r.Implemented && r.Intent == TaskIntent.PassageOfLines,
+                      $"(e12b) CNRPSL classifies as a recognised, implemented PassageOfLines - held, not the bare-move " +
+                      $"fallback (got {r.Intent}, recognised={r.Recognized})");
+            }
             if (service != null && File.Exists(service))
                 Check(ref failures,
                       File.ReadAllText(service).Contains("TaskDispatchPolicy.HoldsInPlace(engage)"),

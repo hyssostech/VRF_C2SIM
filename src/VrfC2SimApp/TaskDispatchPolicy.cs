@@ -142,7 +142,7 @@ public static class TaskDispatchPolicy
 
     /// <summary>The one plain line a CNFPSL dispatch logs and reports (coordinator's wording).</summary>
     public const string PassageOfLinesHeldLine =
-        "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> " +
+        "CNFPSL/CNRPSL (passage of lines): held in place for now - route by graphic role (start point -> " +
         "passage point -> lane -> release point) is not implemented; see STP-866";
 
     /// <summary>Does the decision name a target to VR-Forces (DtFireAtTargetTask)? Only a platform
