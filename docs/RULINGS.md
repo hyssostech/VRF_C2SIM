@@ -11,15 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261004-04 | 2026-10-04 | VERBATIM - Q1275, TYPED, unprompted (after the seat's status and demo-gap list)
-  Q (as put): none - the seat's preceding message listed what is missing to reach the demo and recommended G1-6 first.
-  A (owner, Q1275): "Find a balance between the investigations and getting a demoable version in place. We can tackle the finer points
-    afterwards, provided we can show some level of simulation to make things credible. The demo is presented as work in progress, so we
-    have some space to postpone harder problems that only affect smaller parts of the simulation"
-  A (owner, Q1294, queued mid-turn): "This culvert thing is one such example"
-  supervisor reading: demo readiness first; what does not block a credible WIP demo (the culvert, N1's cause, the speed dip, the G1-3
-    crash stack, verbs/units in a small part of the order) is deferred, not dropped; registered runs go on where cheap or as rehearsals.
-  pointer: HANDOFF_SEAT_2026-09-28 sec 3 item 3-4 (the demo track); PLAN_MOVEMENT row G2.
 RL-20261004-05 | 2026-10-04 | VERBATIM - Q1452, TYPED
   Q (seat, Q1433): "Still waiting on you: 1. G1-6 go-live [...] 2. Tier 2: compositions for the five missing brigades. 3. Demo path:
     Way A or Way B. 4. Label display: the operator toggles it in the GUI, or the script edits a file under C:\MAK." [...]
@@ -113,3 +104,10 @@ RL-20261011-02 | 2026-10-11 | VERBATIM - R1673 = session d0bba772-d00e-4b25-a434
     platoon ring is 350 m. (3) RL-20260914-04 (battalion fan-out) is RETIRED; Vrf:SubordinateFanOut stays off. (4) base TypeMappingMode
     stays RealTemplates until after the demo; every Iron Storm profile is pinned to FidelityTable (ShippedProfileSelfTest s1); the
     base flip follows the demo. (5) stale worktrees/branches are deleted only after the owner has seen the itemised list.
+RL-20261012-01 | 2026-10-12 | VERBATIM - R2436 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, TYPED
+  Q (seat, markdown dropped): "1. The yellow triangle: leave it on during the demo, or turn it off? My recommendation is to leave it on. [...]
+    2. Ghosted icons: worth doing before the demo? [...] My recommendation is to defer it." (and later: "3. lower the 16 out-of-extent
+    refusal lines from fail: to warnings")
+  A (owner, R2436): "Ok to defer 1-2"
+  supervisor reading: (1) the object-console warning icon stays as shipped (visible) for the demo; (2) the ghosted-icon declutter
+    (Unit Display Settings / adsx) waits until after the demo. (3) the fail:-to-warning change was NOT answered - not done.
