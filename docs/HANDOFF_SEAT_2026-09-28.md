@@ -167,7 +167,8 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    -7 (2026-10-12): display woken by LaunchVrf52, map DREW; SDK line now info; marker 5377; day holder 12504 to ~20:27Z.
    CLUTTER (vendor docs, scratch laneCLUTTER): yellow triangle = object-console warning ("Movement constrained by features",
    10-11 IBCT members), green bar = unit health; ghosted icons, the warning icon and the 16 refusal fail: lines: all DEFERRED (RL-20261012-01).
-   AFTER the demo: the "__" description in an Extended Label (UG52 21.3), if the API allows.
+   STP #180 (SystemName STP) and #184 (CNFPSL/CNRPSL) MERGED 10-12: DEMO_RUNBOOK uses -ClientId STP (d004207); CNRPSL held like
+   CNFPSL, DEPLOYED 002cccb. AFTER the demo: the "__" description in an Extended Label (UG52 21.3), if the API allows.
 4. Go-live (the seat, under RL-20260928-01): A -> C3 -> W (dry run, pre-warm, W gate) -> E -> F, the scripts of
    u3\laneG1-3 adapted (scratchpad H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\5fc25950-1a10-4ade-9a7b-68cb5c1daf05\
    scratchpad\u3\laneG1-3\); ask the STP session to hold builds first (idle MSBuild workers fail the pre-launch check;
