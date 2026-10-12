@@ -3740,7 +3740,8 @@ Check '11c no TYPED command in DEMO_RUNBOOK still passes 9201 / 9202 (the note r
 # Appendix B marker and the runbook's commands carry them as placeholders (h, b, f, i).
 Check '11c (RL-20261011-01) the Way B launch passes the claimed holder / back-end / front-end numbers and the interface its -AppNumber' (
     $wbDemoText -match '-FederationHoldAppNumber h -BackendAppNumber b -FrontendAppNumber f' -and
-    $wbDemoText -match 'StartInterface52\.ps1 -ClientId "Not Set" -Server standard -AppNumber i' -and
+    $wbDemoText -match 'StartInterface52\.ps1 -ClientId STP -Server standard -AppNumber i' -and   # STP PR #180: SystemName STP
+    $wbDemoText -match 'with those use `-ClientId "Not Set"`' -and
     $wbDemoText -notmatch '-BackendAppNumber 9102')
 Check '11c (RL-20261011-01) the runbook takes the numbers from the ONE ledger marker and says the demo block is retired' (
     $wbDemoText -match 'APPLICATION NUMBERS \(RL-20261011-01\)' -and $wbDemoText -match 'NEXT FREE' -and
@@ -3836,8 +3837,8 @@ Check '11i both server blocks are given, each with its own PushInit AND PushOrde
 Check '11i and the silent-failure mode is stated where the operator will read it' (
     $wbDemoText -match 'A MISMATCHED PAIR IS SILENT')
 Check '11i Way B step 3 carries the server choice' (
-    # 2026-10-05 (docs/demo-runbook-wayb): Iron Storm's STP export carries SystemName "Not Set", not STP.
-    $wbDemoText -match 'StartInterface52\.ps1 -ClientId "Not Set" -Server standard')
+    # 2026-10-12: STP main sends SystemName STP since STP PR #180 (STP-847); the 09-20 export files still say "Not Set".
+    $wbDemoText -match 'StartInterface52\.ps1 -ClientId STP -Server standard')
 
 # --- 11j. the honesty note tracks reality: D5c verified the sequence live, STP itself pushing stays owed ---
 Check '11j section 2 names D5c as the run that verified the sequence live, and still names STP itself pushing as owed' (

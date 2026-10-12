@@ -187,12 +187,15 @@ retry), b (back end), f (front end), i (the interface). Numbers not used are bur
   THE DEPLOYED PROFILE must be this one:
       Select-String -Path src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\appsettings.Demo.json -Pattern '"ModelSet": "AggregateTacticalLevel"'
   SEE: exactly one line. Nothing = an older deploy: stop, call an engineer (a redeploy, RUNBOOK sec 9).
-      pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId "Not Set" -Server standard -AppNumber i -WhatIf
+      pwsh -NoProfile -File scripts\StartInterface52.ps1 -ClientId STP -Server standard -AppNumber i -WhatIf
   (i: the claimed number.) Read the plan, then run the same line without -WhatIf. Use this window for nothing
   else. Without -AppNumber the script warns and falls back to 9101 - do not.
-  - `-ClientId` MUST equal the SystemName in the initialization STP pushes. STP's Iron Storm export says
-    `Not Set`; whether STP sends the same when it pushes live is UNVERIFIED - ask the STP operator. A
-    mismatch creates NOTHING and looks healthy.
+  - `-ClientId` MUST equal the SystemName in the initialization STP pushes. A mismatch creates NOTHING and
+    looks healthy. STP built from main since 2026-10-12 (STP PR #180, STP-847) sends `STP` - the line above.
+    An OLDER STP build, and the 2026-09-20 export files the stand-ins of 2.4 push (`data\STP-IRON-STORM-
+    SYNTHETIC_*.xml`), carry `Not Set`: with those use `-ClientId "Not Set"`. Ask the STP operator which
+    build the demo STP runs; the interface's start-up line "Waiting for the C2SIM initialization
+    (clientId=...)" shows what it will accept.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
   - PACE (RL-20261011-01): the profile runs DurationScale 0.25 - every authored duration and start delay is a
     quarter; the accepted tasks are terminal about 3 wall min after the order (2026-10-05). At 1.0 (STP's own
