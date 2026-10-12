@@ -11,15 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261004-05 | 2026-10-04 | VERBATIM - Q1452, TYPED
-  Q (seat, Q1433): "Still waiting on you: 1. G1-6 go-live [...] 2. Tier 2: compositions for the five missing brigades. 3. Demo path:
-    Way A or Way B. 4. Label display: the operator toggles it in the GUI, or the script edits a file under C:\MAK." [...]
-  A (owner, Q1452): "(1) go. (2) is the composition available as public unclass information? (3) B. (4) is this robust? I need this to
-    work on every installed instance of this component. Ok to change C:\MAK, but needs to be automated/reproducible"
-  supervisor reading: (1) G1-6 go-live authorised. (2) a question, not a ruling: compositions only from public unclassified sources.
-    (3) the demo runs WAY B (STP pushes its own order). (4) the Label decoration may be written under C:\MAK ONLY by an automated,
-    reproducible, verifiable deploy step that works on every installed instance; no hand edits.
-  pointer: PREREG_IRONSTORM_AGG_G1-6_2026-10-04; tools/display/Enable-LabelDecoration.ps1 (feat/full-designation-label).
 RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
   Q (seat, Q1855): "1. Tier 2a compositions: 278 ACR and 169 FAB now; 55 MEB and 11 CAB left refused [...] 2. 56 SBCT: the Polish stand-in
     battalion, or an authored Stryker infantry battalion. 3. Way B's duration fix: STP fixes STP-848 on its side, and/or the interface also
@@ -112,3 +103,10 @@ RL-20261012-01 | 2026-10-12 | VERBATIM - R2436 = session d0bba772-d00e-4b25-a434
   supervisor reading: (1) the object-console warning icon stays as shipped (visible) for the demo; (2) the ghosted-icon declutter
     (Unit Display Settings / adsx) waits until after the demo. (3) asked again (R2477 "It can wait"): the 16 out-of-extent refusal
     lines stay fail: for now; lowering them to warnings is deferred.
+RL-20261012-02 | 2026-10-12 | VERBATIM - R2788 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, TYPED
+  Q (seat): "which STP build will run at the demo? If it includes #180, the runbook as written is right. If it's older, the interface
+    needs -ClientId "Not Set""
+  A (owner, R2788): "Demo will be with current or better release"
+  supervisor reading: the demo STP includes STP PRs #180 (SystemName STP) and #184 (CNFPSL/CNRPSL): -ClientId STP (DEMO_RUNBOOK 2.2). The
+    rehearsed 09-20 export is OLDER than the demo STP - a rehearsal on a current-main export is owed (STP-883). Owner, next message: "Shooting
+    to wrap 962 before the demo" - STP-962 (task geometry) is targeted for the demo build.
