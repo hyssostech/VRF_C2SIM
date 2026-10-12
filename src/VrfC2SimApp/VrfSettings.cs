@@ -629,6 +629,8 @@ public class VrfSettings
     // moves work fine. Members revert to unit control on completion (MAK
     // UnitMembersTaskIndependently). Opt-in; falls back to the normal aggregate move
     // when the unit publishes no members. Applies to the multi-point route path only.
+    // RETIRED (RL-20261011-02 (3)): the battalion fan-out of RL-20260914-04 is overtaken by attack = advance (RL-20260926-01)
+    // and battalions at aggregate level (RL-20260927-06); this switch stays OFF and is kept only for the old entity runs.
     public bool SubordinateFanOut { get; set; } = false;
 
     // R10 fan-out robustness (UNIT_MOVEMENT_RESEARCH.md sec 4c). Completion QUORUM: synthesize

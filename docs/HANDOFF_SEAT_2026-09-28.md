@@ -183,8 +183,9 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
 
 - Whether the G1-3 crash callstack (C:\MAK\logs, pid 3344, 19:05:16Z) is read (RL-20260921-02 item 4 precedent).
 - The STP-850 default anchor (Receipt recommended) and the PR merge.
-- The audit's open items: the stall window (240 wall / 360 sim s vs the approved 120 sim s), the platoon ring 350 m vs
-  "about 300 m", RL-20260914-04 (fan-out) retire or keep, the time multiplier, RL-20260921-04's open question.
+- (RULED 2026-10-11, RL-20261011-02: stall window 360 SIM s, ring 350 m, fan-out RETIRED, base type map after the demo,
+  cleanup after the itemised list; the multiplier is parked at 1x by RL-20261005-06.) STILL OWED BY THE SEAT, not the
+  owner's: the answer to RL-20260921-04's typed question (no-movement error class vs falling short).
 - Whether highway=track counts as a road for the AUTO planner and whether 500 m is the right proximity (observed:
   every cut-A leg is NEAR on tracks; the NONE branch is untested).
 

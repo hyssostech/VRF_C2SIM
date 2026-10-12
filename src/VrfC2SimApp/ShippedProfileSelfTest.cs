@@ -57,8 +57,8 @@ public static class ShippedProfileSelfTest
         Check(ref failures, shipped.TypeMappingMode == "RealTemplates" && compiled.TypeMappingMode == "RealTemplates",
               "(s1) WHAT THE BASE SHIPS, pinned as it is - it DISAGREES with RL-20260902-01: appsettings.json and VrfSettings.cs " +
               "default to RealTemplates (the 5.0.2 parity dispatch - every company a Tank Company (USA), hostile included), so a " +
-              "bare exe or a direct RunC2SimScenario.ps1 run does not get the ruling. Flipping the base is the owner's call " +
-              "(audit 2026-09-28 sec 5); this test does not choose",
+              "bare exe or a direct RunC2SimScenario.ps1 run does not get the ruling. RL-20261011-02 (4): the base stays until " +
+              "after the demo, then flips; until then every Iron Storm profile is pinned by the check above",
               $"base {shipped.TypeMappingMode}, compiled {compiled.TypeMappingMode}");
 
         // (s2) RL-20260906-02 (C13) - simulate only the taskees; the init is ORBAT context.

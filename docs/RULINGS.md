@@ -11,15 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261004-03 | 2026-10-04 | VERBATIM - Q1005, TYPED
-  Q (seat, Q987, after Fable's ACCEPT WITH FIXES on the G1-5 Result; markdown dropped): "1. Does G1-5's W FAIL bind as scored? I recommend
-    yes. [...] G1-6 would register the culvert clause before its run and test it first on G1-5's pre-warm. 2. Will you install the VR-Forces
-    5.2 documentation package before G1-6 is registered? [...] I recommend yes, first."
-  A (owner, Q1005): "1 as suggested. 2 will look for you. Make progress on issues that do not depend on it. [...]"
-  supervisor reading: (1) G1-5 is STOPPED at its W gate, FAIL (P-FALS(e)) as scored; nothing re-scored; a culvert clause belongs to G1-6,
-    registered before its run, fail-first on G1-5's pre-warm. (2) The owner looks for the vendor documentation (Adding Content) to install;
-    the culvert clause waits on it; work that does not depend on it proceeds.
-  pointer: PREREG_IRONSTORM_AGG_G1-5_2026-10-04 Result (N1, COLD REVIEW); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
 RL-20261004-04 | 2026-10-04 | VERBATIM - Q1275, TYPED, unprompted (after the seat's status and demo-gap list)
   Q (as put): none - the seat's preceding message listed what is missing to reach the demo and recommended G1-6 first.
   A (owner, Q1275): "Find a balance between the investigations and getting a demoable version in place. We can tackle the finer points
@@ -112,3 +103,13 @@ RL-20261011-01 | 2026-10-11 | VERBATIM - R843 = session d0bba772-d00e-4b25-a434-
   supervisor reading: (1) the Demo profile runs DurationScale 0.25. (2) the vendor NAME decoration is OFF on the map (the Label stays ON); the
     name is display only, identity is the UUID (RL-20260928-02). The "__" suffix goes in a VR-Forces field a user sees on inspection, else is
     dropped - after the demo (RL-20261005-04). (3) every demo federate takes a fresh number from the Appendix B marker; the 9101 block retires.
+RL-20261011-02 | 2026-10-11 | VERBATIM - R1673 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, TYPED
+  Q (seat, markdown dropped, abridged per item): "1. Stall window [...] Recommendation: ratify 360 simulated seconds. 2. Platoon spacing
+    [...] Recommendation: ratify 350 m. 3. Battalion fan-out (RL-20260914-04) [...] Recommendation: retire it [...] 4. Type-mapping
+    default (RL-20260902-01) [...] Recommendation: (b) now, (a) after the demo. 5. Cleanup [...] Recommendation: yes, after you've seen
+    that list."
+  A (owner, R1673): "Go as recommended"
+  supervisor reading: (1) RL-20260913-03's stall window is 360 SIM s (the 2026-09-13 calibration), not 120. (2) RL-20260921-01's
+    platoon ring is 350 m. (3) RL-20260914-04 (battalion fan-out) is RETIRED; Vrf:SubordinateFanOut stays off. (4) base TypeMappingMode
+    stays RealTemplates until after the demo; every Iron Storm profile is pinned to FidelityTable (ShippedProfileSelfTest s1); the
+    base flip follows the demo. (5) stale worktrees/branches are deleted only after the owner has seen the itemised list.

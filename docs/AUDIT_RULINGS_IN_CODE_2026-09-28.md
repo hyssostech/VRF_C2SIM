@@ -35,6 +35,7 @@ P-code - a code limb missing (15):
 - RL-20260913-03 - the stall window is 240 wall s / 360 sim s, not the 120 simulated s he approved.
 - RL-20260920-01 - item 1: both runner entry points still default to Mojave init/order pairs, not Iron Storm.
 - RL-20260921-01 - the platoon ring is 350 m against the approved "about 300 m" (the ledger itself holds this open).
+  CLOSED 2026-10-11: 350 m ratified (RL-20261011-02 (2)).
 - RL-20260927-06 - the tasked-echelon rule lives only in the test runner; the STP-driven demo path runs EntityLevel for
   any order, Iron Storm's above-battalion one included.
 - RL-20260928-01 - the "no downward override" refusal likewise exists only in the test runner.
@@ -337,13 +338,15 @@ Get-EchelonRank and refusal, pinned like 8z.
 ## 5. Where the record and the code disagree - for the owner
 
 - RL-20260902-01: base default RealTemplates (the 5.0.2 parity dispatch) vs the fidelity table. Flip VS:77, or keep the
-  overlays and pin them (fix 1)?
+  overlays and pin them (fix 1)? RULED 2026-10-11 (RL-20261011-02 (4)): keep the base and the s1 pin now; flip the base after
+  the demo.
 - RL-20260927-06 and RL-20260928-01: the STP-driven demo path has no echelon rule; Iron Storm there runs EntityLevel.
 - RL-20260913-03: stall window 240 wall s / 360 sim s (calibrated 2026-09-13: 3 of 3 freezes caught, 0 of 6 false
-  alarms) vs his "120 simulated seconds". Ratify or change.
+  alarms) vs his "120 simulated seconds". Ratify or change. RULED 2026-10-11: 360 SIM s ratified (RL-20261011-02 (1)).
 - RL-20260921-01: platoon ring 350 m (derived from the 320.9 m formation span) vs "about 300 m". Ratify or change.
+  RULED 2026-10-11: 350 m ratified (RL-20261011-02 (2)).
 - RL-20260914-04: battalion fan-out never switched on; probably overtaken by RL-20260926-01 (attack = advance) and
-  RL-20260927-06 (battalions at aggregate level). Retire it or keep it?
+  RL-20260927-06 (battalions at aggregate level). Retire it or keep it? RULED 2026-10-11: RETIRED (RL-20261011-02 (3)).
 - RL-20260921-04: his typed question (why a special class of error for no movement at all, against movement that falls
   short) is still unanswered; RL-20260921-07: the ledger says the STP-857 correction is drafted, not posted.
 - MULTIPLIER: two preregs (PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02:194, RUNG2:163) record 1x as settled; AUDIT_REPEATED
