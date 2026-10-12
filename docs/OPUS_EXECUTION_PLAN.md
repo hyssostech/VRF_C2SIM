@@ -3725,8 +3725,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-11 (REHEARSAL_WAYB-2026-10-11-5): 5358 CONSUMED (LaunchVrf52 holder 56476, attempt 1); 5359 BURNED unused; 5360 CONSUMED (back end 27624, forced exit 6 after StopVrf52 exit 3); 5361 CONSUMED (vrfGui, closed with no modal); 5362 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5363.
 - 2026-10-11 REHEARSAL_WAYB-2026-10-11-6 (docs/experiments/REHEARSAL_WAYB_STPPUSH_2026-10-11.md), STP itself pushing: 5363 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5364 = its automatic retry (+1); 5365 = back end; 5366 = vrfGui; 5367 = VrfC2SimApp (StartInterface52 -AppNumber). The STP container joins no federation. CLAIMED. Marker 5363 -> 5368.
 - RESULT 2026-10-11 (REHEARSAL_WAYB-2026-10-11-6): 5363 CONSUMED (LaunchVrf52 holder 7708, attempt 1); 5364 BURNED unused; 5365 CONSUMED (back end 36272, forced exit 6 after StopVrf52 exit 3); 5366 CONSUMED (vrfGui 53952, closed with no modal); 5367 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5368.
+- 2026-10-12 REHEARSAL_WAYB-2026-10-12-7 (docs/experiments/REHEARSAL_WAYB_HAND4_2026-10-12.md), display off at launch: 5368-5371 = StartFederationHolder52 -AppNumbers (the day holder; tried in order, unjoined = burned); 5372 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5373 = its automatic retry (+1); 5374 = back end; 5375 = vrfGui; 5376 = VrfC2SimApp (StartInterface52 -AppNumber). CLAIMED. Marker 5368 -> 5377.
 
-*** NEXT FREE: 5368 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5377 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
