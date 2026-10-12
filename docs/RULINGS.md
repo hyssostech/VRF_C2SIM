@@ -110,4 +110,5 @@ RL-20261012-01 | 2026-10-12 | VERBATIM - R2436 = session d0bba772-d00e-4b25-a434
     refusal lines from fail: to warnings")
   A (owner, R2436): "Ok to defer 1-2"
   supervisor reading: (1) the object-console warning icon stays as shipped (visible) for the demo; (2) the ghosted-icon declutter
-    (Unit Display Settings / adsx) waits until after the demo. (3) the fail:-to-warning change was NOT answered - not done.
+    (Unit Display Settings / adsx) waits until after the demo. (3) asked again (R2477 "It can wait"): the 16 out-of-extent refusal
+    lines stay fail: for now; lowering them to warnings is deferred.
