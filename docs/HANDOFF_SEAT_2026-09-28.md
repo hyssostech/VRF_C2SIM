@@ -152,17 +152,16 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    10-12), c2sim-server-vrf; marker 5358. OWNER: pace 0.25 vs 1.0; hide the NAME line; OP1 numbers. LATER: STP itself pushing -
    STP-1055 seat pointers: env STP_C2SimBridge__App__RestUrl/StompUrl/RestPassword, OAA push_c2sim_content via StpSDK
    PushC2SIMContentAsync (no Pro UI), non-default host ports (stp-lt holds 9500-9599); STP-850 split export is STP PR #179.
-   RULED RL-20261011-01 ("As recommended"): pace 0.25 in the Demo overlay; NAME decoration hidden (deployed both trees, -Verify 0);
-   fresh ledger app numbers per demo launch. DEPLOYED 473f20a (RUNBOOK sec 9 "RL-20261011-01 DEPLOY"). CHECKED LIVE (-5, 5 of 5:
-   one clean label per unit, 0.25 from the overlay, 4 wall min). STP ITSELF PUSHED (-6, REHEARSAL_WAYB_STPPUSH: container
-   stp-server:coa-l13 via WebSocket PushC2SIMContent, client scratch laneSTPPUSH\StpPush.ps1; init and order success=true, same
-   counts); its map was BLANK - display OFF at launch, as -3 (correlation n=4, no cause claimed). Marker 5368.
-   Push client in the repo: tools/stp/StpPush.ps1 (suite 16a-d); capture helper tools/display/Capture-VrfGui.ps1. VRF_C2SIM has
-   NO open PR. STP PR #179 (STP-850 export): its VRF gate is met (commented 10-11); draft, sidc-leak-gate failing - the STP
-   side's merge. STP #180 (STP-847) will change the pushed SystemName from "Not Set": the interface's -ClientId must follow.
-   OWNER 2026-10-11: "Leave the pr alone. I am tracking the mak license." - the seat touches NO STP PR (epic STP-867) and does
-   not raise the MAK licence expiry; the owner tracks both. WAS NEXT: the STP-pushes lane (avoid host ports 9500-9599 stp-lt, 19500-19620 STP-1055). AFTER the demo:
-   the "__" description in a VR-Forces field a user can inspect, if one fits (RL-20261005-04, RL-20261011-01).
+   RULED RL-20261011-01: pace 0.25 in the Demo overlay; NAME decoration hidden; fresh ledger app numbers per launch - DEPLOYED
+   473f20a, CHECKED LIVE (-5). STP ITSELF PUSHED (-6, REHEARSAL_WAYB_STPPUSH, container stp-server:coa-l13, tools/stp/StpPush.ps1);
+   its map was BLANK with the display OFF at launch, as -3 (correlation n=4, no cause claimed). Marker 5368. VRF_C2SIM has NO
+   open PR. OWNER 2026-10-11: "Leave the pr alone. I am tracking the mak license." - touch NO STP PR (epic STP-867), do not
+   raise the licence. STP #180 (STP-847) will change the pushed SystemName from "Not Set": -ClientId must follow.
+   RULED RL-20261011-02: stall 360 SIM s, ring 350 m, fan-out RETIRED, base type map flips after the demo. CLEANUP (its (5),
+   "Backup and delete"): 78 merged worktrees and 158 merged branch names removed; their runs/ and builds (2,763 files, 850 MB)
+   backed up first to D:\C2SIM-preserve\vrf-worktree-runs-2026-10-11 (MANIFEST.tsv). Kept: 3 unmerged branches, the
+   07-14 stash, and .claude\worktrees\runnerlock - 8 JUNCTIONS into the live bins: NEVER delete it recursively.
+   SEAT OWES: the answer to RL-20260921-04. AFTER the demo: the "__" description in an inspectable VR-Forces field, if one fits.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.
