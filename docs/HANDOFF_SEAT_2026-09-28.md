@@ -161,7 +161,10 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    "Backup and delete"): 78 merged worktrees and 158 merged branch names removed; their runs/ and builds (2,763 files, 850 MB)
    backed up first to D:\C2SIM-preserve\vrf-worktree-runs-2026-10-11 (MANIFEST.tsv). Kept: 3 unmerged branches, the
    07-14 stash, and .claude\worktrees\runnerlock - 8 JUNCTIONS into the live bins: NEVER delete it recursively.
-   SEAT OWES: the answer to RL-20260921-04. AFTER the demo: the "__" description in an inspectable VR-Forces field, if one fits.
+   RL-20260921-04 ANSWERED 2026-10-12 (RUNBOOK sec 11h): no special no-movement class on main. 2026-10-12: SdkLogging deployed
+   (f3dfb43); LaunchVrf52 wakes the display (94eaac4). SEAT DECISION, deferred to after the demo: a populated container is judged
+   on its centre (D1, documented :3492) - the member-based alternative (Fable ACCEPT WITH FIXES 10-12) can only close T14 later.
+   AFTER the demo: the "__" description in an inspectable VR-Forces field, if one fits.
    (was:) G1-4 registration (a lane, from PREREG_IRONSTORM_AGG_G1-3_2026-09-28.md: same order/fixture/init; the one
    variable = M3b; HIGH: 0 "route does not exist", every member moves, T14 and T10 arrive; the crash-void line as a
    falsifier; numbers per sec 2). Fable reviews the registration's cause claims cold before the go-live.

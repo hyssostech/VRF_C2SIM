@@ -3908,7 +3908,10 @@ units that DID move left unchanged - because it would still report complete for 
 part of the way and stuck. His own question on exactly that point (line 45418, type=user) was never
 answered: *"Is this creating a special class of errors for no movement from the get go as opposed to
 movement that falls short of the objective?"* Branch `fix/reclamp-verify-and-movement-only` @
-3d58819 stays parked and unmerged.
+3d58819 stays parked and unmerged. ANSWERED 2026-10-12 by the seat (HANDOFF_SEAT_2026-09-28 sec 3): no -
+on main a move carries its destination (the last route vertex) and no movement and falling short are ONE class:
+not arrived by the end time = OVERDUE (RL-20260921-09), a stopped unit = the progress watchdog's TASKABRT; the
+zero-movement-only patch above was never merged.
 
 (ii) "meeting R4" for a MOVE is not supported by the answer it cites. R4 is row 4 of the 2026-09-14
 question table - in plain words, "when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its
