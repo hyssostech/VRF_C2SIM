@@ -180,15 +180,15 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    Label on every create (a small native change - the facade hard-codes the null label; the bridge overloads take a label
    argument; NEW PIN procedure) and enable the Label symbol decoration in the fixture's display settings (21.2), so the demo
    audience sees the full designation. After G1-4's Result, not before; one lane; the fixture edit is the sanctioned deploy.
-6. After that: audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3); log the receipt clock in START TIME BASE.
+6. After that: audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3); log the receipt clock in START TIME BASE; STP-877
+   (10-13): SetTarget at Svc:6224 is LIVE since C1d (C2SIM uuid = VRF uuid), not the parity no-op - test before AE retarget.
 
 ## 4. Decisions that are the owner's (do not decide them)
 
 - Whether the G1-3 crash callstack (C:\MAK\logs, pid 3344, 19:05:16Z) is read (RL-20260921-02 item 4 precedent).
 - The STP-850 default anchor (Receipt recommended) and the PR merge.
-- (RULED 2026-10-11, RL-20261011-02: stall window 360 SIM s, ring 350 m, fan-out RETIRED, base type map after the demo,
-  cleanup after the itemised list; the multiplier is parked at 1x by RL-20261005-06.) STILL OWED BY THE SEAT, not the
-  owner's: the answer to RL-20260921-04's typed question (no-movement error class vs falling short).
+- (RULED RL-20261011-02: stall 360 SIM s, ring 350 m, fan-out RETIRED, base type map after the demo; the multiplier
+  parked at 1x by RL-20261005-06; RL-20260921-04 ANSWERED 10-12, RUNBOOK 11h.)
 - Whether highway=track counts as a road for the AUTO planner and whether 500 m is the right proximity (observed:
   every cut-A leg is NEAR on tracks; the NONE branch is untested).
 
