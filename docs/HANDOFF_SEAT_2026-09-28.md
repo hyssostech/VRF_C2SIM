@@ -164,23 +164,23 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    RL-20260921-04 ANSWERED 2026-10-12 (RUNBOOK sec 11h): no special no-movement class on main. 2026-10-12: SdkLogging deployed
    (f3dfb43); LaunchVrf52 wakes the display (94eaac4). SEAT DECISION, deferred to after the demo: a populated container is judged
    on its centre (D1, documented :3492) - the member-based alternative (Fable ACCEPT WITH FIXES 10-12) can only close T14 later.
-   -7 (2026-10-12): display woken by LaunchVrf52, map DREW; SDK line now info; marker 5377; day holder 12504 to ~20:27Z.
+   -7 (2026-10-12): display woken by LaunchVrf52, map DREW; SDK line now info. CAPSTONE-STP883 (10-13, for STP-867; docs/
+   experiments/CAPSTONE_STP883_2026-10-13.md): Narrative1.op loads in STP 7fbb17f2 only with unit `role` dropped; friend Order
+   export fails (ALL used); 6 in-extent tasks dispatched per STP-850; STP resolves 0 of 37 R1 uuids. Marker 5386; stp883-vrf up.
    CLUTTER (vendor docs, scratch laneCLUTTER): yellow triangle = object-console warning ("Movement constrained by features",
    10-11 IBCT members), green bar = unit health; ghosted icons, the warning icon and the 16 refusal fail: lines: all DEFERRED (RL-20261012-01).
    STP #180 (SystemName STP) and #184 (CNFPSL/CNRPSL) MERGED 10-12: DEMO_RUNBOOK uses -ClientId STP (d004207); CNRPSL held like
    CNFPSL, DEPLOYED 002cccb. AFTER the demo: the "__" description in an Extended Label (UG52 21.3), if the API allows.
 4. Go-live (the seat, under RL-20260928-01): A -> C3 -> W (dry run, pre-warm, W gate) -> E -> F, the scripts of
    u3\laneG1-3 adapted (scratchpad H:\claude\F--Repos-C2SIM-c2simVRFinterfacev2-36\5fc25950-1a10-4ade-9a7b-68cb5c1daf05\
-   scratchpad\u3\laneG1-3\); ask the STP session to hold builds first (idle MSBuild workers fail the pre-launch check;
-   let them time out, never kill).
+   scratchpad\u3\laneG1-3\); STP builds held first (idle MSBuild workers fail the pre-launch check; never kill them).
 5. LABEL follow-up (asked 2026-09-28 ~20:55Z; UG52 13.2.5 / 21.2 / 21.3): our creates send label = nullString
    (VrfFacade.cpp :943, :964, :980), so the map shows only the NAME - the 30-character cut for containers, the 16-character
    display name for members. The vendor's LABEL is uncapped, not unique and never a key: put the full C2SIM designation in the
    Label on every create (a small native change - the facade hard-codes the null label; the bridge overloads take a label
    argument; NEW PIN procedure) and enable the Label symbol decoration in the fixture's display settings (21.2), so the demo
    audience sees the full designation. After G1-4's Result, not before; one lane; the fixture edit is the sanctioned deploy.
-6. After that: the STP-850 PR; audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3: the owner's decisions;
-   the time multiplier; the D2b/M3 partials); the 8i-2 and observer test-isolation weaknesses are fixed / noted.
+6. After that: audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3); log the receipt clock in START TIME BASE.
 
 ## 4. Decisions that are the owner's (do not decide them)
 
