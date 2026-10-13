@@ -166,7 +166,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    on its centre (D1, documented :3492) - the member-based alternative (Fable ACCEPT WITH FIXES 10-12) can only close T14 later.
    -7 (2026-10-12): display woken by LaunchVrf52, map DREW; SDK line now info. CAPSTONE-STP883 (10-13, for STP-867; docs/
    experiments/CAPSTONE_STP883_2026-10-13.md): Narrative1.op loads in STP 7fbb17f2 only with unit `role` dropped; friend Order
-   export fails (ALL used); 6 in-extent tasks dispatched per STP-850; STP resolves 0 of 37 R1 uuids. Marker 5386; stp883-vrf up.
+   export fails (ALL used); 6 in-extent tasks dispatched per STP-850; STP resolves 0 of 37 R1 uuids. Marker 5386; checks 1-6 sent; container removed.
    CLUTTER (vendor docs, scratch laneCLUTTER): yellow triangle = object-console warning ("Movement constrained by features",
    10-11 IBCT members), green bar = unit health; ghosted icons, the warning icon and the 16 refusal fail: lines: all DEFERRED (RL-20261012-01).
    STP #180 (SystemName STP) and #184 (CNFPSL/CNRPSL) MERGED 10-12: DEMO_RUNBOOK uses -ClientId STP (d004207); CNRPSL held like
