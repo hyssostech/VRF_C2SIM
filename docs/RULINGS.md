@@ -110,3 +110,8 @@ RL-20261012-02 | 2026-10-12 | VERBATIM - R2788 = session d0bba772-d00e-4b25-a434
   supervisor reading: the demo STP includes STP PRs #180 (SystemName STP) and #184 (CNFPSL/CNRPSL): -ClientId STP (DEMO_RUNBOOK 2.2). The
     rehearsed 09-20 export is OLDER than the demo STP - a rehearsal on a current-main export is owed (STP-883). Owner, next message: "Shooting
     to wrap 962 before the demo" - STP-962 (task geometry) is targeted for the demo build.
+RL-20261013-01 | 2026-10-13 | VERBATIM - R4261 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, TYPED
+  Q (seat, R4258): "does the demo show STP's own map updating from what VR-Forces reports?"
+  A (owner, R4261): "Yes, I'd like that. Is the feature fixed in stp?"
+  supervisor reading: the demo shows STP's map driven by the interface's reports, so STP-1108 (positions logged as unknown uuid)
+    and STP-800 (TaskStatus/Observation discarded) are demo-required; both To Do with no PR on 2026-10-13. A live round-trip check is owed.
