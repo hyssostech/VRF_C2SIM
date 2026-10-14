@@ -27,6 +27,7 @@
 #   RL-20260921-05 moved here 2026-09-27, unchanged, to make room for RL-20260927-02 (read it with RL-20260921-09, which stays live).
 #   RL-20260921-09 moved here 2026-09-28, unchanged, to make room for RL-20260928-03 (the TEMPORARY completion position; live pointers keep citing it).
 #   RL-20260926-01 (engage doctrine, P-lines) moved here 2026-09-27, unchanged, to make room for RL-20260927-04.
+#      RL-20261004-06 (moved 2026-10-14, unchanged, to make room for RL-20261014-01; tier-2a compositions and the short-form duration, implemented).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -632,3 +633,14 @@ RL-20261004-05 | 2026-10-04 | VERBATIM - Q1452, TYPED
     (3) the demo runs WAY B (STP pushes its own order). (4) the Label decoration may be written under C:\MAK ONLY by an automated,
     reproducible, verifiable deploy step that works on every installed instance; no hand edits.
   pointer: PREREG_IRONSTORM_AGG_G1-6_2026-10-04; tools/display/Enable-LabelDecoration.ps1 (feat/full-designation-label).
+
+RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
+  Q (seat, Q1855): "1. Tier 2a compositions: 278 ACR and 169 FAB now; 55 MEB and 11 CAB left refused [...] 2. 56 SBCT: the Polish stand-in
+    battalion, or an authored Stryker infantry battalion. 3. Way B's duration fix: STP fixes STP-848 on its side, and/or the interface also
+    accepts the short form PT20M. I recommend both. [...] 4. Firewall rules: pre-create them as an automated deploy step"
+  A (owner, Q1858): "1 ok. 2 standin. 3 both - is there a jira item for stp already? 4 commands to put this in place?"
+  supervisor reading: (1) compose 278 ACR (ABCT pattern) and 169 FAB from public doctrine; 55 MEB, 11 CAB stay refused with reasons.
+    (2) 56 SBCT's Stryker infantry = the Polish motorized BN as a labelled STAND-IN. (3) STP-848 stays for STP AND the interface accepts
+    the canonical ISO-8601 short form too (reverses the 2026-09-20 strict-decoder choice in OrderParser.cs, a seat choice, not a ruling).
+    (4) a question: the commands are shown; any change to the host firewall is the owner's to run (elevated).
+  pointer: STP-848 (Jira, To Do); scratch laneCOMP (sources); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

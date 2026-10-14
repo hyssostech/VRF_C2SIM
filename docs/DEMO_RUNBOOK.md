@@ -197,6 +197,7 @@ retry), b (back end), f (front end), i (the interface). Numbers not used are bur
     build the demo STP runs; the interface's start-up line "Waiting for the C2SIM initialization
     (clientId=...)" shows what it will accept.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
+  - PACE CHANGE PENDING (RL-20261014-01): when the demo STP carries #413 (60-min slots), the profile goes to ~0.04.
   - PACE (RL-20261011-01): the profile runs DurationScale 0.25 - every authored duration and start delay is a
     quarter; the accepted tasks are terminal about 3 wall min after the order (2026-10-05). At 1.0 (STP's own
     durations) it took about 13 min (2026-10-11). Nothing to type for it.

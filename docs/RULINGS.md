@@ -11,16 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
-  Q (seat, Q1855): "1. Tier 2a compositions: 278 ACR and 169 FAB now; 55 MEB and 11 CAB left refused [...] 2. 56 SBCT: the Polish stand-in
-    battalion, or an authored Stryker infantry battalion. 3. Way B's duration fix: STP fixes STP-848 on its side, and/or the interface also
-    accepts the short form PT20M. I recommend both. [...] 4. Firewall rules: pre-create them as an automated deploy step"
-  A (owner, Q1858): "1 ok. 2 standin. 3 both - is there a jira item for stp already? 4 commands to put this in place?"
-  supervisor reading: (1) compose 278 ACR (ABCT pattern) and 169 FAB from public doctrine; 55 MEB, 11 CAB stay refused with reasons.
-    (2) 56 SBCT's Stryker infantry = the Polish motorized BN as a labelled STAND-IN. (3) STP-848 stays for STP AND the interface accepts
-    the canonical ISO-8601 short form too (reverses the 2026-09-20 strict-decoder choice in OrderParser.cs, a seat choice, not a ruling).
-    (4) a question: the commands are shown; any change to the host firewall is the owner's to run (elevated).
-  pointer: STP-848 (Jira, To Do); scratch laneCOMP (sources); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
 RL-20261005-01 | 2026-10-05 | VERBATIM - Q2088, TYPED
   Q (seat, Q2085): "for the Way B rehearsal, STP's raw export run once with the GUI, do you want a full registration or a lighter
     rehearsal registration? Either way it records its expectations before launch, and it needs your go-live."
@@ -115,3 +105,9 @@ RL-20261013-01 | 2026-10-13 | VERBATIM - R4261 = session d0bba772-d00e-4b25-a434
   A (owner, R4261): "Yes, I'd like that. Is the feature fixed in stp?"
   supervisor reading: the demo shows STP's map driven by the interface's reports, so STP-1108 (positions logged as unknown uuid)
     and STP-800 (TaskStatus/Observation discarded) are demo-required; both To Do with no PR on 2026-10-13. A live round-trip check is owed.
+RL-20261014-01 | 2026-10-14 | VERBATIM - R5681 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, AskUserQuestion SELECTION
+  Q (seat, R5680): "STP's phase slots go from 10 to 60 minutes (D1). [...] asks me to change the Demo profile's DurationScale from 0.25
+    (your ruling RL-20261011-01) to about 0.04. Which do you mean?"
+  A (owner, R5681, a selected label - the seat's wording): "DurationScale 0.04, at #413 (Recommended)"
+  supervisor reading: amends RL-20261011-01 (1): VR-Forces stays at 1x; the Demo profile's DurationScale becomes ~0.04 (0.25 x 10/60)
+    WHEN STP #413 (D1, PhaseDuration 60) merges and the demo STP build carries it - not before. 0.25 until then.
