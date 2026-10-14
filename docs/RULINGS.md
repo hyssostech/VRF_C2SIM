@@ -113,3 +113,8 @@ RL-20261014-03 | 2026-10-14 | VERBATIM - R5827 = session d0bba772-d00e-4b25-a434
   A (owner, R5827, a selected label - the seat's wording): "As proposed (Recommended)"
   supervisor reading: EVACT -> move to the point and hold; CONSTR -> move to the obstacle, hold, one 'construction not simulated'
     observation; HoldInPlace, HIDE, UNCONW -> held where the unit is. ROE as ordered for all (HIDE's 'hold fire' is NOT added).
+RL-20261014-04 | 2026-10-14 | VERBATIM - R6102 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, AskUserQuestion SELECTION
+  Q (seat, R6101): "[...] asks me to map SETUP in VR-Forces. Mapping it like OCCUPY (go to the CP point and stay) also covers the
+    in-place case [...] Map SETUP this way?"
+  A (owner, R6102, a selected label - the seat's wording): "Map SETUP like OCCUPY (Recommended)"
+  supervisor reading: SETUP (STP-1129 'establish a command post', relayed by the STP-964/1129 session) -> HoldObjective as OCCUPY.

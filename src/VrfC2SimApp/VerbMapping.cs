@@ -175,6 +175,9 @@ public static class VerbMapping
             ["UNCONW"] = (TaskIntent.HoldInPlace,     InPlaceComposition),
             ["SECURE"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["OCCUPY"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
+            // SETUP (xsd 'Set up: To prepare or establish a FACILITY, ORGANISATION or FEATURE'): STP's 'establish a command
+            // post' (STP-1129; RL-20261014-04). Like OCCUPY: go to the CP point and hold; no geometry = held in place (R2).
+            ["SETUP"]  = (TaskIntent.HoldObjective,   "move-to + hold (command post; RL-20261014-04)"),
             ["SEIZE"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["RETAIN"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["BLOCK"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),

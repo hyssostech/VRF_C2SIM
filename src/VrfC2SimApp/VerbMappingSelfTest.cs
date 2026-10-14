@@ -28,6 +28,8 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "HoldInPlace", TaskIntent.HoldInPlace);
         CheckIntent(ref failures, "HIDE", TaskIntent.HoldInPlace);
         CheckIntent(ref failures, "UNCONW", TaskIntent.HoldInPlace);
+        // SETUP (establish a command post; STP-1129, RL-20261014-04): like OCCUPY - go to the CP point and hold.
+        CheckIntent(ref failures, "SETUP", TaskIntent.HoldObjective);
         Check(ref failures, VerbMapping.Classify("CONSTR").Recognized && VerbMapping.Classify("CONSTR").Intent != TaskIntent.Move
                             && VerbMapping.Classify("CONSTR").Implemented,
               "CONSTR is RECOGNISED and IMPLEMENTED (move to the obstacle, hold, 'not simulated' observation), not the bare-move fallback");
