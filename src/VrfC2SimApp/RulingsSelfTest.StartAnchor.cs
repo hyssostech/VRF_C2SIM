@@ -233,6 +233,13 @@ public static partial class RulingsSelfTest
                 string src = File.ReadAllText(service);
                 string gateCall = Stp850Between(src, "var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid,",
                                                 "if (gate != GateResult.Proceed)");
+                string afterStamp = Stp850Between(src, "double orderReceiptClock = TaskClockSeconds;",
+                                                  "foreach (var task in order.Tasks)");
+                Check(ref failures, afterStamp.Contains("\"ORDER RECEIPT (STP-850): stamped at TASK CLOCK {Task:F1} s, SIMULATION clock {Sim}, \"")
+                                    && afterStamp.Contains("orderReceiptClock,")
+                                    && Stp850CountOf(src, "ORDER RECEIPT (STP-850): stamped at TASK CLOCK") == 1,
+                      "(g-receipt) the receipt stamp is LOGGED once per order, right where it is taken, with the task-clock value " +
+                      "the gates use and the simulation clock beside it (CAPSTONE-STP883 follow-up)");
                 Check(ref failures, Stp850CountOf(src, "double orderReceiptClock = TaskClockSeconds;") == 1
                                     && src.Contains("_ = RunTaskAsync(t, u, orderReceiptClock, orderMinOffsetMs);")
                                     && Stp850CountOf(src, "long orderMinOffsetMs = TaskDispatchPolicy.MinSimulationOffsetMs(") == 1

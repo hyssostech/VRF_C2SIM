@@ -179,6 +179,15 @@ public static class TaskDispatchPolicy
         "lane or breach assets (STP-865); the unit advances to the breach location and the task " +
         "completes by time.";
 
+    /// <summary>The same observation when the order DOES name the obstacle (STP-865 exports the obstacle graphic as
+    /// the affected entity when it has one): "carries no obstacle" would then be false, so it says what it got.</summary>
+    public static string BreachNotSimulatedObservation(string unitName, string obstacleLabel) =>
+        string.IsNullOrEmpty(obstacleLabel)
+            ? BreachNotSimulatedObservation(unitName)
+            : $"BREACH by {unitName}: the breach action is not simulated - the order names the obstacle " +
+              $"{obstacleLabel}, but no breach task is issued (STP-865); the unit advances to the breach location " +
+              "and the task completes by time.";
+
     /// <summary>Does this action mean the task will never run - i.e. must its successors be told
     /// to stop waiting (TaskSequencer.NotifyAbandoned) and STP told TASKABRT?</summary>
     public static bool Refuses(ZeroGeometryAction action) => action == ZeroGeometryAction.Refuse;

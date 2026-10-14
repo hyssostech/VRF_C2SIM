@@ -196,6 +196,17 @@ public static class EngageDoctrineSelfTest
               "lane or breach assets (STP-865); the unit advances to the breach location and the task " +
               "completes by time.",
               "(e6) the BREACH observation names the unit, says the breach is not simulated and cites STP-865");
+        Check(ref failures,
+              TaskDispatchPolicy.BreachNotSimulatedObservation("1-1/2/1_AD", "'Minefield_A'") ==
+              "BREACH by 1-1/2/1_AD: the breach action is not simulated - the order names the obstacle " +
+              "'Minefield_A', but no breach task is issued (STP-865); the unit advances to the breach location " +
+              "and the task completes by time."
+              && TaskDispatchPolicy.BreachNotSimulatedObservation("1-1/2/1_AD", null) ==
+                 TaskDispatchPolicy.BreachNotSimulatedObservation("1-1/2/1_AD")
+              && TaskDispatchPolicy.BreachNotSimulatedObservation("1-1/2/1_AD", "") ==
+                 TaskDispatchPolicy.BreachNotSimulatedObservation("1-1/2/1_AD"),
+              "(e6b) with an obstacle named (STP-865) the BREACH observation says so instead of 'carries no " +
+              "obstacle'; with none it is the ruled sentence unchanged");
         {
             string xml = ReportBuilder.BuildTypeSubstitutionReport(
                 "de16a337-b2a6-c029-07b5-869191631621", "1-1/2/1_AD", "1-1/2/1_AD",

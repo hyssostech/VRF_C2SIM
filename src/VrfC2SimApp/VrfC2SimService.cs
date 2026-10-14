@@ -5098,6 +5098,17 @@ public sealed class VrfC2SimService : BackgroundService
         // STP-850: ORDER RECEIPT, stamped ONCE for the whole order on the task clock every gate runs on, so
         // same-slot tasks on different units measure their SimulationTime offset from the same instant.
         double orderReceiptClock = TaskClockSeconds;
+        // CAPSTONE-STP883 follow-up: the receipt stamp was never printed, so a dispatch's "receipt + offset" had to be
+        // inferred backwards from the dispatches themselves. Said once per order, on both clocks: the TASK CLOCK is
+        // what every gate measures (forward-only, so it drifts from the SIMULATION clock by every rollback).
+        var simObsAtReceipt = _simClockLast;
+        _log.LogInformation("ORDER RECEIPT (STP-850): stamped at TASK CLOCK {Task:F1} s, SIMULATION clock {Sim}, " +
+                            "WALL {Wall:yyyy-MM-ddTHH:mm:ss.fffZ} - every receipt-anchored start below is this TASK " +
+                            "CLOCK value plus its rebased, scaled offset.", orderReceiptClock,
+                            simObsAtReceipt.ReadableConfirmed && double.IsFinite(simObsAtReceipt.SimSeconds)
+                                && simObsAtReceipt.SimSeconds >= 0.0
+                                ? FormattableString.Invariant($"{simObsAtReceipt.SimSeconds:F1} s")
+                                : "NOT READABLE", DateTime.UtcNow);
 
         foreach (var task in order.Tasks)
         {
@@ -5466,7 +5477,7 @@ public sealed class VrfC2SimService : BackgroundService
     /// Runs on the VRF tick thread: the bare-movement body of executeTask
     /// (C2SIMinterface.cpp:2213-2424). Reads the taskee's live location as point 0,
     /// ground-clamps, appends the task's inline route points, applies ROE + the
-    /// (parity no-op) SetTarget, then MoveToLocation (single point), a chain of MoveToLocation, one
+    /// SetTarget (live since C1d; STP-1127), then MoveToLocation (single point), a chain of MoveToLocation, one
     /// per vertex (a lone ground platform, RL-20260927-01 - StartVertexChain), or CreateRoute +
     /// deferred MoveAlongRoute (units and everything else). terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
@@ -6213,14 +6224,20 @@ public sealed class VrfC2SimService : BackgroundService
         if (engage == EngageDecision.AdvanceAndHold)
             _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
                                 "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
-                                "The supported unit is not in the order (STP sends the performer as the affected " +
-                                "entity), so nothing is followed.", task.TaskName, task.ActionCode, unit.Name,
-                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
+                                "{Supported}", task.TaskName, task.ActionCode, unit.Name,
+                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode,
+                                // STP-846 (STP side, 2026-10): STP now names the SUPPORTED unit as the affected entity.
+                                !string.IsNullOrEmpty(task.AffectedEntity) && task.AffectedEntity != task.TaskeeUuid
+                                    ? $"The order names {AffectedEntityLabel(task.AffectedEntity)} as the supported " +
+                                      "unit (STP-846); it is not followed - the unit drives its own graphic."
+                                    : "The order names no supported unit (the affected entity is the performer), so " +
+                                      "nothing is followed.");
 
-        // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
-        // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the
-        // affected entity's C2SIM uuid, so it is a silent no-op in VRF. Reproduced here;
-        // the fix (distinct C2SimUuid/VrfUuid types) is a later Phase 4 item.
+        // SetTarget - ported as the C++'s parity no-op (PORT.md sec 6, C2SIMinterface.cpp:2385): it passes C2SIM
+        // uuids where VRF expects VRF uuids. NO LONGER A NO-OP since C1d (RL-20260928-02): a unit is created UNDER its
+        // C2SIM uuid, so this is a LIVE DtVrfRemoteController::setTarget(performer, affected entity) - today the
+        // performer itself (STP names it on most tasks), a supported unit on FOLSPT (STP-846), a graphic once STP-1126
+        // ships. What VR-Forces does with it is untested: Jira STP-1127 decides keep / drop / non-performer only.
         _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
 
         // C1 (RL-20260927-03): A POPULATED AGGREGATE CONTAINER MOVES ONLY THROUGH ITS OWN SCRIPTED TASK - never
@@ -6468,6 +6485,16 @@ public sealed class VrfC2SimService : BackgroundService
     /// RL-20260926-01: the caller also gets the resolution, because what an ATTACK / BREACH does
     /// with a distinct target is TaskDispatchPolicy.ForEngage's decision, not this method's.
     /// </summary>
+    /// <summary>An affected entity, said the way the log reader can find it: a unit we created by its name, a
+    /// registered map graphic by its name and kind, anything else by its bare uuid.</summary>
+    private string AffectedEntityLabel(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid)) return "(none)";
+        if (_unitByC2SimUuid.TryGetValue(uuid, out var u)) return $"unit {u.Name} ({uuid})";
+        if (_graphicsByC2SimUuid.TryGetValue(uuid, out var g)) return $"{g.Kind} graphic '{g.Name}' ({uuid})";
+        return uuid;
+    }
+
     private string ResolveAffectedTarget(OrderTask task, string vrfUuid, string intentLabel, string engagement,
                                          out TargetResolution resolution)
     {
@@ -6488,13 +6515,21 @@ public sealed class VrfC2SimService : BackgroundService
         if (resolution == TargetResolution.SelfIsObjective)
         {
             _log.LogInformation("{Intent} task '{Task}': the order names the PERFORMING UNIT as the affected " +
-                                "entity (STP does this on every task), so THE TARGET IS THE OBJECTIVE (R3, user " +
+                                "entity (STP's default for most tasks), so THE TARGET IS THE OBJECTIVE (R3, user " +
                                 "ruling 2026-09-14) - the task's geometry is what it is about and the unit is " +
                                 "routed there. No {Engagement} against a named entity is issued.",
                                 intentLabel, task.TaskName, engagement);
             return null;
         }
-        if (resolution == TargetResolution.Unresolved)
+        // STP-865 / STP-1126: STP may name a MAP GRAPHIC (the obstacle, the objective) as the affected entity. That is
+        // not a scope or data gap - it is a graphic of the initialization this interface registered - so it gets an
+        // Information line, not m3's warning. The outcome is unchanged: the task goes to its own geometry.
+        if (resolution == TargetResolution.Unresolved && _graphicsByC2SimUuid.ContainsKey(task.AffectedEntity))
+            _log.LogInformation("{Intent} task '{Task}': the order names the MAP GRAPHIC {Graphic} as the affected " +
+                                "entity - a graphic, not a unit, so there is no named entity to {Engagement}. The " +
+                                "task is dispatched to its own geometry (R3).", intentLabel, task.TaskName,
+                                AffectedEntityLabel(task.AffectedEntity), engagement);
+        else if (resolution == TargetResolution.Unresolved)
             _log.LogWarning("{Intent} task '{Task}': the affected entity '{Entity}' is NOT an object this " +
                             "interface created - it is out of this clientId's scope, or the order and the " +
                             "initialization disagree. The task is dispatched to its own geometry and NO " +
@@ -7224,7 +7259,9 @@ public sealed class VrfC2SimService : BackgroundService
     /// section_breach / company_breach). This code has no aggregate-level path to keep.</summary>
     private void ReportBreachNotSimulated(OrderTask task, CreatedUnit unit)
     {
-        string text = TaskDispatchPolicy.BreachNotSimulatedObservation(unit.Name);
+        string text = TaskDispatchPolicy.BreachNotSimulatedObservation(unit.Name,
+            !string.IsNullOrEmpty(task.AffectedEntity) && _graphicsByC2SimUuid.TryGetValue(task.AffectedEntity, out var obstacle)
+                ? $"'{obstacle.Name}'" : null);
         _log.LogInformation("Task '{Task}': {Text}", task.TaskName, text);
         _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                 task.TaskeeUuid, unit.Name, unit.Name, text, IsoNow(), NewReportId()), ReportKind.Observation);
