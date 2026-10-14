@@ -64,7 +64,7 @@ in the same session as the BACK END LOST repro (PRERUN_STP976_2026-10-15, offlin
 and option 2 admits the first long planner route (T1, ~60 km: 56 SBCT's start to the lane's start point) plus river and
 lake crossings - and the stop happened inside a 48 IBCT re-task from a start in water. Not option 4 for this demo.
 
-## UPDATE 2026-10-14 ~22:30Z - after STP-1147 and STP-1150 (sent to the supervisor)
+## UPDATE 2026-10-14 ~21:50Z - after STP-1147 and STP-1150 (sent to the supervisor)
 
 On the 37-task export from STP main 299d4d46 (STP-1147 recovered 12 anticipated tasks), the same emulation: option 2
 admits 10 (executes 9), option 3 admits 11. STP-1150 (agreed 2026-10-14: STP drops boundaries and phase lines from a
