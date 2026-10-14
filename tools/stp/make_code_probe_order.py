@@ -7,14 +7,18 @@ Three in-extent Iron Storm units, two chained tasks each (slot 0, then slot 1 af
   1-112 IN  EVACT       -> HIDE        (move to a point and hold; then held in place)
   48 IBCT   CONSTR      -> ENGAGE      (move to a point + 'construction not simulated'; then advance ~0 m, fire at will)
 Duration = slot_seconds (default 3600, STP #413's 60-min slot). Units are found by Name in the Initialization
-(exact names below); a missing unit is an error (exit 2). Writes ASCII, LF. Prints one line per task.
+(the candidate names below, first found wins); a missing unit is an error (exit 2). Writes ASCII, LF. Prints one line per task.
 """
 import sys
 import uuid
 import xml.etree.ElementTree as ET
 
 NS = '{http://www.sisostds.org/schemas/C2SIM/1.1}'
-UNITS = {'28ID': '28ID', '1-112': '1-112_IN/28ID', '48IBCT': '48_IBCT/28ID'}
+# Candidate names per unit, first found wins: STP-1149 (STP main ac23f04a) exports a placed unit merged into its Task Org
+# node under the TO name ('48IBCT/28ID'); earlier exports carried the placed designator ('48_IBCT/28ID').
+UNITS = {'28ID': ('28ID',),
+         '1-112': ('1-112_IN/28ID', '1st_Battalion,_112th_Infantry_Regiment/28ID'),
+         '48IBCT': ('48_IBCT/28ID', '48IBCT/28ID')}
 # (unit key, code, lat, lon or None for 'no geometry', slot)
 TASKS = [
     ('28ID', 'HoldInPlace', 53.9924, 23.2113, 0),
@@ -48,7 +52,8 @@ def main(argv):
         return 2
     slot = int(argv[3]) if len(argv) > 3 else 3600
     names = unit_uuids(argv[1])
-    missing = [n for n in UNITS.values() if n not in names]
+    chosen = {k: next((n for n in cands if n in names), None) for k, cands in UNITS.items()}
+    missing = [' or '.join(UNITS[k]) for k, n in chosen.items() if n is None]
     if missing:
         print('missing unit(s) in the Initialization: ' + ', '.join(missing))
         return 2
@@ -63,7 +68,7 @@ def main(argv):
     prev = {}
     for key, code, lat, lon, slot_no in TASKS:
         tid = str(uuid.uuid5(ns, key + '/' + code))
-        perf = names[UNITS[key]]
+        perf = names[chosen[key]]
         out += ['      <Task>', '        <ManeuverWarfareTask>']
         if key in prev:  # xsd order: ActionTemporalRelationship first (as STP writes it)
             out += ['          <ActionTemporalRelationship><ActionTemporalAssociationCode>STREND</ActionTemporalAssociationCode>'
