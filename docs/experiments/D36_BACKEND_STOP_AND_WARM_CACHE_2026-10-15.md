@@ -116,6 +116,19 @@ back end's own feature / obstacle PROCESSING for long ground routes across this 
 operator's rule ("if (b) FAILS, keep today's extent") the demo stays on RL-20261005-02's box; no config change.
 STP-1148 not judged (no capture before the loss showed the objectives).
 
+## (a2) PREREG - two more arms (supervisor GO, within the D36 approval; written 2026-10-15 ~00:02Z, before launch)
+
+Same rules (fresh launch, COA 1 init only, 48 IBCT only, 1 Hz sampler + abort, NotifyLevel 3).
+- Arm (i) AFTER ALL ENDED: CONSTR alone to (54.0403,23.3364); wait until the interface logs 17 of 17 members ended
+  (cap 8 min wall; record N if not all end); then a SEPARATE order, ENGAGE to the same point (no STREND, start 0).
+- Arm (ii) DRY START, moves outstanding: the arm-F sequence (CONSTR -> STREND ENGAGE, same point for both) at
+  (54.000,23.290), south-west of the start, away from the lake. VALIDITY: the ENGAGE leg's pre-flight must show no
+  deep / OSM water at 0.00 km along, and the vendor log's "Start point is within obstacle" count is recorded; if the
+  start is wet the arm is INVALID (not a reading).
+Readings: (i) stops -> outstanding moves are not needed (the start position / the re-task itself suffices); (i) does
+not -> outstanding moves are needed (a gate that waits for every member to end would avoid it). (ii) stops -> a wet
+start is not needed; (ii) does not -> the wet / in-obstacle start is involved. STOP = same definition as (a).
+
 ## Item 3 (Pro eyes-on)
 
 ArcGIS Pro 3.6.0.59527 IS installed on this host. Pressing Pro's UI (confirm tasks, export, "C2SIM Reports On") is not
