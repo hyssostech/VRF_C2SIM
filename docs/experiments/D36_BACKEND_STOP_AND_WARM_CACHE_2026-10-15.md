@@ -84,6 +84,18 @@ has 56 SBCT T1 -> T2 and 48 IBCT T22 -> T23, and 113 SB T34 -> T35 -> T36.
 PREREG ADDENDUM for (b), written before the FILL launch: P1 (no BACK END LOST) is now EXPECTED TO FAIL (MEDIUM) on
 those chains; the criteria are unchanged.
 
+## (b) FILL RESULT (2026-10-14 23:43-23:51Z; runs/launch52/d36/fill; app 5428-5432)
+
+DEMO EXTENT 37 tasks, 17 refused, 20 admitted (as predicted). Dispatched: T1 and T22 (CNFPSL, hold-in-place), then
+navigates T33 (169 FAB, 23:45:57Z), T15 (116 ABCT, 23:46:55Z), T2 (56 SBCT, 23:47:25Z), T23 (48 IBCT, 23:47:33Z). SIM/WALL
+fell 2.04 -> 1.000; BACK END LOST (last good 23:47:47Z). A DIFFERENT FAILURE FROM (a): the vendor log kept writing until
+the teardown (last write 23:50:50Z, 629,546 lines, 0 "Start point is within obstacle"), with 45,243 "queued for <s>
+seconds" lines - median 114 s, p95 161 s (10-05: 71 / 192 s) - over 131,878 feature_source lines: the 10-05 terrain
+feature-paging BACKLOG, not the (a) hang. Working set 3.9 -> 9.4 GB; the sampler ABORTED at 23:50:00Z (1,409 MB/min
+over 300 s) and the run was torn down (StopVrf exit 3 -> forced exit 6; RTI and holders intact). Cache vrfsim
+28,070 files / 509.5 MB -> 31,537 / 516.7 MB. The fill was cut short by the abort, so the cache is only as warm as
+~5 min of paging made it.
+
 ## Item 3 (Pro eyes-on)
 
 ArcGIS Pro 3.6.0.59527 IS installed on this host. Pressing Pro's UI (confirm tasks, export, "C2SIM Reports On") is not
