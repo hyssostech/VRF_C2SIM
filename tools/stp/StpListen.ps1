@@ -2,7 +2,8 @@
 # Purpose: the STP-976 check that STP re-emits the interface's position reports to clients - per the STP-1097 session
 # (STP main 3c614980, StpJsonClient.cs:169) as an event named "SymbolReport" carrying {poid, symbol}; it is not in
 # Schema.json, so this records EVERY message and counts them by name rather than filtering on a schema.
-# Same wire format as tools\stp\StpPush.ps1 (Register is a Request envelope; events arrive unsolicited).
+# Same wire format as tools\stp\StpPush.ps1. SymbolReport arrives ONLY when Register lists it in its solvables (STP-1097
+# session 2026-10-14: StpOaaConnector.cs:242 subscribes only on that; the 10-14 pre-run's Register-only client got none).
 # Output: -Out (JSON lines, one message per line, with a receive timestamp); a summary of message counts by name; for
 # SymbolReport, the number of distinct poids and, per poid, whether its reported location changed between events.
 # Sends nothing but Register. Exit: 0 connected and listened; 1 connect/register failed. ASCII only.
@@ -44,7 +45,7 @@ $moved = @{}
 $exit = 1
 try {
     $null = $ws.ConnectAsync([Uri]$Url, [System.Threading.CancellationToken]::None).GetAwaiter().GetResult()
-    $inner = @{ method = 'Register'; params = @{ serviceName = 'VrfC2SimStpListen'; language = 'powershell'; solvables = @(); machineId = $null; sessionId = $null } } | ConvertTo-Json -Depth 10 -Compress
+    $inner = @{ method = 'Register'; params = @{ serviceName = 'VrfC2SimStpListen'; language = 'powershell'; solvables = @('SymbolReport'); machineId = $null; sessionId = $null } } | ConvertTo-Json -Depth 10 -Compress
     Send-Text (@{ method = 'Request'; params = @{ jsonRequest = $inner; cookie = 1; timeout = 30 } } | ConvertTo-Json -Depth 10 -Compress)
     $writer = [System.IO.StreamWriter]::new($Out, $false, [System.Text.UTF8Encoding]::new($false))
     $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds($Seconds))
