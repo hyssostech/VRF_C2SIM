@@ -63,3 +63,15 @@ Option 2 if the operator wants the breach / FPOL story (T1, T16: the STP-962 ite
 in the same session as the BACK END LOST repro (PRERUN_STP976_2026-10-15, offline analysis): both need VR-Forces live,
 and option 2 admits the first long planner route (T1, ~60 km: 56 SBCT's start to the lane's start point) plus river and
 lake crossings - and the stop happened inside a 48 IBCT re-task from a start in water. Not option 4 for this demo.
+
+## UPDATE 2026-10-14 ~22:30Z - after STP-1147 and STP-1150 (sent to the supervisor)
+
+On the 37-task export from STP main 299d4d46 (STP-1147 recovered 12 anticipated tasks), the same emulation: option 2
+admits 10 (executes 9), option 3 admits 11. STP-1150 (agreed 2026-10-14: STP drops boundaries and phase lines from a
+task's MapGraphicID list unless it moves along that line; no resolver change on this side) removes the boundary lines
+that push T2 56 SBCT ATTACK and T15 116 ABCT DEFEAT to 55.0 N; their objectives (N 54.341 / 54.385) then fit option 3
+(N 54.45) but not option 2 (116 ABCT's own start, 54.280 N, is outside option 2). Option 3 then admits 13, executes 12.
+RECOMMENDATION REVISED: option 3 once STP-1150 is merged (else option 2 as above), with the warm-cache test on option
+3's box and the post-STP-1150 export. Time unchanged (~2.5 h); risk slightly up - ~57% more area (north, not toward
+the 24.3-24.4 E backlog of 10-05) and T2's ~26 km westward drive across the lake district, the re-task class the
+back-end stop happened in.
