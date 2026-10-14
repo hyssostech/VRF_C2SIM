@@ -96,6 +96,26 @@ over 300 s) and the run was torn down (StopVrf exit 3 -> forced exit 6; RTI and 
 28,070 files / 509.5 MB -> 31,537 / 516.7 MB. The fill was cut short by the abort, so the cache is only as warm as
 ~5 min of paging made it.
 
+## (b) SCORED RESULT (2026-10-14 23:51-23:59Z; runs/launch52/d36/scored; app 5433-5437): FAIL -> D33 KEEPS TODAY'S EXTENT
+
+Same order, same extent, on the cache the fill left. DEMO EXTENT 37 / 17 refused / 20 admitted. Dispatched T1, T22
+(hold-in-place), T33 (23:53:23Z), T15 (23:54:43Z), T2 (23:54:57Z); SIM/WALL 1.32 -> 1.000; BACK END LOST (last good
+23:55:16Z, ~2 min after the order). The vendor log kept writing to the teardown (853,450 lines; 157,394 feature_source;
+64,362 "queued for" - median 73 s, p95 135 s; 0 in-obstacle); working set 2.6 -> 14.3 GB, sampler ABORT 23:57:49Z
+(2,367 MB/min over 300 s), torn down 23:58Z (StopVrf exit 3 -> forced exit 6; RTI and holders intact; no dump).
+Cache vrfsim 31,537 / 516.7 MB -> 32,283 / 518.9 MB.
+| Criterion | Verdict |
+|---|---|
+| P1 no BACK END LOST | FAIL (2 min after the order) |
+| P2 SIM/WALL >= 1.000 | FAIL (1.323, then the controller's 1.000 extrapolation) |
+| P3 slope <= 200 MB/min | FAIL (2,367 MB/min) |
+| P4 T2 / T15 to their objectives | FAIL (abandoned at the loss) |
+READING: the warm cache did not make option 3 safe. Queue waits fell (median 114 -> 73 s) but stayed at minutes, and the
+memory climb was faster, not slower; the cache barely grew in either run (+3,467 / +746 files) - the backlog is the
+back end's own feature / obstacle PROCESSING for long ground routes across this terrain, not tile FETCH. D33: per the
+operator's rule ("if (b) FAILS, keep today's extent") the demo stays on RL-20261005-02's box; no config change.
+STP-1148 not judged (no capture before the loss showed the objectives).
+
 ## Item 3 (Pro eyes-on)
 
 ArcGIS Pro 3.6.0.59527 IS installed on this host. Pressing Pro's UI (confirm tasks, export, "C2SIM Reports On") is not
