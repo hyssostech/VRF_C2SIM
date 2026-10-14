@@ -181,7 +181,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    argument; NEW PIN procedure) and enable the Label symbol decoration in the fixture's display settings (21.2), so the demo
    audience sees the full designation. After G1-4's Result, not before; one lane; the fixture edit is the sanctioned deploy.
 6. After that: audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3); log the receipt clock in START TIME BASE; STP-877
-   (10-13): SetTarget at Svc:6224 is LIVE since C1d (C2SIM uuid = VRF uuid), not the parity no-op - test before AE retarget.
+   (10-13): SetTarget at Svc:6224 is LIVE since C1d (C2SIM uuid = VRF uuid) - test it = Jira STP-1127 (blocks STP-1126).
 
 ## 4. Decisions that are the owner's (do not decide them)
 
