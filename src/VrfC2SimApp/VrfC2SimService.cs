@@ -5477,7 +5477,7 @@ public sealed class VrfC2SimService : BackgroundService
     /// Runs on the VRF tick thread: the bare-movement body of executeTask
     /// (C2SIMinterface.cpp:2213-2424). Reads the taskee's live location as point 0,
     /// ground-clamps, appends the task's inline route points, applies ROE + the
-    /// SetTarget (live since C1d; STP-1127), then MoveToLocation (single point), a chain of MoveToLocation, one
+    /// (no SetTarget since STP-1127), then MoveToLocation (single point), a chain of MoveToLocation, one
     /// per vertex (a lone ground platform, RL-20260927-01 - StartVertexChain), or CreateRoute +
     /// deferred MoveAlongRoute (units and everything else). terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
@@ -6233,12 +6233,14 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "The order names no supported unit (the affected entity is the performer), so " +
                                       "nothing is followed.");
 
-        // SetTarget - ported as the C++'s parity no-op (PORT.md sec 6, C2SIMinterface.cpp:2385): it passes C2SIM
-        // uuids where VRF expects VRF uuids. NO LONGER A NO-OP since C1d (RL-20260928-02): a unit is created UNDER its
-        // C2SIM uuid, so this is a LIVE DtVrfRemoteController::setTarget(performer, affected entity) - today the
-        // performer itself (STP names it on most tasks), a supported unit on FOLSPT (STP-846), a graphic once STP-1126
-        // ships. What VR-Forces does with it is untested: Jira STP-1127 decides keep / drop / non-performer only.
-        _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
+        // NO SetTarget HERE (STP-1127, 2026-10-13; docs/experiments/SETTARGET_STP1127_2026-10-13.md). The port carried the
+        // C++'s SetTarget(taskee, affected entity) (C2SIMinterface.cpp:2385) as a parity no-op - C2SIM uuids where VRF
+        // expects VRF uuids. C1d (RL-20260928-02) made it LIVE: a unit is created under its C2SIM uuid. The vendor's
+        // "Target" set is a FIRE-PRIORITY override that only acts on a VISIBLE CANDIDATE target (UG52 40.86 p905), and
+        // the AffectedEntity STP sends is the performer, a supported friendly (STP-846) or a graphic (STP-1126) - none a
+        // candidate. Live with all three on 2026-10-13: no effect on routes, arrivals, fire or the back-end log. So the
+        // call is DROPPED, restoring what every run before 2026-09-28 had; a named enemy target, if STP ever sends one,
+        // is TaskDispatchPolicy.ForEngage's decision (RL-20260926-01), not a blanket set here.
 
         // C1 (RL-20260927-03): A POPULATED AGGREGATE CONTAINER MOVES ONLY THROUGH ITS OWN SCRIPTED TASK - never
         // MoveIntoFormation / PlanAndMoveTo / a formation set / MoveAlongRoute, which it has no controller for

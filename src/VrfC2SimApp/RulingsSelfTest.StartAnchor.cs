@@ -233,6 +233,10 @@ public static partial class RulingsSelfTest
                 string src = File.ReadAllText(service);
                 string gateCall = Stp850Between(src, "var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid,",
                                                 "if (gate != GateResult.Proceed)");
+                Check(ref failures, Stp850CountOf(src, "_bridge.SetTarget(") == 0
+                                    && src.Contains("NO SetTarget HERE (STP-1127"),
+                      "(g-settarget) the service issues NO blanket SetTarget(performer, affected entity) - dropped by " +
+                      "STP-1127 (live since C1d, a fire-priority set that STP's affected entities can never use)");
                 string afterStamp = Stp850Between(src, "double orderReceiptClock = TaskClockSeconds;",
                                                   "foreach (var task in order.Tasks)");
                 Check(ref failures, afterStamp.Contains("\"ORDER RECEIPT (STP-850): stamped at TASK CLOCK {Task:F1} s, SIMULATION clock {Sim}, \"")

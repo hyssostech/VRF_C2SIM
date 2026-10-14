@@ -11,7 +11,7 @@ public record OrderTask
     public string TaskUuid { get; init; } = "";              // ManeuverWarfareTask/UUID
     public string TaskName { get; init; } = "";              // ManeuverWarfareTask/Name (route name = Name + " ROUTE")
     public string TaskeeUuid { get; init; } = "";            // PerformingEntity (C2SIM uuid of the unit to task)
-    public string AffectedEntity { get; init; } = "";        // for the SetTarget no-op (PORT.md sec 6 parity bug)
+    public string AffectedEntity { get; init; } = "";        // R3 / ESCRT / population; never a SetTarget (STP-1127)
     public string ActionCode { get; init; } = "";            // TaskActionCode (e.g. "MOVE"); discarded by bare movement
     public string RuleOfEngagementCode { get; init; } = "";  // WeaponRuleOfEngagementCode (e.g. "ROETight")
     public string MapGraphicUuid { get; init; } = "";        // MapGraphicID[0] (route/graphic ref; empty = inline points)
