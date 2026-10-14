@@ -29,6 +29,7 @@
 #   RL-20260926-01 (engage doctrine, P-lines) moved here 2026-09-27, unchanged, to make room for RL-20260927-04.
 #      RL-20261004-06 (moved 2026-10-14, unchanged, to make room for RL-20261014-01; tier-2a compositions and the short-form duration, implemented).
 #      RL-20261005-01 (moved 2026-10-14, unchanged, to make room for RL-20261014-03; the standing VR-Forces go-live, still in force).
+#      RL-20261005-02 (moved 2026-10-14, unchanged, to make room for RL-20261014-05; the demo extent, still in force).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -654,3 +655,12 @@ RL-20261005-01 | 2026-10-05 | VERBATIM - Q2088, TYPED
     now. (2) STANDING go-live authority for the seat, conditional on agreeing shared resources (machine quiet, desktop, ports) with
     the other sessions first; a PREREG before every launch still applies (CLAUDE.md sec 5, the house rite).
   pointer: docs/experiments/REHEARSAL_WAYB_2026-10-05.md; HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+
+RL-20261005-02 | 2026-10-05 | VERBATIM - the user record after Q2570, TYPED
+  Q (seat, Q2570, after the vendor-log reading): "(a) Bounded demo order, recommended. [...] tasks whose routes leave a set demo
+    area reported as out of area rather than executed [...] (b) Pre-load the terrain. [...] (c) Run the --no-gui leg first"
+  A (owner): "As recommended"
+  supervisor reading: option (a): the interface bounds the demo by a terrain extent setting - a task whose route leaves it is
+    REPORTED out of area (TASKABRT with the reason), not executed; STP's export stays unchanged (Way B); then a light GUI rehearsal
+    of the bounded order on the run-owned unattended appData. (b) terrain pre-load is a later improvement; (c) dropped.
+  pointer: REHEARSAL_WAYB_2026-10-05 Result ADDENDUM 2026-10-05 (the vendor-log backlog); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

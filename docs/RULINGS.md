@@ -11,14 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261005-02 | 2026-10-05 | VERBATIM - the user record after Q2570, TYPED
-  Q (seat, Q2570, after the vendor-log reading): "(a) Bounded demo order, recommended. [...] tasks whose routes leave a set demo
-    area reported as out of area rather than executed [...] (b) Pre-load the terrain. [...] (c) Run the --no-gui leg first"
-  A (owner): "As recommended"
-  supervisor reading: option (a): the interface bounds the demo by a terrain extent setting - a task whose route leaves it is
-    REPORTED out of area (TASKABRT with the reason), not executed; STP's export stays unchanged (Way B); then a light GUI rehearsal
-    of the bounded order on the run-owned unattended appData. (b) terrain pre-load is a later improvement; (c) dropped.
-  pointer: REHEARSAL_WAYB_2026-10-05 Result ADDENDUM 2026-10-05 (the vendor-log backlog); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
 RL-20261005-03 | 2026-10-05 | VERBATIM - Q2752 (queue-operation, typed mid-turn), unprompted
   Q (as put): none - sent while the bounded Way B rehearsal ran (labels drawn as name + full C2SIM name).
   A (owner, Q2752): "Add a note regarding g the Labels: C2SIM names: use just the prefix separated with "__", and remove
@@ -118,3 +110,8 @@ RL-20261014-04 | 2026-10-14 | VERBATIM - R6102 = session d0bba772-d00e-4b25-a434
     in-place case [...] Map SETUP this way?"
   A (owner, R6102, a selected label - the seat's wording): "Map SETUP like OCCUPY (Recommended)"
   supervisor reading: SETUP (STP-1129 'establish a command post', relayed by the STP-964/1129 session) -> HoldObjective as OCCUPY.
+RL-20261014-05 | 2026-10-14 | UNVERIFIED (RELAYED) - the STP-1097 supervisor session's message, not the owner's own words in this record
+  Q (seat, via the supervisor as ruling D26): DEFEAT -> Attack family; REFUEL / RESUPL / REINF -> HoldObjective (move to the point, hold).
+  A (relayed): "the owner APPROVED your D26 mapping proposal as written" (supervisor 2026-10-14).
+  supervisor reading: DEFEAT advances with fire at will for a unit, no Fire At (RL-20260926-01); REFUEL / RESUPL / REINF move to their point
+    and hold, ROE as ordered, no geometry = in place (R2). KNOWN LIMIT: REINF is not tied to the unit it reinforces.

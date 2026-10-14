@@ -30,6 +30,11 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "UNCONW", TaskIntent.HoldInPlace);
         // SETUP (establish a command post; STP-1129, RL-20261014-04): like OCCUPY - go to the CP point and hold.
         CheckIntent(ref failures, "SETUP", TaskIntent.HoldObjective);
+        // D26 (RL-20261014-05, STP COA 1 export): DEFEAT in the Attack family; REFUEL / RESUPL / REINF move to their point and hold.
+        CheckIntent(ref failures, "DEFEAT", TaskIntent.Attack);
+        CheckIntent(ref failures, "REFUEL", TaskIntent.HoldObjective);
+        CheckIntent(ref failures, "RESUPL", TaskIntent.HoldObjective);
+        CheckIntent(ref failures, "REINF", TaskIntent.HoldObjective);
         Check(ref failures, VerbMapping.Classify("CONSTR").Recognized && VerbMapping.Classify("CONSTR").Intent != TaskIntent.Move
                             && VerbMapping.Classify("CONSTR").Implemented,
               "CONSTR is RECOGNISED and IMPLEMENTED (move to the obstacle, hold, 'not simulated' observation), not the bare-move fallback");

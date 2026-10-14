@@ -123,7 +123,7 @@ public static class TaskDispatchPolicy
     ///   FOLSPT / FOLASS, any performer, any target -> advance along the graphic and hold; nothing else.
     ///   CNFPSL, any performer, any target -> HELD IN PLACE for now (owner, RL-20260926-01 A6; STP-866).
     /// SCOPE OF THE OWNER'S WORDS: he was asked about "a unit ATTACK" (RL-20260926-01 A1, A4). Fire at
-    /// will on ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's extension, on ENGAGE ruling D2 (STP-924) (they share the ATTACK path;
+    /// will on ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's extension, on ENGAGE ruling D2 (STP-924), on DEFEAT ruling D26 (RL-20261014-05) (they share the ATTACK path;
     /// not asked - see the ledger's scope line). FOLSPT/FOLASS are the coordinator's direction; CNFPSL's
     /// hold is the owner's answer (A6).
     /// </summary>

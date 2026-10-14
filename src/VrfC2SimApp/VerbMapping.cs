@@ -162,6 +162,8 @@ public static class VerbMapping
             // session 2026-10-14). The unit ATTACK path: advance to the point (about 0 m for an emplaced unit), ROE fire
             // at will, no Fire At to a unit (RL-20260926-01).
             ["ENGAGE"] = (TaskIntent.Attack,          AttackComposition),
+            // DEFEAT (D26, RL-20261014-05; STP COA 1 'AttackInZoneToDefeat'): the doctrinal sibling of DESTRY - the ATTACK path.
+            ["DEFEAT"] = (TaskIntent.Attack,          AttackComposition),
             // STP #417 / #429 (RL-20261014-03, the owner's 'As proposed', 2026-10-14). STP's meaning per row from the
             // STP-1097 session's read of C2SimTask.cs / AS_Table_compact.txt. None is kinetic.
             //   EVACT  - collect casualties / civilians / prisoners: move to the collection point and hold there.
@@ -178,6 +180,11 @@ public static class VerbMapping
             // SETUP (xsd 'Set up: To prepare or establish a FACILITY, ORGANISATION or FEATURE'): STP's 'establish a command
             // post' (STP-1129; RL-20261014-04). Like OCCUPY: go to the CP point and hold; no geometry = held in place (R2).
             ["SETUP"]  = (TaskIntent.HoldObjective,   "move-to + hold (command post; RL-20261014-04)"),
+            // D26 (RL-20261014-05): CSS presence at a point, like EVACT / SETUP - move to the point and hold; no geometry = held in
+            // place (R2). KNOWN LIMIT (REINF): not tied to the unit it reinforces - the task's own geometry only.
+            ["REFUEL"] = (TaskIntent.HoldObjective,   "move-to + hold (refuel point; RL-20261014-05)"),
+            ["RESUPL"] = (TaskIntent.HoldObjective,   "move-to + hold (supply point; RL-20261014-05)"),
+            ["REINF"]  = (TaskIntent.HoldObjective,   "move-to + hold (reinforcement point; not tied to the reinforced unit; RL-20261014-05)"),
             ["SEIZE"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["RETAIN"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["BLOCK"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
