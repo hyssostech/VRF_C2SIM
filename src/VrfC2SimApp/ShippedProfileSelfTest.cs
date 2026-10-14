@@ -24,7 +24,7 @@ namespace VrfC2SimApp;
 ///         dirty control).
 ///   (s15) THE DEMO OVERLAY IS THE AGGREGATE IRON STORM PROFILE, COMPLETE (2026-10-05): the keys that must travel with
 ///         Vrf:ModelSet=AggregateTacticalLevel (type map, scenario, composition) agree with it, and the runner values of the
-///         rehearsed runs (StallClock sim, TaskPredecessorTimeoutSeconds 600) are what it carries; DurationScale is 0.25
+///         rehearsed runs (StallClock sim, TaskPredecessorTimeoutSeconds 600) are what it carries; DurationScale is 0.0417 (RL-20261014-01; 0.25
 ///         (RL-20261011-01, the owner's demo pace; 1.0 until 2026-10-11). The pins of s4/s5/s15 FAIL on the overlay as it was before 2026-10-05.
 /// </summary>
 public static class ShippedProfileSelfTest
@@ -302,8 +302,8 @@ public static class ShippedProfileSelfTest
               "Vrf__TaskPredecessorTimeoutSeconds=600 over RunScenario.sh's export of 7200, which this pins as it is)",
               $"demo {demo.TaskPredecessorTimeoutSeconds}, base {shipped.TaskPredecessorTimeoutSeconds}");
         string demoText = File.ReadAllText(demoSettings);
-        Check(ref failures, demo.DurationScale == 0.25 && demoText.Contains("THE DEMO RUNS 0.25 (RL-20261011-01)", StringComparison.Ordinal),
-              "(s15) DurationScale is 0.25 in the Demo overlay and the overlay says why - RL-20261011-01, the owner's pace " +
+        Check(ref failures, demo.DurationScale == 0.0417 && demoText.Contains("THE DEMO RUNS 0.0417 (RL-20261014-01)", StringComparison.Ordinal),
+              "(s15) DurationScale is 0.0417 in the Demo overlay and the overlay says why - RL-20261014-01 (0.25 x 10/60 for STP #413's 60-min slots; RL-20261011-01 was 0.25) " +
               "(until 2026-10-11 the overlay kept 1.0 and the rehearsals set 0.25 by hand)",
               $"demo {demo.DurationScale}");
         return failures;

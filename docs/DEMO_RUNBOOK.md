@@ -197,10 +197,10 @@ retry), b (back end), f (front end), i (the interface). Numbers not used are bur
     build the demo STP runs; the interface's start-up line "Waiting for the C2SIM initialization
     (clientId=...)" shows what it will accept.
   - `-Server standard` = 8080/61613; `-Server private` = 18080/61614. Use the one STP is pointed at (ask).
-  - PACE CHANGE PENDING (RL-20261014-01): when the demo STP carries #413 (60-min slots), the profile goes to ~0.04.
-  - PACE (RL-20261011-01): the profile runs DurationScale 0.25 - every authored duration and start delay is a
-    quarter; the accepted tasks are terminal about 3 wall min after the order (2026-10-05). At 1.0 (STP's own
-    durations) it took about 13 min (2026-10-11). Nothing to type for it.
+  - PACE (RL-20261014-01): the profile runs DurationScale 0.0417 - 0.25 x 10/60, because STP from 7e475c9d (#413)
+    exports 60-min slots; the demo STP must be built from 7e475c9d or later. VR-Forces stays at 1x. An OLDER STP image
+    or the 09-20 data files (10-min slots) run 6x shorter at this value. Before 2026-10-14 the profile ran 0.25
+    (RL-20261011-01): terminal about 3 wall min after the order (2026-10-05); 13 min at 1.0. Nothing to type for it.
   - RAN LIVE on this hand-started path 2026-10-05 (0.25 by hand) and 2026-10-11 (the profile, then at 1.0).
   WHAT THE RUNNER SET IN THE REHEARSED RUNS THAT THE PROFILE DOES NOT CARRY, AND WHY:
   - application number (a fresh ledger number per run): StartInterface52 -AppNumber (RL-20261011-01).

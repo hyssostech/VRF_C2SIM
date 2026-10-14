@@ -111,3 +111,8 @@ RL-20261014-01 | 2026-10-14 | VERBATIM - R5681 = session d0bba772-d00e-4b25-a434
   A (owner, R5681, a selected label - the seat's wording): "DurationScale 0.04, at #413 (Recommended)"
   supervisor reading: amends RL-20261011-01 (1): VR-Forces stays at 1x; the Demo profile's DurationScale becomes ~0.04 (0.25 x 10/60)
     WHEN STP #413 (D1, PhaseDuration 60) merges and the demo STP build carries it - not before. 0.25 until then.
+RL-20261014-02 | 2026-10-14 | VERBATIM - R5730 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, AskUserQuestion SELECTION
+  Q (seat, R5729): "#413 (60-minute slots) is merged to STP main as 7e475c9d. [...] Will the demo run an STP built from 7e475c9d or later?"
+  A (owner, R5730, a selected label - the seat's wording): "Yes - switch to 0.0417 now (Recommended)"; also selected: "Get the list,
+    propose a mapping (Recommended)" for STP's new task codes (#417, #429).
+  supervisor reading: RL-20261014-01's trigger is met - the Demo profile runs DurationScale 0.0417; the demo STP is built from 7e475c9d+.
