@@ -59,6 +59,31 @@ ruling); SKIPPED at dispatch 7 (T5 T6 T7 T11 T19 T21 T28 - a STREND predecessor 
 Arm probes (xsd PASS): F = PROBE_48IBCT_CONSTR -> PROBE_48IBCT_ENGAGE; H = PROBE_48IBCT_CONSTR -> PROBE_48IBCT_OCCUPY;
 ROEHold on all, as STP writes it.
 
+## (a) RESULT (2026-10-14 23:24-23:43Z; runs/launch52/d36/armF, armH): REPRODUCED IN BOTH ARMS - ROE IS NOT THE CAUSE
+
+| | Arm F (ENGAGE, fire at will) | Arm H (OCCUPY, ROEHold -> hold fire) |
+|---|---|---|
+| CONSTR dispatched | 23:26:11.7Z (sim 114.7 s) | 23:35:13.9Z (sim 80.0 s) |
+| second task dispatched | 23:27:45.099Z (sim 742.7 s) | 23:37:04.025Z (sim 718.3 s) |
+| vendor log last write (read after the forced exit) | 23:27:45.369Z (+0.27 s) | 23:37:04.321Z (+0.30 s) |
+| sim clock after | ratio 5.9 -> 1.000 (extrapolated) | ratio 6.1 -> 1.431 -> 1.000 |
+| BACK END LOST (last good) | yes (23:29:34Z, ~109 s after) | yes (23:38:58Z, ~114 s after) |
+| working set after the stop | 3,840 MB, FLAT (no runaway) | 3,835 MB, FLAT |
+| back-end CPU after the stop | ~2.0 cores: TWO threads at 100% | ~1.0 core: ONE thread at 100% |
+| graceful close | refused (exit 3) -> forced exit 6 | refused (exit 3) -> forced exit 6 |
+Both vendor logs end inside the re-plans, as on 19:45Z (shape only: "Start point is within obstacle" bursts). The
+interface sent the ROE at BOTH dispatches of both arms (VrfC2SimService.cs:6223 - every dispatch sets the order's ROE;
+fire at will only for arm F's ENGAGE), so arm H never set fire at will.
+READING (PREREG table): F stops AND H stops -> the RE-TASK, not the ROE. With 19:45Z that is 3 of 3: re-tasking 48 IBCT's
+17 members with a second navigate-to-location from that start, while most of the CONSTR moves are still outstanding,
+stops the 5.2d back end within 0.3 s - no crash, no dump, no memory runaway (unlike V6), one or two threads spinning.
+NOT separated yet (next discriminator, needs a go): the start position in water vs the outstanding first moves - a
+re-task after ALL 17 members have ended, or the same re-task from a dry start. Demo consequence, flagged before (b):
+every STREND navigate successor dispatched on arrival evidence while members still move is the same shape - option 3
+has 56 SBCT T1 -> T2 and 48 IBCT T22 -> T23, and 113 SB T34 -> T35 -> T36.
+PREREG ADDENDUM for (b), written before the FILL launch: P1 (no BACK END LOST) is now EXPECTED TO FAIL (MEDIUM) on
+those chains; the criteria are unchanged.
+
 ## Item 3 (Pro eyes-on)
 
 ArcGIS Pro 3.6.0.59527 IS installed on this host. Pressing Pro's UI (confirm tasks, export, "C2SIM Reports On") is not
