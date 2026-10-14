@@ -3735,8 +3735,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-14 (ROUNDTRIP-STP1108-2026-10-14-1): 5395 CONSUMED (day holder RtiProbe 34624, 28800 s from 11:25:35Z); 5396-5398 BURNED unused; 5399 CONSUMED (LaunchVrf52 holder 32576, attempt 1); 5400 BURNED unused; 5401 CONSUMED (back end 3744, forced exit 6 after StopVrf52 exit 3); 5402 CONSUMED (vrfGui); 5403 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5404.
 - 2026-10-14 PRERUN-STP976 part C (docs/experiments/PRERUN_STP976_2026-10-15.md), the live STP-976 pre-run on STP 5.11.0.4600 (Hardened CI 38607969117, e1bd4475): 5404-5407 = StartFederationHolder52 -AppNumbers (the day holder; tried in order, unjoined = burned); 5408 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5409 = its automatic retry (+1); 5410 = back end; 5411 = vrfGui; 5412 = VrfC2SimApp (StartInterface52 -AppNumber). CLAIMED. Marker 5404 -> 5413.
 - RESULT 2026-10-14 (PRERUN-STP976 part C): 5404 CONSUMED (day holder RtiProbe 26720, 28800 s from 19:34:45Z); 5405-5407 BURNED unused; 5408 CONSUMED (LaunchVrf52 holder 27788, attempt 1); 5409 BURNED unused; 5410 CONSUMED (back end 2852, forced exit 6 after StopVrf52 exit 3); 5411 CONSUMED (vrfGui); 5412 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5413.
+- 2026-10-14 PRERUN-STP976 RE-PRE-RUN (docs/experiments/PRERUN_STP976_2026-10-15.md, RE-PRE-RUN PREREG), the live re-pre-run on STP main 5ef68248 (STP-1147/1149/1150), joining the day holder 5404: 5413 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5414 = its automatic retry (+1); 5415 = back end; 5416 = vrfGui; 5417 = VrfC2SimApp (StartInterface52 -AppNumber).
 
-*** NEXT FREE: 5413 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5418 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
