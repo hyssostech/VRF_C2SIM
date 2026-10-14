@@ -5649,7 +5649,7 @@ public sealed class VrfC2SimService : BackgroundService
         // we did not create is a scope/data gap), because the platform Fire At needs it.
         var engage = EngageDecision.NotEngageVerb;
         string attackTargetVrf = null;
-        if (verb.Intent == TaskIntent.FollowAndSupport || verb.Intent == TaskIntent.PassageOfLines)
+        if (verb.Intent == TaskIntent.FollowAndSupport || verb.Intent == TaskIntent.PassageOfLines || verb.Intent == TaskIntent.Construct)
             engage = TaskDispatchPolicy.ForEngage(verb.Intent, unit.IsAggregate, TargetResolution.NoTarget);
         if (verb.Intent == TaskIntent.Attack || verb.Intent == TaskIntent.Breach)
         {
@@ -5950,6 +5950,8 @@ public sealed class VrfC2SimService : BackgroundService
                 if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
                 if (engage == EngageDecision.AdvanceBreachNotSimulated)
                     ReportBreachNotSimulated(task, unit);
+                if (engage == EngageDecision.AdvanceConstructNotSimulated)
+                    ReportConstructNotSimulated(task, unit);
                 return;
             }
             // ZeroGeometryAction.Refuse IS NOT REACHABLE HERE and no branch pretends otherwise
@@ -6221,6 +6223,7 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(engage, task.RuleOfEngagementCode)));
         if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
         if (engage == EngageDecision.AdvanceBreachNotSimulated) ReportBreachNotSimulated(task, unit);
+        if (engage == EngageDecision.AdvanceConstructNotSimulated) ReportConstructNotSimulated(task, unit);
         if (engage == EngageDecision.AdvanceAndHold)
             _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
                                 "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
@@ -7259,6 +7262,14 @@ public sealed class VrfC2SimService : BackgroundService
     /// controller. TODO(STP-865): a real breach needs what the order does not carry - an obstacle
     /// (aggregate model set: DtBreachTask) or a lane line and plow/roller units (entity model set:
     /// section_breach / company_breach). This code has no aggregate-level path to keep.</summary>
+    private void ReportConstructNotSimulated(OrderTask task, CreatedUnit unit)
+    {
+        string text = TaskDispatchPolicy.ConstructNotSimulatedObservation(unit.Name);
+        _log.LogInformation("Task '{Task}': {Text}", task.TaskName, text);
+        _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                task.TaskeeUuid, unit.Name, unit.Name, text, IsoNow(), NewReportId()), ReportKind.Observation);
+    }
+
     private void ReportBreachNotSimulated(OrderTask task, CreatedUnit unit)
     {
         string text = TaskDispatchPolicy.BreachNotSimulatedObservation(unit.Name,

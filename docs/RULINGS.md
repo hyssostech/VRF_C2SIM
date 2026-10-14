@@ -11,14 +11,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20261005-01 | 2026-10-05 | VERBATIM - Q2088, TYPED
-  Q (seat, Q2085): "for the Way B rehearsal, STP's raw export run once with the GUI, do you want a full registration or a lighter
-    rehearsal registration? Either way it records its expectations before launch, and it needs your go-live."
-  A (owner, Q2088): "Lighter rehearsal go now. You are free to go live, pending agreement with other sessions for shared resources"
-  supervisor reading: (1) the Way B rehearsal is registered LIGHT (expectations written before launch, no Fable pre-review) and goes
-    now. (2) STANDING go-live authority for the seat, conditional on agreeing shared resources (machine quiet, desktop, ports) with
-    the other sessions first; a PREREG before every launch still applies (CLAUDE.md sec 5, the house rite).
-  pointer: docs/experiments/REHEARSAL_WAYB_2026-10-05.md; HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
 RL-20261005-02 | 2026-10-05 | VERBATIM - the user record after Q2570, TYPED
   Q (seat, Q2570, after the vendor-log reading): "(a) Bounded demo order, recommended. [...] tasks whose routes leave a set demo
     area reported as out of area rather than executed [...] (b) Pre-load the terrain. [...] (c) Run the --no-gui leg first"
@@ -116,3 +108,8 @@ RL-20261014-02 | 2026-10-14 | VERBATIM - R5730 = session d0bba772-d00e-4b25-a434
   A (owner, R5730, a selected label - the seat's wording): "Yes - switch to 0.0417 now (Recommended)"; also selected: "Get the list,
     propose a mapping (Recommended)" for STP's new task codes (#417, #429).
   supervisor reading: RL-20261014-01's trigger is met - the Demo profile runs DurationScale 0.0417; the demo STP is built from 7e475c9d+.
+RL-20261014-03 | 2026-10-14 | VERBATIM - R5827 = session d0bba772-d00e-4b25-a434-607f22da850a.jsonl, AskUserQuestion SELECTION
+  Q (seat, R5819): "Map STP's five new task codes (EVACT, HoldInPlace, CONSTR, HIDE, UNCONW) as in the table above?"
+  A (owner, R5827, a selected label - the seat's wording): "As proposed (Recommended)"
+  supervisor reading: EVACT -> move to the point and hold; CONSTR -> move to the obstacle, hold, one 'construction not simulated'
+    observation; HoldInPlace, HIDE, UNCONW -> held where the unit is. ROE as ordered for all (HIDE's 'hold fire' is NOT added).

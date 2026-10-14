@@ -34,6 +34,11 @@ public enum TaskIntent
     /// <summary>Composite move + engage sweep. NOT DtClearTask (which is a task-cancel).</summary>
     Clear,
 
+    /// <summary>CONSTR (construct an obstacle; STP #429, RL-20261014-03): move to the obstacle and hold there, rules of
+    /// engagement as ordered, plus ONE observation that the construction is not simulated - the BREACH pattern
+    /// (STP-865) on the other side of an obstacle. No vendor task: nothing emplaces an obstacle from an order.</summary>
+    Construct,
+
     /// <summary>DtMoveIntoFormationTask - the proper aggregate-in-formation move. Orthogonal
     /// to the verb; the real fix for the stuck-aggregate finding (PORT.md sec 10).</summary>
     MoveInFormation,
@@ -117,6 +122,7 @@ public static class VerbMapping
         TaskIntent.HoldInPlace => true,   // R2's in-place dispatch, reached by the verb (no vendor task)
         TaskIntent.FollowAndSupport => true, // FOLSPT/FOLASS: the route move itself, then hold (no engagement)
         TaskIntent.PassageOfLines => true,   // CNFPSL: held in place for now (no vendor task; STP-866)
+        TaskIntent.Construct => true,        // CONSTR: the move itself, then hold + 'construction not simulated' (RL-20261014-03)
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
         // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
@@ -128,6 +134,10 @@ public static class VerbMapping
         "held in place for now (no vendor task, ends at its Duration); route by graphic role not implemented - STP-866";
     private const string FollowComposition =
         "advance along the task's graphic to its end and hold there; no engagement; ROE as ordered";
+    private const string ConstructComposition =
+        "advance to the obstacle location + hold + 'construction not simulated' observation; no vendor task";
+    private const string InPlaceComposition =
+        "held where the unit is (no vendor task, ends at its C2SIM Duration); the task's point is not driven";
     private const string BreachComposition =
         "advance to the breach location + 'breach not simulated' observation (STP-865); no DtBreachTask";
 
@@ -152,6 +162,17 @@ public static class VerbMapping
             // session 2026-10-14). The unit ATTACK path: advance to the point (about 0 m for an emplaced unit), ROE fire
             // at will, no Fire At to a unit (RL-20260926-01).
             ["ENGAGE"] = (TaskIntent.Attack,          AttackComposition),
+            // STP #417 / #429 (RL-20261014-03, the owner's 'As proposed', 2026-10-14). STP's meaning per row from the
+            // STP-1097 session's read of C2SimTask.cs / AS_Table_compact.txt. None is kinetic.
+            //   EVACT  - collect casualties / civilians / prisoners: move to the collection point and hold there.
+            //   CONSTR - engineer constructs an obstacle: move to it, hold, 'construction not simulated'.
+            //   HoldInPlace (ConvoyHalted), HIDE (occupy hide positions), UNCONW (food distribution, insurgent recruiting
+            //   and services) - presence where the unit is: held in place, no move manufactured from the point.
+            ["EVACT"]  = (TaskIntent.HoldObjective,   "move-to + hold (collection point; RL-20261014-03)"),
+            ["CONSTR"] = (TaskIntent.Construct,       ConstructComposition),
+            ["HOLDINPLACE"] = (TaskIntent.HoldInPlace, InPlaceComposition),
+            ["HIDE"]   = (TaskIntent.HoldInPlace,     InPlaceComposition),
+            ["UNCONW"] = (TaskIntent.HoldInPlace,     InPlaceComposition),
             ["SECURE"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["OCCUPY"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["SEIZE"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),

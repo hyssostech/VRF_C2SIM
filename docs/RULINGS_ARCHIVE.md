@@ -28,6 +28,7 @@
 #   RL-20260921-09 moved here 2026-09-28, unchanged, to make room for RL-20260928-03 (the TEMPORARY completion position; live pointers keep citing it).
 #   RL-20260926-01 (engage doctrine, P-lines) moved here 2026-09-27, unchanged, to make room for RL-20260927-04.
 #      RL-20261004-06 (moved 2026-10-14, unchanged, to make room for RL-20261014-01; tier-2a compositions and the short-form duration, implemented).
+#      RL-20261005-01 (moved 2026-10-14, unchanged, to make room for RL-20261014-03; the standing VR-Forces go-live, still in force).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -644,3 +645,12 @@ RL-20261004-06 | 2026-10-04 | VERBATIM - Q1858, TYPED
     the canonical ISO-8601 short form too (reverses the 2026-09-20 strict-decoder choice in OrderParser.cs, a seat choice, not a ruling).
     (4) a question: the commands are shown; any change to the host firewall is the owner's to run (elevated).
   pointer: STP-848 (Jira, To Do); scratch laneCOMP (sources); HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.
+
+RL-20261005-01 | 2026-10-05 | VERBATIM - Q2088, TYPED
+  Q (seat, Q2085): "for the Way B rehearsal, STP's raw export run once with the GUI, do you want a full registration or a lighter
+    rehearsal registration? Either way it records its expectations before launch, and it needs your go-live."
+  A (owner, Q2088): "Lighter rehearsal go now. You are free to go live, pending agreement with other sessions for shared resources"
+  supervisor reading: (1) the Way B rehearsal is registered LIGHT (expectations written before launch, no Fable pre-review) and goes
+    now. (2) STANDING go-live authority for the seat, conditional on agreeing shared resources (machine quiet, desktop, ports) with
+    the other sessions first; a PREREG before every launch still applies (CLAUDE.md sec 5, the house rite).
+  pointer: docs/experiments/REHEARSAL_WAYB_2026-10-05.md; HANDOFF_SEAT_2026-09-28 sec 3 item 3-4.

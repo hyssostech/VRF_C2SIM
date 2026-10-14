@@ -71,10 +71,23 @@ public static class EngageDoctrineSelfTest
                       $"'breach not simulated' observation, no vendor breach and no Fire At (got {d})");
             }
 
+        // (e14) CONSTR (RL-20261014-03): any performer, any target -> advance + 'construction not simulated'; order's ROE.
+        foreach (bool unitP in new[] { true, false })
+            foreach (var t in Enum.GetValues<TargetResolution>())
+                Check(ref failures, TaskDispatchPolicy.ForEngage(TaskIntent.Construct, unitP, t) == EngageDecision.AdvanceConstructNotSimulated
+                                    && !TaskDispatchPolicy.HoldsInPlace(EngageDecision.AdvanceConstructNotSimulated)
+                                    && !TaskDispatchPolicy.IssuesFireAt(EngageDecision.AdvanceConstructNotSimulated)
+                                    && !TaskDispatchPolicy.SetsFireAtWill(EngageDecision.AdvanceConstructNotSimulated),
+                      $"(e14) CONSTR, performer {(unitP ? "unit" : "platform")}, target {t} -> advance + not-simulated observation, no engage");
+        Check(ref failures, TaskDispatchPolicy.ConstructNotSimulatedObservation("1-1/2/1_AD") ==
+                            "CONSTR by 1-1/2/1_AD: the obstacle construction is not simulated - the unit moves to the obstacle " +
+                            "location and holds there, and the task completes by time.",
+              "(e14) the CONSTR observation names the unit and says the construction is not simulated");
+
         // (e4) Every other intent is outside this decision.
         foreach (var i in Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.Attack && i != TaskIntent.Breach
                                                                   && i != TaskIntent.FollowAndSupport
-                                                                  && i != TaskIntent.PassageOfLines))
+                                                                  && i != TaskIntent.PassageOfLines && i != TaskIntent.Construct))
             Check(ref failures,
                   TaskDispatchPolicy.ForEngage(i, true, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb
                   && TaskDispatchPolicy.ForEngage(i, false, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb,

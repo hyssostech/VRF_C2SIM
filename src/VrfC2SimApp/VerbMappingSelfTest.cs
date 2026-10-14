@@ -22,6 +22,15 @@ public static class VerbMappingSelfTest
         // ENGAGE (xsd:3951): the friendly 'position sniper' (STP-924, ruling D2 = ENGAGE, relayed by the STP-1097
         // session 2026-10-14) - the unit ATTACK path: advance to the point, ROE fire at will, no Fire At to a unit.
         CheckIntent(ref failures, "ENGAGE", TaskIntent.Attack);
+        // STP #417 / #429 codes (RL-20261014-03, the owner's 'As proposed'): EVACT moves to its collection point and holds;
+        // HoldInPlace, HIDE and UNCONW hold where the unit is; CONSTR moves to the obstacle, holds, says it is not simulated.
+        CheckIntent(ref failures, "EVACT", TaskIntent.HoldObjective);
+        CheckIntent(ref failures, "HoldInPlace", TaskIntent.HoldInPlace);
+        CheckIntent(ref failures, "HIDE", TaskIntent.HoldInPlace);
+        CheckIntent(ref failures, "UNCONW", TaskIntent.HoldInPlace);
+        Check(ref failures, VerbMapping.Classify("CONSTR").Recognized && VerbMapping.Classify("CONSTR").Intent != TaskIntent.Move
+                            && VerbMapping.Classify("CONSTR").Implemented,
+              "CONSTR is RECOGNISED and IMPLEMENTED (move to the obstacle, hold, 'not simulated' observation), not the bare-move fallback");
         Check(ref failures, VerbMapping.Classify("ENGAGE").Recognized && VerbMapping.Classify("engage").Intent == TaskIntent.Attack,
               "ENGAGE is a RECOGNISED attack verb (any case), not the bare-move fallback");
         CheckIntent(ref failures, "SECURE", TaskIntent.HoldObjective);
@@ -84,9 +93,10 @@ public static class VerbMappingSelfTest
               "neither new verb touches the fire/attack or breach families");
         // CNFPSL was this check's example until lane E2 (2026-09-26) mapped it (PassageOfLines,
         // coordinator's direction); BYPASS is still unmapped and takes its place.
-        Check(ref failures, !VerbMapping.Classify("HoldInPlace").Recognized
+        // HoldInPlace was the other example until RL-20261014-03 mapped it (STP #429's ConvoyHalted); TURN replaces it.
+        Check(ref failures, !VerbMapping.Classify("TURN").Recognized
                             && !VerbMapping.Classify("BYPASS").Recognized,
-              "verbs nobody has mapped are still UNRECOGNISED (BYPASS; CNFPSL is mapped since lane E2)");
+              "verbs nobody has mapped are still UNRECOGNISED (TURN, BYPASS; CNFPSL since lane E2, HoldInPlace since RL-20261014-03)");
 
         // Layer-2 wiring status. Move/Attack/Breach/Reconnoiter/Escort are wired to real vrftasks;
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks.

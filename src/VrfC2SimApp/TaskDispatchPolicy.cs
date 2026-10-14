@@ -64,6 +64,9 @@ public enum EngageDecision
     /// lists the start point, passage point, lane and release point out of doctrinal order, so driving
     /// them as listed is a 30-40 km zig-zag, and route-by-graphic-role is not built (STP-866).</summary>
     HoldInPlaceNotRouted,
+    /// <summary>CONSTR, any performer: advance to the obstacle location (the ordinary move) and send ONE observation
+    /// that the construction is not simulated (RL-20261014-03). Order's ROE, no engagement task.</summary>
+    AdvanceConstructNotSimulated,
 }
 
 /// <summary>The rules of engagement a dispatch sets (the bridge's Roe, kept bridge-free here so the
@@ -130,6 +133,7 @@ public static class TaskDispatchPolicy
         if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
         if (intent == TaskIntent.FollowAndSupport) return EngageDecision.AdvanceAndHold;
         if (intent == TaskIntent.PassageOfLines) return EngageDecision.HoldInPlaceNotRouted;
+        if (intent == TaskIntent.Construct) return EngageDecision.AdvanceConstructNotSimulated;
         if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
         if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
@@ -172,6 +176,11 @@ public static class TaskDispatchPolicy
     public const string AttackFireAtWillLine =
         "ATTACK: advancing to the objective; rules of engagement set to fire at will - members " +
         "engage enemies they encounter (RL-20260926-01)";
+
+    /// <summary>The ONE observation a CONSTR sends to C2SIM at dispatch (RL-20261014-03; STP-facing, plain).</summary>
+    public static string ConstructNotSimulatedObservation(string unitName) =>
+        $"CONSTR by {unitName}: the obstacle construction is not simulated - the unit moves to the obstacle " +
+        "location and holds there, and the task completes by time.";
 
     /// <summary>The ONE observation a BREACH sends to C2SIM at dispatch (STP-facing, plain).</summary>
     public static string BreachNotSimulatedObservation(string unitName) =>
