@@ -3737,8 +3737,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-14 (PRERUN-STP976 part C): 5404 CONSUMED (day holder RtiProbe 26720, 28800 s from 19:34:45Z); 5405-5407 BURNED unused; 5408 CONSUMED (LaunchVrf52 holder 27788, attempt 1); 5409 BURNED unused; 5410 CONSUMED (back end 2852, forced exit 6 after StopVrf52 exit 3); 5411 CONSUMED (vrfGui); 5412 CONSUMED (VrfC2SimApp, clean stop via StopIface). Marker stays 5413.
 - 2026-10-14 PRERUN-STP976 RE-PRE-RUN (docs/experiments/PRERUN_STP976_2026-10-15.md, RE-PRE-RUN PREREG), the live re-pre-run on STP main 5ef68248 (STP-1147/1149/1150), joining the day holder 5404: 5413 = LaunchVrf52 -FederationHoldAppNumber (attempt 1); 5414 = its automatic retry (+1); 5415 = back end; 5416 = vrfGui; 5417 = VrfC2SimApp (StartInterface52 -AppNumber).
 - RESULT 2026-10-14 (PRERUN-STP976 RE-PRE-RUN): 5413 CONSUMED (LaunchVrf52 holder 37496, attempt 1); 5414 BURNED unused; 5415 CONSUMED (back end 47328, forced exit 6 after StopVrf52 exit 3); 5416 CONSUMED (vrfGui 40204); 5417 CONSUMED (VrfC2SimApp). Day holder 5404 (RtiProbe 26720) still holding.
+- 2026-10-14 D36 (docs/experiments/D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md), joining the day holder 5404, 5 per launch (LaunchVrf52 -FederationHoldAppNumber; its retry +1; back end; vrfGui; VrfC2SimApp): 5418-5422 = arm F; 5423-5427 = arm H; 5428-5432 = (b) FILL; 5433-5437 = (b) SCORED. A launch that does not happen burns its five.
 
-*** NEXT FREE: 5418 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5438 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
