@@ -79,7 +79,11 @@ def main(argv):
                 '          <PerformingEntity>%s</PerformingEntity>' % perf,
                 '          <StartTime><SimulationTime><DelayTimeAmount><IsoTimeDuration>%s</IsoTimeDuration>'
                 '</DelayTimeAmount></SimulationTime></StartTime>' % iso_duration(slot * slot_no)]
+        # ROEHold on every task, as STP's export writes it (task roe, else the shipped default ROEHold; STP-1140): HIDE
+        # must then hold fire, ENGAGE is still fire at will (the unit ATTACK path overrides the order's ROE).
         out += ['          <TaskActionCode>%s</TaskActionCode>' % code,
+                '          <RuleOfEngagement><MipWeaponUseROE><WeaponROECode><WeaponRuleOfEngagementCode>ROEHold'
+                '</WeaponRuleOfEngagementCode></WeaponROECode></MipWeaponUseROE></RuleOfEngagement>',
                 '        </ManeuverWarfareTask>', '      </Task>']
         prev[key] = tid
         print('%-7s %-12s slot %d %s' % (key, code, slot_no, 'no geometry' if lat is None else '%s,%s' % (lat, lon)))
