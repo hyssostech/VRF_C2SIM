@@ -27,7 +27,9 @@ param(
     [string]$Url = 'ws://127.0.0.1:39599',
     [string]$ScenarioName = 'STP-IRON-STORM-SYNTHETIC',
     [string]$OutDir = '.',
-    [int]$TimeoutSec = 180
+    [int]$TimeoutSec = 180,
+    # regen only: '' = all affiliations (what CAPSTONE-STP883 had to use - 'friend' loses every task, STP-1105).
+    [string]$Affiliation = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -85,7 +87,7 @@ try {
         $ld = Invoke-Stp 'LoadNewScenario' @{ content = $text } $TimeoutSec
         if (-not $ld.success) { throw "LoadNewScenario failed: $($ld.result)" }
         foreach ($t in 'initialization', 'order') {
-            $g = Invoke-Stp 'GetC2SIMContent' @{ name = $ScenarioName; dataType = $t; affiliation = $null; coaPoids = @() } $TimeoutSec
+            $g = Invoke-Stp 'GetC2SIMContent' @{ name = $ScenarioName; dataType = $t; affiliation = $Affiliation; coaPoids = @() } $TimeoutSec
             if (-not $g.success) { throw "GetC2SIMContent $t failed: $($g.result)" }
             $out = Join-Path $OutDir ("REGEN-{0}_{1}.xml" -f $ScenarioName, $t)
             [System.IO.File]::WriteAllText($out, [string]$g.result, [System.Text.UTF8Encoding]::new($false))

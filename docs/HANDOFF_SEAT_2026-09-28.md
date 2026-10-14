@@ -181,7 +181,7 @@ A Sonnet seat is untested here; if the owner wants that data, take it on a docs-
    argument; NEW PIN procedure) and enable the Label symbol decoration in the fixture's display settings (21.2), so the demo
    audience sees the full designation. After G1-4's Result, not before; one lane; the fixture edit is the sanctioned deploy.
 6. After that: audit follow-ups (AUDIT_RULINGS_IN_CODE_2026-09-28 sec 3); log the receipt clock in START TIME BASE; STP-877
-   (10-14): SetTarget DROPPED (8331fd2, STP-1127: live run S1-S5 HIT, no effect); receipt clock logged (d38e824).
+   (10-14): SetTarget DROPPED (8331fd2, STP-1127); receipt clock logged; STP-976 STP side = tools\stp\Prepare-StpExport.ps1.
 
 ## 4. Decisions that are the owner's (do not decide them)
 

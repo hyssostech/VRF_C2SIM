@@ -4639,6 +4639,28 @@ try {
         $dpBlock -match 'if \(-not \$NoGui\)' -and $dpBlock -match 'try \{' -and $dpBlock -match 'Id = 566' -and
         $dpBlock -match 'SetThreadExecutionState\(\[uint32\]3\)' -and $dpBlock -notmatch '0x80000000|ES_CONTINUOUS\b.*\|' -and
         $dpBlock -notmatch 'exit \d|throw' -and $dpPos -gt 0 -and $guiPos -gt $dpPos) ('block {0} chars' -f $dpBlock.Length)
+
+    # 16g Prepare-StpExport.ps1 (STP-976 one command) and its .op converter (STP-1104 workaround). Offline only: -WhatIf
+    # and the port guard never reach git or docker; the converter runs on a three-line fixture.
+    $peScript = Join-Path $RepoRoot 'tools\stp\Prepare-StpExport.ps1'
+    $peErr = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($peScript, [ref]$null, [ref]$peErr)
+    $peBytes = [System.IO.File]::ReadAllBytes($peScript)
+    $peT = [System.Text.Encoding]::ASCII.GetString($peBytes)
+    $peOk = $peErr.Count -eq 0 -and @($peBytes | Where-Object { $_ -gt 127 }).Count -eq 0 -and
+            ([regex]::Matches($peT, "`n")).Count -eq ([regex]::Matches($peT, "`r`n")).Count
+    $peWhat = & pwsh -NoProfile -File $peScript -WhatIf 2>&1 | Out-String; $peWhatExit = $LASTEXITCODE
+    $pePort = & pwsh -NoProfile -File $peScript -WhatIf -WsPort 9599 2>&1 | Out-String; $pePortExit = $LASTEXITCODE
+    Check '16g Prepare-StpExport.ps1 parses, ASCII CRLF; -WhatIf prints the plan and does nothing (exit 0); a 9500-9599 port is refused (exit 2) before any step' (
+        $peOk -and $peWhatExit -eq 0 -and $peWhat -match 'WhatIf: nothing done' -and $peWhat -match 'regen \(all affiliations\)' -and
+        $pePortExit -eq 2 -and $pePort -match 'port 9599' -and $pePort -notmatch '=== Prepare-StpExport plan') ("parse {0}, whatIf exit {1}, port exit {2}" -f $peOk, $peWhatExit, $pePortExit)
+    $opIn = Join-Path $stpTmp 'in.op'; $opOut = Join-Path $stpTmp 'out.op'
+    [System.IO.File]::WriteAllText($opIn, "object_set([`n[fsTYPE: scenario,name: 'x']`n[fsTYPE: unit,poid: uuid1,role: sof_support,name: 'A, B',sidc: 'SHFP']`n[fsTYPE: unit,poid: uuid2,name: 'C']`n])`n")
+    $cv = & python -I (Join-Path $RepoRoot 'tools\stp\strip_op_unit_attrs.py') $opIn $opOut role 2>&1 | Out-String; $cvExit = $LASTEXITCODE
+    $cvText = if (Test-Path $opOut) { [System.IO.File]::ReadAllText($opOut) } else { '' }
+    Check '16g strip_op_unit_attrs.py drops role from unit objects only, keeps quoted commas, reports what it dropped' (
+        $cvExit -eq 0 -and $cv -match 'units=2 dropped=role:sof_support:1' -and $cvText -notmatch 'role:' -and
+        $cvText -match "\[fsTYPE: unit,poid: uuid1,name: 'A, B',sidc: 'SHFP'\]" -and $cvText -match "\[fsTYPE: scenario,name: 'x'\]") ("exit {0}: {1}" -f $cvExit, $cv.Trim())
 } finally {
     if (Test-Path -LiteralPath $stpTmp) { Remove-Item -LiteralPath $stpTmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
