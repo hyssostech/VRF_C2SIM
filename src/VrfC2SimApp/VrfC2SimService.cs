@@ -5637,7 +5637,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 "Layer-2 not yet wired - executing bare movement.",
                                 task.TaskName, verb.ActionCode, verb.Intent, verb.Composition);
 
-        // LAYER 2 - ATTACK-family (ATTACK/ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT) and BREACH:
+        // LAYER 2 - ATTACK-family (ATTACK/ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT/ENGAGE) and BREACH:
         // RL-20260926-01, ONE decision (TaskDispatchPolicy.ForEngage). Every one of them ADVANCES to
         // the task's own geometry below, like any other task, and completes by the time rules.
         //   - a UNIT's ATTACK adds rules of engagement fire at will at dispatch (never a Fire At:

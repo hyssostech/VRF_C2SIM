@@ -148,6 +148,10 @@ public static class VerbMapping
             ["FIX"]    = (TaskIntent.Attack,          AttackComposition),
             ["DISRPT"] = (TaskIntent.Attack,          AttackComposition),
             ["PENTRT"] = (TaskIntent.Attack,          AttackComposition),
+            // ENGAGE (xsd:3951): STP's friendly 'position sniper' (STP-924; ruling D2 = ENGAGE, relayed by the STP-1097
+            // session 2026-10-14). The unit ATTACK path: advance to the point (about 0 m for an emplaced unit), ROE fire
+            // at will, no Fire At to a unit (RL-20260926-01).
+            ["ENGAGE"] = (TaskIntent.Attack,          AttackComposition),
             ["SECURE"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["OCCUPY"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
             ["SEIZE"]  = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),

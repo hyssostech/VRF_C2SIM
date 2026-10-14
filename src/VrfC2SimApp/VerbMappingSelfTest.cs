@@ -19,6 +19,11 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "FIX",    TaskIntent.Attack);
         CheckIntent(ref failures, "DISRPT", TaskIntent.Attack);
         CheckIntent(ref failures, "PENTRT", TaskIntent.Attack);
+        // ENGAGE (xsd:3951): the friendly 'position sniper' (STP-924, ruling D2 = ENGAGE, relayed by the STP-1097
+        // session 2026-10-14) - the unit ATTACK path: advance to the point, ROE fire at will, no Fire At to a unit.
+        CheckIntent(ref failures, "ENGAGE", TaskIntent.Attack);
+        Check(ref failures, VerbMapping.Classify("ENGAGE").Recognized && VerbMapping.Classify("engage").Intent == TaskIntent.Attack,
+              "ENGAGE is a RECOGNISED attack verb (any case), not the bare-move fallback");
         CheckIntent(ref failures, "SECURE", TaskIntent.HoldObjective);
         CheckIntent(ref failures, "OCCUPY", TaskIntent.HoldObjective);
         CheckIntent(ref failures, "SEIZE",  TaskIntent.HoldObjective);
