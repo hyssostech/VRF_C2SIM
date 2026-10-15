@@ -315,3 +315,10 @@ land-cover source's tiles and every z14 OSM tile (water, all features, highways)
 fetched, already cached, given up and still unknown (exit 0 = complete). CACHE_DIR is required - it never writes into a
 run's configured cache by default; a box of more than 4,096 elevation tiles is refused without --force. Point the run at
 it with Vrf:PreflightCacheDir and set Vrf:PreflightOffline=true. Offline proof: `VrfC2SimApp --warm-cache-selftest`.
+
+The box can come from an initialization (STP-806 slice 1):
+
+    VrfC2SimApp --ao-from-init INIT.xml [--margin-km K]
+
+prints the AO (every unit and graphic vertex plus the margin, default 2 km), names the item that sets each edge, warns
+when the box is too big for one warm-up, and prints the warm-up command. Offline proof: `VrfC2SimApp --ao-selftest`.
