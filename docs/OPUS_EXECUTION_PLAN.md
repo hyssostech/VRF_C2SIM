@@ -3747,8 +3747,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-15 (REPRO-BACKEND-STOP): 5468 CONSUMED (LaunchVrf52 holder); 5469 BURNED; 5470 CONSUMED (back end, forced exit 6); 5471 CONSUMED (vrfGui); 5472 CONSUMED (VrfC2SimApp); 5473 CONSUMED (holder); 5474 BURNED; 5475 CONSUMED (back end, forced exit 6); 5476 CONSUMED (vrfGui); 5477 CONSUMED (VrfC2SimApp); 5478-5482 BURNED (R-c not run).
 - 2026-10-15 SITTING 795 + 871 (docs/experiments/SITTING_795_871_2026-10-15.md, branch docs/sitting-795-871), a FRESH holder: 5483 holder; 5484 LaunchVrf52 retry; 5485 back end; 5486 vrfGui; 5487 VrfC2SimApp (795 build); 5488 VrfC2SimApp (871 build); 5489-5493 optional aggregate launch (holder, retry, back end, vrfGui, VrfC2SimApp). Unused = burned.
 - RESULT 2026-10-15 (SITTING 795 + 871): 5483 CONSUMED (holder 37996); 5484 BURNED; 5485 CONSUMED (back end 34856, forced exit 6); 5486 CONSUMED (vrfGui); 5487 CONSUMED (VrfC2SimApp 795; its CWIX-2024 create failed CouldNotOpenFDD, nothing created); 5488 CONSUMED (VrfC2SimApp 871); 5489 BURNED (crashed at config load, no join); 5490 CONSUMED (VrfC2SimApp 795); 5491 CONSUMED (VrfC2SimApp 795, the full arm A); 5492 CONSUMED (VrfC2SimApp 871, level 4); 5493 BURNED.
+- 2026-10-15 L2 (docs/experiments/PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md; order LD-2026-10-15-04, STP-976), a FRESH holder per launch, 5 per launch (holder; LaunchVrf52 retry; back end; vrfGui; VrfC2SimApp): 5494-5498 = B1 (PlanPath); 5499-5503 = A1 (Auto); 5504-5508 = B2 (PlanPath). A launch that does not happen burns its five.
 
-*** NEXT FREE: 5494 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5509 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
