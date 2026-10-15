@@ -115,3 +115,12 @@ DEVIATION FROM RECORD: L1 - no "--pre-order-gate" and no "CONSOLE LEVEL: 4": no 
 DEVIATION FROM RECORD: L2 - "--pre-order-gate" and "CONSOLE LEVEL: 4" are not used: the R-a recipe is kept
 unchanged (repro_run.ps1; the Demo overlay's ObjectConsoleNotifyLevel -1, appsettings.Demo.json:104) so that
 Vrf:AggregateMovePlanner is the one variable.
+
+ARMED ENDS VS STALL WINDOW: L2 (supervisor ruling via the dispatcher; lint lines only; predictions unchanged).
+R-a's order has 60-min slots (REPRO_BACKEND_STOP_2026-10-15 :12) and L2 runs the Demo overlay as R-a ran it, at
+DurationScale 0.0417 (appsettings.Demo.json:64), so TEST_MOVE_1's end is armed at about 150 SIM s - inside the
+360 SIM s stall window (appsettings.Demo.json:57). That is the audit S8 case. It is the same as R-a, so it is not
+a new variable. No L2 reading uses a stall verdict.
+A stall TASKABRT on TEST_MOVE_1 would abandon its STREND successor TEST_MOVE_2 (appsettings.Demo.json:55; the
+hold-task note in PREREG_L5_FRAME_MODE_ADDENDUM_2026-10-15.md, c402e90), so the second dispatch that every L2
+measurement keys on exists only if no stall verdict fires on TEST_MOVE_1 first.
