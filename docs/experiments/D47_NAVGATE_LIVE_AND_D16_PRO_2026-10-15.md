@@ -39,3 +39,23 @@ STP: 0 "unknown uuid"; StpListen 28 SymbolReport, 18 poids, 2 changed. Pro (stp-
 4 reported positions (01:16:03-01:17:03Z), 1,549 m from plan, ending 1 m from the EVACT target, then held; 28ID
 re-drawn in place; 10 "report unit" updates; Reports Off 01:20:35Z -> back at its planned position within 10 s, all 30
 Iron Storm features present. Teardown: StopVrf exit 3 -> forced exit 6; stp-pro removed; RTI and holder intact.
+
+## D47 G1 RESULT (2026-10-15 01:28-01:44Z; runs/launch52/d47/G1; app 5453-5457): FAIL - THE GATE DOES NOT PREVENT THE STOP
+
+Gate build (feat/navigate-gate 2cfac85, from the worktree; startup line "NAVIGATE GATE ON ... 480 s WALL"). CONSTR
+dispatched 01:30:43.5Z; it ran OVERDUE and completed by arrival evidence, releasing the ENGAGE, which the gate HELD
+("10 member(s) of its previous move still have their navigate-to-location out"). The last member ended ("the LAST of 17:
+17 succeeded, 0 failed") and the gate RELEASED it after 136.3 WALL s ("the work in flight ended"); ENGAGE dispatched
+01:38:29.524Z with NO member move outstanding. The vendor log's last write: 01:38:29.901Z (+0.38 s, read after the forced
+exit); SIM/WALL 2.77 -> 1.000; BACK END LOST (last good 01:40:22Z); working set flat 3.79 GB, ~1.9 cores spinning; StopVrf
+exit 3 -> forced exit 6; RTI and holder intact; no dump. The ENGAGE leg's pre-flight flagged NO water, and the vendor log
+holds 0 "Start point is within obstacle" lines.
+PER THE RULE ("if a run fails: stop, keep the gate off main, and report"): STOPPED after G1; G2 not run (5458-5462
+burned); the gate stays on its branch; no re-pre-run with it.
+WHAT G1 FALSIFIES: "members still moving" is NOT necessary (0 outstanding, all 17 succeeded - stopped); "a wet / in-obstacle
+start" is NOT necessary either (no water on the leg, 0 in-obstacle lines - stopped). The D36 (a2) reading is withdrawn.
+Stops so far: 19:45Z, F, H, G1 - all a SECOND navigate-to-location to 48 IBCT's 17 members, to the SAME point the first
+move went to, (54.0403,23.3364), after a STREND release. No stop: (i) the same point by a separate order 8.25 min later
+(10 members stuck); (ii) a different, dry point (54.000,23.290). The only common factor left in the stops is that place /
+that re-task shape; nothing here separates them, and n is small. The cause is OPEN; this needs the vendor (MAK) - a
+reproducible hang with a one-line recipe - rather than more interface-side guessing.

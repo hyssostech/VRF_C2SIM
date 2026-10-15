@@ -149,6 +149,10 @@ unsafe window only as "~1.8 min wall / ~740 sim s after the first move: stopped;
 
 ## Mitigation view (offline, for the operator's options)
 
+*** REFUTED 2026-10-15 01:38Z by D47 G1 (D47_NAVGATE_LIVE_AND_D16_PRO_2026-10-15.md): the gate held the re-task until all 17
+members had ended - and the back end STOPPED anyway, from a start with no water and 0 in-obstacle lines. The (a2) reading
+and the bounded-hold candidate below are WITHDRAWN; kept only as the record of what was believed. ***
+
 - VRF_C2SIM side, the candidate that covers every observed case: HOLD ANY NAVIGATE to a container (a chain successor
   OR a new order) while its members' previous navigates are outstanding, until every member has ended, BOUNDED (the 10 stuck members of (i) never end - a bound is required; a late
   re-task was safe in (i)). Untested as a fix - an untested CANDIDATE, not a proven remedy; it would need its own arm (F's geometry with the hold on).
