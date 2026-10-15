@@ -61,14 +61,12 @@ public enum TaskIntent
     HoldInPlace,
 
     /// <summary>
-    /// FOLSPT (follow and support) / FOLASS (follow and assume): advance along the task's graphic
-    /// (the follow-and-support / follow-and-assume graphic the order references by MapGraphicID)
-    /// to its end and HOLD there - the ordinary route move, no engagement task, the order's rules
-    /// of engagement unchanged, completion by the time rules (RL-20260921-09). Doctrinally the task
-    /// names the unit it supports or may assume from; STP does not carry that unit (AffectedEntity
-    /// is the performer itself), so there is nothing to follow - only the graphic. Added to the
-    /// RL-20260926-01 unit at the coordinator's direction - NOT an owner ruling; STP today
-    /// exports follow-and-support as ATTACK (an STP defect, ticket being drafted).
+    /// FOLSPT (follow and support) / FOLASS (follow and assume). Since STP-846 STP exports these codes and names the
+    /// SUPPORTED unit as the task's AffectedEntity. STP-871 (TaskDispatchPolicy.ForFollow): a PLATFORM with a distinct
+    /// supported unit TRAILS it with DtFollowEntityTask under the order's rules of engagement; an Aggregate Container
+    /// (no follow controller, C1) and a task with no distinct unit advance along the task's graphic to its end and
+    /// HOLD there - the ordinary route move, no engagement task, completion by the time rules (RL-20260921-09).
+    /// Added to the RL-20260926-01 unit at the coordinator's direction - NOT an owner ruling.
     /// </summary>
     FollowAndSupport,
 

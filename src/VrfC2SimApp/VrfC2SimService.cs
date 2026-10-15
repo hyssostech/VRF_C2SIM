@@ -5669,33 +5669,37 @@ public sealed class VrfC2SimService : BackgroundService
                                     unit.Name);
         }
 
-        // LAYER 2 - ESCRT (Escort): follow the escorted entity (DtFollowEntityTask). Following is
-        // DYNAMIC - no route or point-0 needed - so dispatch it here, before the movement logic
-        // (an ESCRT task may carry no route points, which would otherwise error below). Anything
-        // but a distinct escorted entity -> the task's geometry (R3): fall through to the movement
-        // below, and - when there is no geometry either - to R2's in-place execution.
-        // C1: an Aggregate Container has no follow controller (PseudoAggregate.ope :42-131 - its tasks are the PA_*
-        // scripts), so a DtFollowEntityTask would be a silent no-op on it; it takes the task's own geometry instead,
-        // exactly as an ESCRT without a distinct escorted entity already does (R3).
-        if (verb.Intent == TaskIntent.Escort && unit.IsContainer)
-            _log.LogInformation("ESCRT task '{Task}': {Name} is an Aggregate Container, which has no follow task - it " +
-                                "takes the task's own geometry (C1, RL-20260927-03).", task.TaskName, unit.Name);
-        else if (verb.Intent == TaskIntent.Escort)
+        // LAYER 2 - FOLLOW VERBS: ESCRT (escort) and, STP-871, FOLSPT / FOLASS (follow and support / assume) trail the
+        // unit the order names (DtFollowEntityTask) - TaskDispatchPolicy.ForFollow. Following is DYNAMIC - no route or
+        // point-0 needed - so it is dispatched here, before the movement logic. A container (C1: no follow controller)
+        // and a task with no distinct unit to follow take the task's own geometry below (FOLSPT: advance and hold; R3,
+        // and R2 in place when there is no geometry either).
+        if (verb.Intent is TaskIntent.Escort or TaskIntent.FollowAndSupport)
         {
-            string follow = ResolveAffectedTarget(task, vrfUuid, "ESCRT", "escort", out _);
-            if (follow != null)
+            string label = verb.Intent == TaskIntent.Escort ? "ESCRT" : (task.ActionCode ?? "FOLSPT").ToUpperInvariant();
+            string follow = null;
+            var followRes = TargetResolution.Unresolved;
+            if (!unit.IsContainer) follow = ResolveAffectedTarget(task, vrfUuid, label, "follow", out followRes);
+            switch (TaskDispatchPolicy.ForFollow(verb.Intent, unit.IsContainer, followRes))
             {
-                Roe escortRoe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
-                              : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
-                              : Roe.FireWhenFiredUpon;
-                _bridge.SetRulesOfEngagement(vrfUuid, escortRoe);
-                MarkDispatched(task, unit, "follow");
-                _bridge.FollowEntity(vrfUuid, follow);
-                _arrivalReported.TryRemove(unit.Name, out _);   // the new VRF task is issued: its completion is its own
-                ClearStallState(unit.Name);                     // ... and its own progress window (C16)
-                _log.LogInformation("ESCRT task '{Task}': FollowEntity {Vrf} -> {Tgt} (escort; no route).",
-                                    task.TaskName, vrfUuid, follow);
-                return;
+                case FollowDecision.GeometryContainerCannotFollow:
+                    _log.LogInformation("{Label} task '{Task}': {Name} is an Aggregate Container, which has no follow task - " +
+                                        "it takes the task's own geometry (C1, RL-20260927-03; following by re-sent moves is " +
+                                        "not attempted - STP-1163).", label, task.TaskName, unit.Name);
+                    break;
+                case FollowDecision.FollowEntity:
+                    Roe followRoe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
+                                  : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
+                                  : Roe.FireWhenFiredUpon;
+                    _bridge.SetRulesOfEngagement(vrfUuid, followRoe);
+                    MarkDispatched(task, unit, "follow");
+                    _bridge.FollowEntity(vrfUuid, follow);
+                    _arrivalReported.TryRemove(unit.Name, out _);   // the new VRF task is issued: its completion is its own
+                    ClearStallState(unit.Name);                     // ... and its own progress window (C16)
+                    _log.LogInformation("{Label} task '{Task}': FollowEntity {Vrf} -> {Tgt} ({What}; no route).", label,
+                                        task.TaskName, vrfUuid, follow,
+                                        verb.Intent == TaskIntent.Escort ? "escort" : "trails the supported unit, STP-871");
+                    return;
             }
         }
 

@@ -84,6 +84,27 @@ public static class EngageDoctrineSelfTest
                             "location and holds there, and the task completes by time.",
               "(e14) the CONSTR observation names the unit and says the construction is not simulated");
 
+        // (e15) STP-871 - FOLLOW VERBS: a PLATFORM with a DISTINCT supported unit trails it (DtFollowEntityTask); a
+        // CONTAINER never does (no follow controller, and re-sent moves are the STP-1163 hang shape); no distinct unit ->
+        // the task's geometry. ESCRT follows the same rule. Every other intent is not a follow verb.
+        foreach (var fi in new[] { TaskIntent.FollowAndSupport, TaskIntent.Escort })
+        {
+            Check(ref failures, TaskDispatchPolicy.ForFollow(fi, false, TargetResolution.DistinctEntity) == FollowDecision.FollowEntity,
+                  $"(e15) {fi}, platform, distinct unit -> FollowEntity (trails it)");
+            foreach (var t in Enum.GetValues<TargetResolution>())
+                Check(ref failures, TaskDispatchPolicy.ForFollow(fi, true, t) == FollowDecision.GeometryContainerCannotFollow,
+                      $"(e15) {fi}, CONTAINER, target {t} -> its own geometry (never a follow)");
+            foreach (var t in Enum.GetValues<TargetResolution>().Where(t => t != TargetResolution.DistinctEntity))
+                Check(ref failures, TaskDispatchPolicy.ForFollow(fi, false, t) == FollowDecision.GeometryNoUnitToFollow,
+                      $"(e15) {fi}, platform, target {t} -> its own geometry (nothing distinct to follow)");
+        }
+        Check(ref failures, Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.FollowAndSupport && i != TaskIntent.Escort)
+                            .All(i => TaskDispatchPolicy.ForFollow(i, false, TargetResolution.DistinctEntity) == FollowDecision.NotFollowVerb),
+              "(e15) no other intent is a follow verb");
+        Check(ref failures, VerbMapping.Classify("FOLSPT").Intent == TaskIntent.FollowAndSupport
+                            && VerbMapping.Classify("FOLASS").Intent == TaskIntent.FollowAndSupport,
+              "(e15) FOLSPT and FOLASS map to FollowAndSupport");
+
         // (e4) Every other intent is outside this decision.
         foreach (var i in Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.Attack && i != TaskIntent.Breach
                                                                   && i != TaskIntent.FollowAndSupport

@@ -14,6 +14,19 @@ public enum ZeroGeometryAction
 }
 
 /// <summary>What the task's AffectedEntity turns out to be (R3).</summary>
+/// <summary>STP-871: what a follow verb (ESCRT, FOLSPT, FOLASS) does with its performer (TaskDispatchPolicy.ForFollow).</summary>
+public enum FollowDecision
+{
+    /// <summary>Not a follow verb.</summary>
+    NotFollowVerb,
+    /// <summary>A platform with a distinct unit to follow: DtFollowEntityTask, the order's ROE, no route.</summary>
+    FollowEntity,
+    /// <summary>An Aggregate Container: no follow controller - the task's own geometry (FOLSPT: advance and hold).</summary>
+    GeometryContainerCannotFollow,
+    /// <summary>No distinct unit to follow (self, a graphic, unresolved): the task's own geometry (R3).</summary>
+    GeometryNoUnitToFollow,
+}
+
 public enum TargetResolution
 {
     /// <summary>A DISTINCT object this interface created: the one case that can be named as a
@@ -143,6 +156,21 @@ public static class TaskDispatchPolicy
     /// <summary>Does the decision take the hold-in-place dispatch (no vendor task, no move, ends at its
     /// Duration - the ExecutePlanPhase path)? Only CNFPSL's, for now (RL-20260926-01 A6).</summary>
     public static bool HoldsInPlace(EngageDecision d) => d == EngageDecision.HoldInPlaceNotRouted;
+
+    /// <summary>
+    /// STP-871: WHO A FOLLOW TASK TRAILS. ESCRT (escort) and, since STP-846 made STP name the supported unit as the
+    /// AffectedEntity, FOLSPT / FOLASS (follow and support / follow and assume) trail a named unit with
+    /// DtFollowEntityTask - a PLATFORM performer with a DISTINCT unit to follow. An Aggregate Container has no follow
+    /// controller (PseudoAggregate.ope :42-131; C1, RL-20260927-03), and emulating one by re-sending navigate tasks as
+    /// the supported unit moves is the re-task shape that stopped the 5.2d back end (STP-1163), so a container keeps
+    /// the task's own geometry (FOLSPT: advance and hold). No distinct unit (self / a graphic / unresolved) -> geometry.
+    /// </summary>
+    public static FollowDecision ForFollow(TaskIntent intent, bool performerIsContainer, TargetResolution target)
+    {
+        if (intent != TaskIntent.Escort && intent != TaskIntent.FollowAndSupport) return FollowDecision.NotFollowVerb;
+        if (performerIsContainer) return FollowDecision.GeometryContainerCannotFollow;
+        return target == TargetResolution.DistinctEntity ? FollowDecision.FollowEntity : FollowDecision.GeometryNoUnitToFollow;
+    }
 
     /// <summary>The one plain line a CNFPSL dispatch logs and reports (coordinator's wording).</summary>
     public const string PassageOfLinesHeldLine =
