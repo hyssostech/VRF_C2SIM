@@ -70,7 +70,7 @@ ROEHold on all, as STP writes it.
 | BACK END LOST (last good) | yes (23:29:34Z, ~109 s after) | yes (23:38:58Z, ~114 s after) |
 | working set after the stop | 3,840 MB, FLAT (no runaway) | 3,835 MB, FLAT |
 | back-end CPU after the stop | ~2.0 cores: TWO threads at 100% | ~1.0 core: ONE thread at 100% |
-| graceful close | refused (exit 3) -> forced exit 6 | refused (exit 3) -> forced exit 6 |
+| teardown | StopVrf exit 3 -> forced exit 6 (as in every arm, stopped or not - the harness, not a stop signature) | same |
 Both vendor logs end inside the re-plans, as on 19:45Z (shape only: "Start point is within obstacle" bursts). The
 interface sent the ROE at BOTH dispatches of both arms (VrfC2SimService.cs:6223 - every dispatch sets the order's ROE;
 fire at will only for arm F's ENGAGE), so arm H never set fire at will.
@@ -99,7 +99,7 @@ over 300 s) and the run was torn down (StopVrf exit 3 -> forced exit 6; RTI and 
 ## (b) SCORED RESULT (2026-10-14 23:51-23:59Z; runs/launch52/d36/scored; app 5433-5437): FAIL -> D33 KEEPS TODAY'S EXTENT
 
 Same order, same extent, on the cache the fill left. DEMO EXTENT 37 / 17 refused / 20 admitted. Dispatched T1, T22
-(hold-in-place), T33 (23:53:23Z), T15 (23:54:43Z), T2 (23:54:57Z); SIM/WALL 1.32 -> 1.000; BACK END LOST (last good
+(hold-in-place), T33 (23:53:23Z), T15 (23:54:43Z), T2 (23:54:57Z), T23 (23:55:42Z, after the last good reading); SIM/WALL 1.32 -> 1.000; BACK END LOST (last good
 23:55:16Z, ~2 min after the order). The vendor log kept writing to the teardown (853,450 lines; 157,394 feature_source;
 64,362 "queued for" - median 73 s, p95 135 s; 0 in-obstacle); working set 2.6 -> 14.3 GB, sampler ABORT 23:57:49Z
 (2,367 MB/min over 300 s), torn down 23:58Z (StopVrf exit 3 -> forced exit 6; RTI and holders intact; no dump).
@@ -107,12 +107,13 @@ Cache vrfsim 31,537 / 516.7 MB -> 32,283 / 518.9 MB.
 | Criterion | Verdict |
 |---|---|
 | P1 no BACK END LOST | FAIL (2 min after the order) |
-| P2 SIM/WALL >= 1.000 | FAIL (1.323, then the controller's 1.000 extrapolation) |
-| P3 slope <= 200 MB/min | FAIL (2,367 MB/min) |
+| P2 SIM/WALL >= 1.000 | NOT FAILED on its own terms (1.323, then 1.000 - the extrapolation after the loss); uninformative after the loss |
+| P3 slope <= 200 MB/min | FAIL - ~1,860 MB/min over the 3.3-min post-population window before the abort (no full 5-min window existed) |
 | P4 T2 / T15 to their objectives | FAIL (abandoned at the loss) |
-READING: the warm cache did not make option 3 safe. Queue waits fell (median 114 -> 73 s) but stayed at minutes, and the
-memory climb was faster, not slower; the cache barely grew in either run (+3,467 / +746 files) - the backlog is the
-back end's own feature / obstacle PROCESSING for long ground routes across this terrain, not tile FETCH. D33: per the
+READING: the warm cache did not make option 3 safe (P1, P3, P4). Queue waits fell (median 114 -> 73 s, n=1) but stayed at
+minutes, and the memory climb started at order receipt with one navigate out (2.6 -> 6.4 GB by 23:53:50Z). The
+fetch-vs-processing question is NOT settled: cache\vrfsim was already warm before FILL (28,070 files, written by the
+19:18Z run), so FILL/SCORED is warm-vs-warmer, and that feature paging lands in cache\vrfsim is assumed, not shown. D33: per the
 operator's rule ("if (b) FAILS, keep today's extent") the demo stays on RL-20261005-02's box; no config change.
 STP-1148 not judged (no capture before the loss showed the objectives).
 
@@ -131,24 +132,26 @@ start is not needed; (ii) does not -> the wet / in-obstacle start is involved. S
 
 ## (a2) RESULT (2026-10-15 00:00-00:33Z; runs/launch52/d36/armI, armII; app 5438-5447)
 
-| Arm | start | second task | members ended at re-task | in-obstacle lines | STOP |
+| Arm | start | second task | members ended at re-task (outstanding) | in-obstacle lines | STOP |
 |---|---|---|---|---|---|
-| F (23:27Z) | wet (54.036,23.335) | ENGAGE, STREND, ~1.5 min after CONSTR | 4 of 17 | 42 | YES (+0.27 s) |
-| H (23:37Z) | wet | OCCUPY, STREND, ~1.8 min after | 4 of 17 | 35 | YES (+0.30 s) |
-| (i) (00:10Z) | wet (water at 0.00 km on the leg) | ENGAGE, separate order, 8 min after | 7 of 17 (the other 10 never ended - capped) | 57 | NO - ran on (SIM/WALL ~7), vendor log growing; the unit then STALLED (TASKABRT by C16) |
-| (ii) (00:25Z) | DRY (no water on either leg; VALID) | ENGAGE, STREND, ~2 min after | 10 of 17 | 0 | NO - ran on (SIM/WALL ~6.6), ENGAGE moves completing |
+| F (23:27Z) | pre-flight DRY at 0.00 km; wet only by the vendor's per-member in-obstacle count | ENGAGE, STREND, ~1.5 min after CONSTR | 4 of 17 (13) | 42 | YES (+0.27 s) |
+| H (23:37Z) | wet (water at 0.00 km on the leg) | OCCUPY, STREND, ~1.8 min after | 4 of 17 (13) | 35 | YES (+0.30 s) |
+| (i) (00:10Z) | wet (water at 0.00 km on the leg) | ENGAGE, separate order, 8 min after | 7 of 17 (10, never ended - capped) | 57 | NO - ran on (SIM/WALL ~7), vendor log growing; the unit then STALLED (TASKABRT by C16) |
+| (ii) (00:25Z) | DRY (no water on either leg; VALID) | ENGAGE, STREND, ~2 min after | 10 of 17 (7) | 0 | NO - ran on (SIM/WALL ~6.6), ENGAGE moves completing |
 (i) is not the clean "after ALL ended" arm the PREREG asked for: 10 members never ended in 8 min (stuck), so it reads
-"a LATE re-task from the wet start". READING (n=1 per new arm - not a closed cause): neither the wet start alone (i) nor a
-re-task with moves outstanding alone (ii) stops the back end; the stop needs BOTH a start in / at the obstacle (water)
-AND a re-task early in the move, while the members are still planning from it (F, H, 19:45Z: 3 of 3; the vendor log
-ends inside those re-plans each time). Competing reading not excluded: the timing alone (early vs late) with the wet
-start incidental - (ii) is the only dry arm and it was also early, so it argues against that.
+"a LATE re-task from the wet start". READING (n=1 per new arm - NOT a closed cause; Fable cold review applied): the
+results are CONSISTENT WITH the stop needing a re-task early in the move, while many members are still planning from an
+obstacle start (F, H, 19:45Z: 3 of 3; each vendor log ends inside those re-plans). Two alternatives are NOT separated:
+(1) the NUMBER OF MEMBERS STILL OUTSTANDING at the re-task - 13, 13, 10, 7 - is monotone with the stop and alone explains
+all four arms; (2) the wet start: F's own leg pre-flighted DRY at 0.00 km (wet only by the vendor's member count), and
+(ii) changed destination, route (1,331 m) and road layer as well, so it does not isolate "dry". The data bound the
+unsafe window only as "~1.8 min wall / ~740 sim s after the first move: stopped; 8 min: safe once".
 
 ## Mitigation view (offline, for the operator's options)
 
-- VRF_C2SIM side, the candidate that covers every observed case: HOLD A NAVIGATE SUCCESSOR on a container until every
-  member's previous navigate has ended, BOUNDED (the 10 stuck members of (i) never end - a bound is required; a late
-  re-task was safe in (i)). Untested as a fix; it would need its own arm (F's geometry with the hold on).
+- VRF_C2SIM side, the candidate that covers every observed case: HOLD ANY NAVIGATE to a container (a chain successor
+  OR a new order) while its members' previous navigates are outstanding, until every member has ended, BOUNDED (the 10 stuck members of (i) never end - a bound is required; a late
+  re-task was safe in (i)). Untested as a fix - an untested CANDIDATE, not a proven remedy; it would need its own arm (F's geometry with the hold on).
 - NOT recommended without a test: stopping the outstanding member tasks first - a stop is itself a re-task of members
   mid-plan, the very shape that stops the back end.
 - No STP change is needed for this (the order is valid; the timing is the interface's).
@@ -162,7 +165,7 @@ start incidental - (ii) is the only dry arm and it was also early, so it argues 
   churn; tonight's stops leave no dump and no dialog, the process lives with threads spinning, and they follow a
   mid-move re-task, not an order on the heels of an init. Keep it separate.
 - Option 3's failure (b) is a different class (feature-paging backlog) that the interface cannot fix except by the
-  extent bound already in force (or fewer simultaneous long-route movers).
+  extent bound already in force; "fewer simultaneous movers" is NOT supported (the climb began with one navigate out).
 
 ## Item 3 (Pro eyes-on)
 
