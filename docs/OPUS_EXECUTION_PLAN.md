@@ -3745,8 +3745,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-15 (D16 + D47): 5448 CONSUMED (LaunchVrf52 holder); 5449 BURNED; 5450 CONSUMED (back end, forced exit 6); 5451 CONSUMED (vrfGui); 5452 CONSUMED (VrfC2SimApp, main); 5453 CONSUMED (holder); 5454 BURNED; 5455 CONSUMED (back end 36576, forced exit 6); 5456 CONSUMED (vrfGui); 5457 CONSUMED (VrfC2SimApp, gate branch); 5458-5467 BURNED (G2 and the gate re-pre-run not run: G1 failed).
 - 2026-10-15 REPRO-BACKEND-STOP (docs/experiments/REPRO_BACKEND_STOP_2026-10-15.md), joining the day holder 5404, 5 per launch: 5468-5472 = R-a; 5473-5477 = R-b; 5478-5482 = R-c (spare). A launch that does not happen burns its five.
 - RESULT 2026-10-15 (REPRO-BACKEND-STOP): 5468 CONSUMED (LaunchVrf52 holder); 5469 BURNED; 5470 CONSUMED (back end, forced exit 6); 5471 CONSUMED (vrfGui); 5472 CONSUMED (VrfC2SimApp); 5473 CONSUMED (holder); 5474 BURNED; 5475 CONSUMED (back end, forced exit 6); 5476 CONSUMED (vrfGui); 5477 CONSUMED (VrfC2SimApp); 5478-5482 BURNED (R-c not run).
+- 2026-10-15 SITTING 795 + 871 (docs/experiments/SITTING_795_871_2026-10-15.md, branch docs/sitting-795-871), a FRESH holder: 5483 holder; 5484 LaunchVrf52 retry; 5485 back end; 5486 vrfGui; 5487 VrfC2SimApp (795 build); 5488 VrfC2SimApp (871 build); 5489-5493 optional aggregate launch (holder, retry, back end, vrfGui, VrfC2SimApp). Unused = burned.
 
-*** NEXT FREE: 5483 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5494 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
