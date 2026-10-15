@@ -135,7 +135,8 @@ public static class BackendLivenessPolicy
     /// about the SIMULATION, not about any one unit, so the actor is the zero uuid rather than a
     /// taskee that happens to be in flight.
     /// </summary>
-    public static string BuildStateChangeReport(string marking, string isoDateTime, string reportId)
+    public static string BuildStateChangeReport(string marking, string isoDateTime, string reportId,
+                                                 string name = "VR-Forces back end")
     {
         const string ZeroUuid = "00000000-0000-0000-0000-000000000000";
         var body = new S.ReportBodyType
@@ -159,7 +160,7 @@ public static class BackendLivenessPolicy
                                 Item = new S.NameObservationType
                                 {
                                     ActorReference = ZeroUuid,
-                                    Name = "VR-Forces back end",
+                                    Name = name ?? "VR-Forces back end",
                                     Marking = marking ?? "",
                                 }
                             }
