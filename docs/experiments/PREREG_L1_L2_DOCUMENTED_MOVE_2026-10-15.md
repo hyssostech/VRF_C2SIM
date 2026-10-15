@@ -92,3 +92,26 @@ ledgered before the first join.
 - Group mode on our containers: unusable as built. PseudoAggregate.ope:40 has no systems and :115-119 enables
   only PA_* scripts; Move (Group) is enabled only by ground-echelon-group-tactics-enabler.sysdef:16-22, which
   none of our 7 brigade container templates includes (RTK diff, M3).
+
+## Registration lines (C-4 prereg lint, check 13d) - added 2026-10-15, before any L1, L2 or L5 run
+
+Lint lines only; predictions unchanged. Order LD-2026-10-15-04 (supervisor ruling, relayed by the dispatcher).
+Every citation below is already in this file, its sibling PREREG files or c402e90; nothing new was read.
+
+VENDOR CITATION: L1 - UG 63.6.1 p1247 ("UG 39244-39273" above; addendum item (6)); AC 8918-8946 and
+AC 6020-6036 as cited in "Why live"; terrainInterfaceConfig.mtl; RoadToKaunas.scn:3-4, 16-17, 22; RoadToKaunas.pdf.
+L2 - UG 35.5.11 p735 (Move to Location (Plan Along Roads)); base\scripts\navigate-to-location.xml:17-18;
+Move_To_Location_Plan_Path.xml:6, :18 and .lua:45; group_movement_simplified.lua:28-55, :220-224;
+UG 29.1.4 p561, p554; AC 7.8 p234-236.
+
+OWN-RECORD CITATION: L1 - HANDOFF_2026-10-15 docs-first findings 2 and 3; D36(b) (BACK END LOST 2 min after the
+order, working set 2.6 -> 14.3 GB; PREREG_L5_FRAME_MODE_ADDENDUM_2026-10-15.md "Comparison").
+L2 - REPRO_BACKEND_STOP_2026-10-15 R-a (stops 5 of 6 at that place); HANDOFF_2026-10-15 docs-first finding 1;
+PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (2) and (3); Jira STP-976 comment 14278 (O1-O3).
+
+RUN KIND: movement
+
+DEVIATION FROM RECORD: L1 - no "--pre-order-gate" and no "CONSOLE LEVEL: 4": no interface runs and no order is pushed.
+DEVIATION FROM RECORD: L2 - "--pre-order-gate" and "CONSOLE LEVEL: 4" are not used: the R-a recipe is kept
+unchanged (repro_run.ps1; the Demo overlay's ObjectConsoleNotifyLevel -1, appsettings.Demo.json:104) so that
+Vrf:AggregateMovePlanner is the one variable.

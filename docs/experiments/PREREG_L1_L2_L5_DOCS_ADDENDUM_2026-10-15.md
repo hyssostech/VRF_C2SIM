@@ -79,3 +79,21 @@ later M3 the documented remedy is in the release notes: RN p69 (VRF-8801) - aggr
 add additional systems to pseudo-aggregates; RN p75 (VRF-9312) - for the Aggregate Tactical Level SMS,
 ground-echelon-group-tactics-enabler.sysdef is propagated to pseudo-aggregate units. Whether our brigade
 container templates can take it is an M3 question with its own PREREG.
+
+## Registration lines (C-4 prereg lint, check 13d) - added 2026-10-15, before any L1, L2 or L5 run
+
+Lint lines only; predictions unchanged. Order LD-2026-10-15-04 (supervisor ruling, relayed by the dispatcher).
+Every citation below is already in this file, its sibling PREREG files or c402e90; nothing new was read.
+
+VENDOR CITATION: UG 35.5.11 p735; UG 28.3.2 p551; AC 7.8 p234-236; UG Table 14 p233; UG 7.6.1 p261;
+UG 63.6.1 p1247; RN p69 (VRF-8801), p75 (VRF-9312); OPE aggregated-move-to-descriptor at-distance (default
+0.5 m) - items (2) to (7) above.
+
+OWN-RECORD CITATION: PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md (ec3583d); PREREG_L5_FRAME_MODE_ADDENDUM_2026-10-15.md
+(8cf8f7c, c402e90); HANDOFF_2026-10-15.md (9fc85a6); research report LD-2026-10-15-08 (STP-976 comment
+14265); ruling D68.
+
+RUN KIND: movement
+
+DEVIATION FROM RECORD: no "--pre-order-gate" and no "CONSOLE LEVEL: 4" here: this file registers no run of
+its own; the runs it amends (L1, L2, L5) carry their own lines.

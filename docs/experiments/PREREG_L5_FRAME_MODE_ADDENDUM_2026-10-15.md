@@ -102,3 +102,27 @@ is UNEXPLAINED.
 - Where a chain DOES wait in practice: behind the LONG moves, which run OVERDUE until arrival at about 11.5 km/h
   SIM. T16 (66 km) holds T17-T21; T10 (91 km) holds T11; T3/T4 (about 30 km) hold T5-T7. Visible, not stalled,
   but beyond a short demo window.
+
+## Registration lines (C-4 prereg lint, check 13d) - added 2026-10-15, before any L1, L2 or L5 run
+
+Lint lines only; predictions unchanged. Order LD-2026-10-15-04 (supervisor ruling, relayed by the dispatcher).
+Every citation below is already in this file, its sibling PREREG files or c402e90; nothing new was read.
+
+VENDOR CITATION: UG52 3.4.3 p122; UG52 4.4.2 p143; UG52 Table 76 p1669; physicalWorldParams.mtl:93;
+RoadToKaunas.scn:16-17; vrfRemoteController.h:827; UG52 37.3.1 p797 (the hold-task note); UG Table 14 p233 and
+UG 7.6.1 p261 (PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (4) and (5)).
+
+OWN-RECORD CITATION: PREREG_R9_FIXED_FRAME_RTC; RL-20260921-02 item 3; VRF_5.2_DECISION_EVIDENCE Y-3 / Y-9;
+D36(b) ("Comparison" above); RL-20260921-09 (timed completion); PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md
+items (4) and (5).
+
+RUN KIND: movement
+
+DEVIATION FROM RECORD: L5 adds no "--pre-order-gate" and no "CONSOLE LEVEL: 4": it keeps the D36(b) recipe
+unchanged except the declared frame mode and Vrf:TimeMultiplier.
+
+ARMED ENDS VS STALL WINDOW: from this file and its hold-task note (c402e90). At DurationScale 0.0417 a 1-h slot
+arms a 150 SIM s end ("What we RELY on" (i)); the hold chain T12 / T13 / T14 armed 300 / 150 / 150 SIM s
+("The two named chains"). The stall window is 360 SIM s (appsettings.Demo.json:57: StallClock sim,
+StallWindowSeconds 0). Every armed end quoted here is INSIDE that window.
+No L5 reading uses a stall verdict: its readings are back-end loss, working-set slope and feature-queue wait.
