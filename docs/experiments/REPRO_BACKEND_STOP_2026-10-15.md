@@ -40,4 +40,5 @@ rounded to 10 m - at the same place, and does not at the other. With D47 G1 (the
 hang) and D36 arm (ii) (the other dry place, 7 outstanding, no hang), the place is involved and the outstanding-member
 count is not what decides it. Not explained: D36 arm (i) (the same place by a separate order 8.25 min later, no hang).
 Stops at that place: 5 of 6 re-tasks (19:45Z, F, H, G1, R-a; not (i)); at the other place: 0 of 2 ((ii), R-b).
-Draft vendor case: docs/vendor-cases/DRAFT_MAK_BACKEND_HANG_2026-10-15.md (NOT SENT; the operator's to send).
+Vendor case: docs/vendor-cases/MAK_BACKEND_HANG_2026-10-15.md + its attachment folder (operator ruled D51 "send it";
+the operator / support-account holder submits it - the seat does not).

@@ -1,0 +1,612 @@
+StartInterface52: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.exe
+  cwd         : C:\MAK\vrforces5.2d\bin64
+  arguments   : --contentRoot=<interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64
+  PATH prefix : C:\MAK\vrforces5.2d\bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti5.0.1\bin;
+  MAK_VRFDIR                 = C:\MAK\vrforces5.2d
+  MAK_VRLDIR                 = C:\MAK\vrlink5.10
+  MAK_RTIDIR                 = C:\MAK\makRti5.0.1
+  RTI_RID_FILE               = <interface-root>\config\rid-501-rtiexec-min.mtl
+  RTI_ASSISTANT_DISABLE      = 1
+  DOTNET_ENVIRONMENT         = Demo
+  Vrf__ClientId              = STP
+  Vrf__ApplicationNumber     = 5472
+  Vrf__PositionReportSeconds = 10
+  C2SIM__RestUrl             = http://127.0.0.1:18080/C2SIMServer
+  C2SIM__StompUrl            = http://127.0.0.1:61614/topic/C2SIM
+  [OK]   licence file: C:\MAK\MAKLicenseManager\<license-file>.lic (expires 31-oct-2026)
+  config      : appsettings.json + appsettings.Demo.json + the env above
+  content root: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64
+
+*** C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=http://127.0.0.1:18080/C2SIMServer  stomp=http://127.0.0.1:61614/topic/C2SIM ***
+***   how: -Server private / -RestUrl / -StompUrl, exported as C2SIM__RestUrl + C2SIM__StompUrl (env overrides appsettings) ***
+***   THE PUSHES MUST NAME THIS SAME PAIR (DEMO_RUNBOOK sec 4) - a mismatched pair creates nothing and looks healthy. ***
+
+MakRuntime: MAK_VRFDIR already = 'C:\MAK\vrforces5.2d'
+MakRuntime: MAK_VRLDIR already = 'C:\MAK\vrlink5.10'
+MakRuntime: MAK_RTIDIR already = 'C:\MAK\makRti5.0.1'
+MakRuntime: PATH already carries the MAK bin directories
+MakRuntime: RTI_RID_FILE=<interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\rid-501-rtiexec-min.mtl (overriding the process value '<interface-root>\config\rid-501-rtiexec-min.mtl')
+MakRuntime: RTI_ASSISTANT_DISABLE already = '1'
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2436136480 ticks per second
+info: VrfC2Sim[0]
+      C2SIM endpoints: rest=http://127.0.0.1:18080/C2SIMServer stomp=http://127.0.0.1:61614/topic/C2SIM
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Demo
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\
+info: VrfC2Sim[0]
+      BUILD IDENTITY: git 7787100, built 2026-10-14T20:36:58Z, bridge Release-5.2, assembly '<interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\VrfC2SimApp.dll' last written 2026-10-14 20:36:59Z. The runner manifest's host.gitCommit is the working tree's HEAD, which is a different question - THIS line is what the binary was built from (N3, D7 harvest).
+info: VrfC2Sim[0]
+      Type-mapping mode = FidelityTable (62 rows from <interface-root>\data\unit-type-map-52-aggregate.json); FriendlyNation=USA, OpposingNation=RUS; SurfaceProxySubstitutions=True.
+info: VrfC2Sim[0]
+      AGGREGATE CONTAINERS: catalogue loaded from C:\MAK\vrforces5.2d (root AggregateTacticalLevel, 705 templates, 3 model-set dir(s)) - the init rule and the composition resolve against it (RL-20260927-03).
+info: VrfC2Sim[0]
+      COMPOSITION VARIANT catalogue (Vrf:CompositionVariant; RL-20260927-04): 10 of the 16 row(s) of <interface-root>\data\unit-composition-52-aggregate.json (its own and the 'all' rows: C-USA-DIV-UCI, C-USA-BDE-UCI, C-USA-BN-UCI, C-USA-BDE-UCA, C-USA-BN-UCIZ, C-USA-RGT-UCRVA, C-USA-BDE-UCAW, C-USA-BDE-UCF, C-USA-BN-UCF, C-USA-BN-HIMARS). SMS: the fixture C:\MAK\vrforces5.2d\userData\scenarios\<scenario>.scnx loads $(DATA_DIR)\simulationModelSets\AggregateTacticalLevel.sms. Catalogue: AggregateTacticalLevel. It needs no derived SMS: catalogue units only, which resolve alike on the shipped and the derived set. 7 authoredRows type(s) in the type map, NOT in use (they serve the 'authored' variant only).
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-DIV-UCI (map rows [F-UCI-I]): 1 simulated leaf unit(s), 0 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BDE-UCI (map rows [F-UCI-H]): 17 simulated leaf unit(s), 3 sub-container(s) flattened (D-8, RL-20260927-04): [4 x Stryker  HHT (USA), 12 x Mech CO (USA, M2), 1 x Stryker Cavalry SQDN (USA)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BN-UCI (map rows [F-UCI-F]): 5 simulated leaf unit(s), 0 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA), 4 x Mech CO (USA, M2)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BDE-UCA (map rows [F-UCATA-H, F-UCA-H]): 26 simulated leaf unit(s), 6 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA), 3 x TANK HQ SEC (USA, M1A2), 3 x Scout PLT (US, M3), 3 x Mortar PLT (USA, M1064), 3 x Medical PLT (USA, M113), 3 x CSS PLT (USA), 5 x Tank CO (USA, M1A2), 4 x Mech CO (USA, M2), 1 x Stryker Cavalry SQDN (USA)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BN-UCIZ (map rows []): 8 simulated leaf unit(s), 1 sub-container(s) flattened (D-8, RL-20260927-04): [1 x TANK HQ SEC (USA, M1A2), 1 x Scout PLT (US, M3), 1 x Mortar PLT (USA, M1064), 1 x Medical PLT (USA, M113), 1 x CSS PLT (USA), 2 x Mech CO (USA, M2), 1 x Tank CO (USA, M1A2)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-RGT-UCRVA (map rows [F-UCRVA-G]): 26 simulated leaf unit(s), 6 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA), 3 x TANK HQ SEC (USA, M1A2), 3 x Scout PLT (US, M3), 3 x Mortar PLT (USA, M1064), 3 x Medical PLT (USA, M113), 3 x CSS PLT (USA), 5 x Tank CO (USA, M1A2), 4 x Mech CO (USA, M2), 1 x Stryker Cavalry SQDN (USA)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BDE-UCAW (map rows [F-UCAW-H]): 5 simulated leaf unit(s), 0 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA), 3 x Motorized BN (POL, Rosomak), 1 x Stryker Cavalry SQDN (USA)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BDE-UCF (map rows [F-UCF-H]): 19 simulated leaf unit(s), 8 sub-container(s) flattened (D-8, RL-20260927-04): [1 x Stryker  HHT (USA), 9 x FA PLT (USA, 155mm), 9 x MRL PLT (USA, HIMARS)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BN-UCF (map rows []): 9 simulated leaf unit(s), 3 sub-container(s) flattened (D-8, RL-20260927-04): [9 x FA PLT (USA, 155mm)].
+info: VrfC2Sim[0]
+      COMPOSITION ROW C-USA-BN-HIMARS (map rows []): 9 simulated leaf unit(s), 3 sub-container(s) flattened (D-8, RL-20260927-04): [9 x MRL PLT (USA, HIMARS)].
+info: VrfC2Sim[0]
+      AGGREGATE CONTAINERS ON (Vrf:ModelSet=AggregateTacticalLevel; RL-20260927-02, RL-20260927-03, RL-20260927-04): every in-scope unit is created at init as an EMPTY Aggregate Container (UG52 72.2.1 p1419), Disaggregated, at its authored position, by the design's init rule (hostile nation RUS; the NEAREST branch where the catalogue has none, logged). ONLY an order's PERFORMER is populated (D-5), IN PLACE, when an order first names it: its STP TO subordinates, else its template's configured members, else the composition table <interface-root>\data\unit-composition-52-aggregate.json (10 row(s) resolve, 0 refused), FLAT (D-8), each member created AGGREGATED (UG52 Table 68 p1470) on one centroid-preserving ring round the container and attached by AddToOrganization - nothing is ever deleted. Its tasks wait for the container to PUBLISH its members (VrfBridge.PublishedSubordinateCount) for up to 85 s (Vrf:ContainerPopulateTimeoutSeconds, derived); a MOVE on a container with no published members is refused with TASKABRT. Moves are the container's own scripted tasks: the vendor's planning task per vertex (Vrf:AggregateMovePlanner=Auto, RL-20260928-03) on a route, PA_Move_To_Location_Direct to a single point, PA_Patrol_Route for a patrol. A vendor completion farther than 100 m (Vrf:VertexArrivalRadiusMeters) from the route end is WITHHELD (D-6). Catalogue: root AggregateTacticalLevel, 705 template(s) from 3 model-set dir(s).
+info: VrfC2Sim[0]
+      MEMBER SLOT CHECK (populated containers): a planned member slot IN OSM water or within 10 m of it (water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01); at least the planner's 10 m obstacle buffer, RL-20260928-03) or within 10 m of an OSM building is moved to the nearest ground more than 10 m from every OSM water feature (a road bridge exempts nothing for a slot) and clear of buildings, on 25 m rings within 300 m (Vrf:PreflightVertexNudgeMaxMeters); none found = KEPT ON BAD GROUND and logged; unreadable ground = UNVERIFIED, kept. Authored route vertices keep the VERTEX CHECK's own rule.
+info: VrfC2Sim[0]
+      AGGREGATE MOVE PLANNER Auto (Vrf:AggregateMovePlanner; RL-20260928-03, the default is Auto): a CONTAINER's route is driven per STP vertex, per MEMBER, navigate-to-location with obstacleQuery MAK_OBSTACLE and buffer 10 m always, pathQuery MAK_ROAD where the sim's road layer (osm-highways) lies within 500 m (Vrf:RoadProximityMeters) of the leg's line, else NONE - decided and logged per leg. Road layer cache: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache\osm-highways (356 tile file(s), 0 of them 0 bytes); the dispatch reads it and never fetches; the route-shift worker fetches missing tiles online first. The next vertex is issued only when the previous one COMPLETES (the vendor's own rule for Move (Group); the same rule aggregates the members of a per-member planner: done when every member's move ended, a success when at least one succeeded); arrival evidence, D-6 and the watchdog judge the LAST vertex; the pre-flight REPORTS a planned route and does not detour it (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 5 item 4). Point moves (PA_Move_To_Location_Direct), patrols (PA_Patrol_Route) and holds are unchanged.
+info: VrfC2Sim[0]
+      [REDACTED: startup banner line - project-internal example names]
+info: VrfC2Sim[0]
+      IDENTITY (C1d, RL-20260928-02): every entity and aggregate is CREATED UNDER A UUID and BOUND BY IT - an init unit (and its ~PXY proxy) under its own C2SIM uuid; a container member, a synthesized sub-unit and a template re-create under an RFC 4122 v5 uuid of '<parent uuid>/<suffix>' in namespace 485b28e7-1cc7-534b-b6a6-9beddf07a1b1 (the same every run). The name is display and the SECONDARY key: an ObjectCreated whose uuid was not requested binds by name with a WARN, and a completion or POSITION report - which carries only a marking - is resolved marking -> uuid -> name first.
+info: VrfC2Sim[0]
+      PROGRESS WATCHDOG ON (C16, report-only): a 360 s no-progress window on the SIMULATION clock, 50 m of net displacement per member, sampled every 5 s; the window is that clock's calibrated default. Both defaults are calibrated on the same three replayed traces - 240 WALL s, 360 SIM s (docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md) - and are NOT a conversion of one another. FLOORS: at least 4 samples inside the window, on either clock; the 60 s post-dispatch floor is NOT applied as WALL time on this clock - at a high sim/wall ratio it, and not the calibrated window, would set the detection time (pass-2 review F8). The cost of that (pass-3 review P6): with the floor gone, the first verdict lands about window/ratio WALL seconds after a unit's watch opens - measured 240 s at 1.5x, 60 s at 6.21x (the top of the calibrated range), 8 s at 60x, 7 s at 120x - and above ~6x the 4-sample floor is the ONLY guard left against a member whose HLA reflection has not refreshed. On the sim clock the reader is DtVrfRemoteController::simTime(); if it cannot be read the watchdog falls back to WALL seconds AND to the wall window - and the numbers go with it: SIM 360 s window / sampled every 5 s; WALL FALLBACK 240 s / every 5 s. The pair above is the CONFIGURED clock's; which pair is in effect is not known until the first check, and the clock-mode line names it then (pass-3 review P11).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT TILE CACHE: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache - 420 file(s), the SHIPPED FALLBACK because Vrf:PreflightCacheDir is empty - it sits INSIDE THE BUILD OUTPUT and a clean rebuild DELETES it, so set Vrf:PreflightCacheDir to somewhere durable for anything that must stay warm (F3). Vrf:PreflightOffline=False. Every pre-flight reader (the lateral route shift, the post-dispatch warnings, and any hand-run) reads this one directory, and the file naming is byte-for-byte tools/preflight/leg_check.py's, so a warm copy can be dropped straight in.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT TILE CACHE SCRUB: 420 cached tile file(s) checked, all carry a valid TIFF/PNG signature (SF3).
+info: VrfC2Sim[0]
+      LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped default since the user ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one vertex, each leg is scored against the streamed terrain and a FLAGGED leg is detoured laterally - up to +/-600 m - onto ground the same sampler scores as clear. The SHIFT never moves, drops or reorders one of STP's vertices; the VERTEX CHECK before it (RL-20260927-01) moves a vertex that lies in OSM water or on a building, and reports every move. NO TASK IS EVER REFUSED: a timeout (30 s), a throw, a cache with no tiles or no cleared line all dispatch the AUTHORED line. Turn it off with Vrf:PreflightRouteShift=false (env Vrf__PreflightRouteShift=false). Tile cache: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache (420 files).
+info: VrfC2Sim[0]
+      MOVE TO PER VERTEX ON (Vrf:PlatformMoveToPerVertex, RL-20260927-01; FINDING_GROUND_MOVEMENT_PRACTICE_2026-09-27 sec 5.2): a LONE ground PLATFORM with a route of two or more points is driven as one Move To per route vertex - MoveToLocation to vertex 1, the next only when that one COMPLETES - so VR-Forces plans and recovers every leg (UG52 23.1-23.2); no route object is created for it. UNITS are unchanged (their unit Move Along Route plans per vertex already, UG52 30.22/30.24), and so are patrols, non-ground movers and one-point moves. Arrival evidence, the time rules, the progress watchdog and a parked Fire At key on the LAST vertex only. A vertex completion farther than 100 m (Vrf:VertexArrivalRadiusMeters) from its vertex is logged VACUOUS (R11). Turn it off with Vrf:PlatformMoveToPerVertex=false (env Vrf__PlatformMoveToPerVertex=false): every ground mover then gets CreateRoute + MoveAlongRoute as before.
+info: VrfC2Sim[0]
+      MODEL SET for task judging: Vrf:ModelSet='AggregateTacticalLevel' -> AggregateTacticalLevel (D1, RL-20260927-01). A MEMBERLESS aggregate - an aggregate-level unit, one simulated object with no members (UG52 27.1) - counts as ONE position, its own reflected centre point: arrival evidence scores it 1 of 1 and the progress watchdog samples it, so a unit that stops short is no longer silent at task level. An aggregate that publishes members is judged on its members, as before.
+info: VrfC2Sim[0]
+      MODEL SET RULE (D2b; RL-20260927-06, RL-20260928-01): Vrf:ModelSet='AggregateTacticalLevel' -> AggregateTacticalLevel. At every order the TASKED units (each task's PerformingEntity, never the init's untasked units) are ranked by their init EchelonCode on the runner's ladder (scripts/RunnerLib.ps1 Get-EchelonRank; NOS, NKN, air/naval, unknown and missing codes count below BN and are named): every order runs here - above BN is aggregate-only and this IS the aggregate model set, and a BN-and-below order runs as the OVERRIDE UP (allowed, RL-20260927-06).
+info: VrfC2Sim[0]
+      COMPOSED-SIBLING DE-STACK ON (Vrf:DeStackComposedSiblings, user ruling 2026-09-21 + N4). ON spreads composed siblings that share a coordinate onto ONE ring about it at EQUAL bearings, at their own echelon's spacing (table: TEAM 100 m, SQUAD 150 m, SECTION 300 m, PLATOON 350 m), so their CENTROID - the position VR-Forces publishes for the parent aggregate - stays on that coordinate and the parent's route keeps its length. OFF reproduces the pre-2026-09-21 behaviour exactly (children held on the parent), which is what runs D1-D6 measured. Rotation 0 deg, echelon fallback 0 m (0 = do not spread an echelon the table cannot size), overrides ''.
+info: VrfC2Sim[0]
+      ARRIVAL APPROACH FRACTION 0.50 (Vrf:ArrivalApproachFraction, user ruling 2026-09-21). Above 0 a member's traversal bar is capped at this share of ITS OWN distance to the last vertex at dispatch, instead of half the whole route - and since SF-1 that relaxation applies ONLY when the route genuinely goes somewhere (the taskee's own last-vertex separation is at least half the route's length). 0 restores the pre-2026-09-21 route bar for every member, which is the comparability setting for runs D1-D6. Radius 500 m, member fraction 0.50, minimum travel 100 m, checked every 5 s from 30 s after dispatch.
+info: VrfC2Sim[0]
+      DEMO EXTENT ON (Vrf:DemoExtent, RL-20261005-02): the demo extent S 53.93972 W 23.10848 N 54.11939 E 23.41436 + 2 km margin (tested box lat 53.92174..54.13737, lon 23.07778..23.44506). At order receipt a task whose performer's start, route vertices, point or area leaves it is REFUSED with one TASKABRT (OUT OF DEMO EXTENT) and not populated or executed; its successors are skipped. STP's order is unchanged.
+info: VrfC2Sim[0]
+      START TIME ANCHOR (STP-850): a task's StartTime/SimulationTime offset is measured from Receipt (Vrf:StartTimeAnchor=Receipt) - a task starts at max(its predecessor's completion, order receipt + (offset - the order's smallest SimulationTime offset)): each order - a split-order wave included - starts on its own receipt.
+info: VrfC2Sim[0]
+      TASK CLOCK (R4): C2SIM task times are measured on the SIMULATION clock (Vrf:TaskClock=sim) - falling back to WALL seconds only when DtVrfRemoteController::simTime() cannot be READ at all, without restarting any wait. A clock that is readable but FLAT while a VR-Forces back end is still there and OPERATING - it reports PAUSED or RUNNING and at least one known back end is still simulatable (STP-809) - is a PAUSE: task times are HELD and age by nothing (Q5). It carries ALL THREE of the task Duration that ends a task, the StartTime/DelayTimeAmount delay that holds one back, and the STREND predecessor gate. Vrf:DurationScale=0.0417; a successor waits max(Vrf:TaskPredecessorTimeoutSeconds=600 s, the predecessor's own scaled Duration + Vrf:TaskPredecessorEndMarginSeconds=60 s) for its predecessor to COMPLETE (M1) and, when that predecessor is a task in the same order, Vrf:TaskChainBackstopSeconds=86400 s for it to DISPATCH at all (A1) - a predecessor that really dies is abandoned, not timed out. Vrf:StallClock governs the progress watchdog ONLY.
+info: VrfC2Sim[0]
+      Vrf:ConfigFileIdentity - joining the CONFIG-FILE way: no --execName, no --fedFileName, FOM modules cleared. Native stack (pre-Start) = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll.
+info: VrfC2Sim[0]
+      Starting VrfBridge (protocol=Hla1516e, federation=)...
+Using MAK Technologies' RTI version 5.0.1 HLA 1516-2010 for Microsoft Visual C++ version 14.1 Release Mode.
+Loading Config File: <interface-root>\config\rid-501-rtiexec-min.mtl
+RTI_extend13and1516interop is enabled and RTI_enableFomComponentSorting is disabled.
+When using multiple HLA versions, it is suggested to enable sorting to overcome differences in FOM files.
+Name not found for attribute HLAconveyProducingFederate from class HLAinteractionRoot.HLAmanager.HLAfederate.HLAadjust.HLAsetSwitches
+Name not found for attribute HLAreturnedArguments from class HLAinteractionRoot.HLAmanager.HLAfederate.HLAreport.HLAreportServiceInvocation
+INFO[Util] 01:51:02.602 T:2248 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+info: VrfC2Sim[0]
+      VrfBridge native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll; ConnectionConfigFile='C:\MAK\vrforces5.2d\appData\settings\connections\MAK-ONE-2025-Config.xml'.
+info: VrfC2Sim[0]
+      Backend discovered (BackendCount=1) after 0.1 s.
+info: VrfC2Sim[0]
+      READY - joined the federation, 1 VR-Forces back-end(s), type mapping = FidelityTable, compose = on, position reports every 10s. Waiting for the C2SIM initialization (clientId=STP).
+info: VrfC2Sim[0]
+      BACK-END LIVENESS (STP-822): the back end is re-read every 10s on the wall clock; a count of ZERO held for 30s (and at least 2 consecutive samples) is reported as a LOSS - TASKABRT for every running task, one ObservationReport, position reports suspended. Nav-area gate for ground tasks = off.
+info: VrfC2Sim[0]
+      R1 position reports: 0 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 0 sent, 0 failed.
+info: VrfC2Sim[0]
+      STALL WATCHDOG: the 360 s no-progress window is measured on the SIMULATION clock.
+info: VrfC2Sim[0]
+      Connected to C2SIM (http://127.0.0.1:18080/C2SIMServer / http://127.0.0.1:61614/topic/C2SIM). clientId=STP.
+info: VrfC2Sim[0]
+      Late-join: server has no current init to share (128 chars).
+info: VrfC2Sim[0]
+      Sim Run() queued (start the VR-Forces clock; timeMult=1).
+info: VrfC2Sim[0]
+      C2SIM server state -> INITIALIZING.
+info: VrfC2Sim[0]
+      C2SIM Initialization (InitializationReceived, 2827 bytes).
+info: VrfC2Sim[0]
+      Type-mapping mode = FidelityTable (ground dispatch from <interface-root>\data\unit-type-map-52-aggregate.json; friendly=USA, opposing=RUS).
+info: VrfC2Sim[0]
+      TYPE MAP Exact: TEST_BDE -> BDE (11.1.225.8.3.1.1) [row=F-UCI-H key=b:functionId+sidcEchelon CONTAINER (RL-20260927-03): BDE (11:1:225:8:3:1:1) by the init rule - echelon BDE, branch 3 for UCI; the map row keys its composition]
+info: VrfC2Sim[0]
+      CreationPolicy=AtOrder (C13) on the AGGREGATE model set: 1 container(s) created EMPTY at their authored positions (RL-20260927-03) - every in-scope unit is an Aggregate Container (UG52 72.2.1 p1419), Disaggregated, with NO members, TO twins included (D-7 of RL-20260927-04); ONLY a unit an order tasks is populated, in place, when that order arrives. 0 other aggregate shell(s); 0 platform(s) created in full. The INIT CREATION BARRIER line counts the same shells over the same plan list (N15).
+info: VrfC2Sim[0]
+      INIT CREATION BARRIER: 1 object(s) planned by this initialization (1 empty shell(s)), armed at WALL 2026-10-15T01:51:06.594Z. Until they are bound, a task whose taskee is not taskable yet is HELD rather than dropped and an order-time materialization does not delete/re-create anything. THE BOUND THAT APPLIES HERE IS 20 s: it is Vrf:DispatchReadinessTimeoutSeconds (configured 60 s) CAPPED so the work this barrier releases finishes before a task's own composition backstop gives up on it (B1). A HOLD LINE NAMING THE SAME SETTING MEANS THE CONFIGURED VALUE, NOT THIS CAPPED ONE - two different numbers, one setting, both correct. The READY TO TASK line says when the wait is over.
+info: VrfC2Sim[0]
+      Init (InitializationReceived) graphics: 0 area(s) queued; 0 line(s) parsed -> 0 queued (0 with <2 vertices skipped), 0 point(s) parsed -> 0 queued (0 with no position skipped). Vrf:CreateInitLines=False Vrf:CreateInitPoints=False. R1 RESOLUTION (M5) is independent of those flags: 0 graphic(s) are now addressable by MapGraphicID (0 area(s), 0 line(s), 0 point(s), 0 task symbol(s) from this delivery; a task symbol is registered for resolution and never created as an object).
+info: VrfC2Sim[0]
+      Init dispatched: 1 units + 0 areas + 0 lines + 0 points queued for creation.
+info: VrfC2Sim[0]
+      C2SIM server state -> RUNNING.
+info: VrfC2Sim[0]
+      Server RUNNING; sim Run() queued.
+info: VrfC2Sim[0]
+      C2SIM server state -> RUNNING.
+info: VrfC2Sim[0]
+      Server RUNNING; sim Run() queued.
+info: VrfC2Sim[0]
+      C2SIM server state -> RUNNING.
+info: VrfC2Sim[0]
+      Server RUNNING; sim Run() queued.
+info: VrfC2Sim[0]
+      Init (InitializationReceived): terrain-profile request 1 sent for 1 create position(s); creation deferred to the reply (timeout 10 s -> fallback altitudes).
+info: VrfC2Sim[0]
+      Terrain profile reply 1: 1 sample(s) [#0:54.01940,23.31390,145.4].
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE domain=1 created at authored lat/lon; create alt 146.4235111652699 m from the TERRAIN QUERY (terrain height under the create point: 145.4 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 145.4 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:07.023Z).
+info: VrfC2Sim[0]
+      PLACEMENT summary: 1 of 1 create altitude(s) came from the TERRAIN QUERY, 0 from the FALLBACK (WALL 2026-10-15T01:51:07.023Z).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE' created as uuid 00000000-0000-00aa-0001-000000000001 (requested) marking 'TEST_BDE'
+Can't create data of type mark_minefields.  No creator found.  Only time this warning will be issued.
+Can't create data of type pa_reacttosubordinatesunderfire.  No creator found.  Only time this warning will be issued.
+Can't create data of type update_combat_effectiveness.  No creator found.  Only time this warning will be issued.
+info: VrfC2Sim[0]
+      READY TO TASK - 1 of 1 init unit(s) bound and at least one live location read, after 0.6 s. It is safe to push the order. CreationPolicy=AtOrder: 1 of them are EMPTY SHELLS - they display, reflect a position and can be tasked, and their members are created when an order first names them. What is ready is the shells; what is created later is their contents.
+info: VrfC2Sim[0]
+      IDENTITY: 1 of 1 objects bound by uuid, 0 by name (the initialization's own objects, at READY TO TASK; RL-20260928-02)
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 0 sent, 0 failed.
+info: VrfC2Sim[0]
+      C2SIM Order received (2953 bytes).
+info: VrfC2Sim[0]
+      MODEL SET RULE (D2b): allowed - this order's highest TASKED echelon BDE (TEST_BDE) is ABOVE BN, aggregate-only, and this interface runs Vrf:ModelSet=AggregateTacticalLevel (RL-20260927-06); 1 tasked unit(s), 2 task(s).
+info: VrfC2Sim[0]
+      ORDER: 2 task(s) for 1 taskee(s); verbs [CONSTR, ENGAGE].
+info: VrfC2Sim[0]
+      START TIME BASE (STP-850): this order's smallest SimulationTime offset is 0 s over 2 task(s) that carry one; Vrf:StartTimeAnchor=Receipt - every offset is rebased on it, so the order starts on its receipt.
+info: VrfC2Sim[0]
+      CHAIN DEPTH: the deepest STREND chain in this order dispatches its last task 150 s of TASK CLOCK after order receipt and is armed to end at 300 s (Vrf:DurationScale=0.0417); Vrf:TaskChainBackstopSeconds is 86400 s. A1: the backstop is what bounds phase 1 for a predecessor that is a task in this order, so it has to outlive that lead.
+info: VrfC2Sim[0]
+      ORDER RECEIPT (STP-850): stamped at TASK CLOCK 130.4 s, SIMULATION clock 130.4 s, WALL 2026-10-15T01:51:16.946Z - every receipt-anchored start below is this TASK CLOCK value plus its rebased, scaled offset.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE IN PLACE (task 'TEST_MOVE_1' performer; RL-20260927-03): source 3 - the authored table, row C-USA-BDE-UCI (map row F-UCI-H): 17 member(s) FLAT (D-8, RL-20260927-04: 3 sub-container(s) of the composition flattened to their leaves, every leaf attached directly to this container) on ONE ring round its point (54.019400,23.313900): spacing 180 m (2 x the largest Travel footprint of a company-or-below member), radius 490 m (centroid-preserving), reach 1090 m. Each is created AGGREGATED (UG52 Table 68 p1470) and attached by AddToOrganization; its tasks wait for the container to PUBLISH them (gate 85 s). NOTHING IS DELETED. Members: [TEST_BDE.HQ1 = TEST_BDE.HQ1 (Stryker  HHT (USA)), TEST_BDE.INF1HQ1 = TEST_BDE.INF1HQ1 (Stryker  HHT (USA)), TEST_BD.INF1RIF1 = TEST_BDE.INF1RIF1 (Mech CO (USA, M2)), TEST_BD.INF1RIF2 = TEST_BDE.INF1RIF2 (Mech CO (USA, M2)), TEST_BD.INF1RIF3 = TEST_BDE.INF1RIF3 (Mech CO (USA, M2)), TEST_BD.INF1WPN1 = TEST_BDE.INF1WPN1 (Mech CO (USA, M2)), TEST_BDE.INF2HQ1 = TEST_BDE.INF2HQ1 (Stryker  HHT (USA)), TEST_BD.INF2RIF1 = TEST_BDE.INF2RIF1 (Mech CO (USA, M2)), TEST_BD.INF2RIF2 = TEST_BDE.INF2RIF2 (Mech CO (USA, M2)), TEST_BD.INF2RIF3 = TEST_BDE.INF2RIF3 (Mech CO (USA, M2)), TEST_BD.INF2WPN1 = TEST_BDE.INF2WPN1 (Mech CO (USA, M2)), TEST_BDE.INF3HQ1 = TEST_BDE.INF3HQ1 (Stryker  HHT (USA)), TEST_BD.INF3RIF1 = TEST_BDE.INF3RIF1 (Mech CO (USA, M2)), TEST_BD.INF3RIF2 = TEST_BDE.INF3RIF2 (Mech CO (USA, M2)), TEST_BD.INF3RIF3 = TEST_BDE.INF3RIF3 (Mech CO (USA, M2)), TEST_BD.INF3WPN1 = TEST_BDE.INF3WPN1 (Mech CO (USA, M2)), TEST_BDE.CAV1 = TEST_BDE.CAV1 (Stryker Cavalry SQDN (USA))].
+info: VrfC2Sim[0]
+      IDENTITY: POPULATE TEST_BDE (00000000-0000-00aa-0001-000000000001): 17 member uuid(s) DERIVED - RFC 4122 v5 in namespace 485b28e7-1cc7-534b-b6a6-9beddf07a1b1 of '<container uuid>/<suffix>', the same every run (C1d, RL-20260928-02): [TEST_BDE.HQ1 = 45b07972-46ee-5901-8dbc-22995f1718f1 (00000000-0000-00aa-0001-000000000001/HQ1; TEST_BDE.HQ1); TEST_BDE.INF1HQ1 = 0cf1b8df-780f-5d8a-af30-597074ccc1ca (00000000-0000-00aa-0001-000000000001/INF1HQ1; TEST_BDE.INF1HQ1); TEST_BD.INF1RIF1 = 90652c38-891d-5d50-be5b-059c6b8d2b82 (00000000-0000-00aa-0001-000000000001/INF1RIF1; TEST_BDE.INF1RIF1); TEST_BD.INF1RIF2 = 434535fb-9b8e-59bb-9a3c-97ce0614756e (00000000-0000-00aa-0001-000000000001/INF1RIF2; TEST_BDE.INF1RIF2); TEST_BD.INF1RIF3 = e8175c80-ab03-5de3-9c71-941154bde1d1 (00000000-0000-00aa-0001-000000000001/INF1RIF3; TEST_BDE.INF1RIF3); TEST_BD.INF1WPN1 = 5c9844d0-47fb-556d-b3cd-b675df985ded (00000000-0000-00aa-0001-000000000001/INF1WPN1; TEST_BDE.INF1WPN1); TEST_BDE.INF2HQ1 = 280b70b5-75cb-5960-86e2-799431c9be82 (00000000-0000-00aa-0001-000000000001/INF2HQ1; TEST_BDE.INF2HQ1); TEST_BD.INF2RIF1 = bfa38f56-4f36-52d0-8def-d9a543809f36 (00000000-0000-00aa-0001-000000000001/INF2RIF1; TEST_BDE.INF2RIF1); TEST_BD.INF2RIF2 = ea8a4f79-2296-565f-a91d-41edf069339b (00000000-0000-00aa-0001-000000000001/INF2RIF2; TEST_BDE.INF2RIF2); TEST_BD.INF2RIF3 = c140f7f2-c278-50e8-bf8a-8c75253cda21 (00000000-0000-00aa-0001-000000000001/INF2RIF3; TEST_BDE.INF2RIF3); TEST_BD.INF2WPN1 = 0c2362ec-5003-551f-b7fb-cd0a371678cf (00000000-0000-00aa-0001-000000000001/INF2WPN1; TEST_BDE.INF2WPN1); TEST_BDE.INF3HQ1 = 788f8758-d5b5-52c4-a2f5-8c546ab8ffc3 (00000000-0000-00aa-0001-000000000001/INF3HQ1; TEST_BDE.INF3HQ1); TEST_BD.INF3RIF1 = 922b00ff-4842-5515-b0ba-397026941637 (00000000-0000-00aa-0001-000000000001/INF3RIF1; TEST_BDE.INF3RIF1); TEST_BD.INF3RIF2 = dc194c4a-0bcb-52e0-a41e-36e01dadbdb4 (00000000-0000-00aa-0001-000000000001/INF3RIF2; TEST_BDE.INF3RIF2); TEST_BD.INF3RIF3 = cbda0538-95e9-50af-a150-a1ee5c3c76f8 (00000000-0000-00aa-0001-000000000001/INF3RIF3; TEST_BDE.INF3RIF3); TEST_BD.INF3WPN1 = 976a5925-582c-5b08-a8f6-702352e5f9d1 (00000000-0000-00aa-0001-000000000001/INF3WPN1; TEST_BDE.INF3WPN1); TEST_BDE.CAV1 = 7c3a8021-4f4b-5b03-b042-b9289f86e2db (00000000-0000-00aa-0001-000000000001/CAV1; TEST_BDE.CAV1)].
+info: VrfC2Sim[0]
+      R-SURFACE-PROXY: TEST_BDE is now represented by 'BDE composed from 17 sub-unit(s)' (it was announced as 'BDE (empty shell)') - re-announcing the substitution to C2SIM.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': gated on 00000000-0000-00aa-0002-0000000000a1, which IS a task in this order and is armed to end 150 s after ITS dispatch. It has 86400 s to DISPATCH (A1: the Vrf:TaskChainBackstopSeconds backstop - a predecessor that really dies is ABANDONED, which fails this gate at once) and then 600 s to COMPLETE; the configured Vrf:TaskPredecessorTimeoutSeconds=600 s (+60 s margin) is the floor. M1/A1: a gate shorter than the end time it waits for, or than its predecessor's own lead time, skips the successor by construction.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': start delay 150 s (order says 3600 s; Vrf:DurationScale=0.0417; authored SimulationTime offset 3600 s -> offset used 3600 s, rebased on the order's smallest offset 0 s), counted from ORDER RECEIPT (Vrf:StartTimeAnchor=Receipt, STP-850) - it will not dispatch before then.
+info: VrfC2Sim[0]
+      DEMO EXTENT (Vrf:DemoExtent, RL-20261005-02): 2 task(s) in this order, 0 refused out of the demo extent S 53.93972 W 23.10848 N 54.11939 E 23.41436 + 2 km margin; performer(s) with no task accepted in this order, so not populated by it: none.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT MODEL SET AggregateTacticalLevel (Vrf:ModelSet; RL-20260927-01) - AggregateTacticalLevel: slope ratio OFF; a leg is FLAGGED only when OSM water (Lake areas, River lines at MAK_WIDTH 5 m) lies ON the centreline - MAK_WATERWAY is speed-factor 0, the unit stops; forest/swamp/municipal land use is REPORTED as expected slow (0.25), never flagged; Ocean/Coast/Alpine/Mountain/Hills sets are NOT read. OSM features read from <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache\osm-water (423 tile file(s), 0 of them 0 bytes = UNKNOWN) and \osm (424, 0 0 bytes); a missing or empty tile is UNKNOWN, never clear. VERTEX CHECK: an authored vertex in OSM water or within 10 m of an OSM building is moved to the nearest clear ground within 300 m and REPORTED (kept and reported when there is none) - the lateral shift itself still never moves a vertex.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT enabled: threshold 0.92 on a 40 m sustained window, step 8 m, tiles cached in <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache. Readers: warnings off, LATERAL ROUTE SHIFT ON (the shift CHANGES the line a unit drives; neither reader ever refuses a task).
+info: VrfC2Sim[0]
+      [REDACTED: startup banner line - project-internal example names]
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT calibration reference: elevation L13 at 34.66 N: posting 7.9 m E-W x 9.6 m N-S, so the 40 m sustained window spans 5.1 x 4.2 postings - the level the 0.92 threshold was calibrated on
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: layer.CLCplus.10m.online.xml -> 17 class rows
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: layer.CA-FVEG.15m.online.xml -> 60 class rows
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: layer.NLCD.30m.online.xml -> 19 class rows
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: layer.Copernicus.100m.online.xml -> 27 class rows
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: landCoverDataSurfChar.map -> 349 soiltype rows
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT vendor data: ground-tracked.sysdef -> 10 soil acceleration factors
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 1 of 17: TEST_BDE.HQ1 (Stryker  HHT (USA), C-USA-BDE-UCI/HQ1) at (54.023800,23.313900), bearing 0.0 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 2 of 17: TEST_BDE.INF1HQ1 (Stryker  HHT (USA), C-USA-BDE-UCI/INF1/HQ1) at (54.023503,23.316605), bearing 21.2 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 3 of 17: TEST_BD.INF1RIF1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF1/RIF1) at (54.022652,23.318945), bearing 42.4 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 4 of 17: TEST_BD.INF1RIF2 (Mech CO (USA, M2), C-USA-BDE-UCI/INF1/RIF2) at (54.022274,23.318916), bearing 63.5 deg from the container point - SLOT MOVED 150 m north-west - the planned slot lies IN OSM water (natural=water, OSM 197345448); the new point is the nearest ground clear of OSM water and of OSM buildings within 10 m - water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01).
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 5 of 17: TEST_BD.INF1RIF3 (Mech CO (USA, M2), C-USA-BDE-UCI/INF1/RIF3) at (54.019012,23.320006), bearing 84.7 deg from the container point - SLOT MOVED 125 m south-west - the planned slot lies IN OSM water (natural=water, OSM 197345448); the new point is the nearest ground clear of OSM water and of OSM buildings within 10 m - water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01).
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 6 of 17: TEST_BD.INF1WPN1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF1/WPN1) at (54.018037,23.320833), bearing 105.9 deg from the container point - SLOT MOVED 25 m south-west - the planned slot lies IN OSM water (natural=water, OSM 197345448); the new point is the nearest ground clear of OSM water and of OSM buildings within 10 m - water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01).
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 7 of 17: TEST_BDE.INF2HQ1 (Stryker  HHT (USA), C-USA-BDE-UCI/INF2/HQ1) at (54.016748,23.319876), bearing 127.1 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 8 of 17: TEST_BD.INF2RIF1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF2/RIF1) at (54.015659,23.317842), bearing 148.2 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 9 of 17: TEST_BD.INF2RIF2 (Mech CO (USA, M2), C-USA-BDE-UCI/INF2/RIF2) at (54.015075,23.315276), bearing 169.4 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 10 of 17: TEST_BD.INF2RIF3 (Mech CO (USA, M2), C-USA-BDE-UCI/INF2/RIF3) at (54.015075,23.312524), bearing 190.6 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 11 of 17: TEST_BD.INF2WPN1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF2/WPN1) at (54.015659,23.309958), bearing 211.8 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 12 of 17: TEST_BDE.INF3HQ1 (Stryker  HHT (USA), C-USA-BDE-UCI/INF3/HQ1) at (54.016748,23.307924), bearing 232.9 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 13 of 17: TEST_BD.INF3RIF1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF3/RIF1) at (54.018196,23.306697), bearing 254.1 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 14 of 17: TEST_BD.INF3RIF2 (Mech CO (USA, M2), C-USA-BDE-UCI/INF3/RIF2) at (54.019806,23.306443), bearing 275.3 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 15 of 17: TEST_BD.INF3RIF3 (Mech CO (USA, M2), C-USA-BDE-UCI/INF3/RIF3) at (54.021361,23.307196), bearing 296.5 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 16 of 17: TEST_BD.INF3WPN1 (Mech CO (USA, M2), C-USA-BDE-UCI/INF3/WPN1) at (54.021987,23.308666), bearing 317.6 deg from the container point - SLOT MOVED 75 m south - the planned slot lies IN OSM water (natural=water, OSM 16373225); the new point is the nearest ground clear of OSM water and of OSM buildings within 10 m - water clearance 10 m (Vrf:PreflightSlotWaterClearanceMeters, RL-20261004-01).
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE slot 17 of 17: TEST_BDE.CAV1 (Stryker Cavalry SQDN (USA), C-USA-BDE-UCI/CAV1) at (54.023503,23.311195), bearing 338.8 deg from the container point - clear.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: 17 member create(s) issued AGGREGATED (UG52 Table 68 p1470), each an EMPTY warfare-model unit with no subordinates of its own; the attach follows their ObjectCreated.
+info: VrfC2Sim[0]
+      Init (CONTAINER POPULATE TEST_BDE): terrain-profile request 3 sent for 17 create position(s); creation deferred to the reply (timeout 10 s -> fallback altitudes).
+info: VrfC2Sim[0]
+      Terrain profile reply 3: 17 sample(s) [#0:54.02380,23.31390,132.8 #1:54.02350,23.31661,132.0 #2:54.02265,23.31895,130.9 #3:54.02227,23.31892,129.4 #4:54.01901,23.32001,130.6 #5:54.01804,23.32083,132.5 #6:54.01675,23.31988,139.0 #7:54.01566,23.31784,139.7 #8:54.01508,23.31528,135.7 #9:54.01508,23.31252,138.0 #10:54.01566,23.30996,153.2 #11:54.01675,23.30792,148.4 #12:54.01820,23.30670,148.7 #13:54.01981,23.30644,155.3 #14:54.02136,23.30720,149.4 #15:54.02199,23.30867,134.9 #16:54.02350,23.31119,132.7].
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE.HQ1 domain=1 created at authored lat/lon; create alt 133.75198673958096 m from the TERRAIN QUERY (terrain height under the create point: 132.8 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 132.8 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.509Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE.INF1HQ1 domain=1 created at authored lat/lon; create alt 133.01342651410457 m from the TERRAIN QUERY (terrain height under the create point: 132.0 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 132.0 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.509Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF1RIF1 domain=1 created at authored lat/lon; create alt 131.86921327580066 m from the TERRAIN QUERY (terrain height under the create point: 130.9 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 130.9 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF1RIF2 domain=1 created at authored lat/lon; create alt 130.42451358047938 m from the TERRAIN QUERY (terrain height under the create point: 129.4 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 129.4 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF1RIF3 domain=1 created at authored lat/lon; create alt 131.64752664465982 m from the TERRAIN QUERY (terrain height under the create point: 130.6 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 130.6 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF1WPN1 domain=1 created at authored lat/lon; create alt 133.54110170285225 m from the TERRAIN QUERY (terrain height under the create point: 132.5 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 132.5 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE.INF2HQ1 domain=1 created at authored lat/lon; create alt 140.01158942108083 m from the TERRAIN QUERY (terrain height under the create point: 139.0 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 139.0 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF2RIF1 domain=1 created at authored lat/lon; create alt 140.71444012714568 m from the TERRAIN QUERY (terrain height under the create point: 139.7 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 139.7 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF2RIF2 domain=1 created at authored lat/lon; create alt 136.7106315000017 m from the TERRAIN QUERY (terrain height under the create point: 135.7 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 135.7 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF2RIF3 domain=1 created at authored lat/lon; create alt 138.99495771808995 m from the TERRAIN QUERY (terrain height under the create point: 138.0 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 138.0 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF2WPN1 domain=1 created at authored lat/lon; create alt 154.20164233895446 m from the TERRAIN QUERY (terrain height under the create point: 153.2 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 153.2 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE.INF3HQ1 domain=1 created at authored lat/lon; create alt 149.41296901934393 m from the TERRAIN QUERY (terrain height under the create point: 148.4 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 148.4 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF3RIF1 domain=1 created at authored lat/lon; create alt 149.7232626785871 m from the TERRAIN QUERY (terrain height under the create point: 148.7 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 148.7 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF3RIF2 domain=1 created at authored lat/lon; create alt 156.29004691751575 m from the TERRAIN QUERY (terrain height under the create point: 155.3 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 155.3 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF3RIF3 domain=1 created at authored lat/lon; create alt 150.42192700430513 m from the TERRAIN QUERY (terrain height under the create point: 149.4 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 149.4 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BD.INF3WPN1 domain=1 created at authored lat/lon; create alt 135.87110354112113 m from the TERRAIN QUERY (terrain height under the create point: 134.9 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 134.9 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT: UNIT TEST_BDE.CAV1 domain=1 created at authored lat/lon; create alt 133.66280796703967 m from the TERRAIN QUERY (terrain height under the create point: 132.7 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 132.7 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK's own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-10-15T01:51:17.510Z).
+info: VrfC2Sim[0]
+      PLACEMENT summary: 17 of 17 create altitude(s) came from the TERRAIN QUERY, 0 from the FALLBACK (WALL 2026-10-15T01:51:17.510Z).
+warn: VrfC2Sim[0]
+      NAME PRE-FLIGHT: 5 requested name pair(s) where the shorter is a strict PREFIX of the longer and is short enough to survive truncation at the 10-character DIS marking width - if the longer unit is created as a PLATFORM its marking comes back as the shorter name and the two cannot be told apart: ['TEST_BDE' < 'TEST_BDE.CAV1'; 'TEST_BDE' < 'TEST_BDE.INF2HQ1'; 'TEST_BDE' < 'TEST_BDE.INF3HQ1'; 'TEST_BDE' < 'TEST_BDE.INF1HQ1'; 'TEST_BDE' < 'TEST_BDE.HQ1']. The exact name wins and every such callback is logged; the fix is to keep every unit name inside that width (docs/PORT.md sec 6).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE.HQ1' created as uuid 45b07972-46ee-5901-8dbc-22995f1718f1 (requested) marking 'TEST_BDE.HQ1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BDE.HQ1' (12 chars) came back as EXACTLY that name (VRF_UUID:45b07972-46ee-5901-8dbc-22995f1718f1) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE.INF1HQ1' created as uuid 0cf1b8df-780f-5d8a-af30-597074ccc1ca (requested) marking 'TEST_BDE.INF1HQ1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BDE.INF1HQ1' (16 chars) came back as EXACTLY that name (VRF_UUID:0cf1b8df-780f-5d8a-af30-597074ccc1ca) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF1RIF1' created as uuid 90652c38-891d-5d50-be5b-059c6b8d2b82 (requested) marking 'TEST_BD.INF1RIF1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF1RIF1' (16 chars) came back as EXACTLY that name (VRF_UUID:90652c38-891d-5d50-be5b-059c6b8d2b82) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF1RIF2' created as uuid 434535fb-9b8e-59bb-9a3c-97ce0614756e (requested) marking 'TEST_BD.INF1RIF2'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF1RIF2' (16 chars) came back as EXACTLY that name (VRF_UUID:434535fb-9b8e-59bb-9a3c-97ce0614756e) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF1RIF3' created as uuid e8175c80-ab03-5de3-9c71-941154bde1d1 (requested) marking 'TEST_BD.INF1RIF3'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF1RIF3' (16 chars) came back as EXACTLY that name (VRF_UUID:e8175c80-ab03-5de3-9c71-941154bde1d1) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF1WPN1' created as uuid 5c9844d0-47fb-556d-b3cd-b675df985ded (requested) marking 'TEST_BD.INF1WPN1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF1WPN1' (16 chars) came back as EXACTLY that name (VRF_UUID:5c9844d0-47fb-556d-b3cd-b675df985ded) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE.INF2HQ1' created as uuid 280b70b5-75cb-5960-86e2-799431c9be82 (requested) marking 'TEST_BDE.INF2HQ1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BDE.INF2HQ1' (16 chars) came back as EXACTLY that name (VRF_UUID:280b70b5-75cb-5960-86e2-799431c9be82) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF2RIF1' created as uuid bfa38f56-4f36-52d0-8def-d9a543809f36 (requested) marking 'TEST_BD.INF2RIF1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF2RIF1' (16 chars) came back as EXACTLY that name (VRF_UUID:bfa38f56-4f36-52d0-8def-d9a543809f36) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF2RIF2' created as uuid ea8a4f79-2296-565f-a91d-41edf069339b (requested) marking 'TEST_BD.INF2RIF2'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF2RIF2' (16 chars) came back as EXACTLY that name (VRF_UUID:ea8a4f79-2296-565f-a91d-41edf069339b) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF2RIF3' created as uuid c140f7f2-c278-50e8-bf8a-8c75253cda21 (requested) marking 'TEST_BD.INF2RIF3'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF2RIF3' (16 chars) came back as EXACTLY that name (VRF_UUID:c140f7f2-c278-50e8-bf8a-8c75253cda21) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF2WPN1' created as uuid 0c2362ec-5003-551f-b7fb-cd0a371678cf (requested) marking 'TEST_BD.INF2WPN1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF2WPN1' (16 chars) came back as EXACTLY that name (VRF_UUID:0c2362ec-5003-551f-b7fb-cd0a371678cf) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE.INF3HQ1' created as uuid 788f8758-d5b5-52c4-a2f5-8c546ab8ffc3 (requested) marking 'TEST_BDE.INF3HQ1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BDE.INF3HQ1' (16 chars) came back as EXACTLY that name (VRF_UUID:788f8758-d5b5-52c4-a2f5-8c546ab8ffc3) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF3RIF1' created as uuid 922b00ff-4842-5515-b0ba-397026941637 (requested) marking 'TEST_BD.INF3RIF1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF3RIF1' (16 chars) came back as EXACTLY that name (VRF_UUID:922b00ff-4842-5515-b0ba-397026941637) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF3RIF2' created as uuid dc194c4a-0bcb-52e0-a41e-36e01dadbdb4 (requested) marking 'TEST_BD.INF3RIF2'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF3RIF2' (16 chars) came back as EXACTLY that name (VRF_UUID:dc194c4a-0bcb-52e0-a41e-36e01dadbdb4) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF3RIF3' created as uuid cbda0538-95e9-50af-a150-a1ee5c3c76f8 (requested) marking 'TEST_BD.INF3RIF3'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF3RIF3' (16 chars) came back as EXACTLY that name (VRF_UUID:cbda0538-95e9-50af-a150-a1ee5c3c76f8) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BD.INF3WPN1' created as uuid 976a5925-582c-5b08-a8f6-702352e5f9d1 (requested) marking 'TEST_BD.INF3WPN1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BD.INF3WPN1' (16 chars) came back as EXACTLY that name (VRF_UUID:976a5925-582c-5b08-a8f6-702352e5f9d1) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      IDENTITY: 'TEST_BDE.CAV1' created as uuid 7c3a8021-4f4b-5b03-b042-b9289f86e2db (requested) marking 'TEST_BDE.CAV1'
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: member 'TEST_BDE.CAV1' (13 chars) came back as EXACTLY that name (VRF_UUID:7c3a8021-4f4b-5b03-b042-b9289f86e2db) - at most 30 characters, it fits the aggregate marking (C1c); bound by its uuid (C1d).
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: 17 of 17 member(s) created; AddToOrganization issued for all of them in planned order (TEST_BDE.HQ1 first) - waiting for the container to PUBLISH them (gate ends 84 s from now).
+info: VrfC2Sim[0]
+      IDENTITY: 17 of 17 objects bound by uuid, 0 by name (the members of TEST_BDE; RL-20260928-02)
+Can't create data of type flee_when_routed.  No creator found.  Only time this warning will be issued.
+Can't create data of type halt_movement_before_obstacles.  No creator found.  Only time this warning will be issued.
+Can't create data of type negate-recon-posture-when-firing.  No creator found.  Only time this warning will be issued.
+Can't create data of type put_on_mopp_gear.  No creator found.  Only time this warning will be issued.
+Can't create data of type react_to_indirect_fire.  No creator found.  Only time this warning will be issued.
+Can't create data of type amplifiy-radar-signature.  No creator found.  Only time this warning will be issued.
+Can't create data of type attack_enemies.  No creator found.  Only time this warning will be issued.
+Can't create data of type forward-hostile-contacts.  No creator found.  Only time this warning will be issued.
+Can't create data of type maximum_speed_modifier.  No creator found.  Only time this warning will be issued.
+Can't create data of type pause-resupply-while-engaged.  No creator found.  Only time this warning will be issued.
+Can't create data of type perform_attrition.  No creator found.  Only time this warning will be issued.
+Can't create data of type resize_footprints.  No creator found.  Only time this warning will be issued.
+Can't create data of type update_ew_degradation.  No creator found.  Only time this warning will be issued.
+Can't create data of type use_supplies.  No creator found.  Only time this warning will be issued.
+info: VrfC2Sim[0]
+      POPULATE TEST_BDE: the container PUBLISHES 17 subordinate(s) (expected 17) 1.5 s after the population began, 0.3 s after the attach - READY FOR TASKING (RL-20260927-03).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': geometry from embedded Location (no MapGraphicID - STP-801).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': embedded Location read as Point (1 points, verb CONSTR) - one place to go to.
+info: VrfC2Sim[0]
+      ROUTE EXTENT CHECK (STP-833): rules (a) distance-from-taskee and (b) leg-length are armed; rule (c) inside-the-loaded-terrain is SKIPPED for this run because no terrain or navigation-area extent is readable from a VR-Forces remote controller (NavAreaEvidence: no nav-area query exists, and the terrain-profile reply answers with elevations for off-database points too - V6f authored two Swedish vertices at 97.2 m and 95.3 m).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': ROUTE SHIFT check queued for TEST_BDE (2 vertices); dispatch deferred to the result (timeout 30 s -> the authored line).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1' (TEST_BDE): VERTEX CHECK (AggregateTacticalLevel) - 1 authored vertex(es) checked against OSM water and buildings: 0 moved, 0 kept on bad ground, 0 unverified, the rest clear.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1' (TEST_BDE): ROAD LAYER for the AUTO planner (RL-20260928-03) - 10 osm-highways tile(s) within 1000 m of the legs readable, 0 not; the dispatch decides each leg's pathQuery from the cache.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_1' (TEST_BDE): ELEVATION LEVEL ACTUALLY USED - L12 x1 over 1 leg(s) (cascade start L13, floor L11, dataset 149; the threshold 0.92 was calibrated at L13). L0 means NO level served that leg and NOTHING about it was checked (E6).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_1' (TEST_BDE) leg 1: scored at elevation L12 at 54.02 N: posting 11.2 m E-W x 19.1 m N-S, so the 40 m sustained window spans 3.6 x 2.1 postings - COARSER than the L13 the 0.92 threshold was calibrated on - the sustained window is averaged over fewer postings, so a real face reads LOWER and a flag can be MISSED (never invented). This is the SERVER'S answer - the finer level(s) returned 'no tile', not a failed fetch; a fetch failure gets NO VERDICT instead of a coarser score (F2).
+warn: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_1' (TEST_BDE) leg 1: WATER ON THE LINE - 91 of 347 sample(s) classify as deep-water (CLCplus 10m), first at (54.02517,23.31999), 0.77 km along. Deep water is acceleration-factor 0.000 in ground-tracked.sysdef, so a ground vehicle driven onto it STOPS and the task stays TaskRunning. This is an estimate off land-cover tiles: nothing is refused or altered, and the leg is dispatched.
+warn: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_1' (TEST_BDE) leg 1: OSM WATER ON THE LINE - OSM 197345448 (natural=water), nearest 0.0 m, first at (54.02505,23.31986) 0.75 km along, 102 of 347 sample(s). Under model set AggregateTacticalLevel this FLAGS the leg (RL-20260927-01); the shift's own lines say what was done about it.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_1' (TEST_BDE) leg 1: EXPECTED SLOW - 985 m of 2761 m in OSM forest/swamp/municipal land use (speed-factor 0.25 on the aggregate model set); reported only.
+warn: VrfC2Sim[0]
+      Task 'TEST_MOVE_1' (TEST_BDE) leg 1: NO ROUTE SHIFT - the leg is driven by the vendor's planning task (Vrf:AggregateMovePlanner=Auto, RL-20260928-03), which plans round MAK_OBSTACLE itself - the pre-flight REPORTS a planned leg and does not detour it (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28 sec 5 item 4). The task is dispatched on the line as authored.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1' (TEST_BDE) leg 1: ROUTE SHIFT candidates - 
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': geometry from embedded Location (no MapGraphicID - STP-801).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': embedded Location read as Point (1 points, verb CONSTR) - one place to go to.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': terrain profile request 21 sent for 2 vertices; dispatch deferred to the reply (timeout 10 s -> Live fallback).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT TILE CENSUS, batch 1 of this order (E6/N8): 23 cache HIT(s), 0 HTTP FETCH(es) since the previous census line. RUNNING TOTAL SO FAR (not the run total - the final one is printed at shutdown): 31 hits, 0 fetches, 0 tile(s) given up on after 3 attempts, 0 undecodable body(ies). Cache: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache. A non-zero FETCH count means this order's dispatches waited on the network - pre-warm the AO's tiles to remove that wait. One line per BATCH of scoring work: a chained order scores one task per batch, so batch N is task N.
+info: VrfC2Sim[0]
+      Terrain profile reply 21: 2 sample(s) [#0:54.01936,23.31369,145.9 #1:54.04030,23.33640,128.9].
+info: VrfC2Sim[0]
+      Terrain profile 21 for task 'TEST_MOVE_1': all 2 vertices authored from terrain + 10 m clearance; alts [155.9, 138.9].
+info: VrfC2Sim[0]
+      PLACEMENT RE-CLAMP gate: TEST_BDE is ON the terrain - live 139.0 m vs terrain 145.9 m under vertex 0 (gap 6.9 m, tolerance 50 m). Dispatching.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': CONSTR by TEST_BDE: the obstacle construction is not simulated - the unit moves to the obstacle location and holds there, and the task completes by time.
+info: VrfC2Sim[0]
+      DISPATCHED TEST_BDE task 'TEST_MOVE_1' (navigate-to-location) at WALL 2026-10-15T01:51:19.393Z, SIMULATION clock 215.9 s. Every elapsed figure this run prints for this task is labelled WALL or SIMULATION (N7); neither is the other.
+info: VrfC2Sim[0]
+      SENT TASK STATUS REPORT (TASKSTRT) taskee=00000000-0000-00aa-0001-000000000001 task=00000000-0000-00aa-0002-0000000000a1 - dispatched to TEST_BDE as 'navigate-to-location'.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': end time armed at 150 s from dispatch (C2SIM Duration 3600 s x Vrf:DurationScale 0.0417) - it has a destination: an earlier arrival is held to this end time, and if the unit is still travelling then it completes when it arrives (temporary position on completion, RL-20260921-09).
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: roads NEAR (0 m) -> MAK_ROAD; obstacleQuery MAK_OBSTACLE buffer 10 m [nearest OSM 783013873 highway=track; within Vrf:RoadProximityMeters=500]
+Can't create data of type navigate-to-location.  No creator found.  Only time this warning will be issued.
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: navigate-to-location issued (useRoads true) -> OUTSTANDING to (54.040300,23.336400) - to each of 17 member(s) [destination=(54.040300,23.336400), obstacleQuery="MAK_OBSTACLE", pathQuery="MAK_ROAD", buffer=10, displayRoute=false, query=""] (RL-20260928-03)
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_1': PLANNED MOVE for CONTAINER TEST_BDE (VRF_UUID:00000000-0000-00aa-0001-000000000001) - Vrf:AggregateMovePlanner=Auto (RL-20260928-03): 1 vertex(es), one vendor planning task each, the next only when the previous one COMPLETES; each vertex goes to every one of its 17 attached member(s); no route object is created. Arrival evidence, the time rules, the watchdog and D-6 judge the LAST vertex.
+info: VrfC2Sim[0]
+      TIMED COMPLETION: 1 task(s) are timing out against the SIMULATION clock; Vrf:DurationScale=0.0417.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 8 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 9 sent, 0 failed.
+warn: VrfC2Sim[0]
+      TIMED COMPLETION: task 'TEST_MOVE_1' on TEST_BDE reached its END TIME - 166 s of a 150 s Duration served on the simulation clock - but the unit has NOT ARRIVED: OVERDUE. No TASKCMPLT is sent now; it is sent the moment the unit arrives, and its follow-on tasks keep waiting until then (temporary position on completion, RL-20260921-09). A unit that is stuck is reported by the progress watchdog (Vrf:StallDetection=True).
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 10 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 11 sent, 0 failed.
+info: VrfC2Sim[0]
+      VRF console [1] TEST_BDE.INF1HQ1 (VRF_UUID:0cf1b8df-780f-5d8a-af30-597074ccc1ca): Movement constrained by features
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 12 sent, 0 failed.
+info: VrfC2Sim[0]
+      SIM/WALL RATIO 8.685 over the last 60 WALL s (simulation clock now 530.2 s; reader DtVrfRemoteController::simTime()). 1.000 = real time; above it the scenario is running fast (fixed-frame-run-to-complete); 0.000 = paused. EVERY 'after dispatch' figure in this log is WALL seconds unless the line says SIMULATION - the two are not interchangeable at this ratio.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 13 sent, 0 failed.
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: member TEST_BDE.INF2HQ1 navigate-to-location COMPLETED - 1 of 17 member(s) ended (1 succeeded, 0 failed); waiting for the rest.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 14 sent, 0 failed.
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: member TEST_BDE.HQ1 navigate-to-location COMPLETED - 2 of 17 member(s) ended (2 succeeded, 0 failed); waiting for the rest.
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: member TEST_BDE.INF3HQ1 navigate-to-location COMPLETED - 3 of 17 member(s) ended (3 succeeded, 0 failed); waiting for the rest.
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: member TEST_BDE.CAV1 navigate-to-location COMPLETED - 4 of 17 member(s) ended (4 succeeded, 0 failed); waiting for the rest.
+info: VrfC2Sim[0]
+      VRF console [1] TEST_BD.INF1RIF2 (VRF_UUID:434535fb-9b8e-59bb-9a3c-97ce0614756e): Movement constrained by features
+info: VrfC2Sim[0]
+      VRF console [1] TEST_BD.INF1RIF1 (VRF_UUID:90652c38-891d-5d50-be5b-059c6b8d2b82): Movement constrained by features
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 15 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 16 sent, 0 failed.
+info: VrfC2Sim[0]
+      ARRIVAL EVIDENCE: TEST_BDE task 'TEST_MOVE_1' - 1/1 member(s) within 500 m of the last vertex (nearest 493 m) AND past their OWN traversal bar (route bar 1380 m, lowest member bar 1380 m at approach fraction 0.50, per-member relaxation APPLIED (the route goes somewhere: the last vertex is at least half the route's length from where the taskee was dispatched); farthest travel 2273 m of a 2761 m route whose last vertex is 2761 m from the dispatch position) 90.1 WALL s after dispatch = 628.2 SIMULATION s (sim clock 215.9 -> 844.1 s) - reporting completion from the unit's own evidence (user rulings 2026-09-07 and 2026-09-21; traversal required, STP-837); a later vendor completion is swallowed. ONE POSITION: an aggregate-level unit with no members, judged on its own reflected centre point (D1, RL-20260927-01).
+info: VrfC2Sim[0]
+      Unit TEST_BDE: task 'TEST_MOVE_1' was OVERDUE and the unit has now ARRIVED - reported complete now, and its follow-on tasks are released (RL-20260921-09).
+info: VrfC2Sim[0]
+      SENT TASK STATUS REPORT (TASKCMPLT) taskee=00000000-0000-00aa-0001-000000000001 task=00000000-0000-00aa-0002-0000000000a1 - unit TEST_BDE arrived after its task's end time (start time + Duration) - complete on arrival.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': geometry from embedded Location (no MapGraphicID - STP-801).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': embedded Location read as Point (1 points, verb ENGAGE) - one place to go to.
+info: VrfC2Sim[0]
+      ATTACK task 'TEST_MOVE_2': the order names the PERFORMING UNIT as the affected entity (STP's default for most tasks), so THE TARGET IS THE OBJECTIVE (R3, user ruling 2026-09-14) - the task's geometry is what it is about and the unit is routed there. No fire against a named entity is issued.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': ROUTE SHIFT check queued for TEST_BDE (2 vertices); dispatch deferred to the result (timeout 30 s -> the authored line).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2' (TEST_BDE): VERTEX CHECK (AggregateTacticalLevel) - 1 authored vertex(es) checked against OSM water and buildings: 0 moved, 0 kept on bad ground, 0 unverified, the rest clear.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2' (TEST_BDE): ROAD LAYER for the AUTO planner (RL-20260928-03) - 6 osm-highways tile(s) within 1000 m of the legs readable, 0 not; the dispatch decides each leg's pathQuery from the cache.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_2' (TEST_BDE): ELEVATION LEVEL ACTUALLY USED - L12 x1 over 1 leg(s) (cascade start L13, floor L11, dataset 149; the threshold 0.92 was calibrated at L13). L0 means NO level served that leg and NOTHING about it was checked (E6).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_2' (TEST_BDE) leg 1: scored at elevation L12 at 54.04 N: posting 11.2 m E-W x 19.1 m N-S, so the 40 m sustained window spans 3.6 x 2.1 postings - COARSER than the L13 the 0.92 threshold was calibrated on - the sustained window is averaged over fewer postings, so a real face reads LOWER and a flag can be MISSED (never invented). This is the SERVER'S answer - the finer level(s) returned 'no tile', not a failed fetch; a fetch failure gets NO VERDICT instead of a coarser score (F2).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT task 'TEST_MOVE_2' (TEST_BDE) leg 1: EXPECTED SLOW - 234 m of 493 m in OSM forest/swamp/municipal land use (speed-factor 0.25 on the aggregate model set); reported only.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2' (TEST_BDE): ROUTE SHIFT - no leg flagged; the route is unchanged.
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT TILE CENSUS, batch 2 of this order (E6/N8): 0 cache HIT(s), 0 HTTP FETCH(es) since the previous census line. RUNNING TOTAL SO FAR (not the run total - the final one is printed at shutdown): 31 hits, 0 fetches, 0 tile(s) given up on after 3 attempts, 0 undecodable body(ies). Cache: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache. A non-zero FETCH count means this order's dispatches waited on the network - pre-warm the AO's tiles to remove that wait. One line per BATCH of scoring work: a chained order scores one task per batch, so batch N is task N.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': geometry from embedded Location (no MapGraphicID - STP-801).
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': embedded Location read as Point (1 points, verb ENGAGE) - one place to go to.
+info: VrfC2Sim[0]
+      ATTACK task 'TEST_MOVE_2': the order names the PERFORMING UNIT as the affected entity (STP's default for most tasks), so THE TARGET IS THE OBJECTIVE (R3, user ruling 2026-09-14) - the task's geometry is what it is about and the unit is routed there. No fire against a named entity is issued.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': terrain profile request 22 sent for 2 vertices; dispatch deferred to the reply (timeout 10 s -> Live fallback).
+info: VrfC2Sim[0]
+      Terrain profile reply 22: 2 sample(s) [#0:54.03689,23.33158,122.3 #1:54.04030,23.33640,128.9].
+info: VrfC2Sim[0]
+      Terrain profile 22 for task 'TEST_MOVE_2': all 2 vertices authored from terrain + 10 m clearance; alts [132.3, 138.9].
+info: VrfC2Sim[0]
+      PLACEMENT RE-CLAMP gate: TEST_BDE is ON the terrain - live 128.2 m vs terrain 122.3 m under vertex 0 (gap 5.9 m, tolerance 50 m). Dispatching.
+info: VrfC2Sim[0]
+      ATTACK task 'TEST_MOVE_2': the order names the PERFORMING UNIT as the affected entity (STP's default for most tasks), so THE TARGET IS THE OBJECTIVE (R3, user ruling 2026-09-14) - the task's geometry is what it is about and the unit is routed there. No fire against a named entity is issued.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2' (verb ENGAGE, TEST_BDE): ATTACK: advancing to the objective; rules of engagement set to fire at will - members engage enemies they encounter (RL-20260926-01). The order's own rules of engagement ('ROEHold') are overridden for this task.
+info: VrfC2Sim[0]
+      Unit TEST_BDE: the MOVE TO PER VERTEX chain of task 'TEST_MOVE_1' ends at vertex 1 of 1 - task 'TEST_MOVE_2' (navigate-to-location) is dispatched to the same unit (RL-20260927-01).
+info: VrfC2Sim[0]
+      DISPATCHED TEST_BDE task 'TEST_MOVE_2' (navigate-to-location) at WALL 2026-10-15T01:52:49.772Z, SIMULATION clock 844.1 s. Every elapsed figure this run prints for this task is labelled WALL or SIMULATION (N7); neither is the other.
+info: VrfC2Sim[0]
+      SENT TASK STATUS REPORT (TASKSTRT) taskee=00000000-0000-00aa-0001-000000000001 task=00000000-0000-00aa-0002-0000000000a2 - dispatched to TEST_BDE as 'navigate-to-location'.
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': end time armed at 150 s from dispatch (C2SIM Duration 3600 s x Vrf:DurationScale 0.0417) - it has a destination: an earlier arrival is held to this end time, and if the unit is still travelling then it completes when it arrives (temporary position on completion, RL-20260921-09).
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: roads NEAR (0 m) -> MAK_ROAD; obstacleQuery MAK_OBSTACLE buffer 10 m [nearest OSM 130663717 highway=unclassified; within Vrf:RoadProximityMeters=500]
+info: VrfC2Sim[0]
+      PLANNED MOVE TEST_BDE vertex 1 of 1: navigate-to-location issued (useRoads true) -> OUTSTANDING to (54.040300,23.336400) - to each of 17 member(s) [destination=(54.040300,23.336400), obstacleQuery="MAK_OBSTACLE", pathQuery="MAK_ROAD", buffer=10, displayRoute=false, query=""] (RL-20260928-03)
+info: VrfC2Sim[0]
+      Task 'TEST_MOVE_2': PLANNED MOVE for CONTAINER TEST_BDE (VRF_UUID:00000000-0000-00aa-0001-000000000001) - Vrf:AggregateMovePlanner=Auto (RL-20260928-03): 1 vertex(es), one vendor planning task each, the next only when the previous one COMPLETES; each vertex goes to every one of its 17 attached member(s); no route object is created. Arrival evidence, the time rules, the watchdog and D-6 judge the LAST vertex.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 20 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 21 sent, 0 failed.
+info: VrfC2Sim[0]
+      SIM/WALL RATIO 5.493 over the last 60 WALL s (simulation clock now 859.9 s; reader DtVrfRemoteController::simTime()). 1.000 = real time; above it the scenario is running fast (fixed-frame-run-to-complete); 0.000 = paused. EVERY 'after dispatch' figure in this log is WALL seconds unless the line says SIMULATION - the two are not interchangeable at this ratio.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 22 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 23 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 24 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 25 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 26 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 27 sent, 0 failed.
+info: VrfC2Sim[0]
+      SIM/WALL RATIO 1.000 over the last 60 WALL s (simulation clock now 919.9 s; reader DtVrfRemoteController::simTime()). 1.000 = real time; above it the scenario is running fast (fixed-frame-run-to-complete); 0.000 = paused. EVERY 'after dispatch' figure in this log is WALL seconds unless the line says SIMULATION - the two are not interchangeable at this ratio.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 28 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 29 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 30 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 31 sent, 0 failed.
+info: VrfC2Sim[0]
+      TIMED COMPLETION: 1 task(s) are timing out against the WALL clock - Vrf:TaskClock=sim, but the sim clock could not be read; Vrf:DurationScale=0.0417.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 32 sent, 0 failed.
+info: VrfC2Sim[0]
+      STALL WATCHDOG: the 240 s no-progress window is measured on the WALL clock - Vrf:StallClock=sim, but the sim clock could not be read (no back end reporting).
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 33 sent, 0 failed.
+info: VrfC2Sim[0]
+      R1 position reports: 1 sent, 0 skipped (NAME UNRESOLVED - no VRF uuid), 0 skipped (no reflected object yet), 0 without heading/speed (kinematics read failed), sides=both, every 10s; cumulative: 34 sent, 0 failed.
+warn: VrfC2Sim[0]
+      TIMED COMPLETION: task 'TEST_MOVE_2' on TEST_BDE reached its END TIME - 151 s of a 150 s Duration served on the wall clock - but the unit has NOT ARRIVED: OVERDUE. No TASKCMPLT is sent now; it is sent the moment the unit arrives, and its follow-on tasks keep waiting until then (temporary position on completion, RL-20260921-09). A unit that is stuck is reported by the progress watchdog (Vrf:StallDetection=True).
+fail: VrfC2Sim[0]
+      BACK END LOST: VR-Forces back end lost (no status for 40 s). Last good reading 2026-10-15T01:54:44Z; 1 task(s) in flight - each is reported TASKABRT and ABANDONED, position reports are SUSPENDED and the progress watchdog stands down until it reports again. Signals now: BackendCount=0, active=0, control=NoBackend. A back end that stops mid-run looks exactly like this, and on this stack a STOPPED 5.2d back end ALSO RUNS AWAY at ~2.2 GB/min (V6_LIVE_JOIN_GATE sec 11.3), so treat a lost back end as a machine-safety event, not only a reporting one.
+info: VrfC2Sim[0]
+      TIMED COMPLETION: the end time armed for task 00000000-0000-00aa-0002-0000000000a2 is cancelled - TASKABRT reached the reporting point first (VR-Forces back end lost (no status for 40 s)).
+info: VrfC2Sim[0]
+      SENT TASK STATUS REPORT (TASKABRT) taskee=00000000-0000-00aa-0001-000000000001 task=00000000-0000-00aa-0002-0000000000a2 - VR-Forces back end lost (no status for 40 s).
+warn: VrfC2Sim[0]
+      BACK END LOST: 1 MOVE TO PER VERTEX chain(s) FROZEN with their tasks - no further Move To is issued, and an intermediate vertex that still completes is not reported as the task's arrival (RL-20260927-01).
+warn: VrfC2Sim[0]
+      R1 position reports SUSPENDED: the VR-Forces back end is LOST (STP-822). Its reflected attributes are still READABLE but they are STALE, so no fix is sent until it reports again.
+warn: VrfC2Sim[0]
+      STALL WATCHDOG: STANDING DOWN - the VR-Forces back end is LOST (STP-822). No unit is judged until it reports again; the tasks that were running have already been reported TASKABRT by the liveness check.
+info: VrfC2Sim[0]
+      C2SIM server state -> INITIALIZED.
+info: VrfC2Sim[0]
+      C2SIM server state -> UNINITIALIZED.
+info: VrfC2Sim[0]
+      Server UNINITIALIZED; initiating clean stop.
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: VrfC2Sim[0]
+      Shutting down...
+info: VrfC2Sim[0]
+      Cleanup: deleting 18 created VR-Forces objects before resign...
+info: VrfC2Sim[0]
+      Cleanup: 18 deletes dispatched (1574 ms).
+info: VrfC2Sim[0]
+      Reports this run: 37 delivered, 0 FAILED (a failed report is lost - it is never re-sent).
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT TILE TOTAL for this RUN (E6/N8, at shutdown; no scoring worker was outstanding when this line was written, so it is the run total): 31 cache HIT(s), 0 HTTP FETCH(es), 0 tile(s) given up on after 3 attempts, 0 undecodable body(ies). Cache: <interface-root>\src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\preflight-cache. The per-batch CENSUS lines above are deltas and running totals as of each line.
+info: C2SIM.C2SIMSDK[0]
+      STOMP block reading cancelled
