@@ -462,6 +462,21 @@ public sealed class ContainerPopulator
         return v;
     }
 
+    /// <summary>
+    /// M2 (census 2026-10-15): a PER-MEMBER planned vertex where each member gets its OWN variables (its own offset
+    /// destination - Move (Group)'s geometry), through the same single gate as <see cref="TryIssueMemberMoves"/>.
+    /// </summary>
+    public ContainerMoveVerdict TryIssueMemberMovesEach(string container,
+                                                        IReadOnlyList<(string Uuid, IReadOnlyList<ContainerTaskVar> Vars)> each,
+                                                        string scriptId, DateTime now, IContainerBridge bridge)
+    {
+        var v = MoveVerdict(container, now);
+        if (!v.Ready) return v;
+        foreach (var (uuid, vars) in each ?? Array.Empty<(string, IReadOnlyList<ContainerTaskVar>)>())
+            bridge.RunScriptedTask(uuid, scriptId, vars);
+        return v;
+    }
+
     private static void SetDeadlines(Pop p, DateTime now, double timeoutSeconds, double publicationWindowSeconds)
     {
         double t = Math.Max(1.0, double.IsFinite(timeoutSeconds) ? timeoutSeconds : 1.0);

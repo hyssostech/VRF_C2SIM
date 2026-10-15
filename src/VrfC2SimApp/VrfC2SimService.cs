@@ -3686,6 +3686,23 @@ public sealed class VrfC2SimService : BackgroundService
                                 : $"each vertex goes to the container ({publishedMembers} published member(s))");
     }
 
+    /// <summary>TICK THREAD, M2 (census 2026-10-15): the members' Move (Group) offset destinations for one vertex, from the
+    /// members' live positions round the container's own reflected centre point (the vendor's this:getLocation3D()); the
+    /// members' centroid when the centre cannot be read. Category 0: no compression (the container's DtAggregateCategory
+    /// is not tracked here - the members' real spread is kept). READS only; IssuePlannedVertex issues.</summary>
+    private MemberOffsets.Result MemberOffsetsFor(PlannedMoveTracker.Context ctx, string containerUuid, VertexChainTracker.Point v)
+    {
+        var fixes = ctx.Members.Select(m => _bridge.TryGetEntityGeodetic(m.Uuid, out var g)
+                                                ? new MemberOffsets.MemberFix(m.Name, g.LatDeg, g.LonDeg, true)
+                                                : new MemberOffsets.MemberFix(m.Name, 0, 0, false)).ToList();
+        var located = fixes.Where(f => f.Located).ToList();
+        double cLat, cLon;
+        if (_bridge.TryGetEntityGeodetic(containerUuid, out var centre)) { cLat = centre.LatDeg; cLon = centre.LonDeg; }
+        else if (located.Count > 0) { cLat = located.Average(f => f.Lat); cLon = located.Average(f => f.Lon); }
+        else { cLat = v.Lat; cLon = v.Lon; }
+        return MemberOffsets.For(cLat, cLon, fixes, v.Lat, v.Lon, 0);
+    }
+
     /// <summary>TICK THREAD: issue ONE planned vertex (the chain has made it OUTSTANDING). Move (Group) goes to the
     /// container; a per-member planner opens the vertex's step, then sends navigate-to-location to every attached member.
     /// Both through the population's one gate: nothing goes to a container that no longer publishes its members.</summary>
@@ -3698,7 +3715,23 @@ public sealed class VrfC2SimService : BackgroundService
         if (ctx.Planner == AggregateMovePlanner.Auto)
             _log.LogInformation("{Line}", AggregateMovePolicy.RoadLine(container, vertex, chain.VertexCount, road));
         ContainerMoveVerdict verdict;
-        if (t.PerMember)
+        string offsetNote = "";
+        if (t.PerMember && AggregateMovePolicy.OffsetsMembers(ctx.Planner))
+        {
+            // M2: each member to its OWN Move (Group) offset destination (MemberOffsets; group_movement_simplified.lua
+            // :28-55, :83-176), read by MemberOffsetsFor (the live positions; nothing is issued there).
+            var offs = MemberOffsetsFor(ctx, chain.VrfUuid, v);
+            var each = ctx.Members.Select(m =>
+            {
+                var (dLat, dLon) = offs.Destinations[m.Name];
+                return (m.Uuid, AggregateMovePolicy.PlanPathVars(dLat, dLon));
+            }).ToList();
+            _plannedMoves.BeginVertex(container, chain.Generation, vertex);
+            verdict = _containers.TryIssueMemberMovesEach(container, each, t.ScriptId, DateTime.UtcNow, _containerBridge);
+            offsetNote = FormattableString.Invariant(
+                $" - EACH member to its own Move (Group) offset destination (group bearing {offs.GroupBearingDeg:F0} deg, to the vertex {offs.BearingToDestinationDeg:F0} deg, scale {offs.Scale:F2}, {offs.Unlocated} member(s) unlocated -> the vertex itself)");
+        }
+        else if (t.PerMember)
         {
             _plannedMoves.BeginVertex(container, chain.Generation, vertex);
             verdict = _containers.TryIssueMemberMoves(container, ctx.Members.Select(m => m.Uuid).ToList(), t.ScriptId, t.Vars,
@@ -3711,7 +3744,7 @@ public sealed class VrfC2SimService : BackgroundService
             throw new InvalidOperationException($"container {container} may no longer take a move: {verdict.Reason}");
         _log.LogInformation("{Line}", AggregateMovePolicy.VertexLine(container, vertex, chain.VertexCount, t.ScriptId, t.UseRoads,
             "OUTSTANDING", FormattableString.Invariant($"to ({v.Lat:F6},{v.Lon:F6})") +
-            (t.PerMember ? $" - to each of {ctx.Members.Count} member(s)" : $" - to the container {chain.VrfUuid}") +
+            (t.PerMember ? $" - to each of {ctx.Members.Count} member(s)" : $" - to the container {chain.VrfUuid}") + offsetNote +
             $" [{string.Join(", ", t.Vars)}] ({AggregateMovePolicy.RulingId})"));
     }
 
@@ -3833,9 +3866,13 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void CompletePlannedStep(string container, bool success)
     {
-        if (ConsumeVertexChainCompletion(container, AggregateMovePolicy.NavigateScript, success)) return;
+        // The step's own completion type (navigate-to-location, or the M1 wrapper under PlanPath) - read before the chain
+        // consumes it, which may end the planned-move context.
+        string stepType = _plannedMoves.TryGet(container, out var stepCtx)
+            ? AggregateMovePolicy.CompletionTaskType(stepCtx.Planner) : AggregateMovePolicy.NavigateScript;
+        if (ConsumeVertexChainCompletion(container, stepType, success)) return;
         if (success && IsContainerUnit(container) && !_arrivalReported.ContainsKey(container)
-            && WithholdShortContainerCompletion(container, AggregateMovePolicy.NavigateScript)) return;
+            && WithholdShortContainerCompletion(container, stepType)) return;
         ClearStallState(container);
         if (_arrivalReported.TryRemove(container, out var reportedTask))
         {
@@ -3843,7 +3880,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 container, reportedTask);
             return;
         }
-        SynthesizeUnitCompletion(container, AggregateMovePolicy.NavigateScript, success);
+        SynthesizeUnitCompletion(container, stepType, success);
     }
 
     /// <summary>The TASKABRT reason a failed planned vertex left for this container's task (consumed; a reason left for

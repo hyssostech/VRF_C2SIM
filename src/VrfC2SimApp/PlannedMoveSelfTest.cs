@@ -56,6 +56,7 @@ public static class PlannedMoveSelfTest
         Glue(ref failures);
         Vendor(ref failures);
         Roads(ref failures);
+        DocumentedMove(ref failures);
         if (realCacheDir != null) RealLegs(realCacheDir);
         return failures;
     }
@@ -80,14 +81,16 @@ public static class PlannedMoveSelfTest
         string offroad = AggregateMovePolicy.StartRefusal("GroupOffRoad", allowLiteralMove: false);
         Check(ref failures, offroad != null && offroad.Contains("Vrf:AllowLiteralMove=true") && offroad.Contains("CONTROL")
                             && AggregateMovePolicy.StartRefusal("GroupOffRoad", allowLiteralMove: true) == null
-                            && new[] { "Auto", "Group", "PerMemberOffRoad", "Literal", "" }
+                            && new[] { "Auto", "Group", "PerMemberOffRoad", "Literal", "PlanPath", "" }
                                    .All(v => AggregateMovePolicy.StartRefusal(v, false) == null),
               "(m1) GroupOffRoad (a DIRECT move, not a planner) is refused unless Vrf:AllowLiteralMove=true; every other value starts");
         var all = Enum.GetValues<AggregateMovePlanner>();
-        Check(ref failures, all.Count(AggregateMovePolicy.IsPlanned) == 4 && !AggregateMovePolicy.IsPlanned(AggregateMovePlanner.Literal)
-                            && all.Where(AggregateMovePolicy.IsPerMember).SequenceEqual(new[] { AggregateMovePlanner.Auto, AggregateMovePlanner.PerMemberOffRoad })
-                            && all.Where(AggregateMovePolicy.IsGroup).SequenceEqual(new[] { AggregateMovePlanner.Group, AggregateMovePlanner.GroupOffRoad }),
-              "(m1) the predicates: planned = all but Literal; per member = Auto, PerMemberOffRoad; Move (Group) = Group, GroupOffRoad");
+        Check(ref failures, all.Count(AggregateMovePolicy.IsPlanned) == 5 && !AggregateMovePolicy.IsPlanned(AggregateMovePlanner.Literal)
+                            && all.Where(AggregateMovePolicy.IsPerMember).SequenceEqual(new[] { AggregateMovePlanner.Auto, AggregateMovePlanner.PerMemberOffRoad, AggregateMovePlanner.PlanPath })
+                            && all.Where(AggregateMovePolicy.IsGroup).SequenceEqual(new[] { AggregateMovePlanner.Group, AggregateMovePlanner.GroupOffRoad })
+                            && AggregateMovePolicy.Default == AggregateMovePlanner.Auto,
+              "(m1) the predicates: planned = all but Literal; per member = Auto, PerMemberOffRoad, PlanPath; Move (Group) = Group, " +
+              "GroupOffRoad; the DEFAULT stays Auto (RL-20260928-03 until the owner rules)");
 
         var near = new RoadDecision(RoadProximity.Near, AggregateMovePolicy.RoadPathQuery, 120, "r", "highway=track", 500, 1000, 0);
         var far = new RoadDecision(RoadProximity.Far, AggregateMovePolicy.NoPathQuery, 812, "r", "highway=track", 500, 1000, 0);
@@ -135,6 +138,8 @@ public static class PlannedMoveSelfTest
                 AggregateMovePlanner.Literal => r.Issued.Count == 1 && r.Issued[0] == "CreateRoute(48 IBCT,3) -> PA_Move_Along_Route",
                 AggregateMovePlanner.Group or AggregateMovePlanner.GroupOffRoad =>
                     r.Issued.Count == 1 && r.Issued[0] == "RunScriptedTask(VRF_UUID:container,group_movement_simplified,@54.0146)",
+                AggregateMovePlanner.PlanPath => r.Issued.Count == 3 && r.Issued.All(s => s.Contains(",move_to_location_plan_path,@54.0146)"))
+                     && r.Issued.Select(s => s.Split(',')[0]).Distinct().Count() == 3,
                 _ => r.Issued.Count == 3 && r.Issued.All(s => s.Contains(",navigate-to-location,@54.0146)"))
                      && r.Issued.Select(s => s.Split(',')[0]).Distinct().Count() == 3,
             };
@@ -489,11 +494,11 @@ public static class PlannedMoveSelfTest
                                < member.IndexOf("_log.LogDebug(", StringComparison.Ordinal),
               "(m6) a member's completion is offered to the per-member step FIRST; anything else stays C1's Debug line");
         string step = Between(src, "private void CompletePlannedStep(", "private string PlannedFailureText(");
-        int s1 = step.IndexOf("if (ConsumeVertexChainCompletion(container, AggregateMovePolicy.NavigateScript, success)) return;", StringComparison.Ordinal);
-        int s2 = step.IndexOf("WithholdShortContainerCompletion(container, AggregateMovePolicy.NavigateScript)", StringComparison.Ordinal);
+        int s1 = step.IndexOf("if (ConsumeVertexChainCompletion(container, stepType, success)) return;", StringComparison.Ordinal);
+        int s2 = step.IndexOf("WithholdShortContainerCompletion(container, stepType)", StringComparison.Ordinal);
         int s3 = step.IndexOf("ClearStallState(container);", StringComparison.Ordinal);
         int s4 = step.IndexOf("_arrivalReported.TryRemove(container, out var reportedTask)", StringComparison.Ordinal);
-        int s5 = step.IndexOf("SynthesizeUnitCompletion(container, AggregateMovePolicy.NavigateScript, success);", StringComparison.Ordinal);
+        int s5 = step.IndexOf("SynthesizeUnitCompletion(container, stepType, success);", StringComparison.Ordinal);
         Check(ref failures, s1 > 0 && s2 > s1 && s3 > s2 && s4 > s3 && s5 > s4,
               "(m6) an aggregated step takes the container's own path in OnVrfTaskCompleted's order: the chain, D-6, the watchdog " +
               "window, the arrival swallow, SynthesizeUnitCompletion");
@@ -704,6 +709,126 @@ public static class PlannedMoveSelfTest
             }
     }
 
+    // ----------------------------------------------------------------------------- (m11) ----
+    /// <summary>
+    /// (m11) M1 + M2, the DOCUMENTED per-member move (demo-readiness census 2026-10-15): Vrf:AggregateMovePlanner=PlanPath
+    /// sends each member Move_To_Location_Plan_Path - the task the vendor's own Move (Group) sends a subordinate - in place
+    /// of the raw navigate-to-location system subtask, each member to its OWN Move (Group) offset destination. Red first:
+    /// written against stubs (PlanPath = today's navigate-to-location to one identical point) and FAILED there.
+    /// </summary>
+    private static void DocumentedMove(ref int failures)
+    {
+        var na = new RoadDecision(RoadProximity.NotApplicable, "", double.NaN, "", "", 500, 1000, 0);
+        var t = AggregateMovePolicy.ForVertex(AggregateMovePlanner.PlanPath, V2.Lat, V2.Lon, na);
+        Check(ref failures, t.ScriptId == "move_to_location_plan_path" && t.PerMember && t.UseRoads
+                            && string.Join(", ", t.Vars) == "destination=(54.040348,23.324206), displayRoute=false" && t.Vars[0].Alt == 0.0,
+              $"(m11) M1: PlanPath ISSUES Move_To_Location_Plan_Path to EACH MEMBER with only the wrapper's own variables " +
+              $"[{string.Join(", ", t.Vars)}] (script {t.ScriptId}) - no obstacleQuery / pathQuery / buffer: the member's movement " +
+              "system supplies them");
+        Check(ref failures, AggregateMovePolicy.CompletionTaskType(AggregateMovePlanner.PlanPath) == "move_to_location_plan_path"
+                            && AggregateMovePolicy.DispatchKind(AggregateMovePlanner.PlanPath) == "move_to_location_plan_path"
+                            && AggregateMovePolicy.CompletionTaskType(AggregateMovePlanner.Auto) == "navigate-to-location",
+              "(m11) M1: a PlanPath vertex completes on the WRAPPER's completion type; Auto's stays navigate-to-location");
+        var tr = new PlannedMoveTracker();
+        var mm = Members(2);
+        tr.Begin(new PlannedMoveTracker.Context("C", "VRF_UUID:c", 1, AggregateMovePlanner.PlanPath, mm, new[] { na }, 1));
+        tr.BeginVertex("C", 1, 1);
+        var inner = tr.OnMemberCompleted("C", mm[0].Name, "navigate-to-location", true);
+        var own = tr.OnMemberCompleted("C", mm[0].Name, "move_to_location_plan_path", true);
+        Check(ref failures, !inner.Consumed && own.Consumed && !own.StepDone,
+              "(m11) M1: under PlanPath the wrapper's INNER navigate-to-location subtask is NOT a member's step result; the " +
+              "wrapper's own completion is");
+        Check(ref failures, AggregateMovePolicy.OffsetsMembers(AggregateMovePlanner.PlanPath) && !AggregateMovePolicy.OffsetsMembers(AggregateMovePlanner.Auto),
+              "(m11) M2: PlanPath gives each member its own destination; Auto (the ruled default) is unchanged - one point for all");
+
+        // M2 geometry (group_movement_simplified.lua :28-55, :83-176), on a local plane. Centre C; A 500 m N, B 500 m S, D 500 m E
+        // (order A, B, D: max(1, floor(3*0.34)) = 1 sample -> the group bearing is A's, 0 deg).
+        const double C0 = 54.0, C1 = 23.0;
+        (double Lat, double Lon) Off(double lat, double lon, double north, double east)
+            => (lat + north / 111320.0, lon + east / (111320.0 * Math.Cos(lat * Math.PI / 180.0)));
+        (double N, double E) Rel((double Lat, double Lon) a, (double Lat, double Lon) b)
+            => ((b.Lat - a.Lat) * 111320.0, (b.Lon - a.Lon) * 111320.0 * Math.Cos(a.Lat * Math.PI / 180.0));
+        bool Near((double N, double E) got, double n, double e) => Math.Abs(got.N - n) < 2.0 && Math.Abs(got.E - e) < 2.0;
+        var a = Off(C0, C1, 500, 0); var b = Off(C0, C1, -500, 0); var d = Off(C0, C1, 0, 500);
+        var fixes = new[] { new MemberOffsets.MemberFix("A", a.Lat, a.Lon, true), new MemberOffsets.MemberFix("B", b.Lat, b.Lon, true),
+                            new MemberOffsets.MemberFix("D", d.Lat, d.Lon, true) };
+        var north = Off(C0, C1, 5000, 0);
+        var r1 = MemberOffsets.For(C0, C1, fixes, north.Lat, north.Lon, 0);
+        Check(ref failures, Near(Rel(north, r1.Destinations["A"]), 500, 0) && Near(Rel(north, r1.Destinations["B"]), -500, 0)
+                            && Near(Rel(north, r1.Destinations["D"]), 0, 500) && Math.Abs(r1.Scale - 1.0) < 1e-9,
+              "(m11) M2: heading along the group bearing (destination due N, group bearing 0): every member keeps its offset - " +
+              "A 500 m N, B 500 m S, D 500 m E of the destination");
+        var east = Off(C0, C1, 0, 5000);
+        var r2 = MemberOffsets.For(C0, C1, fixes, east.Lat, east.Lon, 0);
+        Check(ref failures, Near(Rel(east, r2.Destinations["A"]), 0, 500) && Near(Rel(east, r2.Destinations["B"]), 0, -500)
+                            && Near(Rel(east, r2.Destinations["D"]), -500, 0) && Math.Abs(r2.BearingToDestinationDeg - 90) < 0.5,
+              "(m11) M2: a 90 deg turn WHEELS the arrangement (calcSubordinateDestination): A ends 500 m E, B 500 m W, D 500 m S " +
+              "of the destination");
+        var r3 = MemberOffsets.For(C0, C1, fixes, north.Lat, north.Lon, 1);
+        Check(ref failures, Math.Abs(r3.Scale - 0.2) < 1e-6 && Near(Rel(north, r3.Destinations["A"]), 100, 0),
+              $"(m11) M2: compression - category 1's 200 m limit on a 1,000 m unit scales the offsets by 0.2 (got {r3.Scale:F3}; " +
+              "_UnitTypeExtentLimitTable, determineGeometryCompression)");
+        var lost = new[] { fixes[0], fixes[1], new MemberOffsets.MemberFix("D", 0, 0, false) };
+        var r4 = MemberOffsets.For(C0, C1, lost, north.Lat, north.Lon, 0);
+        Check(ref failures, r4.Unlocated == 1 && Near(Rel(north, r4.Destinations["D"]), 0, 0)
+                            && r1.Destinations.Values.Distinct().Count() == 3,
+              "(m11) M2: a member with no readable position goes to the vertex itself (counted); located members get DISTINCT " +
+              "destinations - never the 17-identical-points shape");
+
+        // The vendor files (read-only; SKIP if absent).
+        string home = Environment.GetEnvironmentVariable("VRF_HOME") is { Length: > 0 } h ? h
+                    : Environment.GetEnvironmentVariable("MAK_VRFDIR") is { Length: > 0 } m ? m : @"C:\MAK\vrforces5.2d";
+        string sms = Path.Combine(home, "data", "simulationModelSets");
+        string wx = Path.Combine(sms, "AggregateLevelBase", "scripts", "Move_To_Location_Plan_Path.xml");
+        string wl = Path.Combine(sms, "AggregateLevelBase", "scripts", "Move_To_Location_Plan_Path.lua");
+        string gl = Path.Combine(sms, "AggregateTacticalLevel", "scripts", "group_movement_simplified.lua");
+        if (!File.Exists(wx))
+        {
+            Console.WriteLine($"  [SKIP] (m11) {wx} not installed - the vendor-file checks are not evaluated");
+        }
+        else
+        {
+            string x = File.ReadAllText(wx), l = SafeRead(wl), g = SafeRead(gl);
+            var declared = Regex.Matches(x, "&lt;myVariableName&gt;([A-Za-z_]+)&lt;/myVariableName&gt;").Select(mt => mt.Groups[1].Value).ToHashSet();
+            Check(ref failures, Regex.Match(x, "<myScriptId>([^<]*)</myScriptId>").Groups[1].Value == AggregateMovePolicy.PlanPathScript
+                                && x.Contains("Used by aggregate level units") && VarType(x, "destination") == "locationwithoutaltitude"
+                                && VarType(x, "displayRoute") == "checkbox" && t.Vars.All(v => declared.Contains(v.Name))
+                                && l.Contains("vrf:startSubtask(\"navigate-to-location\"") && l.Contains("Obstacle-Feature-Query")
+                                && l.Contains("Path-Feature-Query"),
+                  "(m11) Move_To_Location_Plan_Path.xml/.lua: id move_to_location_plan_path, 'Used by aggregate level units', every " +
+                  "variable sent is declared (destination = locationwithoutaltitude, displayRoute = checkbox); it starts " +
+                  "navigate-to-location as a SUBTASK with the movement system's Obstacle-/Path-Feature-Query");
+            string table = string.Join(",", MemberOffsets.ExtentLimitByCategory);
+            Check(ref failures, g.Contains("vrf:sendTask(node.subordinate(), \"Move_To_Location_Plan_Path\"")
+                                && g.Contains("_UnitTypeExtentLimitTable = {" + table + "}")
+                                && g.Contains("math.max(1, math.floor(numSubs * 0.34))") && g.Contains("+groupBearingOffset"),
+                  "(m11) group_movement_simplified.lua: the vendor sends each subordinate Move_To_Location_Plan_Path; the extent table, " +
+                  "the 0.34 sample and the bearing wheel MemberOffsets reproduces are the vendor's");
+        }
+
+        // The service glue (source tripwire).
+        string src = SafeRead(FindSource("VrfC2SimService.cs"));
+        if (src.Length == 0) Console.WriteLine("  [SKIP] (m11) VrfC2SimService.cs not found above the exe - the glue tripwire is not evaluated");
+        else
+            Check(ref failures, src.Contains("AggregateMovePolicy.OffsetsMembers(ctx.Planner)") && src.Contains("MemberOffsets.For(")
+                                && src.Contains("TryIssueMemberMovesEach(")
+                                && src.Contains("_plannedMoves.OnMemberCompleted(container, member, taskType, success)")
+                                && !src.Contains("ConsumeVertexChainCompletion(container, AggregateMovePolicy.NavigateScript, success)"),
+                  "(m11) the service: IssuePlannedVertex computes per-member destinations (MemberOffsets.For) when the planner offsets " +
+                  "members and issues them one by one (TryIssueMemberMovesEach); the step closes on the PLANNER'S completion type, not " +
+                  "a hard-coded navigate-to-location");
+    }
+
+    private static string FindSource(string file)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            string c = Path.Combine(dir.FullName, "src", "VrfC2SimApp", file);
+            if (File.Exists(c)) return c;
+        }
+        return "";
+    }
+
     // --------------------------------------------------------------------------- helpers ----
     private static List<PlannedMoveTracker.Member> Members(int n)
         => Enumerable.Range(1, n).Select(i => new PlannedMoveTracker.Member($"48_IBCT/28ID__FRIENDL.M{i}", $"VRF_UUID:m{i}")).ToList();
@@ -771,9 +896,9 @@ public static class PlannedMoveSelfTest
         /// <summary>A MEMBER's own completion: null until its step closes, then the chain's outcome.</summary>
         public VertexChainTracker.Outcome? CompleteMember(string member, bool success, VertexChainTracker.Point at)
         {
-            var v = _moves.OnMemberCompleted(_c, member, AggregateMovePolicy.NavigateScript, success);
+            var v = _moves.OnMemberCompleted(_c, member, AggregateMovePolicy.CompletionTaskType(_p), success);
             if (!v.Consumed || !v.StepDone) return null;
-            return Complete(AggregateMovePolicy.NavigateScript, v.Success, at);
+            return Complete(AggregateMovePolicy.CompletionTaskType(_p), v.Success, at);
         }
     }
 

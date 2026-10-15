@@ -40,6 +40,19 @@ public enum AggregateMovePlanner
     /// <summary>Today's PA_Move_Along_Route on the route object (C1) - the rollback and the G1-2 baseline, issued
     /// byte-for-byte as before.</summary>
     Literal,
+    /// <summary>
+    /// M1 + M2 (demo-readiness census 2026-10-15; NOT the default - RL-20260928-03 stands until the owner rules). Per STP
+    /// vertex, per MEMBER, the DOCUMENTED per-unit wrapper Move_To_Location_Plan_Path ("Move to Location (Plan Along
+    /// Roads)", "Used by aggregate level units" - AggregateLevelBase\scripts\Move_To_Location_Plan_Path.xml :6, :18), the
+    /// task the vendor's own Move (Group) sends each subordinate (group_movement_simplified.lua :220-224) - in place of the
+    /// raw navigate-to-location, which its own metadata calls a system subtask "not designed for end user use in
+    /// scenarios" (base\scripts\navigate-to-location.xml :17-18) and which the wrapper starts as a SUBTASK
+    /// (Move_To_Location_Plan_Path.lua :45). Each member goes to its OWN destination, offset from the vertex the way Move
+    /// (Group) offsets it (<see cref="MemberOffsets"/>; group_movement_simplified.lua :28-55, :83-176). The obstacle and
+    /// path queries are the member movement system's (the Obstacle-Feature-Query / Path-Feature-Query script attributes,
+    /// the wrapper's .lua :21-33; MAK_OBSTACLE / MAK_ROAD when absent) - no per-leg road decision, no buffer.
+    /// </summary>
+    PlanPath,
 }
 
 /// <summary>M3's road decision for one leg under <see cref="AggregateMovePlanner.Auto"/>.</summary>
@@ -82,6 +95,9 @@ public static class AggregateMovePolicy
     public const string GroupScript = "group_movement_simplified";
     /// <summary>SMS\base\scripts\navigate-to-location.xml :5 &lt;myScriptId&gt; ("Navigate to Location").</summary>
     public const string NavigateScript = "navigate-to-location";
+    /// <summary>AggregateLevelBase\scripts\Move_To_Location_Plan_Path.xml :5 &lt;myScriptId&gt; - the documented per-unit
+    /// planning move (M1). Lower case already, as a completion carries it.</summary>
+    public const string PlanPathScript = "move_to_location_plan_path";
     /// <summary>featureconfig.txt :405: MAK_BUILDING, MAK_VEGETATION, MAK_INFRASTRUCTURE, MAK_WATERWAY and dynamic
     /// obstacles - what navigate-to-location plans round.</summary>
     public const string ObstacleQuery = "MAK_OBSTACLE";
@@ -129,17 +145,22 @@ public static class AggregateMovePolicy
     public static bool IsPlanned(AggregateMovePlanner p) => p != AggregateMovePlanner.Literal;
 
     /// <summary>The per-member planners: navigate-to-location to each member, completion aggregated here.</summary>
-    public static bool IsPerMember(AggregateMovePlanner p) => p is AggregateMovePlanner.Auto or AggregateMovePlanner.PerMemberOffRoad;
+    public static bool IsPerMember(AggregateMovePlanner p)
+        => p is AggregateMovePlanner.Auto or AggregateMovePlanner.PerMemberOffRoad or AggregateMovePlanner.PlanPath;
+
+    /// <summary>M2: does this planner give each member its own offset destination (Move (Group)'s geometry)?</summary>
+    public static bool OffsetsMembers(AggregateMovePlanner p) => p == AggregateMovePlanner.PlanPath;
 
     /// <summary>Move (Group) on the container: the vendor aggregates its members' completions itself.</summary>
     public static bool IsGroup(AggregateMovePlanner p) => p is AggregateMovePlanner.Group or AggregateMovePlanner.GroupOffRoad;
 
     /// <summary>The ONE vendor task type whose completion is a vertex of the container's chain.</summary>
-    public static string CompletionTaskType(AggregateMovePlanner p) => IsGroup(p) ? GroupScript : NavigateScript;
+    public static string CompletionTaskType(AggregateMovePlanner p)
+        => IsGroup(p) ? GroupScript : p == AggregateMovePlanner.PlanPath ? PlanPathScript : NavigateScript;
 
     /// <summary>The kind the in-flight record carries (its first token matches the completion type,
     /// InFlightTracker.KindLooksRight).</summary>
-    public static string DispatchKind(AggregateMovePlanner p) => IsGroup(p) ? GroupScript : NavigateScript;
+    public static string DispatchKind(AggregateMovePlanner p) => CompletionTaskType(p);
 
     // ------------------------------------------------------------------------------------------ what is issued ----
     /// <summary>
@@ -176,6 +197,11 @@ public static class AggregateMovePolicy
                 new ContainerTaskVar("useRoads", ContainerTaskVarKind.Flag, Flag: useRoads),
             }, PerMember: false, UseRoads: useRoads, PathQuery: useRoads ? RoadPathQuery : "");
         }
+        if (p == AggregateMovePlanner.PlanPath)
+            // M1: the wrapper declares only destination and displayRoute (Move_To_Location_Plan_Path.xml); its queries come
+            // from the member's movement system, whose default path query is MAK_ROAD (.lua :21-33).
+            return new PlannedVertexTask(PlanPathScript, PlanPathVars(lat, lon), PerMember: true, UseRoads: true,
+                                         PathQuery: RoadPathQuery);
         if (IsPerMember(p))
         {
             string path = p == AggregateMovePlanner.Auto && road.Proximity == RoadProximity.Near ? RoadPathQuery : NoPathQuery;
@@ -184,6 +210,14 @@ public static class AggregateMovePolicy
         }
         throw new InvalidOperationException($"Vrf:AggregateMovePlanner={p} issues no planned vertex (Literal is PA_Move_Along_Route)");
     }
+
+    /// <summary>M1: Move_To_Location_Plan_Path's two variables, as Move (Group) sends them (displayRoute off here - no
+    /// route drawn in the GUI, as the per-member planners already do).</summary>
+    public static IReadOnlyList<ContainerTaskVar> PlanPathVars(double lat, double lon) => new[]
+    {
+        new ContainerTaskVar("destination", ContainerTaskVarKind.Location, Lat: lat, Lon: lon, Alt: 0.0),
+        new ContainerTaskVar("displayRoute", ContainerTaskVarKind.Flag, Flag: false),
+    };
 
     public static IReadOnlyList<ContainerTaskVar> NavigateVars(double lat, double lon, string pathQuery) => new[]
     {
@@ -252,7 +286,7 @@ public static class AggregateMovePolicy
               "with success=false, which its behaviour engine does only when NO member's move succeeded (role PseudoSub " +
               "critical, successPolicy one - roleNode.lua :246-280); the chain ends and no further vertex is issued"
             : FormattableString.Invariant(
-                $"PLANNED MOVE {container} vertex {vertex} of {vertexCount}: {NavigateScript} FAILED for {failed} of {members} ") +
+                $"PLANNED MOVE {container} vertex {vertex} of {vertexCount}: {CompletionTaskType(p)} FAILED for {failed} of {members} ") +
               "member(s) and succeeded for none - by the vendor's Move (Group) rule (a critical role fails only when no member " +
               "succeeded, roleNode.lua :246-280) the vertex FAILED; the chain ends and no further vertex is issued";
 
@@ -340,6 +374,10 @@ public static class AggregateMovePolicy
                 "CONTROL (Vrf:AllowLiteralMove=" + (allowLiteralMove ? "true" : "false") + "), not a planner",
             AggregateMovePlanner.PerMemberOffRoad =>
                 "per STP vertex, per MEMBER, navigate-to-location with pathQuery NONE, obstacleQuery MAK_OBSTACLE, buffer 10 m",
+            AggregateMovePlanner.PlanPath =>
+                "per STP vertex, per MEMBER, the documented Move_To_Location_Plan_Path (Move to Location (Plan Along Roads), the " +
+                "task Move (Group) sends a subordinate) to the member's OWN Move (Group) offset destination; obstacle and path " +
+                "queries from the member's movement system (M1 + M2, census 2026-10-15)",
             _ => "PA_Move_Along_Route on the route object, as C1 built it - the LITERAL executor, the rollback and the G1-2 baseline",
         };
         string roads = p == AggregateMovePlanner.Auto
@@ -445,9 +483,12 @@ public sealed class PlannedMoveTracker
                                          $"{x.C.Planner} aggregates its members in the vendor's Move (Group)");
             if (x.OpenVertex == 0)
                 return new MemberVerdict(false, false, false, 0, x.C.Members.Count, 0, 0, 0, "no vertex step is open");
-            if (!string.Equals(taskType, AggregateMovePolicy.NavigateScript, StringComparison.OrdinalIgnoreCase))
+            // The step's own type: navigate-to-location (Auto, PerMemberOffRoad) or the wrapper (PlanPath, M1) - the
+            // wrapper's INNER navigate-to-location subtask is not a member's result.
+            string own = AggregateMovePolicy.CompletionTaskType(x.C.Planner);
+            if (!string.Equals(taskType, own, StringComparison.OrdinalIgnoreCase))
                 return new MemberVerdict(false, false, false, x.OpenVertex, x.C.Members.Count, 0, 0, 0,
-                                         $"'{taskType}' is not the step's {AggregateMovePolicy.NavigateScript}");
+                                         $"'{taskType}' is not the step's {own}");
             if (!x.Results.TryGetValue(member ?? "", out var prior))
                 return new MemberVerdict(false, false, false, x.OpenVertex, x.C.Members.Count, 0, 0, 0,
                                          "not a member this step tasked");
