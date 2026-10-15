@@ -880,6 +880,8 @@ public sealed class VrfC2SimService : BackgroundService
         // 0c-ii-d. D2b (RL-20260927-06, RL-20260928-01): the active model set and the rule OnOrder applies under it -
         // said once, in both states, from the same Vrf:ModelSet read.
         _log.LogInformation("{Line}", ModelSetGuard.StartupLine(_modelSetRaw, _aggregateModelSet));
+        // 0c-ii-f. STP-795: the notification-stream recovery, said once, in both states.
+        _log.LogInformation("{Line}", StompRecovery.StartupLine(Math.Max(0, _vrf.StompRecoveryTries)));
 
         // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
         // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
@@ -7289,8 +7291,65 @@ public sealed class VrfC2SimService : BackgroundService
 
     private void OnError(object sender, Exception e)
     {
-        _log.LogError("C2SIM error: {Msg}. Restart recommended.",
-                      C2SIMSDK.GetRootException(e).Message);
+        var root = C2SIMSDK.GetRootException(e);
+        // STP-795: a NOTIFICATION-STREAM fault (an unreadable frame, a relayed reader error, a broken connection) is
+        // not left at "Restart recommended" - the interface says the inbound message is LOST, re-opens the
+        // notification connection and, if it cannot, stops with a non-zero exit code (StompRecovery). Anything else
+        // is logged exactly as before.
+        var kind = StompRecovery.Classify(root.GetType().Name, root.Message);
+        int tries = Math.Max(0, _vrf.StompRecoveryTries);
+        if (StompRecovery.ShouldRecover(kind, tries, Volatile.Read(ref _stompRecovering) != 0)
+            && Interlocked.CompareExchange(ref _stompRecovering, 1, 0) == 0)
+        {
+            _log.LogError("{Line}", StompRecovery.LostLine(root.GetType().Name, root.Message, tries));
+            _ = RecoverNotificationStreamAsync(tries, IsoNow());
+            return;
+        }
+        if (kind == StompRecovery.Kind.StreamFault && Volatile.Read(ref _stompRecovering) != 0)
+        {
+            _log.LogWarning("{Prefix}: another stream fault during the recovery ({Type}: {Msg}) - absorbed by it.",
+                            StompRecovery.Prefix, root.GetType().Name, root.Message);
+            return;
+        }
+        _log.LogError("C2SIM error: {Msg}. Restart recommended.", root.Message);
+    }
+
+    // STP-795: 1 while a notification-stream recovery runs (one at a time; faults during it are absorbed).
+    private int _stompRecovering;
+
+    /// <summary>STP-795: re-open the C2SIM notification (STOMP) connection after a stream fault - StompRecovery's loop
+    /// with the SDK's Disconnect / Connect - then one ObservationReport naming the loss; on the last failure, stop
+    /// with StompRecovery.ExitCode so nothing runs blind.</summary>
+    private async Task RecoverNotificationStreamAsync(int tries, string isoLost)
+    {
+        var started = DateTime.UtcNow;
+        try
+        {
+            var (ok, attempts) = await StompRecovery.ReconnectAsync(
+                () => _sdk.Disconnect(), () => _sdk.Connect(),
+                d => Task.Delay(d, _stoppingToken), tries,
+                (a, why) => _log.LogWarning("{Line}", StompRecovery.AttemptFailedLine(a, tries, why)));
+            if (ok)
+            {
+                _log.LogWarning("{Line}", StompRecovery.ReconnectedLine(attempts, (DateTime.UtcNow - started).TotalSeconds));
+                _ = PushReportAsync(BackendLivenessPolicy.BuildStateChangeReport(
+                        StompRecovery.ObservationMarking(isoLost, IsoNow()), IsoNow(), NewReportId(),
+                        StompRecovery.ReportName), ReportKind.Observation);
+                return;
+            }
+            _log.LogCritical("{Line}", StompRecovery.GiveUpLine(tries));
+            Environment.ExitCode = StompRecovery.ExitCode;
+            _life.StopApplication();
+        }
+        catch (OperationCanceledException) { /* service stopping */ }
+        catch (Exception ex)
+        {
+            _log.LogCritical(ex, "{Prefix}: the recovery itself failed ({Msg}) - stopping with exit code {Code}.",
+                             StompRecovery.Prefix, ex.Message, StompRecovery.ExitCode);
+            Environment.ExitCode = StompRecovery.ExitCode;
+            _life.StopApplication();
+        }
+        finally { Interlocked.Exchange(ref _stompRecovering, 0); }
     }
 
     // ================= VR-Forces -> C2SIM (outbound) =================

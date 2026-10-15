@@ -270,6 +270,12 @@ public class VrfSettings
     // simulator must not become a silent 60 s wait.
     public double DispatchReadinessTimeoutSeconds { get; set; } = 60.0;
 
+    // STP-795 (StompRecovery.cs): after a C2SIM NOTIFICATION-STREAM fault (an unreadable inbound frame - e.g. a blank
+    // line inside a pushed message ends the SDK's frame read - or a broken STOMP connection) the interface reports the
+    // message LOST, re-opens the notification connection up to this many times (backoff 2/4/8 s) and sends one
+    // ObservationReport; after the last failure it stops with exit code 7. 0 = OFF (only "Restart recommended", as before).
+    public int StompRecoveryTries { get; set; } = StompRecovery.DefaultTries;
+
     // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs). A move task is
     // reported complete (TASKCMPLT) when MORE THAN ArrivalMemberFraction of the unit's members (or
     // the entity itself) are within ArrivalRadiusMeters of the task's last vertex, checked every

@@ -143,6 +143,12 @@ if (args.Length > 0 && args[0] == "--liveness-selftest")
 if (args.Length > 0 && args[0] == "--dispatch-readiness-selftest")
     return DispatchReadinessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
 
+// Offline STP-795 check (StompRecovery.cs): a notification-stream fault is reported LOST, the connection is re-opened
+// with backoff, and the interface stops with exit code 7 after the last failed reconnect. `--disabled` = recovery off
+// (today's "Restart recommended") and MUST fail. No server, no network.
+if (args.Length > 0 && args[0] == "--stomp-recovery-selftest")
+    return StompRecoverySelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
+
 // Offline ROUTE-ORIGIN check (N13 + N15, D9 2026-09-21): the route origin of a COMPOSED PARENT,
 // replayed on run D9's own transient samples - the children's centroid lands on the authored
 // coordinate within 1 m where the parent's published position was 50.4 m out and lengthened the
@@ -205,6 +211,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--routeextent/--routeorigin-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
+                            "--stomp-recovery-selftest [--disabled], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
                             "--planned-move-selftest [tile-cache-dir], " +
@@ -256,4 +263,5 @@ AppDomain.CurrentDomain.UnhandledException += (_, ev) =>
 
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
-return 0;
+// STP-795: a service that stops on a fault sets Environment.ExitCode (0 otherwise) - returned so a runner sees it.
+return Environment.ExitCode;
