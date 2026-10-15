@@ -880,6 +880,8 @@ public sealed class VrfC2SimService : BackgroundService
         // 0c-ii-d. D2b (RL-20260927-06, RL-20260928-01): the active model set and the rule OnOrder applies under it -
         // said once, in both states, from the same Vrf:ModelSet read.
         _log.LogInformation("{Line}", ModelSetGuard.StartupLine(_modelSetRaw, _aggregateModelSet));
+        // 0c-ii-e. THE BOUNDED NAVIGATE GATE (D36 candidate, STP-884; NavigateGate.cs) - said once, in both states.
+        _log.LogInformation("{Line}", NavigateGate.StartupLine(_vrf.NavigateGateMaxWaitSeconds));
 
         // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
         // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
@@ -4203,6 +4205,17 @@ public sealed class VrfC2SimService : BackgroundService
         var state = ClassifyTaskee(unit.Name, plannedAtInit);
         if (!DispatchReadiness.ShouldHold(state, _vrf.DispatchReadinessTimeoutSeconds, _backendLost))
         {
+            // THE BOUNDED NAVIGATE GATE (D36 candidate, STP-884; NavigateGate.cs). A task that MOVES its unit is not
+            // dispatched onto vendor work in flight - a container's members still moving, a platform's engage - but
+            // held until it ends (or the bound). Off (0) or nothing in flight: exactly the path above, unchanged.
+            var gateWork = NavigateGateWork(unit.Name, task.TaskUuid, out int gatePending);
+            if (NavigateGate.ShouldHold(gateWork, TaskMovesUnit(task), _vrf.NavigateGateMaxWaitSeconds, _backendLost))
+            {
+                _log.LogWarning("{Line}", NavigateGate.HoldLine(task.TaskName, unit.Name, gateWork, gatePending,
+                                                                _vrf.NavigateGateMaxWaitSeconds));
+                _ = NavigateGateHoldAsync(task, unit, DateTime.UtcNow);
+                return;
+            }
             ExecuteTaskOnTick(task, unit);
             return;
         }
@@ -4287,6 +4300,76 @@ public sealed class VrfC2SimService : BackgroundService
             _sequencer.NotifyAbandoned(task.TaskUuid);
             PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
                            $"ABANDONED: the readiness hold for task '{task.TaskName}' failed ({e.Message})");
+        }
+    }
+
+    /// <summary>NavigateGate: the vendor work in flight on this unit right now - a container's per-member step still
+    /// pending (PlannedMoveTracker), or a platform's in-flight engage. Thread-safe reads (the tracker locks; the
+    /// in-flight map is concurrent), so the hold loop may call it off the tick thread.</summary>
+    private NavigateGate.Work NavigateGateWork(string unitName, string newTaskUuid, out int pendingMembers)
+    {
+        pendingMembers = _plannedMoves.PendingMembers(unitName);
+        string kind = null, inFlightTask = null;
+        if (_inFlight.TryGetCurrent(unitName, out var cur)) { kind = cur.ExpectedKind; inFlightTask = cur.TaskUuid; }
+        return NavigateGate.Classify(pendingMembers, kind, inFlightTask, newTaskUuid);
+    }
+
+    /// <summary>NavigateGate: does dispatching this task move its unit? The verb's intent (Layer 1) and whether the task
+    /// carries any geometry at all - the same two facts ExecuteTaskOnTick acts on (R2: no geometry = in place).</summary>
+    private static bool TaskMovesUnit(OrderTask task)
+    {
+        bool hasGeometry = (task.MapGraphicUuids?.Count ?? 0) > 0 || !string.IsNullOrEmpty(task.MapGraphicUuid)
+                           || (task.Points?.Count ?? 0) > 0;
+        return NavigateGate.TaskMoves(VerbMapping.Classify(task.ActionCode).Intent, hasGeometry);
+    }
+
+    /// <summary>
+    /// OFF the tick thread: the navigate gate's hold (D36 candidate, STP-884). One NavigateGate.Step a second - the
+    /// SAME rule --navigate-gate-selftest replays - until the work in flight ends (CLEARED), the bound expires (BOUND:
+    /// dispatched anyway), or the back end is declared LOST (the ordinary path, which refuses). Every release enters
+    /// the tick thread through DeferredDispatch.Run, so a dispatch that throws there ends the task loudly.
+    /// </summary>
+    private async Task NavigateGateHoldAsync(OrderTask task, CreatedUnit unit, DateTime startedUtc)
+    {
+        try
+        {
+            double bound = _vrf.NavigateGateMaxWaitSeconds;
+            NavigateGate.Release release;
+            NavigateGate.Work work;
+            int pending;
+            while (true)
+            {
+                if (_stoppingToken.IsCancellationRequested) return;
+                work = NavigateGateWork(unit.Name, task.TaskUuid, out pending);
+                double held = (DateTime.UtcNow - startedUtc).TotalSeconds;
+                release = NavigateGate.Step(work, held, bound, _backendLost);
+                if (release != NavigateGate.Release.Hold) break;
+                await Task.Delay(TimeSpan.FromSeconds(1), _stoppingToken);
+            }
+            double wall = (DateTime.UtcNow - startedUtc).TotalSeconds;
+            if (release == NavigateGate.Release.Cleared)
+                _log.LogInformation("{Line}", NavigateGate.ClearedLine(task.TaskName, unit.Name, wall));
+            else if (release == NavigateGate.Release.Bound)
+                _log.LogWarning("{Line}", NavigateGate.BoundLine(task.TaskName, unit.Name, work, pending, wall));
+            else
+                _log.LogWarning("{Line}", NavigateGate.BackendLostLine(task.TaskName, unit.Name, wall));
+            _tickActions.Enqueue(() => DeferredDispatch.Run(
+                () => ExecuteTaskOnTick(task, unit), task.TaskUuid, task.TaskName,
+                DeferredDispatch.NavigateGateRelease, _sequencer,
+                reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason),
+                ex => _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread after the navigate gate " +
+                                    "({Type}: {Msg}) - it is abandoned and reported TASKABRT so its STREND successors " +
+                                    "fail fast.", task.TaskName, ex.GetType().Name, ex.Message)));
+        }
+        catch (OperationCanceledException) { /* service stopping */ }
+        catch (Exception e)
+        {
+            // The hold itself died, so nothing will ever dispatch this task: the readiness hold's ending.
+            _log.LogError("Task '{Task}' navigate-gate hold failed ({Type}: {Msg}) - abandoned.",
+                          task.TaskName, e.GetType().Name, e.Message);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"ABANDONED: the navigate-gate hold for task '{task.TaskName}' failed ({e.Message})");
         }
     }
 
@@ -7028,7 +7111,7 @@ public sealed class VrfC2SimService : BackgroundService
                           "Fire At (RL-20260926-01). NOT parked; the unit's advance stands.", task.TaskName, unit.Name);
             return;
         }
-        var eng = new PendingEngage("fire", taskeeVrf, targetVrf, task.TaskUuid, task.TaskName);
+        var eng = new PendingEngage(NavigateGate.EngageKind, taskeeVrf, targetVrf, task.TaskUuid, task.TaskName);
         _pendingEngage[unit.Name] = eng;
         _log.LogInformation("Task '{Task}': {Kind} {Vrf} -> {Tgt} deferred until the move COMPLETES " +
                             "(completion-gated; fallback {S}s).",

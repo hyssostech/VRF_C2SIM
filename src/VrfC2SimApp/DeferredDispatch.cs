@@ -59,6 +59,10 @@ public static class DeferredDispatch
     /// taskee been taskable when the task was ready.</summary>
     public const string ReadinessRelease = "the dispatch released by the taskee-readiness hold";
 
+    /// <summary>Where a dispatch runs after the NAVIGATE GATE released it (D36 candidate, STP-884;
+    /// VrfC2SimService.NavigateGateHoldAsync) - the work in flight on the unit ended, or the bound expired.</summary>
+    public const string NavigateGateRelease = "the dispatch released by the navigate gate";
+
     /// <summary>Where a lone platform's NEXT Move To is issued (RL-20260927-01) - the tick action a
     /// vertex's completion enqueues. A throw there would otherwise leave the unit idle at a vertex with
     /// its task silently in flight, so it gets the same ending as every other deferred dispatch.</summary>

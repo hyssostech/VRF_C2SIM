@@ -471,4 +471,19 @@ public sealed class PlannedMoveTracker
         if (string.IsNullOrEmpty(container)) return;
         lock (_lock) _byContainer.Remove(container);
     }
+
+    /// <summary>NavigateGate (D36): how many members of the container's OPEN per-member step have not reported their
+    /// navigate-to-location ended. 0 when no context, no open step, or a Group planner (the vendor aggregates those).
+    /// The step stays open after the task's own completion by arrival evidence - which is exactly when a successor
+    /// dispatch lands on members still moving.</summary>
+    public int PendingMembers(string container)
+    {
+        if (string.IsNullOrEmpty(container)) return 0;
+        lock (_lock)
+        {
+            if (!_byContainer.TryGetValue(container, out var x) || x.OpenVertex == 0) return 0;
+            if (!AggregateMovePolicy.IsPerMember(x.C.Planner)) return 0;
+            return x.Results.Values.Count(v => v == null);
+        }
+    }
 }

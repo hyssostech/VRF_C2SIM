@@ -270,6 +270,14 @@ public class VrfSettings
     // simulator must not become a silent 60 s wait.
     public double DispatchReadinessTimeoutSeconds { get; set; } = 60.0;
 
+    // THE BOUNDED NAVIGATE GATE (D36 mitigation CANDIDATE, STP-884; NavigateGate.cs). A task that MOVES its unit is
+    // HELD while the unit has vendor work in flight - a container whose members' previous navigates are still out, or a
+    // platform whose ATTACK's deferred engage is in flight - released when that work ends, DISPATCHED ANYWAY at this
+    // bound (WALL seconds). 480 = the only re-task D36 measured SAFE with members still out (arm (i), +495 s); the ones
+    // that stopped the back end came +93/+110 s after the first move. 0 = OFF (today's behaviour; the fail-first arm of
+    // --navigate-gate-selftest --disabled). BRANCH ONLY (feat/navigate-gate) until a live arm passes.
+    public double NavigateGateMaxWaitSeconds { get; set; } = NavigateGate.DefaultMaxWaitSeconds;
+
     // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs). A move task is
     // reported complete (TASKCMPLT) when MORE THAN ArrivalMemberFraction of the unit's members (or
     // the entity itself) are within ArrivalRadiusMeters of the task's last vertex, checked every

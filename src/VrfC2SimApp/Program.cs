@@ -143,6 +143,13 @@ if (args.Length > 0 && args[0] == "--liveness-selftest")
 if (args.Length > 0 && args[0] == "--dispatch-readiness-selftest")
     return DispatchReadinessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
 
+// Offline NAVIGATE GATE check (D36 mitigation candidate, STP-884; NavigateGate.cs): a task that moves its unit is held
+// while the unit's previous move (container members) or deferred engage (platform) is in flight, released when it ends,
+// dispatched anyway at the bound. `--disabled` re-runs the SAME assertions with Vrf:NavigateGateMaxWaitSeconds = 0 -
+// today's build - and MUST fail. No bridge, no server, no network.
+if (args.Length > 0 && args[0] == "--navigate-gate-selftest")
+    return NavigateGateSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
+
 // Offline ROUTE-ORIGIN check (N13 + N15, D9 2026-09-21): the route origin of a COMPOSED PARENT,
 // replayed on run D9's own transient samples - the children's centroid lands on the authored
 // coordinate within 1 m where the parent's published position was 50.4 m out and lengthened the
@@ -205,6 +212,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--routeextent/--routeorigin-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
+                            "--navigate-gate-selftest [--disabled], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
                             "--planned-move-selftest [tile-cache-dir], " +
