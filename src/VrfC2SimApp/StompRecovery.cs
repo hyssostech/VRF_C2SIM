@@ -88,7 +88,8 @@ public static class StompRecovery
         => $"{Prefix}: an inbound C2SIM message could NOT BE READ and is LOST ({rootTypeName}: {message}). The STOMP frame " +
            $"framing is suspect (a blank line inside a message body ends the SDK's frame read - STP-795), so the " +
            $"notification connection is re-opened now (up to {tries} attempt(s), {SettingKey}). Whatever was pushed (an " +
-           "initialization or an order) must be PUSHED AGAIN - STOMP keeps no history.";
+           "initialization or an order) must be PUSHED AGAIN - STOMP keeps no history - and with every BLANK LINE inside " +
+           "it REMOVED first: the same body fails the same way until the SDK reader is fixed (STP-1165).";
 
     public static string ReconnectedLine(int attempt, double wallSeconds)
         => $"{Prefix}: RECONNECTED on attempt {attempt} after {S(wallSeconds)} WALL s - new messages are received again; " +
@@ -104,7 +105,7 @@ public static class StompRecovery
     /// <summary>The ObservationReport marking sent once after a successful reconnect.</summary>
     public static string ObservationMarking(string isoLost, string isoBack)
         => $"C2SIM message LOST at {isoLost} (unreadable frame); notification stream re-opened at {isoBack} - re-push " +
-           "the last initialization / order";
+           "the last initialization / order WITHOUT blank lines inside it (STP-1165)";
 
     public static string StartupLine(int tries)
         => tries > 0

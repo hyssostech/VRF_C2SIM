@@ -63,11 +63,14 @@ public static class StompRecoverySelfTest
         string lost = StompRecovery.LostLine("XmlException", "Unexpected end of file", tries);
         Check("lines: the LOST line says the message is lost, must be re-pushed, and names STP-795 and the setting",
               lost.Contains("LOST") && lost.Contains("PUSHED AGAIN") && lost.Contains("STP-795") && lost.Contains(StompRecovery.SettingKey));
+        Check("lines: ... and that blank lines must be REMOVED before the re-push (the same body fails again until STP-1165)",
+              lost.Contains("BLANK LINE") && lost.Contains("REMOVED") && lost.Contains("STP-1165"));
         Check("lines: the give-up line names the exit code", StompRecovery.GiveUpLine(3).Contains($"exit code {StompRecovery.ExitCode}"));
         Check("lines: the startup line says ON / OFF", StompRecovery.StartupLine(3).Contains("RECOVERY ON")
               && StompRecovery.StartupLine(0).Contains("RECOVERY OFF"));
         string mk = StompRecovery.ObservationMarking("2026-10-15T12:00:00Z", "2026-10-15T12:00:02Z");
-        Check("report: the ObservationReport marking names the loss and the re-push", mk.Contains("LOST") && mk.Contains("re-push"));
+        Check("report: the ObservationReport marking names the loss, the re-push and the blank lines",
+              mk.Contains("LOST") && mk.Contains("re-push") && mk.Contains("WITHOUT blank lines"));
         string body = BackendLivenessPolicy.BuildStateChangeReport(mk, "2026-10-15T12:00:02Z", "rpt-1", StompRecovery.ReportName);
         Check("report: it builds as a C2SIM ReportBody under the stream's own name, not the back end's",
               body.Contains(StompRecovery.ReportName) && !body.Contains("VR-Forces back end") && body.Contains("re-push"));
