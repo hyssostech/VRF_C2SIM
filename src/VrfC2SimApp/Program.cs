@@ -151,6 +151,13 @@ if (args.Length > 0 && args[0] == "--warm-cache-selftest")
 if (args.Length > 0 && args[0] == "--warm-preflight-cache")
     return VrfC2SimApp.Preflight.TileWarmupSelfTest.Cli(args);
 
+// STP-806 / STP-803 AO intake: the area of operations of an initialization (units + graphics + margin) - the box
+// every preparation step keys on. --ao-selftest is offline; --ao-from-init FILE [--margin-km K] prints it.
+if (args.Length > 0 && args[0] == "--ao-selftest")
+    return VrfC2SimApp.Preflight.AoExtentSelfTest.Run();
+if (args.Length > 0 && args[0] == "--ao-from-init")
+    return VrfC2SimApp.Preflight.AoExtentSelfTest.Cli(args);
+
 // Offline ROUTE-ORIGIN check (N13 + N15, D9 2026-09-21): the route origin of a COMPOSED PARENT,
 // replayed on run D9's own transient samples - the children's centroid lands on the authored
 // coordinate within 1 m where the parent's published position was 50.4 m out and lengthened the
@@ -214,6 +221,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
                             "--warm-cache-selftest, --warm-preflight-cache S,W,N,E DIR [--dry-run] [--force], " +
+                            "--ao-selftest, --ao-from-init INIT.xml [--margin-km K], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
                             "--planned-move-selftest [tile-cache-dir], " +
