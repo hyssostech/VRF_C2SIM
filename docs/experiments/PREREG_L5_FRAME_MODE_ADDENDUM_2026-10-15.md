@@ -72,3 +72,33 @@ is UNEXPLAINED.
   - the same collapse as D36(b): the frame mode is not the lever; it stays as ruled.
 - Order: AFTER L1 (if RTK on its own variable-frame is clean, L5 isolates the frame mode on OUR scenario) and
   independent of L2. Box time about 30 min.
+
+## Note (same date): how hold-type tasks END as built (the supervisor's chain question; code, no live run)
+
+- RESERVE / HOLD / SECURE / OCCUPY are HoldObjective: SECURE, OCCUPY, SEIZE, BLOCK, DEFEND, CRESRV, REINF, and
+  EVACT, REFUEL, RESUPL (VerbMapping.cs :176-190, :240). HoldObjective is NOT implemented (VerbMapping.cs
+  :125-127: "HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks"). NO vendor hold
+  task is issued: a move to the task's geometry (container: the planned move; VrfC2SimService.cs :5674-5676), or,
+  with no geometry, R2 in place (no vendor task at all).
+- They END by OUR timed completion (Vrf:TimedCompletion true, appsettings.json :44). The end time is armed at
+  Duration x DurationScale from dispatch (VrfC2SimService.cs :6783-6796):
+  - no destination: TASKCMPLT at that end time (measured: re-pre-run T12 armed 300 s; the probe holds
+    "reached the end time");
+  - destination: an early arrival is HELD to the end time; a late one completes ON ARRIVAL (RL-20260921-09;
+    measured: the re-pre-run EVACT, "OVERDUE ... ARRIVED - reported complete now").
+- They never "run until replaced". A destination task whose unit NEVER arrives stays in flight. Then:
+  - with StallDetection (on in the Demo overlay, :56), the watchdog TASKABRTs it and its STREND successors are
+    SKIPPED (the skip policy, as the re-pre-run logged for T13/T14);
+  - without a stall verdict, the successor waits up to Vrf:TaskChainBackstopSeconds (86400 s). That is a real
+    stall, but it is reachable only by a unit that keeps "progressing" without arriving.
+- Vendor side (docs): a movement task ends when its move ends. Move_To_Location_Plan_Path ends with its
+  subtask's result (.lua tick: vrf:endTask(vrf:subtaskResult(subTask))); a replaced task ends "Canceled" (UG52
+  37.3.1 p797). We issue no DtHoldUntilTask, so no vendor "hold until" condition governs the end.
+- The two named chains:
+  - 1-112 IN T12 CRESRV -> T13 REINF -> T14 CRESRV: no geometry, in place, each ends on its timer (300 / 150 /
+    150 SIM s). No stall.
+  - 55 MEB T29-T32 SECURE x4 (2-point graphics, 4-12 km): each ends at max(arrival, start + Duration). Today all
+    four are refused anyway (no composition, RL-20261004-06): T29's TASKABRT skips T30-T32.
+- Where a chain DOES wait in practice: behind the LONG moves, which run OVERDUE until arrival at about 11.5 km/h
+  SIM. T16 (66 km) holds T17-T21; T10 (91 km) holds T11; T3/T4 (about 30 km) hold T5-T7. Visible, not stalled,
+  but beyond a short demo window.
