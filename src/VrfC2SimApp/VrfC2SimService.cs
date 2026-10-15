@@ -4308,7 +4308,12 @@ public sealed class VrfC2SimService : BackgroundService
     /// in-flight map is concurrent), so the hold loop may call it off the tick thread.</summary>
     private NavigateGate.Work NavigateGateWork(string unitName, string newTaskUuid, out int pendingMembers)
     {
-        pendingMembers = _plannedMoves.PendingMembers(unitName);
+        pendingMembers = _plannedMoves.PendingMembers(unitName, out long generation);
+        // A context the container's live chain no longer owns is STALE (another dispatch replaced the chain without
+        // ending the planned move) - it holds nothing, or a moving task would wait out the bound for no reason.
+        if (pendingMembers > 0
+            && !(_vertexChains.TryGet(unitName, out var liveChain) && liveChain.Planned && liveChain.Generation == generation))
+            pendingMembers = 0;
         string kind = null, inFlightTask = null;
         if (_inFlight.TryGetCurrent(unitName, out var cur)) { kind = cur.ExpectedKind; inFlightTask = cur.TaskUuid; }
         return NavigateGate.Classify(pendingMembers, kind, inFlightTask, newTaskUuid);
@@ -4326,7 +4331,7 @@ public sealed class VrfC2SimService : BackgroundService
     /// <summary>
     /// OFF the tick thread: the navigate gate's hold (D36 candidate, STP-884). One NavigateGate.Step a second - the
     /// SAME rule --navigate-gate-selftest replays - until the work in flight ends (CLEARED), the bound expires (BOUND:
-    /// dispatched anyway), or the back end is declared LOST (the ordinary path, which refuses). Every release enters
+    /// dispatched anyway), or the back end is declared LOST (abandoned + TASKABRT, as the readiness hold ends). Every release enters
     /// the tick thread through DeferredDispatch.Run, so a dispatch that throws there ends the task loudly.
     /// </summary>
     private async Task NavigateGateHoldAsync(OrderTask task, CreatedUnit unit, DateTime startedUtc)
@@ -4347,14 +4352,36 @@ public sealed class VrfC2SimService : BackgroundService
                 await Task.Delay(TimeSpan.FromSeconds(1), _stoppingToken);
             }
             double wall = (DateTime.UtcNow - startedUtc).TotalSeconds;
+            if (release == NavigateGate.Release.BackendLost)
+            {
+                // The readiness hold's ending (HoldThenDispatchAsync): ExecuteTaskOnTick has no back-end-loss check, so
+                // nothing is dispatched onto a lost back end - the task is abandoned and its successors fail fast.
+                string lost = NavigateGate.BackendLostLine(task.TaskName, unit.Name, wall);
+                _log.LogError("{Line}", lost);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, lost);
+                return;
+            }
             if (release == NavigateGate.Release.Cleared)
                 _log.LogInformation("{Line}", NavigateGate.ClearedLine(task.TaskName, unit.Name, wall));
-            else if (release == NavigateGate.Release.Bound)
-                _log.LogWarning("{Line}", NavigateGate.BoundLine(task.TaskName, unit.Name, work, pending, wall));
             else
-                _log.LogWarning("{Line}", NavigateGate.BackendLostLine(task.TaskName, unit.Name, wall));
+                _log.LogWarning("{Line}", NavigateGate.BoundLine(task.TaskName, unit.Name, work, pending, wall));
+            var released = release;
             _tickActions.Enqueue(() => DeferredDispatch.Run(
-                () => ExecuteTaskOnTick(task, unit), task.TaskUuid, task.TaskName,
+                () =>
+                {
+                    // RE-CHECKED ON THE TICK THREAD, where the work is created: a 1 Hz poll can read CLEARED in the gap
+                    // before a queued next vertex is issued (cold review of ada1bf0). Still busy and under the bound:
+                    // hold again on the SAME clock.
+                    var again = NavigateGateWork(unit.Name, task.TaskUuid, out _);
+                    if (released == NavigateGate.Release.Cleared && again != NavigateGate.Work.None && !_backendLost
+                        && (DateTime.UtcNow - startedUtc).TotalSeconds < _vrf.NavigateGateMaxWaitSeconds)
+                    {
+                        _ = NavigateGateHoldAsync(task, unit, startedUtc);
+                        return;
+                    }
+                    ExecuteTaskOnTick(task, unit);
+                }, task.TaskUuid, task.TaskName,
                 DeferredDispatch.NavigateGateRelease, _sequencer,
                 reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason),
                 ex => _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread after the navigate gate " +

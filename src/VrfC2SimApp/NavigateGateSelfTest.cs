@@ -78,7 +78,7 @@ public static class NavigateGateSelfTest
         // ===== 4. The back end is declared LOST mid-hold: the ordinary path, which refuses =====
         {
             var (rel, held) = ReplayHold(_ => 13, maxWait, lostAt: 30);
-            Check("LOST: a loss mid-hold ends it at once and the task is NOT dispatched by the gate",
+            Check("LOST: a loss mid-hold ends it at once and the task is NOT dispatched (the service abandons it)",
                   rel == NavigateGate.Release.BackendLost && !NavigateGate.Dispatches(rel) && held <= 31);
             Check("LOST: a back end already lost is never waited on",
                   !NavigateGate.ShouldHold(NavigateGate.Work.MemberMovesOutstanding, true, maxWait, backendLost: true));
@@ -118,21 +118,25 @@ public static class NavigateGateSelfTest
             var members = Enumerable.Range(1, 17).Select(i => new PlannedMoveTracker.Member($"48_IBCT.M{i}", $"u{i}")).ToList();
             tr.Begin(new PlannedMoveTracker.Context("48_IBCT/28ID", "c", 7, AggregateMovePlanner.Auto, members,
                                                     Array.Empty<RoadDecision>(), 1));
-            Check("TRACKER: no step open yet -> 0 pending", tr.PendingMembers("48_IBCT/28ID") == 0);
+            Check("TRACKER: a context with no step open yet (the first vertex is about to go) -> all 17 BUSY",
+                  tr.PendingMembers("48_IBCT/28ID", out long gen0) == 17 && gen0 == 7);
             tr.BeginVertex("48_IBCT/28ID", 7, 1);
-            Check("TRACKER: a fresh step -> all 17 pending", tr.PendingMembers("48_IBCT/28ID") == 17);
+            Check("TRACKER: a fresh step -> all 17 pending", tr.PendingMembers("48_IBCT/28ID", out _) == 17);
             for (int i = 1; i <= 4; i++) tr.OnMemberCompleted("48_IBCT/28ID", $"48_IBCT.M{i}", AggregateMovePolicy.NavigateScript, true);
-            Check("TRACKER: arm F at the re-task - 4 ended -> 13 pending", tr.PendingMembers("48_IBCT/28ID") == 13);
+            Check("TRACKER: arm F at the re-task - 4 ended -> 13 pending", tr.PendingMembers("48_IBCT/28ID", out _) == 13);
             tr.OnMemberCompleted("48_IBCT/28ID", "48_IBCT.M5", "move-to", true);
-            Check("TRACKER: a completion that is not the step's navigate does not count", tr.PendingMembers("48_IBCT/28ID") == 13);
+            Check("TRACKER: a completion that is not the step's navigate does not count", tr.PendingMembers("48_IBCT/28ID", out _) == 13);
             for (int i = 5; i <= 17; i++) tr.OnMemberCompleted("48_IBCT/28ID", $"48_IBCT.M{i}", AggregateMovePolicy.NavigateScript, i % 2 == 0);
-            Check("TRACKER: every member ended (the step closed) -> 0 pending", tr.PendingMembers("48_IBCT/28ID") == 0);
+            Check("TRACKER: the step closed but the context lives (BETWEEN VERTICES: the next one is queued) -> all 17 " +
+                  "BUSY, never idle (cold review of ada1bf0)", tr.PendingMembers("48_IBCT/28ID", out _) == 17);
+            tr.End("48_IBCT/28ID");
+            Check("TRACKER: the planned move ENDED (last vertex completed / failed) -> 0", tr.PendingMembers("48_IBCT/28ID", out _) == 0);
             var g = new PlannedMoveTracker();
             g.Begin(new PlannedMoveTracker.Context("X", "x", 1, AggregateMovePlanner.Group, members, Array.Empty<RoadDecision>(), 1));
             g.BeginVertex("X", 1, 1);
             Check("TRACKER: a Group planner reports 0 (the vendor aggregates its members; no per-member step)",
-                  g.PendingMembers("X") == 0);
-            Check("TRACKER: an unknown container -> 0", tr.PendingMembers("nobody") == 0 && tr.PendingMembers(null) == 0);
+                  g.PendingMembers("X", out _) == 0);
+            Check("TRACKER: an unknown container -> 0", tr.PendingMembers("nobody", out _) == 0 && tr.PendingMembers(null, out _) == 0);
         }
 
         // ===== 8. The sentences =====

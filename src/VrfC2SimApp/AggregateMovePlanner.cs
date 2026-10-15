@@ -472,17 +472,24 @@ public sealed class PlannedMoveTracker
         lock (_lock) _byContainer.Remove(container);
     }
 
-    /// <summary>NavigateGate (D36): how many members of the container's OPEN per-member step have not reported their
-    /// navigate-to-location ended. 0 when no context, no open step, or a Group planner (the vendor aggregates those).
-    /// The step stays open after the task's own completion by arrival evidence - which is exactly when a successor
-    /// dispatch lands on members still moving.</summary>
-    public int PendingMembers(string container)
+    /// <summary>NavigateGate (D36): how many members of the container's planned move are still BUSY with it. An open
+    /// per-member step counts the members whose navigate-to-location has not reported ended; a context with NO step
+    /// open - between two vertices (the step closed, the next vertex is queued) or before the first - counts EVERY
+    /// member, because the next vertex is about to be sent to all of them (cold review of ada1bf0: reading that gap
+    /// as idle let a successor land one action behind a new vertex). 0 only when there is no context (End(): the last
+    /// vertex completed or failed) or for a Group planner (the vendor aggregates those). The step stays open after the
+    /// task's own completion by arrival evidence - exactly when a successor dispatch lands on members still moving.
+    /// The caller must check that the context still belongs to the container's live chain (generation).</summary>
+    public int PendingMembers(string container, out long generation)
     {
+        generation = 0;
         if (string.IsNullOrEmpty(container)) return 0;
         lock (_lock)
         {
-            if (!_byContainer.TryGetValue(container, out var x) || x.OpenVertex == 0) return 0;
+            if (!_byContainer.TryGetValue(container, out var x)) return 0;
             if (!AggregateMovePolicy.IsPerMember(x.C.Planner)) return 0;
+            generation = x.C.Generation;
+            if (x.OpenVertex == 0) return x.C.Members.Count;
             return x.Results.Values.Count(v => v == null);
         }
     }

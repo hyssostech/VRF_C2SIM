@@ -19,7 +19,7 @@ namespace VrfC2SimApp;
 /// pending, or a platform whose in-flight record is an ENGAGE. The hold ends when the work ends (CLEARED), when the
 /// bound expires (BOUND - the task is then DISPATCHED anyway, with a warning: arm (i) re-tasked a container 8.25 min
 /// after its first move, 10 members never having ended, and the back end ran on), or when the back end is declared
-/// LOST (the task then takes the ordinary dispatch path, which refuses it). A task that does not move (hold in place,
+/// LOST (the task is then abandoned with one TASKABRT, as the readiness hold ends). A task that does not move (hold in place,
 /// passage of lines held in place, no geometry) is never held: it issues no movement.
 ///
 /// THE BOUND. <see cref="DefaultMaxWaitSeconds"/> = 480 s WALL, from D36: the only re-task observed SAFE with members
@@ -85,7 +85,7 @@ public static class NavigateGate
     }
 
     /// <summary>Does this release DISPATCH the task? Cleared and Bound do (the bound is not an abort - arm (i));
-    /// BackendLost hands it to the ordinary path, which refuses it.</summary>
+    /// BackendLost abandons it (TASKABRT; successors fail fast).</summary>
     public static bool Dispatches(Release r) => r is Release.Cleared or Release.Bound;
 
     private static string What(Work w, int pending) => w switch
@@ -113,7 +113,7 @@ public static class NavigateGate
 
     public static string BackendLostLine(string taskName, string unitName, double heldWallSeconds)
         => $"{Prefix}: task '{taskName}' on {unitName} - the back end was declared LOST after {N0(heldWallSeconds)} WALL s " +
-           "of the hold; the task takes the ordinary dispatch path.";
+           "of the hold; the task is ABANDONED (TASKABRT) and its successors fail fast.";
 
     public static string StartupLine(double maxWaitSeconds)
         => maxWaitSeconds > 0
