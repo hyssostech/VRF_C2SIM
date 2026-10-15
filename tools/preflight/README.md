@@ -303,3 +303,15 @@ sec 5).
   verdict, 14 flagged.
 - ASCII: `rg -nP "[^\x09\x0a\x0d\x20-\x7E]" tools/preflight/*` must exit 1.
 - Line endings: CRLF in every tracked file here.
+
+## Warming the cache for a new AO (STP-805)
+
+The interface carries its own warm-up, through the same TileSource it scores with (same servers, same cache layout):
+
+    VrfC2SimApp --warm-preflight-cache S,W,N,E CACHE_DIR [--dry-run] [--force] [--level N]
+
+It fetches every elevation tile at the cascade's start level (coarser levels where the server has none), every
+land-cover source's tiles and every z14 OSM tile (water, all features, highways) over the box, then prints what was
+fetched, already cached, given up and still unknown (exit 0 = complete). CACHE_DIR is required - it never writes into a
+run's configured cache by default; a box of more than 4,096 elevation tiles is refused without --force. Point the run at
+it with Vrf:PreflightCacheDir and set Vrf:PreflightOffline=true. Offline proof: `VrfC2SimApp --warm-cache-selftest`.

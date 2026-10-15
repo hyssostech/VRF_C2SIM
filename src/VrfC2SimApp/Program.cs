@@ -143,6 +143,14 @@ if (args.Length > 0 && args[0] == "--liveness-selftest")
 if (args.Length > 0 && args[0] == "--dispatch-readiness-selftest")
     return DispatchReadinessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
 
+// STP-805 (Prep 3 of STP-802): warm the route pre-flight tile cache for an AO, offline-proven by --warm-cache-selftest
+// (no network). --warm-preflight-cache S,W,N,E CACHE_DIR [--dry-run] [--force] [--level N] fetches every tile the
+// pre-flight can ask for over the box, through the interface's own TileSource; CACHE_DIR is required (never a default).
+if (args.Length > 0 && args[0] == "--warm-cache-selftest")
+    return VrfC2SimApp.Preflight.TileWarmupSelfTest.Run();
+if (args.Length > 0 && args[0] == "--warm-preflight-cache")
+    return VrfC2SimApp.Preflight.TileWarmupSelfTest.Cli(args);
+
 // Offline ROUTE-ORIGIN check (N13 + N15, D9 2026-09-21): the route origin of a COMPOSED PARENT,
 // replayed on run D9's own transient samples - the children's centroid lands on the authored
 // coordinate within 1 m where the parent's published position was 50.4 m out and lengthened the
@@ -205,6 +213,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--routeextent/--routeorigin-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
+                            "--warm-cache-selftest, --warm-preflight-cache S,W,N,E DIR [--dry-run] [--force], " +
                             "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport/--populate-selftest, " +
                             "--planned-move-selftest [tile-cache-dir], " +
