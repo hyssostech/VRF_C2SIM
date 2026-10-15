@@ -27,3 +27,15 @@ Prediction (MEDIUM): HELD at release with ~13 members out; CLEARED within ~3 min
 never ended - then BOUND, and the late re-task ran on); no stop either way.
 If 2 runs pass: merge to main after review, deploy (rebuild main), one re-pre-run of today's demo with the gate on:
 37/37 exported, xsd PASS, same admitted tasks as the 22:38Z re-pre-run, no BACK END LOST, STP-1147/1149/1150 holding.
+
+## D16 RESULT (2026-10-15 01:06-01:22Z; runs/launch52/d16-pro; app 5448-5452): PASS (the Local seat's verdict)
+
+stp-pro up EMPTY 01:06:53Z; Pro (stp-20, add-in v33x from run 38650876426) connected and pushed its own plan; the seat
+then posted baseline + COA 1 with replace=true (95 symbols / 37 tasks posted, confirmed; server 94 / 37), pushed the
+Initialization through stp-pro (26 of 26 bound, late - READY TO TASK not reached in 20 s, then bound), and on stp-20's
+"Reports On, go" (Reports On 01:14:33Z) pushed the order at 01:15:28Z: 28ID HoldInPlace (01:15:37Z) and 1-112 IN EVACT
+(01:15:38.9Z, navigate-to-location) -> HIDE. Interface: 0 BACK END LOST, three TASKCMPLT, working set flat (max 3.3 GB).
+STP: 0 "unknown uuid"; StpListen 28 SymbolReport, 18 poids, 2 changed. Pro (stp-20's report): 1-112 IN moved through
+4 reported positions (01:16:03-01:17:03Z), 1,549 m from plan, ending 1 m from the EVACT target, then held; 28ID
+re-drawn in place; 10 "report unit" updates; Reports Off 01:20:35Z -> back at its planned position within 10 s, all 30
+Iron Storm features present. Teardown: StopVrf exit 3 -> forced exit 6; stp-pro removed; RTI and holder intact.
