@@ -1,6 +1,6 @@
 # D36: BACK-END-STOP DISCRIMINATOR + WARM TERRAIN-CACHE TEST (and D33's adoption gate)
 
-STATUS: PREREG written 2026-10-14 ~23:35Z, BEFORE any launch. Operator ruling relayed by the STP-1097 supervisor
+STATUS: PREREG committed 2026-10-14 23:24Z (c7971f3), BEFORE any launch. Operator ruling relayed by the STP-1097 supervisor
 (Paulo, 2026-10-14 ~23:15Z, verbatim "Go for 1-4"): D36 GO and D33 GO as recommended - D33 = adopt OPTION 3's extent
 (SCOPE_DEMO_EXTENT_2026-10-14) IF part (b) PASSES, else keep today's (RL-20261005-02).
 Inputs: STP main 6a90ee35 (adds STP-1148 - objectives not drawn over their unit - so (b) is also its live check);
@@ -48,7 +48,7 @@ Predictions: admitted 13 / executed 12 on the 37-task export (MEDIUM - the 299d4
 re-pre-run admitted two 48 IBCT tasks the emulation had refused in the chain); exact list written below from the
 6a90ee35 export BEFORE the FILL launch.
 
-## (b) prediction on the 6a90ee35 export (written ~23:50Z, before the FILL launch)
+## (b) prediction on the 6a90ee35 export (committed 23:24Z with the PREREG, before any launch)
 
 Export: 95 symbols / 37 tasks posted (STP main 6a90ee35, container stp-d36). Emulation of the interface's rule on
 option 3's box: the DEMO EXTENT line refuses 17 and admits 20 per task - T1 T2 T5 T6 T7 (56 SBCT), T11 (278 ACR),
@@ -116,7 +116,7 @@ back end's own feature / obstacle PROCESSING for long ground routes across this 
 operator's rule ("if (b) FAILS, keep today's extent") the demo stays on RL-20261005-02's box; no config change.
 STP-1148 not judged (no capture before the loss showed the objectives).
 
-## (a2) PREREG - two more arms (supervisor GO, within the D36 approval; written 2026-10-15 ~00:02Z, before launch)
+## (a2) PREREG - two more arms (supervisor GO, within the D36 approval; committed 2026-10-14 23:59Z (6d9c4a5), before launch)
 
 Same rules (fresh launch, COA 1 init only, 48 IBCT only, 1 Hz sampler + abort, NotifyLevel 3).
 - Arm (i) AFTER ALL ENDED: CONSTR alone to (54.0403,23.3364); wait until the interface logs 17 of 17 members ended
@@ -128,6 +128,41 @@ Same rules (fresh launch, COA 1 init only, 48 IBCT only, 1 Hz sampler + abort, N
 Readings: (i) stops -> outstanding moves are not needed (the start position / the re-task itself suffices); (i) does
 not -> outstanding moves are needed (a gate that waits for every member to end would avoid it). (ii) stops -> a wet
 start is not needed; (ii) does not -> the wet / in-obstacle start is involved. STOP = same definition as (a).
+
+## (a2) RESULT (2026-10-15 00:00-00:33Z; runs/launch52/d36/armI, armII; app 5438-5447)
+
+| Arm | start | second task | members ended at re-task | in-obstacle lines | STOP |
+|---|---|---|---|---|---|
+| F (23:27Z) | wet (54.036,23.335) | ENGAGE, STREND, ~1.5 min after CONSTR | 4 of 17 | 42 | YES (+0.27 s) |
+| H (23:37Z) | wet | OCCUPY, STREND, ~1.8 min after | 4 of 17 | 35 | YES (+0.30 s) |
+| (i) (00:10Z) | wet (water at 0.00 km on the leg) | ENGAGE, separate order, 8 min after | 7 of 17 (the other 10 never ended - capped) | 57 | NO - ran on (SIM/WALL ~7), vendor log growing; the unit then STALLED (TASKABRT by C16) |
+| (ii) (00:25Z) | DRY (no water on either leg; VALID) | ENGAGE, STREND, ~2 min after | 10 of 17 | 0 | NO - ran on (SIM/WALL ~6.6), ENGAGE moves completing |
+(i) is not the clean "after ALL ended" arm the PREREG asked for: 10 members never ended in 8 min (stuck), so it reads
+"a LATE re-task from the wet start". READING (n=1 per new arm - not a closed cause): neither the wet start alone (i) nor a
+re-task with moves outstanding alone (ii) stops the back end; the stop needs BOTH a start in / at the obstacle (water)
+AND a re-task early in the move, while the members are still planning from it (F, H, 19:45Z: 3 of 3; the vendor log
+ends inside those re-plans each time). Competing reading not excluded: the timing alone (early vs late) with the wet
+start incidental - (ii) is the only dry arm and it was also early, so it argues against that.
+
+## Mitigation view (offline, for the operator's options)
+
+- VRF_C2SIM side, the candidate that covers every observed case: HOLD A NAVIGATE SUCCESSOR on a container until every
+  member's previous navigate has ended, BOUNDED (the 10 stuck members of (i) never end - a bound is required; a late
+  re-task was safe in (i)). Untested as a fix; it would need its own arm (F's geometry with the hold on).
+- NOT recommended without a test: stopping the outstanding member tasks first - a stop is itself a re-task of members
+  mid-plan, the very shape that stops the back end.
+- No STP change is needed for this (the order is valid; the timing is the interface's).
+- Today's demo (RL-20261005-02 box) does not contain the shape: 1-112 IN's tasks are in place, 48 IBCT's chain is
+  skipped. The risk is a NEW order re-tasking a unit that is moving from wet ground (the probe did exactly that).
+- STP-884 (successor released while an ATTACK's engage phase is in flight) is the SAME FAMILY - a successor dispatched
+  onto a unit whose predecessor is still executing - so one gate rule ("no successor dispatch while the unit has vendor
+  work in flight; bounded wait") covers both by design; they are two code paths (platform engage completion vs container
+  member moves), so one change, two tests.
+- STP-854 is probably NOT the same mechanism: a CRASH (callstack + dump + error dialog) 1.3 s after an order during init
+  churn; tonight's stops leave no dump and no dialog, the process lives with threads spinning, and they follow a
+  mid-move re-task, not an order on the heels of an init. Keep it separate.
+- Option 3's failure (b) is a different class (feature-paging backlog) that the interface cannot fix except by the
+  extent bound already in force (or fewer simultaneous long-route movers).
 
 ## Item 3 (Pro eyes-on)
 
