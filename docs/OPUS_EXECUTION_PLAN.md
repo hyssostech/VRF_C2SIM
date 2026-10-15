@@ -3743,8 +3743,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - RESULT 2026-10-15 (D36 a2): 5438 CONSUMED (LaunchVrf52 holder); 5439 BURNED; 5440 CONSUMED (back end 31268, forced exit 6); 5441 CONSUMED (vrfGui); 5442 CONSUMED (VrfC2SimApp); 5443 CONSUMED (holder 2696); 5444 BURNED; 5445 CONSUMED (back end 28640, forced exit 6); 5446 CONSUMED (vrfGui); 5447 CONSUMED (VrfC2SimApp). Day holder 5404 (RtiProbe 26720) still holding.
 - 2026-10-15 D16 + D47 (docs/experiments/D47_NAVGATE_LIVE_AND_D16_PRO_2026-10-15.md), joining the day holder 5404, 5 per launch (LaunchVrf52 -FederationHoldAppNumber; its retry +1; back end; vrfGui; VrfC2SimApp): 5448-5452 = D16 Pro run; 5453-5457 = gate arm G1; 5458-5462 = gate arm G2; 5463-5467 = re-pre-run with the gate. A launch that does not happen burns its five.
 - RESULT 2026-10-15 (D16 + D47): 5448 CONSUMED (LaunchVrf52 holder); 5449 BURNED; 5450 CONSUMED (back end, forced exit 6); 5451 CONSUMED (vrfGui); 5452 CONSUMED (VrfC2SimApp, main); 5453 CONSUMED (holder); 5454 BURNED; 5455 CONSUMED (back end 36576, forced exit 6); 5456 CONSUMED (vrfGui); 5457 CONSUMED (VrfC2SimApp, gate branch); 5458-5467 BURNED (G2 and the gate re-pre-run not run: G1 failed).
+- 2026-10-15 REPRO-BACKEND-STOP (docs/experiments/REPRO_BACKEND_STOP_2026-10-15.md), joining the day holder 5404, 5 per launch: 5468-5472 = R-a; 5473-5477 = R-b; 5478-5482 = R-c (spare). A launch that does not happen burns its five.
 
-*** NEXT FREE: 5468 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 5483 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
