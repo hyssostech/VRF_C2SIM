@@ -478,12 +478,16 @@ public static class RouteExtentSelfTest
               && cutT13 != null && string.Equals(cutT13.ActionCode, "CNFPSL", StringComparison.Ordinal));
         if (cutT13 != null)
         {
+            // T13's MapGraphicIDs are published by the cut A ORDER itself (not the init), so the control carries the
+            // order's graphics too - without them the MOVE resolves no route and the control would pass vacuously.
             var routedT13 = new OrderData();
+            routedT13.Graphics.AddRange(orders[0].Order.Graphics);
             routedT13.Tasks.Add(cutT13 with { ActionCode = "MOVE" });
             var routedRows = JudgeOrder(init, routedT13, noMargin);
-            Check("CONTROL: the same T13 as MOVE (routed) IS refused with zero margin, on a ROUTE vertex - the authored box " +
-                  "still excludes that vertex, and a routed task is still tested on its route",
-                  routedRows.Count == 1 && routedRows[0].Verdict.Violated
+            Check($"CONTROL: the same T13 as MOVE (routed) IS refused with zero margin, on a ROUTE vertex - it is tested on " +
+                  $"its start AND its route ({(routedRows.Count == 1 ? routedRows[0].Points : 0)} point(s), more than the start " +
+                  "alone), the authored box still excludes that vertex, and a routed task is still tested on its route",
+                  routedRows.Count == 1 && routedRows[0].Points > 1 && routedRows[0].Verdict.Violated
                   && routedRows[0].Verdict.Reason.StartsWith("route ", StringComparison.Ordinal));
         }
 
