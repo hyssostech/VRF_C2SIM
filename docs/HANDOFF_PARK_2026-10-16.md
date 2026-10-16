@@ -92,10 +92,10 @@ STP-side fix (STP 5.11.1; design APPROVED, build NOT started):
 
 ## 5. RESUME steps (in order)
 
-1. C2SIM server: restart the server container, the D106 procedure (D106 = the 10-16 restart, which also ended the stale interface).
-   - After LV-1b it was reset to UNINITIALIZED, and if LA-1 holds, its publishing connection was closed.
-   - Confirm no stale VrfC2SimApp is running.
-   - Never touch c2sim-server-vrf, stp-lt (9500-9599) or 19575.
+1. C2SIM server: D106, OPERATOR ONLY. The operator copies the server logs, restarts c2sim-server-vrf and ends any stale interface.
+   - Measurement: the c2sim-server-vrf publishing leg has been dead since LV-1b, and it stays dead until a restart. The container holds about 1.5 GiB.
+   - After LV-1b the server was reset to UNINITIALIZED. LA-1 claims its publishing connection was closed (sec 2).
+   - No session restarts or edits c2sim-server-vrf. Never touch stp-lt (9500-9599) or 19575.
 2. STP-side fix: check whether the ASCII escape has merged (sec 2) and whether the STP build in the engine image carries it.
    - Until it has, an order carrying non-ASCII text can reproduce the LV-1b failure, if LA-1 holds.
    - Check k3 for non-ASCII bytes before T0.
@@ -105,7 +105,7 @@ STP-side fix (STP 5.11.1; design APPROVED, build NOT started):
    - MEMORY STOP below 6.0 GiB; stop sonar-local and close finished windows first (D86).
 4. Approvals profiles that exist on the box:
    - vrf-demo: run and record, now with the -NoGui LaunchVrf52 line (D113); guard-config refuses -NoGui mixed with -FrontendAppNumber;
-   - vrf-dev: source edits on this repo's worktree, needed for LD-22a.
+   - vrf-dev.json: the D100 source-edit profile (applied 10-16; 79 allow / 39 deny), needed for LD-22a.
    - Every vrf-demo command goes through the Bash tool, in its exact allow-line form (c14387 item 6).
    - An extent override (LV-2) needs a NEW narrow allow line for Vrf__DemoExtent; none exists.
 5. Re-run LV-1 as LV-1c: c14384 with the c14387 amendment, a fresh ledger number, and Reports On only after G2 passes (c14392 departure). Then LV-2 only if its memory gate passes.
