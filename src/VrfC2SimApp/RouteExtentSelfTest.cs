@@ -541,7 +541,7 @@ public static class RouteExtentSelfTest
         }
 
         // ---- 11g. STP-1210: A NOT-ROUTED TASK IS TESTED ON ITS START ONLY, AND DOES NOT CASCADE ----
-        HeldTaskSection(Check, demo);
+        HeldTaskSection(Check, demo.Value);
 
         // ---- 11f. A MALFORMED SETTING IS AN ERROR, NEVER A GUESS ----
         Check("malformed: three fields, a box with south >= north, a non-number, and a negative margin are all REJECTED",
