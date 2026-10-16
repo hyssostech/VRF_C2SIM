@@ -330,19 +330,31 @@ public static class RouteExtentPolicy
     /// <summary>One point the demo-extent check tests, with what it IS (the refusal names it).</summary>
     public readonly record struct ExtentPoint(string What, double Lat, double Lon);
 
+    /// <summary>STP-1210: what the start point of a NOT-ROUTED task is called - the refusal says the
+    /// start is all that was tested, and why.</summary>
+    public const string NotRoutedStartWhat = "the performer's start position (held in place: start tested only)";
+
     /// <summary>
     /// The points the demo extent tests for ONE task, in the order the refusal reports them: the
     /// performer's start first, then the driven geometry in route order, then the area rings. PURE:
     /// the same TaskGeometryResolver.Resolve call ExecuteTaskOnTick makes (its log lines discarded -
-    /// dispatch logs them), so the order-receipt check judges exactly what dispatch would drive.
+    /// dispatch logs them). CORRECTED (STP-1210): this used to say the check "judges exactly what
+    /// dispatch would drive", which was FALSE for a not-routed task - a hold-in-place verb drives
+    /// none of its geometry, yet its whole route was tested and could refuse it (and, through
+    /// NotifyAbandoned, its successors). Now a task in TaskDispatchPolicy.IsNotRouted (decided from
+    /// the verb alone, the same predicate the dispatch branch uses) is tested on its START ONLY. The
+    /// performer-dependent not-routed cases (ESCRT, FOLSPT/FOLASS by a platform with a distinct
+    /// followed unit) are not knowable here and stay tested on their route - a conservative
+    /// over-refusal, accepted.
     /// </summary>
     public static List<ExtentPoint> DemoExtentPoints(OrderTask task, IReadOnlyDictionary<string, TaskGraphic> graphics,
                                                      (double Lat, double Lon)? performerStart)
     {
         var outp = new List<ExtentPoint>();
+        bool notRouted = task != null && TaskDispatchPolicy.IsNotRouted(VerbMapping.Classify(task.ActionCode).Intent);
         if (performerStart is { } ps)
-            outp.Add(new ExtentPoint("the performer's start position", ps.Lat, ps.Lon));
-        if (task == null) return outp;
+            outp.Add(new ExtentPoint(notRouted ? NotRoutedStartWhat : "the performer's start position", ps.Lat, ps.Lon));
+        if (task == null || notRouted) return outp;   // STP-1210: a held task drives nothing - its start only
         var geometry = TaskGeometryResolver.Resolve(task, graphics, performerStart);
         var reading = TaskGeometryInterpretation.Interpret(task.ActionCode, geometry.Points, geometry.Source);
         int n = geometry.Points.Count;

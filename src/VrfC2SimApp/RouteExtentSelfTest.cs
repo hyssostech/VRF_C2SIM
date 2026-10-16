@@ -318,6 +318,87 @@ public static class RouteExtentSelfTest
         return m.Success ? "T" + m.Groups[1].Value : taskName;
     }
 
+    /// <summary>
+    /// STP-1210. A performer whose start is INSIDE the demo box; task 1 names a lane that lies OUTSIDE it, task 2 is a
+    /// MOVE wholly inside, gated on task 1 (startAfterTaskUuid). With task 1 held in place (any verb in
+    /// TaskDispatchPolicy.IsNotRouted) it drives none of the lane, so it is tested on its start only, is NOT refused,
+    /// and task 2's gate does not fail. The CONTROL: the same pair with task 1 as MOVE is refused on a ROUTE vertex
+    /// (the reason is asserted, not just the outcome) and task 2 then fails PredecessorAbandoned. Task 1 carries a
+    /// usable Duration in every case, so the Q4 no-movement-no-duration refusal (a DIFFERENT abandon) cannot be what
+    /// these checks see.
+    /// </summary>
+    private static void HeldTaskSection(Action<string, bool> Check, V.DemoBound demo)
+    {
+        var box = demo.Authored;
+        (double Lat, double Lon) start = ((box.MinLat + box.MaxLat) / 2, (box.MinLon + box.MaxLon) / 2);
+        double outLat = demo.Bounded.MaxLat + 0.05;   // about 5.6 km north of the TESTED (widened) box
+        var lane = new TaskGraphic("lane-1210", "Lane 1210", TaskGraphic.KindLine,
+            new List<(double, double, double?)> { (outLat, start.Lon, null), (outLat + 0.01, start.Lon, null) });
+        var map = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal) { [lane.Uuid] = lane };
+        OrderTask Task1(string code) => new OrderTask
+        {
+            TaskUuid = "t1-1210", TaskName = "T1_1210_" + code, TaskeeUuid = "u-1210", ActionCode = code,
+            MapGraphicUuids = new[] { lane.Uuid }, DurationMs = 3_600_000,
+        };
+        var task2 = new OrderTask
+        {
+            TaskUuid = "t2-1210", TaskName = "T2_1210_MOVE", TaskeeUuid = "u-1210", ActionCode = "MOVE",
+            StartAfterTaskUuid = "t1-1210", DurationMs = 3_600_000,
+            Points = new List<(double, double, double?)> { (start.Lat + 0.01, start.Lon, null), (start.Lat + 0.02, start.Lon, null) },
+        };
+
+        // The set, pinned over the WHOLE verb table from the single predicate.
+        var notRouted = VerbMapping.KnownActionCodes
+            .Where(c => TaskDispatchPolicy.IsNotRouted(VerbMapping.Classify(c).Intent))
+            .OrderBy(c => c, StringComparer.Ordinal).ToList();
+        string[] expected = { "CNFPSL", "CNRPSL", "EXECUTEPLANPHASE", "HIDE", "HOLDINPLACE", "UNCONW" };
+        Check($"STP-1210: the not-routed class is exactly [{string.Join(", ", expected)}] (read from the verb table: " +
+              $"[{string.Join(", ", notRouted)}])", notRouted.SequenceEqual(expected));
+        Check("STP-1210: routed verbs stay routed - MOVE, ATTACK, BREACH, FOLSPT, FOLASS, CONSTR, OCCUPY, ESCRT and an " +
+              "unlisted verb (bare-move fallback) are NOT in the class",
+              new[] { "MOVE", "ATTACK", "BREACH", "FOLSPT", "FOLASS", "CONSTR", "OCCUPY", "ESCRT", "NOSUCHVERB" }
+                  .All(c => !TaskDispatchPolicy.IsNotRouted(VerbMapping.Classify(c).Intent)));
+        Check("STP-1210: the fixture's task 2 (MOVE, wholly inside) is accepted on its own",
+              !V.CheckDemoExtent(demo, V.DemoExtentPoints(task2, map, start)).Violated);
+
+        foreach (var code in expected)
+        {
+            var t1 = Task1(code);
+            var pts = V.DemoExtentPoints(t1, map, start);
+            var verdict = V.CheckDemoExtent(demo, pts);
+            Check($"STP-1210 {code}: task 1 (held, lane outside, Duration {t1.DurationMs} ms) is tested on its START ONLY " +
+                  "and is NOT refused by the demo extent",
+                  t1.DurationMs > 0 && pts.Count == 1 && pts[0].What == V.NotRoutedStartWhat
+                  && pts[0].Lat == start.Lat && pts[0].Lon == start.Lon && !verdict.Violated);
+            var seq = new TaskSequencer();
+            if (verdict.Violated) seq.NotifyAbandoned(t1.TaskUuid);   // what the order-receipt refusal does
+            using var cts = new System.Threading.CancellationTokenSource();
+            var gate = seq.WaitForStartAsync(task2.StartAfterTaskUuid, 0, 0, 60.0, TaskClock.Wall, cts.Token);
+            bool settled = gate.Wait(TimeSpan.FromMilliseconds(300));
+            Check($"STP-1210 {code}: task 2's gate does NOT fail PredecessorAbandoned (it is still waiting on task 1)",
+                  !settled);
+            cts.Cancel();
+            try { gate.Wait(TimeSpan.FromSeconds(2)); } catch (AggregateException) { }
+        }
+
+        // CONTROL: the same pair with task 1 ROUTED.
+        var moved = Task1("MOVE");
+        var mPts = V.DemoExtentPoints(moved, map, start);
+        var mVerdict = V.CheckDemoExtent(demo, mPts);
+        string mAbort = V.DemoExtentAbort(moved.TaskName, mVerdict);
+        Check("STP-1210 CONTROL: task 1 as MOVE IS refused, and the REASON is a route vertex of the lane (the demo-extent " +
+              "refusal, not any other abandon)",
+              mVerdict.Violated && mVerdict.Kind == V.Violation.OutsideExtent
+              && mVerdict.Reason.StartsWith("route vertex 1 of 2 at ", StringComparison.Ordinal)
+              && mAbort.StartsWith("OUT OF DEMO EXTENT: route vertex 1 of 2 at ", StringComparison.Ordinal));
+        var cseq = new TaskSequencer();
+        cseq.NotifyAbandoned(moved.TaskUuid);
+        var cgate = cseq.WaitForStartAsync(task2.StartAfterTaskUuid, 0, 0, 60.0, TaskClock.Wall, System.Threading.CancellationToken.None);
+        bool cdone = cgate.Wait(TimeSpan.FromSeconds(2));
+        Check("STP-1210 CONTROL: ... and task 2 then fails PredecessorAbandoned at once (the cascade routed tasks keep)",
+              cdone && cgate.Result == GateResult.PredecessorAbandoned);
+    }
+
     private static void DemoExtentSection(Action<string, bool> Check)
     {
         static string F(double v, int d) => v.ToString("F" + d, CultureInfo.InvariantCulture);
@@ -384,10 +465,31 @@ public static class RouteExtentSelfTest
                   $"(expected [{string.Join(", ", expect[k].Unpop)}]); populated: [{string.Join(", ", accepted.OrderBy(s => s, StringComparer.Ordinal))}]",
                   string.Join(",", unpop) == string.Join(",", expect[k].Unpop));
         }
-        Check("ON: cut A's 5 tasks are all IN - the margin covers its one point outside the authored box (T13's route " +
-              "vertex 53.97205,23.44140, 1.769 km east of it)",
+        // STP-1210: cut A's one point outside the AUTHORED box (route vertex 53.97205,23.44140, 1.769 km east of it)
+        // belongs to T13, and T13 is CNFPSL - held in place, so its lane is never driven and, since STP-1210, never
+        // tested. With zero margin cut A is therefore all IN too; the same T13 as a ROUTED verb (MOVE) is the control
+        // that still proves the authored box excludes that vertex.
+        var noMargin = new V.DemoBound(b.Authored, 0, b.Authored);
+        var cutT13 = orders[0].Order.Tasks.Find(t => Short(t.TaskName) == "T13");
+        Check("ON: cut A's 5 tasks are all IN, with the margin AND with zero margin (T13, the one with a vertex outside " +
+              "the authored box, is CNFPSL: start tested only, STP-1210)",
               orders[0].Order.Tasks.Count == 5 && JudgeOrder(init, orders[0].Order, demo).TrueForAll(r => !r.Verdict.Violated)
-              && JudgeOrder(init, orders[0].Order, new V.DemoBound(b.Authored, 0, b.Authored)).FindAll(r => r.Verdict.Violated).Count == 1);
+              && JudgeOrder(init, orders[0].Order, noMargin).TrueForAll(r => !r.Verdict.Violated)
+              && cutT13 != null && string.Equals(cutT13.ActionCode, "CNFPSL", StringComparison.Ordinal));
+        if (cutT13 != null)
+        {
+            // T13's MapGraphicIDs are published by the cut A ORDER itself (not the init), so the control carries the
+            // order's graphics too - without them the MOVE resolves no route and the control would pass vacuously.
+            var routedT13 = new OrderData();
+            routedT13.Graphics.AddRange(orders[0].Order.Graphics);
+            routedT13.Tasks.Add(cutT13 with { ActionCode = "MOVE" });
+            var routedRows = JudgeOrder(init, routedT13, noMargin);
+            Check($"CONTROL: the same T13 as MOVE (routed) IS refused with zero margin, on a ROUTE vertex - it is tested on " +
+                  $"its start AND its route ({(routedRows.Count == 1 ? routedRows[0].Points : 0)} point(s), more than the start " +
+                  "alone), the authored box still excludes that vertex, and a routed task is still tested on its route",
+                  routedRows.Count == 1 && routedRows[0].Points > 1 && routedRows[0].Verdict.Violated
+                  && routedRows[0].Verdict.Reason.StartsWith("route ", StringComparison.Ordinal));
+        }
 
         // ---- 11c. THE EDGE: 1 m inside is kept, 1 m outside is refused, on the north and the east edge ----
         double mPerDegLat = V.EarthRadiusMeters * Math.PI / 180.0;
@@ -441,6 +543,9 @@ public static class RouteExtentSelfTest
                   done && gate.Result == GateResult.PredecessorAbandoned
                   && TaskDispatchPolicy.GateFailureReason(gate.Result, 0, 0) == "was skipped/abandoned upstream");
         }
+
+        // ---- 11g. STP-1210: A NOT-ROUTED TASK IS TESTED ON ITS START ONLY, AND DOES NOT CASCADE ----
+        HeldTaskSection(Check, demo.Value);
 
         // ---- 11f. A MALFORMED SETTING IS AN ERROR, NEVER A GUESS ----
         Check("malformed: three fields, a box with south >= north, a non-number, and a negative margin are all REJECTED",
