@@ -37,13 +37,27 @@ Code refs are at feat/aggregate-documented-move 7467e53a (the #2 merge, the buil
 
 ## 2. The order-push failure (LA-1)
 
-LA-1's CLAIM (a box analysis; UNREVIEWED at the time of writing, so a hypothesis):
+LA-1's CLAIM (a box analysis; reviewed cold by LA-1R2 below):
 - The C2SIM server's STOMP client declares content-length = Java chars + 1, but writes UTF-8 bytes.
 - The 10-16 order carried 4 non-ASCII characters in one task Name, plus STP's echo of it in an XML comment.
 - The broker rejected the frame and closed the server's publishing connection, so nothing was published after it.
 - Since STP #466 (2ac981bc, 10-15) the agent wire is UTF-8, so non-ASCII text now reaches the export.
 
-LA-1R VERDICT (cold review): [SLOT - filled when the supervisor relays LA-1R]
+LA-1R VERDICT (LA-1R2, cold review by Fable; stp-data c049e44, runs/stp1192-cause-20261016/LA-1R-REVIEW.md):
+- C4 CONFIRMED for the source read. The client lib declares content-length = xml.length() + 1 and writes UTF-8 bytes
+  (C2SIMClientSTOMP_Lib.java:228, :454-458, v4.8.3.1). The deployed 4.8.4.9 bytecode was not inspected, but its
+  runtime matches the formula exactly: logged Length 75278 -> declared 75279.
+- C5 CONFIRMED. The order carries 4 non-ASCII chars (6 extra UTF-8 bytes), in one task Name and its comment echo.
+  The broker logged "Expected null terminator after 75279 content bytes" at both failing pushes.
+- C6 CONFIRMED. Every other Order and Initialization on record is pure ASCII. ASCII orders 1 char shorter, and
+  inits of 108k-116k chars, published fine, so size is ruled out.
+- Q9: the server publishes the RECEIVED string VERBATIM on the C2SIM topic (no re-serialize on that path). The
+  translated IBML09/CBML copies are separate messages.
+- Q10: no Initialization on record contains non-ASCII, so none contradicts C4/C5.
+- Follow-on measurement: after the broker error the server's STOMP socket was closed, and every later publish
+  failed ("IO Exception while sending frame") until the restart. The client lib has no reconnect.
+- Implication (separate sentence): an STP-side &#xH; escape would reach the broker unchanged and make the frame
+  7-bit clean, so the sec 2 STP fix addresses the cause. The server bug itself is upstream; report it there.
 
 Questions LA-1R was asked:
 - (1) Does the server parse and RE-SERIALIZE an order before publishing it? If it does, an STP-side ASCII escape does nothing.
@@ -54,7 +68,7 @@ STP-side fix (STP 5.11.1; design APPROVED, build NOT started):
 - What: one AsciiXml.Escape at the two push choke points in NallSuite/Agents/C2SimBridge/C2SimXmlBuilder.cs, PushInitialization :192 and PushOrder :215 (STP main b03db4e1). It covers both built and raw content.
 - Text and attribute values get &#xH; per Rune. Comments get the same text, which is not equivalent and is documented. The "utf-8" declaration is kept.
 - Measured (local .NET 10): XmlWriterSettings{Encoding=ASCII} over a TextWriter is IGNORED. Over a Stream it escapes, but it throws on non-ASCII in a comment.
-- Build gate: LA-1R confirms AND the supervisor says go. If LA-1R finds the server re-serializes, stop and rethink.
+- Build gate: LA-1R CONFIRMED (Q9 verbatim), so what remains is the supervisor's go (STP 5.11.1).
 
 ## 3. OPEN decisions (owner or operator)
 
@@ -94,10 +108,10 @@ STP-side fix (STP 5.11.1; design APPROVED, build NOT started):
 
 1. C2SIM server: D106, OPERATOR ONLY. The operator copies the server logs, restarts c2sim-server-vrf and ends any stale interface.
    - Measurement: the c2sim-server-vrf publishing leg has been dead since LV-1b, and it stays dead until a restart. The container holds about 1.5 GiB.
-   - After LV-1b the server was reset to UNINITIALIZED. LA-1 claims its publishing connection was closed (sec 2).
+   - After LV-1b the server was reset to UNINITIALIZED. LA-1R2 confirms its publishing socket was closed, with no reconnect (sec 2).
    - No session restarts or edits c2sim-server-vrf. Never touch stp-lt (9500-9599) or 19575.
 2. STP-side fix: check whether the ASCII escape has merged (sec 2) and whether the STP build in the engine image carries it.
-   - Until it has, an order carrying non-ASCII text can reproduce the LV-1b failure, if LA-1 holds.
+   - Until it has, an order carrying non-ASCII text can reproduce the LV-1b failure (LA-1R2 C4-C6).
    - Check k3 for non-ASCII bytes before T0.
 3. Memory gate:
    - VR-Forces runs -NoGui by default (standing operator ruling, 10-16); 4 launch numbers per launch (launch holder, its +1 retry, back end, interface);
