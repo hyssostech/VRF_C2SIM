@@ -5157,6 +5157,9 @@ public sealed class VrfC2SimService : BackgroundService
             // is refused here - one ERROR, one TASKABRT, NotifyAbandoned so its successors are skipped
             // by the existing cascade - and its performer is NOT populated for it. OFF (null) = the
             // check is not even assembled, so an unbounded run is byte-identical to before.
+            // STP-1210: a NOT-ROUTED task (TaskDispatchPolicy.IsNotRouted - it is held in place and drives
+            // none of its geometry) is tested on its performer's START only; testing its never-driven route
+            // refused tasks that never move and cascaded the refusal to their successors.
             if (_demoExtent is RouteExtentPolicy.DemoBound demo)
             {
                 (double Lat, double Lon)? start =
@@ -5779,7 +5782,10 @@ public sealed class VrfC2SimService : BackgroundService
         // driven - which is what an operator needs to decide whether the ORDER should have used a
         // movement code (for a forward passage of lines, STP's own code is CNFPSL).
         // CNFPSL takes this same dispatch for now (TaskDispatchPolicy.HoldsInPlace; RL-20260926-01 A6).
-        if (verb.Intent == TaskIntent.HoldInPlace || TaskDispatchPolicy.HoldsInPlace(engage))
+        // STP-1210: the branch is TaskDispatchPolicy.IsNotRouted - the SAME predicate the order-receipt
+        // demo-extent check uses to test only such a task's start (it equals the former
+        // "HoldInPlace || HoldsInPlace(engage)": ForEngage gives HoldInPlaceNotRouted for PassageOfLines only).
+        if (TaskDispatchPolicy.IsNotRouted(verb.Intent))
         {
             // Q4 (user ruling 2026-09-14) applies UNCHANGED: no vendor task is issued here, so the
             // C2SIM Duration is the only thing that can ever end this task. Without one it would
