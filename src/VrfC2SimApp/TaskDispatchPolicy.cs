@@ -158,6 +158,22 @@ public static class TaskDispatchPolicy
     public static bool HoldsInPlace(EngageDecision d) => d == EngageDecision.HoldInPlaceNotRouted;
 
     /// <summary>
+    /// STP-1210: THE NOT-ROUTED CLASS, from the verb ALONE - the tasks whose dispatch drives NONE of the
+    /// geometry they carry (the hold-in-place branch of ExecuteTaskOnTick: no vendor task, the unit stays at
+    /// its own position, the task ends at its Duration). Today: every TaskIntent.HoldInPlace verb
+    /// (HOLDINPLACE, HIDE, UNCONW, EXECUTEPLANPHASE) and PassageOfLines (CNFPSL, CNRPSL), whose
+    /// <see cref="ForEngage"/> decision is HoldInPlaceNotRouted whatever the performer or target.
+    /// ONE predicate for both readers, so they cannot drift: the dispatch branch, and the order-receipt
+    /// demo-extent check (RouteExtentPolicy.DemoExtentPoints), which tests only the start of such a task.
+    /// NOT here, by design: the PERFORMER-dependent not-routed cases (ESCRT, and FOLSPT/FOLASS by a platform
+    /// with a distinct followed unit, which dispatch DtFollowEntityTask with no route). Whether those drive
+    /// their geometry is not knowable from the verb at order receipt, so they stay tested on their route.
+    /// </summary>
+    public static bool IsNotRouted(TaskIntent intent)
+        => intent == TaskIntent.HoldInPlace
+        || HoldsInPlace(ForEngage(intent, performerIsUnit: true, TargetResolution.NoTarget));
+
+    /// <summary>
     /// STP-871: WHO A FOLLOW TASK TRAILS. ESCRT (escort) and, since STP-846 made STP name the supported unit as the
     /// AffectedEntity, FOLSPT / FOLASS (follow and support / follow and assume) trail a named unit with
     /// DtFollowEntityTask - a PLATFORM performer with a DISTINCT unit to follow. An Aggregate Container has no follow

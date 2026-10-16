@@ -240,6 +240,10 @@ public static class VerbMapping
             ["CRESRV"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
         };
 
+    /// <summary>STP-1210: every TaskActionCode this table lists, so a self-test can pin a property over
+    /// the WHOLE vocabulary (a verb added later is covered without editing the test).</summary>
+    internal static IEnumerable<string> KnownActionCodes => Map.Keys;
+
     /// <summary>Classify a C2SIM TaskActionCode. Null/empty/unlisted -> bare Move fallback.</summary>
     public static VerbPlan Classify(string actionCode)
     {
