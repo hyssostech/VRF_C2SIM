@@ -109,6 +109,41 @@ Implication (a separate sentence): the variable is WHO re-tasks the members.
 - Memory gate (HANDOFF_PARK sec 5 step 3): at least 7.0 GiB free before StartInterface52; MEMORY STOP below 6.0 GiB.
   Two launches, 8 ledgered numbers.
 
+## 1b. G0a / G0b RESULT (dispatcher lookup, 2026-10-19; read-only, no launch; stp-data runs/stp1296/G0a-G0b-vrforces-docs.md)
+
+Measurements, as reported and spot-checked by the dispatcher:
+- RN p69 VRF-8801, verbatim: "For aggregate-level SMSs, there is now a tab that allows you to add additional systems
+  to pseudo-aggregates."
+- RN p75 VRF-9312, verbatim: "For Aggregate Tactical Level SMS, propagate ground-echelon-group-tactics-enabler.sysdef
+  to pseudoaggregate units."
+- The propagation is per .entity, NOT at SMS level. 41 of 79 PseudoAggregate.ope entities carry the enabler (a
+  componentSystem line at :13/:14, e.g. BN_Armor.entity:13); 38 do not. No hit in AggregateTacticalLevel.sms or in any
+  .ope.
+- The bare Aggregate Container has no enabler: PseudoAggregate.ope:40 `(systems )` is empty, and :115-119 lists only
+  PA_* scripts. Our record's "unusable as built" therefore stands for the type the interface creates today.
+- The sysdef (:5-24) enables group_movement_simplified (= "Move (Group)", group_movement_simplified.xml:6),
+  group-set-ordered-speed, group-navigate-route-to-location, group-attack-to-objective and connect-headquarters-network.
+- Enabler-carrying types include 11:1:-1:6:2:1:-1 (BN_Armor.entity, .ope PseudoAggregate.ope),
+  11:1:-1:6:30:1:-1, 11:1:-1:8:4:1:111, 11:1:-1:8:30:1:-1, 11:1:-1:8:4:1:211, plus country-specific ones.
+- The Model Catalog p613-614 citation in VD-1 does not match the catalog's contents (Echelon Group 5.4 is at p668).
+  This is not reconciled.
+- G0b: Road to Kaunas gives CONTAINERS group-attack-to-objective only (Counterattack 5 plans + 9 saved states,
+  PhaseTwo 3 + 5, RoadToKaunas 0; all on enabler-carrying PA types). There is NO Move (Group) and no other group-* task
+  anywhere in the sample.
+- Not measured: a live Move (Group) on such a container.
+
+Readings (each a measurement statement):
+- G0a = YES via (i): a vendor PA type with platform PseudoAggregate.ope and the enabler, set through the type map. Its
+  RoleOfPlatform is Container. Step 1 (SMS-level propagation) = NO.
+- G0b: the premise "as the sample does" holds for group-tasking a container, but with a different group task
+  (group-attack-to-objective), not Move (Group). Per the G0b rule, the question is re-scoped: Move (Group) vs PlanPath,
+  with the sample cited as "containers get a group task (attack), never Move (Group)".
+
+OWED before the build (G0c): pick the ONE enabler-carrying PA type for R-a's brigade, matching its echelon and its
+affiliation, from the dispatcher's list (category 6 vs 8 is not interpreted here). Show by --parse-order and the type
+map that R-a populates it, with RoleOfPlatform = Container, and that its composition still yields the 17-member
+recipe. A different member count is a recipe change and is declared.
+
 ## 2. The run (one session, two fresh launches, the control first)
 
 - Recipe: REPRO_BACKEND_STOP R-a (make_backend_stop_repro.py). That is one synthetic brigade container of 17 members,
