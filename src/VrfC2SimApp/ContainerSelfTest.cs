@@ -72,6 +72,7 @@ public static class ContainerSelfTest
         string repo = FindRepoRoot();
         Check(repo != null, "the repository root is found (data/COA-STP1_Order.xml above the app)", AppContext.BaseDirectory);
         if (repo == null) return Finish();
+        ContainerTypeOverride.SelfTest(Check);   // STP-1296 p18: synthetic catalogue, runs before the installed one
         string home = Environment.GetEnvironmentVariable("VRF_HOME") is { Length: > 0 } h ? h
                     : Environment.GetEnvironmentVariable("MAK_VRFDIR") is { Length: > 0 } m ? m
                     : @"C:\MAK\vrforces5.2d";
@@ -439,7 +440,7 @@ public static class ContainerSelfTest
         var init = InitParser.Parse(File.ReadAllText(Path.Combine(repo, "data", "IRONSTORM_CUTA_Initialization.xml")));
         var map = UnitTypeMap.Load(Path.Combine(repo, "data", "unit-type-map-52-aggregate.json"));
         var nations = new NationRoles("USA", "RUS");
-        int created = 0, containers = 0, nearest = 0, fromCode = 0, matched = 0;
+        int created = 0, containers = 0, nearest = 0, fromCode = 0, matched = 0, offSame = 0;
         var wrong = new List<string>();
         foreach (var u in init.Units)
         {
@@ -449,6 +450,10 @@ public static class ContainerSelfTest
                                            TypeMapping.FidelityTable, map, nations);
             var c = ContainerTypeRule.Choose(cat, plan.Type.Country, u.SymbolId, u.EchelonCode);
             if (c.Found && cat.Resolve(c.Type8)?.Role == CatalogueRole.Container) containers++;
+            // STP-1296: with Vrf:ContainerTypeOverride OFF the service's decision is the init rule's, on every unit.
+            if (ContainerTypeOverride.Signature(ContainerTypeOverride.ChooseFor(cat, plan.Type.Country, u.SymbolId, u.EchelonCode,
+                                                                                plan.MapRowId, new Dictionary<string, int[]>()))
+                == ContainerTypeOverride.Signature(c)) offSame++;
             if (c.Found && !c.ExactBranch) nearest++;
             if (c.Flags.Any(f => f.StartsWith("no SIDC echelon", StringComparison.Ordinal))) fromCode++;
             string key = u.Name.Length > 50 ? u.Name.Substring(0, 50) : u.Name;
@@ -463,6 +468,9 @@ public static class ContainerSelfTest
         Check(matched == 36 && wrong.Count == 0,
               "every unit's container type and template equal composition_check.py --init-census (36 of 36)",
               string.Join("; ", wrong.Take(4)));
+        Check(offSame == 36,
+              "STP-1296: Vrf:ContainerTypeOverride OFF - the service's container decision equals the init rule's on all 36 units",
+              $"{offSame} of 36");
         Check(nearest == 7 && fromCode == 2,
               "7 are of the NEAREST branch and 2 are sized from their EchelonCode (NOS -> BN) - each logged, never silent",
               $"nearest {nearest}, from EchelonCode {fromCode}");

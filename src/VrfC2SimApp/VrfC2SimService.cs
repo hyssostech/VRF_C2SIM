@@ -132,6 +132,8 @@ public sealed class VrfC2SimService : BackgroundService
     // skipped and the entity-level path runs bit for bit as before (--populate-selftest sec p10 pins that).
     private readonly bool _containerMode;
     private ICatalogue _catalogue;                       // the aggregate chain (GetResolver, rooted at the model set)
+    // STP-1296: Vrf:ContainerTypeOverride, a run-only pin of one map row's init container type (empty = OFF).
+    private IReadOnlyDictionary<string, int[]> _containerTypePins = new Dictionary<string, int[]>(StringComparer.Ordinal);
     private CompositionTable _composition;               // Vrf:CompositionFile, validated at start-up
     private readonly ContainerPopulator _containers = new();
     private ContainerBridgeAdapter _containerBridge;     // tick thread only
@@ -1687,7 +1689,8 @@ public sealed class VrfC2SimService : BackgroundService
             ContainerChoice containerChoice = null;
             if (_containerMode && typeMapping == TypeMapping.FidelityTable && plan.IsAggregate)
             {
-                containerChoice = ContainerTypeRule.Choose(_catalogue, plan.Type.Country, unit.SymbolId, unit.EchelonCode);
+                containerChoice = ContainerTypeOverride.ChooseFor(_catalogue, plan.Type.Country, unit.SymbolId, unit.EchelonCode,
+                                                                  plan.MapRowId, _containerTypePins);
                 if (!containerChoice.Found)
                 {
                     unmapped++;
@@ -3148,6 +3151,15 @@ public sealed class VrfC2SimService : BackgroundService
                 if (variantGuard.Refused) problems.Add(variantGuard.Refusal);
             }
         }
+        // STP-1296 (PREREG_STP1296_GROUP_TASK_2026-10-19.md sec 1c): Vrf:ContainerTypeOverride - empty = OFF (the init rule
+        // decides every container, unchanged); a malformed value is a start refusal like every prerequisite above.
+        if (!ContainerTypeOverride.TryParse(_vrf.ContainerTypeOverride, out _containerTypePins, out string pinError))
+            problems.Add(pinError);
+        else if (_containerTypePins.Count > 0)
+            _log.LogWarning("CONTAINER TYPE OVERRIDE ON (Vrf:ContainerTypeOverride, {Ref}, RUN-ONLY): {Pins} - these map rows' " +
+                            "init containers are PINNED ahead of the init rule (ContainerTypeRule); every other unit is unchanged.",
+                            ContainerTypeOverride.Ref,
+                            string.Join("; ", _containerTypePins.Select(kv => kv.Key + "=" + string.Join(":", kv.Value))));
         var publishedCount = PublishedCountReader.Bind(_bridge);
         _containerBridge = new ContainerBridgeAdapter(_bridge, publishedCount);
         if (publishedCount == null)

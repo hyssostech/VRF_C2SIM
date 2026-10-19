@@ -1294,6 +1294,13 @@ public class VrfSettings
     // is true. Literal needs no switch - it is today's behaviour and the rollback.
     public bool AllowLiteralMove { get; set; } = false;
 
+    // STP-1296 (D114(a); docs/experiments/PREREG_STP1296_GROUP_TASK_2026-10-19.md sec 1c) - RUN-ONLY, OFF by default (empty).
+    // Pins the init CONTAINER type of a type-map row ahead of the init rule (ContainerTypeRule), e.g. "F-UCI-H=8:4:1:111"
+    // (category:subcategory:specific:extra; the nation stays the unit's) for an enabler-carrying brigade PA container.
+    // Empty = the init rule decides every container, unchanged (--populate-selftest p18). Malformed = start refusal. Read
+    // only on the aggregate model set. Never set in a shipped profile.
+    public string ContainerTypeOverride { get; set; } = "";
+
     // Auto's per-leg road rule (RL-20260928-03): pathQuery MAK_ROAD when the sim's road network (the osm-highways set) lies
     // within this many metres of the leg's line, else NONE. 500 m reads UG52 30.5 p587 - roads are looked for "over a
     // fairly wide area", and "If there are no roads close to the route ... do not select this option".

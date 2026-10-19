@@ -192,8 +192,9 @@ THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePl
   - Chosen over Air Assault because it carries no second enabler. Echelon BDE, as R-a's.
   - It differs from R-a's container in subcategory 4 / extra 111 (MechanizedInfantry, airborne) against 3 / 1. That
     changes only the container's own symbol.
-- Mechanism: a CODE change. A new setting overrides the container type for one map row, for the run only, default
-  off. It gets its own self-test, a reviewed diff and a build before the run. It is not written here.
+- Mechanism: a CODE change. Vrf:ContainerTypeOverride (ContainerTypeOverride.cs; default empty = OFF), set for the
+  run to "F-UCI-H=8:4:1:111". It has its own self-test (--populate-selftest p18, plus an OFF-identity check in p7), a
+  reviewed diff, and a build before the run.
   - Constraint: Choose lands BDE Light Infantry at branch 3, (1,1), before any branch-4 candidate. Adding (1,111) to
     its SpecificExtra list therefore cannot reach 8:4:1:111; the override must pin the type AHEAD of the candidate
     loop.
