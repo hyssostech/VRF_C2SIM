@@ -84,9 +84,10 @@ Implication (a separate sentence): the variable is WHO re-tasks the members.
   2. If not: which shipped container template carries the enabler (the MC p613-614 Echelon Group "PA" entries are the
      candidates, VD-1:85-86), and which .ope it names.
   Then exactly one of these, stated here:
-  - (i) R-a's brigade populated as that vendor type, through the existing type map. This is config only, and ONLY if
-    its .ope is PseudoAggregate.ope. Otherwise ContainerCatalogue.RoleOfPlatform (ContainerCatalogue.cs:76-85) returns
-    Unknown, and the interface will not populate it.
+  - (i) R-a's brigade CREATED as that vendor type. CORRECTED by AMENDMENT 1 (sec 1c): this is NOT config. The
+    container's init type is chosen in code by ContainerTypeRule.Choose (ContainerCatalogue.cs:116-181; call site
+    VrfC2SimService.cs:1690), and it needs a code change with its own self-test. The type must also resolve with
+    RoleOfPlatform = Container (ContainerCatalogue.cs:76-85), i.e. its .ope must be PseudoAggregate.ope.
   - (ii) Struck. It would need either a write under C:\MAK (forbidden, CLAUDE.md sec 5) or a switch to the derived-SMS
     _C2SIM fixture (RUNBOOK:938, "NOT live-proven"), which is a second variable.
   If neither step 1 nor (i) holds: NOT RUN. The D114(a) question goes to MAK (D114(c)).
@@ -96,9 +97,8 @@ Implication (a separate sentence): the variable is WHO re-tasks the members.
   vs PlanPath only, with the sample cited as unit-level.
 - G0c, offline proof on the build:
   - --planned-move-selftest and --rulings-selftest PASS;
-  - the R-a order with the G0a container passes --parse-order (2 tasks, STREND);
-  - if G0a needs a type-map change, the type map resolves R-a's brigade to the G0a template, and RoleOfPlatform gives
-    Container.
+  - the R-a order passes --parse-order (2 tasks, STREND);
+  - the container-type change of sec 1c: see the G0c lines there.
 - G0d, builds: the STP engine image is tagged STP 5.11.1 or later (k5). The vrf_c2sim exe is the build named in the run
   record.
 - G0e, the C2SIM server is ALIVE: D106 (operator only) has restarted c2sim-server-vrf since LV-1b, whose publishing leg
@@ -133,81 +133,89 @@ Measurements, as reported and spot-checked by the dispatcher:
 - Not measured: a live Move (Group) on such a container.
 
 Readings (each a measurement statement):
-- G0a = YES via (i): a vendor PA type with platform PseudoAggregate.ope and the enabler, set through the type map. Its
+- G0a = YES via (i): a vendor PA type with platform PseudoAggregate.ope and the enabler (a CODE change picks it, sec 1c). Its
   RoleOfPlatform is Container. Step 1 (SMS-level propagation) = NO.
 - G0b: the premise "as the sample does" holds for group-tasking a container, but with a different group task
   (group-attack-to-objective), not Move (Group). Per the G0b rule, the question is re-scoped: Move (Group) vs PlanPath,
   with the sample cited as "containers get a group task (attack), never Move (Group)".
 
-OWED before the build (G0c): pick the ONE enabler-carrying PA type for R-a's brigade, matching its echelon and its
-affiliation, from the dispatcher's list (category 6 vs 8 is not interpreted here). Show by --parse-order and the type
-map that R-a populates it, with RoleOfPlatform = Container, and that its composition still yields the 17-member
-recipe. A different member count is a recipe change and is declared.
+OWED before the build (G0c): see sec 1c.
 
-## 1c. AMENDMENT 1 (2026-10-19, before any build or run): the container for arm G, and the composition
+## 1c. AMENDMENT 1 (2026-10-19, before any build or run; rewritten after a Fable cold review that FAILED the first
+## draft, d4ed4ef): the container type for BOTH arms
 
-Measurements (dispatcher follow-up, read-only grep under C:\MAK\vrforces5.2d\data\simulationModelSets; starred lines
+Measurements, box (dispatcher follow-up, read-only; stp-data 3f6c01c runs/stp1296/G0a-followup.md; starred lines
 spot-checked by the dispatcher):
 - "BDE Airborne PA.entity" (AggregateTacticalLevel):
   - :13 is `<componentSystem systemName="ground-echelon-group-tactics-enabler" ...>` (starred);
   - :3 names PseudoAggregate.ope, objectType and matchType 11:1:-1:8:4:1:111 (starred);
   - it has no force or affiliation field.
 - "BDE, Air Assault PA.entity" carries the same enabler at :14, plus an air-assault-enabler at :13 (11:1:-1:8:4:1:211).
-- R-a's brigade today is composition row C-USA-BDE-UCI (data/unit-composition-52-aggregate.json:45-56):
-  - its container is "BDE" = BDE Light Infantry.entity;
-  - inside it are 3 nested "BN, Light Infantry" containers (BN_Light Infantry.entity), each holding 5 units, plus 2
-    units; 17 leaf units in all.
-  - Both container .entity files are in AggregateLevelBase, on PseudoAggregate.ope, with NO enabler (0 hits; starred).
-  - Our rows write the US country code (225) where the vendor files have -1. No file carries the 225 form; the sim
-    resolves the type by its best-match rule over matchType (AGGREGATE_CATALOGUE_2026-09-27.md:12-15).
-- group_movement_simplified.lua:223-224 sends each DIRECT subordinate Move_To_Location_Plan_Path when useRoads is set
-  (else move-to-location).
-- Move_To_Location_Plan_Path is in no PseudoAggregate.ope list (systems :40 empty; scripts :115-119 PA_* only) and not in
-  the enabler sysdef (starred). It appears only in the *-aggregated-movement.sysdef files, which no ATL *PA.entity and
-  neither Light Infantry container references.
-- The leaf UNITS of R-a (Stryker HHT, Stryker Cav, Mech CO) did run Move_To_Location_Plan_Path in L2's B arms
-  (L2_RESULT_2026-10-16.md:35-37).
+- The two containers R-a's composition row names carry NO enabler (0 hits; starred). Both are in AggregateLevelBase, on
+  PseudoAggregate.ope, with objectTypes 3:11:1:-1:8:3:1:1 ("BDE Light Infantry.entity") and 3:11:1:-1:6:3:1:-1
+  ("BN_Light Infantry.entity").
+- Our rows write the US country code (225) in their requested types, where the vendor files have -1. That is a request,
+  not a defect: a matchType field of -1 is a wildcard (ObjectTypeResolver.cs:17, :51, :317), so the 225 request
+  resolves to the -1 template.
+- Move_To_Location_Plan_Path (and move-to-location, the useRoads=false branch, group_movement_simplified.lua :223-224)
+  appear in NO PseudoAggregate.ope list and NOT in the enabler sysdef. They appear only in the
+  *-aggregated-movement.sysdef files. VERIFIED: the lists. ASSUMED, not run: that the sim dispatches a script only to an
+  object whose lists name it.
 
-Readings (separate from the measurements above):
-- R-a's composition cannot exercise Move (Group) even on an enabler-carrying container. 3 of the brigade's 5 direct
-  subordinates are containers, with no script that matches the task sent to them, by the lists. That they reject or
-  ignore it at runtime is inferred, not run.
-- Arm G therefore needs (a) an enabler-carrying brigade container and (b) direct subordinates that are UNITS.
+Measurements, code (this repo, read):
+- Population FLATTENS: every simulated leaf attaches directly to the tasked container (ContainerComposition.cs:489-492;
+  ContainerPopulation.cs:495 AddToOrganization; the table's own NESTING note, unit-composition-52-aggregate.json:18).
+  So the object R-a and L2 ran already had 17 DIRECT unit subordinates and no battalion container
+  (REPRO_BACKEND_STOP:13-14; L2:146-148).
+- PlanPath addresses those same 17 attached members (VrfC2SimService.cs:3630, :3718-3728). Move (Group) on the container
+  would address its direct subordinates: the same 17 units.
+- The container's init TYPE is chosen in code by ContainerTypeRule.Choose (ContainerCatalogue.cs:116-181, call site
+  VrfC2SimService.cs:1690). For UCI it tries branches {3, 4} with specific/extra (1,0) then (1,1) only. The composition
+  row's "container" field is read only for its echelon rank (VrfC2SimService.cs:3181-3184). No Vrf:* setting overrides
+  the choice.
+- The leaf units (Stryker HHT, Stryker Cav, Mech CO) ran Move_To_Location_Plan_Path in L2's B arms (L2:35-37).
+
+Readings (separate from the measurements):
+- The first draft's "R-a's nested composition cannot exercise Move (Group)" is WITHDRAWN. There is no nesting at
+  runtime, so no composition change is needed, and none is made.
+- The one change arm G needs is the CONTAINER TYPE: an enabler-carrying brigade PA instead of BDE Light Infantry.
+  Landing 11:1:-1:8:4:1:111 is not reachable through config; it needs a code change.
 
 THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePlanner):
-- Container: BDE Airborne PA, objectType 11:1:-1:8:4:1:111 ("BDE Airborne PA.entity":13 enabler, :3 PseudoAggregate.ope).
-  - Chosen over Air Assault because it carries no second enabler. Its echelon is BDE, as R-a's.
-  - Its branch is airborne, against R-a's light infantry. That only changes the container's own symbol, which is not
-    measured here.
-- Composition: a new row for the run only, a variant that does not touch the shipped "catalogue" rows. The same 17
-  leaf units as C-USA-BDE-UCI, as DIRECT unit subordinates of that container: the 3 BN-level containers are removed
-  and their units moved up.
-  - Declared recipe change against R-a / L2: no nested containers.
-  - Members, unit types and member count (17) are unchanged.
+- Container type: BDE Airborne PA, 11:1:-1:8:4:1:111 ("BDE Airborne PA.entity":13 enabler, :3 PseudoAggregate.ope).
+  - Chosen over Air Assault because it carries no second enabler. Echelon BDE, as R-a's.
+  - Its branch (airborne) differs from R-a's light infantry, which changes only the container's own symbol.
+- Mechanism: a CODE change. A new setting overrides the container type for one map row, for the run only, default
+  off. It gets its own self-test, a reviewed diff and a build before the run. It is not written here.
+- Composition: UNCHANGED (17 leaf units, flattened as today).
 - G0c gains:
-  - the new row passes tools/aggregate/composition_check.py;
-  - RoleOfPlatform gives Container for 11:1:-1:8:4:1:111;
-  - --parse-order on the R-a order populates it with 17 direct units;
-  - the build is reviewed before the run.
+  - the override self-test PASSes, and its dirty control fails;
+  - --populate-selftest and tools/aggregate/composition_check.py PASS on the build;
+  - with the override, R-a's brigade is chosen as 3:11:1:225:8:4:1:111, resolves to "BDE Airborne PA", RoleOfPlatform =
+    Container, and populates with 17 direct units. Without it, R-a's brigade is unchanged.
 
 RISKS, each with its own falsifier:
 - R1, NO VENDOR SAMPLE of Move (Group) on a container (G0b: Road to Kaunas gives its containers group-attack-to-objective
-  only).
-  - Falsifier R1-F: under G, move 1 never shows member Move_To_Location_Plan_Path starts within 300 WALL s, or the
-    container's task fails at once. Then G is VOID (sec 3 glue), and the reading is "Move (Group) did not run on this
-    container", not a stop result.
-- R2, the flattened composition is not the shape L2's P arms ran (nested BN containers).
-  - Falsifier R2-F: P stops on the flattened recipe while it did not in L2. F3 stays, and the flattening is then the
-    first suspect, not the planner.
-- R3, the container type differs from R-a's (enabler present, PA platform, airborne branch).
-  - Falsifier: none separate; R2-F covers P, and G is compared only with P on the same type.
+  only). Falsifier R1-F: under G, move 1 shows no member Move_To_Location_Plan_Path start within 300 WALL s, or the
+  container's task fails at once. Then G is VOID (sec 3 glue); the reading is "Move (Group) did not run on this
+  container", not a stop result.
+- R3, the container type differs from R-a's and L2's (enabler present, PA platform, airborne branch). Falsifier R3-F:
+  P stops on the new type while it did not in L2. F3 then fires, and the run records that P on this type differs from
+  L2 in container type and build.
+- R4, the list-based reading is ASSUMED (above). Falsifiers R4-F, either of:
+  - (a) under G, the CONTAINER itself shows a Move_To_Location_Plan_Path or move-to-location task;
+  - (b) a member shows a task id outside the lists.
+  Either is recorded verbatim (counts and ids only) and marks the list reading as incomplete. Neither voids the run.
 
 HYPOTHESIS, recorded as one, not as a cause:
-- Our shipped containers (BDE Light Infantry / BN_Light Infantry, AggregateLevelBase) carry no group-tactics enabler,
-  so RL-20260928-03 (M3, Auto per member) was chosen when group tasking was not available on our containers. That may
-  bear on M3.
-- Nothing here links it to the back-end stop. Testing it is this run (arm G), and a ruling would follow a RESULT, not
-  this note.
+- The enabler gap on our containers was found on 2026-10-15 (HANDOFF_2026-10-15:33-35). RL-20260928-03 was ruled
+  2026-09-28 with Move (Group) BELIEVED available on containers (FINDING_AGGREGATE_MOVEMENT_OBSTACLES:20, :167-168), on
+  the roads-per-leg question (RULINGS_ARCHIVE:558-567).
+- So the gap was unknown when M3 was ruled, and it does not bear on that ruling's stated basis.
+- Whether it bears on M3's choice of planner is open. Nothing here links it to the back-end stop.
+
+STALE SITE (CLAUDE.md sec 4): PlannedMoveSelfTest.cs:607 still says "Move (Group) runs on them by its metadata". It is
+corrected in the same commit as this amendment.
 
 ## 2. The run (one session, two fresh launches, the control first)
 
@@ -220,7 +228,7 @@ HYPOTHESIS, recorded as one, not as a cause:
   - The G0a container type, if one is needed, applies to BOTH arms.
 - DEVIATIONS FROM R-a / L2, the same in both arms:
   - -NoGui;
-  - the G0a container type, if any;
+  - the container type BDE Airborne PA, through the sec 1c code override (default off);
   - the interface logger at Debug for the interface's own category. Under Group the member branch logs only at Debug
     (VrfC2SimService.cs:10039-10042), because RoutePlannedMemberCompletion returns false for Group (:3838), and the
     profile runs Information (appsettings.json:4).

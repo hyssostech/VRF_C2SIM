@@ -605,7 +605,8 @@ public static class PlannedMoveSelfTest
         string en = SafeRead(enabler);
         Check(ref failures, en.Contains("\"group_movement_simplified\"") && en.Contains("\"group-navigate-route-to-location\""),
               "(m7) the Ground Echelon Group Tactics Enabler lists Move (Group) (INFO: the generic containers the interface creates " +
-              "carry no systems; Move (Group) runs on them by its metadata - not yet seen live)");
+              "carry no systems and NO group-tactics enabler (BDE/BN Light Infantry, stp-data 3f6c01c), so Move (Group) is not " +
+              "available on them; only enabler-carrying PA types (e.g. BDE Airborne PA.entity:13) list it - not yet seen live)");
         string roads = SafeRead(Path.Combine(Environment.GetEnvironmentVariable("MAK_SHAREDDATA") is { Length: > 0 } s ? s
                                              : @"C:\MAK\SharedData\19\latest", "TerrainData", "TerrainConfiguration", "osm.roads.model.xml"));
         if (roads.Length == 0)
