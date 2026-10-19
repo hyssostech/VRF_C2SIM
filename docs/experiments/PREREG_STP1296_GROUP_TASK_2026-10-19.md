@@ -144,6 +144,71 @@ affiliation, from the dispatcher's list (category 6 vs 8 is not interpreted here
 map that R-a populates it, with RoleOfPlatform = Container, and that its composition still yields the 17-member
 recipe. A different member count is a recipe change and is declared.
 
+## 1c. AMENDMENT 1 (2026-10-19, before any build or run): the container for arm G, and the composition
+
+Measurements (dispatcher follow-up, read-only grep under C:\MAK\vrforces5.2d\data\simulationModelSets; starred lines
+spot-checked by the dispatcher):
+- "BDE Airborne PA.entity" (AggregateTacticalLevel):
+  - :13 is `<componentSystem systemName="ground-echelon-group-tactics-enabler" ...>` (starred);
+  - :3 names PseudoAggregate.ope, objectType and matchType 11:1:-1:8:4:1:111 (starred);
+  - it has no force or affiliation field.
+- "BDE, Air Assault PA.entity" carries the same enabler at :14, plus an air-assault-enabler at :13 (11:1:-1:8:4:1:211).
+- R-a's brigade today is composition row C-USA-BDE-UCI (data/unit-composition-52-aggregate.json:45-56):
+  - its container is "BDE" = BDE Light Infantry.entity;
+  - inside it are 3 nested "BN, Light Infantry" containers (BN_Light Infantry.entity), each holding 5 units, plus 2
+    units; 17 leaf units in all.
+  - Both container .entity files are in AggregateLevelBase, on PseudoAggregate.ope, with NO enabler (0 hits; starred).
+  - Our rows write the US country code (225) where the vendor files have -1. No file carries the 225 form; the sim
+    resolves the type by its best-match rule over matchType (AGGREGATE_CATALOGUE_2026-09-27.md:12-15).
+- group_movement_simplified.lua:223-224 sends each DIRECT subordinate Move_To_Location_Plan_Path when useRoads is set
+  (else move-to-location).
+- Move_To_Location_Plan_Path is in no PseudoAggregate.ope list (systems :40 empty; scripts :115-119 PA_* only) and not in
+  the enabler sysdef (starred). It appears only in the *-aggregated-movement.sysdef files, which no ATL *PA.entity and
+  neither Light Infantry container references.
+- The leaf UNITS of R-a (Stryker HHT, Stryker Cav, Mech CO) did run Move_To_Location_Plan_Path in L2's B arms
+  (L2_RESULT_2026-10-16.md:35-37).
+
+Readings (separate from the measurements above):
+- R-a's composition cannot exercise Move (Group) even on an enabler-carrying container. 3 of the brigade's 5 direct
+  subordinates are containers, with no script that matches the task sent to them, by the lists. That they reject or
+  ignore it at runtime is inferred, not run.
+- Arm G therefore needs (a) an enabler-carrying brigade container and (b) direct subordinates that are UNITS.
+
+THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePlanner):
+- Container: BDE Airborne PA, objectType 11:1:-1:8:4:1:111 ("BDE Airborne PA.entity":13 enabler, :3 PseudoAggregate.ope).
+  - Chosen over Air Assault because it carries no second enabler. Its echelon is BDE, as R-a's.
+  - Its branch is airborne, against R-a's light infantry. That only changes the container's own symbol, which is not
+    measured here.
+- Composition: a new row for the run only, a variant that does not touch the shipped "catalogue" rows. The same 17
+  leaf units as C-USA-BDE-UCI, as DIRECT unit subordinates of that container: the 3 BN-level containers are removed
+  and their units moved up.
+  - Declared recipe change against R-a / L2: no nested containers.
+  - Members, unit types and member count (17) are unchanged.
+- G0c gains:
+  - the new row passes tools/aggregate/composition_check.py;
+  - RoleOfPlatform gives Container for 11:1:-1:8:4:1:111;
+  - --parse-order on the R-a order populates it with 17 direct units;
+  - the build is reviewed before the run.
+
+RISKS, each with its own falsifier:
+- R1, NO VENDOR SAMPLE of Move (Group) on a container (G0b: Road to Kaunas gives its containers group-attack-to-objective
+  only).
+  - Falsifier R1-F: under G, move 1 never shows member Move_To_Location_Plan_Path starts within 300 WALL s, or the
+    container's task fails at once. Then G is VOID (sec 3 glue), and the reading is "Move (Group) did not run on this
+    container", not a stop result.
+- R2, the flattened composition is not the shape L2's P arms ran (nested BN containers).
+  - Falsifier R2-F: P stops on the flattened recipe while it did not in L2. F3 stays, and the flattening is then the
+    first suspect, not the planner.
+- R3, the container type differs from R-a's (enabler present, PA platform, airborne branch).
+  - Falsifier: none separate; R2-F covers P, and G is compared only with P on the same type.
+
+HYPOTHESIS, recorded as one, not as a cause:
+- Our shipped containers (BDE Light Infantry / BN_Light Infantry, AggregateLevelBase) carry no group-tactics enabler,
+  so RL-20260928-03 (M3, Auto per member) was chosen when group tasking was not available on our containers. That may
+  bear on M3.
+- Nothing here links it to the back-end stop. Testing it is this run (arm G), and a ruling would follow a RESULT, not
+  this note.
+
 ## 2. The run (one session, two fresh launches, the control first)
 
 - Recipe: REPRO_BACKEND_STOP R-a (make_backend_stop_repro.py). That is one synthetic brigade container of 17 members,
