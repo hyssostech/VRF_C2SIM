@@ -75,7 +75,9 @@ Implication (a separate sentence): the variable is WHO re-tasks the members.
 
 ## 1. Gates before any launch (each must PASS; any miss = NOT RUN, and the miss is reported)
 
-- G0a, a CONTAINER that can run Move (Group). Read-only box reads, cited in this file BEFORE any build, in this order:
+- G0a, a CONTAINER that can run Move (Group). This is a DRAFTING step, not part of the run: a read-only docs and data
+  lookup by the dispatcher in a box gap before the tag, with no VR-Forces launch (D210). Its result is posted to
+  STP-1296 and cited here BEFORE any build. The reads, in this order:
   1. RN p69 (VRF-8801) and p75 (VRF-9312) at the page. Then the shipped PseudoAggregate.ope and the sysdef list it
      actually loads in the AggregateTacticalLevel SMS: is the group-tactics enabler already propagated to our
      container? If yes, the blocker is already gone, and neither (i) nor (ii) is needed.
@@ -122,10 +124,8 @@ Implication (a separate sentence): the variable is WHO re-tasks the members.
   - the interface logger at Debug for the interface's own category. Under Group the member branch logs only at Debug
     (VrfC2SimService.cs:10039-10042), because RoutePlannedMemberCompletion returns false for Group (:3838), and the
     profile runs Information (appsettings.json:4).
-- Order: P, then G.
-- If the operator's "ONE run" means one launch, only G runs, and P comes from L2 B1/B2. That P differs in the GUI (on in
-  L2), the build, the container type (the old one) and the logger level. Every comparison below then becomes a RECORD
-  comparison, and PP1 is not tested.
+- Order: P, then G, in the ONE registered session. This is the supervisor's ruling D210 (2026-10-19), inside the
+  operator's "one run": the control shares the day, build and box state, and is not borrowed from L2.
 - Logged, per arm (as L2 and D36 did; vendor log lines counted, never quoted or attached):
   - the back end: the top-3 thread CPU seconds per 5 s, and the working set at 1 Hz (ws_sampler2.ps1; abort at
     700 MB/min over 300 s or 16 GB);
