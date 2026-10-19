@@ -192,6 +192,11 @@ THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePl
   - Chosen over Air Assault because it carries no second enabler. Echelon BDE, as R-a's.
   - It differs from R-a's container in subcategory 4 / extra 111 (MechanizedInfantry, airborne) against 3 / 1. That
     changes only the container's own symbol.
+  - The pin is logged as fidelity Exact, with an OVERRIDE flag on its TYPE MAP line. It is not reported as a proxy
+    substitution, because it is the run's declared condition, the same in both arms. A proxy tag would also change the
+    unit's marking.
+  - In the run's init (R-a's synthetic one), exactly ONE unit maps to F-UCI-H, the test brigade, so the pin applies to
+    it alone.
 - Mechanism: a CODE change. Vrf:ContainerTypeOverride (ContainerTypeOverride.cs; default empty = OFF), set for the
   run to "F-UCI-H=8:4:1:111". It has its own self-test (--populate-selftest p18, plus an OFF-identity check in p7), a
   reviewed diff, and a build before the run.
@@ -205,7 +210,11 @@ THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePl
   - with the override, R-a's brigade is chosen as 3:11:1:225:8:4:1:111, resolves to "BDE Airborne PA", RoleOfPlatform =
     Container, and populates with 17 direct units, with the populate source the authored row F-UCI-H, not CATALOGUE.
     Without it, R-a's brigade is unchanged.
-  - Dirty control: an override applied through the candidate list only does NOT land 8:4:1:111.
+  - Dirty control (p18): the init rule's loop with (1,111) ADDED to its specific/extra list, first or last, still lands
+    8:3:1:1. The pin must come ahead of the loop.
+  - ON probe (p7, box): pinning F-UCI-H lands every F-UCI-H unit on 'BDE Airborne PA' and leaves every other unit's
+    decision unchanged.
+  - A pinned key that is no aggregate row of the type map refuses to start (a typo would otherwise pin nothing).
 
 RISKS, each with its own falsifier:
 - R1, NO VENDOR SAMPLE of Move (Group) on a container (G0b: Road to Kaunas gives its containers group-attack-to-objective

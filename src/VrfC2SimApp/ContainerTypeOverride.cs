@@ -137,11 +137,20 @@ public static class ContainerTypeOverride
         check(same == total, $"OFF is BYTE-IDENTICAL: with no pin for the unit's row, the decision equals the init rule's ({same} of {total})",
               string.Join("; ", diffs.Take(3)));
 
-        // DIRTY CONTROL: the init rule itself, with BDE Airborne PA in the catalogue, still lands BDE Light Infantry.
+        // PRECONDITION: the init rule, with BDE Airborne PA in the catalogue, lands BDE Light Infantry.
         var rule = ContainerTypeRule.Choose(cat, 225, "SFGPUCI----H---", "BDE");
         check(rule.Found && rule.TypeText == "11:1:225:8:3:1:1" && rule.TemplateName == "BDE",
-              "DIRTY CONTROL: the init rule's candidate loop lands BDE (8:3:1:1) for an infantry brigade, not BDE Airborne PA - " +
-              "a candidate-list change cannot reach 8:4:1:111", $"{rule.TypeText} '{rule.TemplateName}'");
+              "PRECONDITION: the init rule lands BDE (8:3:1:1) for an infantry brigade with BDE Airborne PA in the catalogue",
+              $"{rule.TypeText} '{rule.TemplateName}'");
+        // DIRTY CONTROL: the same loop with (1,111) ADDED to its specific/extra list, last and first, still lands 8:3:1:1 -
+        // branch 3 is tried before branch 4, so no candidate-list change reaches 8:4:1:111; the pin must come first.
+        foreach (var list in new[] { new[] { (1, 0), (1, 1), (1, 111) }, new[] { (1, 111), (1, 0), (1, 1) } })
+        {
+            var widened = ContainerTypeRule.Choose(cat, 225, "SFGPUCI----H---", "BDE", list);
+            check(widened.Found && widened.TypeText == "11:1:225:8:3:1:1",
+                  $"DIRTY CONTROL: a candidate list widened to [{string.Join(" ", list)}] still lands 8:3:1:1, not 8:4:1:111",
+                  $"{widened.TypeText} '{widened.TemplateName}'");
+        }
 
         // ON: the pinned row lands the pinned container.
         var pinned = ChooseFor(cat, 225, "SFGPUCI----H---", "BDE", "F-UCI-H", one);
@@ -161,8 +170,35 @@ public static class ContainerTypeOverride
         var toNothing = TryParse("F-UCI-H=8:99:1:1", out var nonePin, out _)
             ? ChooseFor(cat, 225, "SFGPUCI----H---", "BDE", "F-UCI-H", nonePin) : null;
         check(toNothing != null && !toNothing.Found, "a pin that resolves to NOTHING is REFUSED for that unit", toNothing == null ? "-" : string.Join("; ", toNothing.Flags));
+        var rows = new[]
+        {
+            new UnitTypeRow { Id = "F-UCI-H", IsAggregate = true }, new UnitTypeRow { Id = "F-UCA-H", IsAggregate = true },
+            new UnitTypeRow { Id = "F-AIR-X", IsAggregate = false },
+        };
+        check(UnknownKeys(one, rows) == null && UnknownKeys(off, rows) == null,
+              "the start check passes a pin on an aggregate row of the map, and an empty setting", "");
+        TryParse("f-uci-h=8:4:1:111", out var typo, out _);
+        TryParse("F-AIR-X=8:4:1:111", out var notAgg, out _);
+        check(UnknownKeys(typo, rows) is { Length: > 0 } && UnknownKeys(notAgg, rows) is { Length: > 0 },
+              "the start check REFUSES a key that is no aggregate row (a case typo; a non-aggregate row) - never a silent no-op",
+              UnknownKeys(typo, rows) ?? "");
         var noCat = ChooseFor(null, 225, "SFGPUCI----H---", "BDE", "F-UCI-H", one);
         check(!noCat.Found, "no catalogue + a pin = refused, as the init rule refuses without one", string.Join("; ", noCat.Flags));
+    }
+
+    /// <summary>
+    /// The start check: every pinned key must be an AGGREGATE row of the loaded type map. A key that names no row (a
+    /// typo; the lookup is ordinal) would pin nothing and say nothing, so it is a start refusal. Null = all known.
+    /// </summary>
+    public static string UnknownKeys(IReadOnlyDictionary<string, int[]> pins, IEnumerable<UnitTypeRow> rows)
+    {
+        if (pins == null || pins.Count == 0) return null;
+        var aggregateIds = new HashSet<string>((rows ?? Array.Empty<UnitTypeRow>()).Where(r => r.IsAggregate).Select(r => r.Id),
+                                               StringComparer.Ordinal);
+        var unknown = pins.Keys.Where(k => !aggregateIds.Contains(k)).ToList();
+        return unknown.Count == 0 ? null
+            : $"Vrf:ContainerTypeOverride names map row(s) [{string.Join(", ", unknown)}] that are not aggregate rows of the " +
+              $"loaded type map - such a pin would apply to nothing ({Ref})";
     }
 
     /// <summary>Everything a <see cref="ContainerChoice"/> decides, as one comparable string.</summary>

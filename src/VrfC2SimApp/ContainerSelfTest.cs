@@ -59,6 +59,9 @@ namespace VrfC2SimApp;
 /// C2SIM_AGGREGATE_SMS, else the file's authored "sms") - and says SKIPPED for the other variant's rows. p2-p12 are
 /// C1's mechanism checks on the catalogue variant and the vendor set whatever is selected; p13's derived-set checks run
 /// only when authored is selected, and FAIL then if the derived set is absent or its types do not resolve.
+///   (p18) STP-1296 - Vrf:ContainerTypeOverride (run-only, OFF by default): parsing, OFF byte-identity, the pin, the start
+///         check on unknown keys, the refusals, and the dirty control (a widened candidate list still lands 8:3:1:1); in p7
+///         the OFF identity and an ON probe on the installed catalogue
 /// </summary>
 public static class ContainerSelfTest
 {
@@ -468,6 +471,32 @@ public static class ContainerSelfTest
         Check(matched == 36 && wrong.Count == 0,
               "every unit's container type and template equal composition_check.py --init-census (36 of 36)",
               string.Join("; ", wrong.Take(4)));
+        // STP-1296 ON probe on the INSTALLED catalogue: pinning F-UCI-H lands exactly its units on 'BDE Airborne PA'.
+        var pin = new Dictionary<string, int[]>(StringComparer.Ordinal) { ["F-UCI-H"] = new[] { 8, 4, 1, 111 } };
+        int pinned = 0, pinnedRight = 0, otherSame = 0, others = 0;
+        foreach (var u in init.Units)
+        {
+            if (string.IsNullOrEmpty(u.Latitude) || string.IsNullOrEmpty(u.Longitude)) continue;
+            var pl = UnitTranslator.Plan(u with { ElevationAgl = string.IsNullOrEmpty(u.ElevationAgl) ? "1000.0" : u.ElevationAgl },
+                                         TypeMapping.FidelityTable, map, nations);
+            var on = ContainerTypeOverride.ChooseFor(cat, pl.Type.Country, u.SymbolId, u.EchelonCode, pl.MapRowId, pin);
+            if (pl.MapRowId == "F-UCI-H")
+            {
+                pinned++;
+                if (on.Found && on.TypeText == $"11:1:{pl.Type.Country}:8:4:1:111" && on.TemplateName == "BDE Airborne PA") pinnedRight++;
+            }
+            else
+            {
+                others++;
+                if (ContainerTypeOverride.Signature(on)
+                    == ContainerTypeOverride.Signature(ContainerTypeRule.Choose(cat, pl.Type.Country, u.SymbolId, u.EchelonCode)))
+                    otherSame++;
+            }
+        }
+        Check(pinned > 0 && pinnedRight == pinned && otherSame == others,
+              "STP-1296 ON probe (installed catalogue): Vrf:ContainerTypeOverride F-UCI-H=8:4:1:111 lands every F-UCI-H unit " +
+              "on 'BDE Airborne PA' and leaves every other unit's decision unchanged",
+              $"F-UCI-H {pinnedRight} of {pinned}; others unchanged {otherSame} of {others}");
         Check(offSame == 36,
               "STP-1296: Vrf:ContainerTypeOverride OFF - the service's container decision equals the init rule's on all 36 units",
               $"{offSame} of 36");

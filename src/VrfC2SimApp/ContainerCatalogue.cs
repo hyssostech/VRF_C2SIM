@@ -156,6 +156,12 @@ public static class ContainerTypeRule
     /// <paramref name="sidc"/> / <paramref name="echelonCode"/> are the init's own. Pure apart from the catalogue.
     /// </summary>
     public static ContainerChoice Choose(ICatalogue catalogue, int nationCode, string sidc, string echelonCode)
+        => Choose(catalogue, nationCode, sidc, echelonCode, SpecificExtra);
+
+    /// <summary>The same decision over a given specific/extra list. Internal: --populate-selftest p18's dirty control
+    /// (STP-1296) runs it with a longer list to show a candidate-list change cannot reach a pinned type.</summary>
+    internal static ContainerChoice Choose(ICatalogue catalogue, int nationCode, string sidc, string echelonCode,
+                                           IReadOnlyList<(int Specific, int Extra)> specificExtra)
     {
         var flags = new List<string>();
         string fid = UnitTypeMap.FunctionIdOf(sidc ?? "");
@@ -173,7 +179,7 @@ public static class ContainerTypeRule
         {
             for (int i = 0; i < tried.Count; i++)
             {
-                foreach (var (spec, extra) in SpecificExtra)
+                foreach (var (spec, extra) in specificExtra)
                 {
                     var t8 = new[] { 3, 11, 1, nationCode, cat, tried[i], spec, extra };
                     var hit = catalogue.Resolve(t8);
@@ -226,7 +232,9 @@ public static class ContainerTypeRule
         if (c == null || !c.Found) return plan;
         string abbr = EchelonAbbr(c.Category);
         string flags = c.Flags.Count == 0 ? "" : "; " + string.Join("; ", c.Flags);
-        string note = $"CONTAINER (RL-20260927-03): {c.TemplateName} ({c.TypeText}) by the init rule - echelon {abbr}, " +
+        string by = c.Flags.Any(f => f.StartsWith("OVERRIDE", StringComparison.Ordinal))
+            ? "by Vrf:ContainerTypeOverride (" + ContainerTypeOverride.Ref + ")" : "by the init rule";
+        string note = $"CONTAINER (RL-20260927-03): {c.TemplateName} ({c.TypeText}) {by} - echelon {abbr}, " +
                       $"branch {c.Branch} for {c.FunctionId}{flags}; the map row keys its composition";
         return plan with
         {

@@ -3155,6 +3155,8 @@ public sealed class VrfC2SimService : BackgroundService
         // decides every container, unchanged); a malformed value is a start refusal like every prerequisite above.
         if (!ContainerTypeOverride.TryParse(_vrf.ContainerTypeOverride, out _containerTypePins, out string pinError))
             problems.Add(pinError);
+        else if (ContainerTypeOverride.UnknownKeys(_containerTypePins, _typeMap?.Rows) is { } unknownPins)
+            problems.Add(unknownPins);
         else if (_containerTypePins.Count > 0)
             _log.LogWarning("CONTAINER TYPE OVERRIDE ON (Vrf:ContainerTypeOverride, {Ref}, RUN-ONLY): {Pins} - these map rows' " +
                             "init containers are PINNED ahead of the init rule (ContainerTypeRule); every other unit is unchanged.",
