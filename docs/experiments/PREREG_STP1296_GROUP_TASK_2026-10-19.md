@@ -141,8 +141,9 @@ Readings (each a measurement statement):
 
 OWED before the build (G0c): see sec 1c.
 
-## 1c. AMENDMENT 1 (2026-10-19, before any build or run; rewritten after a Fable cold review that FAILED the first
-## draft, d4ed4ef): the container type for BOTH arms
+## 1c. AMENDMENT 1 (2026-10-19, before any build or run): the container type for BOTH arms
+
+Fable cold reviews: the first draft (d4ed4ef) FAILED; this rewrite HOLDS WITH CHANGES, all applied.
 
 Measurements, box (dispatcher follow-up, read-only; stp-data 3f6c01c runs/stp1296/G0a-followup.md; starred lines
 spot-checked by the dispatcher):
@@ -163,17 +164,22 @@ spot-checked by the dispatcher):
   object whose lists name it.
 
 Measurements, code (this repo, read):
-- Population FLATTENS: every simulated leaf attaches directly to the tasked container (ContainerComposition.cs:489-492;
-  ContainerPopulation.cs:495 AddToOrganization; the table's own NESTING note, unit-composition-52-aggregate.json:18).
-  So the object R-a and L2 ran already had 17 DIRECT unit subordinates and no battalion container
-  (REPRO_BACKEND_STOP:13-14; L2:146-148).
+- Population FLATTENS: every simulated leaf attaches directly to the tasked container (ContainerComposition.cs:489-492, the doc;
+  the code is ExpandRowInto :585-640, flattened++ at :623; ContainerPopulation.cs:495 AddToOrganization; the table's own NESTING note, unit-composition-52-aggregate.json:18).
+  So the object R-a and L2 ran already had 17 DIRECT unit subordinates and no battalion container. The records give
+  17 members (REPRO_BACKEND_STOP:13-14; L2:146-148); "direct" rests on the code cites.
 - PlanPath addresses those same 17 attached members (VrfC2SimService.cs:3630, :3718-3728). Move (Group) on the container
   would address its direct subordinates: the same 17 units.
-- The container's init TYPE is chosen in code by ContainerTypeRule.Choose (ContainerCatalogue.cs:116-181, call site
+- The container's init TYPE is chosen in code by ContainerTypeRule.Choose (ContainerCatalogue.cs:114-190, call site
   VrfC2SimService.cs:1690). For UCI it tries branches {3, 4} with specific/extra (1,0) then (1,1) only. The composition
   row's "container" field is read only for its echelon rank (VrfC2SimService.cs:3181-3184). No Vrf:* setting overrides
   the choice.
-- The leaf units (Stryker HHT, Stryker Cav, Mech CO) ran Move_To_Location_Plan_Path in L2's B arms (L2:35-37).
+- The leaf units ran Move_To_Location_Plan_Path in L2's B arms (L2:35-37). Their Stryker / Mech CO classification is
+  ASSUMED there from member names (L2:99-100).
+- The populate SOURCE: CompositionResolver.Resolve takes the created template's OWN configured subordinates ahead of
+  the authored table (ContainerComposition.cs:523-525), for the CREATED type's entry (VrfC2SimService.cs:3265-3266).
+  "BDE Airborne PA" configures 0 subordinates (AGGREGATE_CATALOGUE_2026-09-27.csv:65), so with it the authored row
+  F-UCI-H still populates the 17 units. That is from the catalogue census, not run.
 
 Readings (separate from the measurements):
 - The first draft's "R-a's nested composition cannot exercise Move (Group)" is WITHDRAWN. There is no nesting at
@@ -184,15 +190,21 @@ Readings (separate from the measurements):
 THE CHANGE, the same in BOTH arms (so the one variable stays Vrf:AggregateMovePlanner):
 - Container type: BDE Airborne PA, 11:1:-1:8:4:1:111 ("BDE Airborne PA.entity":13 enabler, :3 PseudoAggregate.ope).
   - Chosen over Air Assault because it carries no second enabler. Echelon BDE, as R-a's.
-  - Its branch (airborne) differs from R-a's light infantry, which changes only the container's own symbol.
+  - It differs from R-a's container in subcategory 4 / extra 111 (MechanizedInfantry, airborne) against 3 / 1. That
+    changes only the container's own symbol.
 - Mechanism: a CODE change. A new setting overrides the container type for one map row, for the run only, default
   off. It gets its own self-test, a reviewed diff and a build before the run. It is not written here.
+  - Constraint: Choose lands BDE Light Infantry at branch 3, (1,1), before any branch-4 candidate. Adding (1,111) to
+    its SpecificExtra list therefore cannot reach 8:4:1:111; the override must pin the type AHEAD of the candidate
+    loop.
 - Composition: UNCHANGED (17 leaf units, flattened as today).
 - G0c gains:
   - the override self-test PASSes, and its dirty control fails;
   - --populate-selftest and tools/aggregate/composition_check.py PASS on the build;
   - with the override, R-a's brigade is chosen as 3:11:1:225:8:4:1:111, resolves to "BDE Airborne PA", RoleOfPlatform =
-    Container, and populates with 17 direct units. Without it, R-a's brigade is unchanged.
+    Container, and populates with 17 direct units, with the populate source the authored row F-UCI-H, not CATALOGUE.
+    Without it, R-a's brigade is unchanged.
+  - Dirty control: an override applied through the candidate list only does NOT land 8:4:1:111.
 
 RISKS, each with its own falsifier:
 - R1, NO VENDOR SAMPLE of Move (Group) on a container (G0b: Road to Kaunas gives its containers group-attack-to-objective
@@ -200,11 +212,11 @@ RISKS, each with its own falsifier:
   container's task fails at once. Then G is VOID (sec 3 glue); the reading is "Move (Group) did not run on this
   container", not a stop result.
 - R3, the container type differs from R-a's and L2's (enabler present, PA platform, airborne branch). Falsifier R3-F:
-  P stops on the new type while it did not in L2. F3 then fires, and the run records that P on this type differs from
-  L2 in container type and build.
+  P stops on the new type while it did not in L2. F3 then fires, and the run records that P differs from L2 in
+  container type, build, -NoGui and Debug logging.
 - R4, the list-based reading is ASSUMED (above). Falsifiers R4-F, either of:
   - (a) under G, the CONTAINER itself shows a Move_To_Location_Plan_Path or move-to-location task;
-  - (b) a member shows a task id outside the lists.
+  - (b) a member shows a task id outside its own lists (AggregateLevelAggregate.ope plus its *-aggregated-movement.sysdef).
   Either is recorded verbatim (counts and ids only) and marks the list reading as incomplete. Neither voids the run.
 
 HYPOTHESIS, recorded as one, not as a cause:
@@ -225,7 +237,7 @@ corrected in the same commit as this amendment.
 - ONE VARIABLE: Vrf:AggregateMovePlanner, set by the environment for the interface process only.
   - Arm P (control): PlanPath, the L2 B configuration.
   - Arm G: Group.
-  - The G0a container type, if one is needed, applies to BOTH arms.
+  - The sec 1c type (BDE Airborne PA) applies to BOTH arms.
 - DEVIATIONS FROM R-a / L2, the same in both arms:
   - -NoGui;
   - the container type BDE Airborne PA, through the sec 1c code override (default off);
