@@ -148,8 +148,15 @@ What runs:
     scenario family), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444). So circling air patrols cannot keep
     the run from idling, and movement by air only reads as IDLE. Scoring uses the DIS domain (B3c), not this filter.
   - IDLE is declared ONLY with the instruments alive over the interval: the observer process runs, the back end
-    process runs, new '# t=' samples arrived, backends= reads 1, and sim= advanced. A dead observer, a dead or lost
-    back end, or a frozen clock is a STOP, never IDLE (Fable's probe showed the first draft would have read IDLE). There is NO ceiling (supervisor, 2026-10-20:
+    process runs, new '# t=' samples arrived, backends= reads 1, sim= advanced, AND the back end's vendor log was
+    written within the interval. A back end that freezes in place is NOT a frozen clock: it keeps backends=1
+    (BackendCount keeps a timed-out back end; VrfFacade.h:392-399) and its sim= advances at the controller's 1x
+    extrapolation (D36 (a)). So the vendor log's freshness is the liveness test, and a clock that falls from >= 13.5x
+    to below 1.5x in an interval is also a STOP. A dead observer, a dead, lost or silent back end, or a clock drop is a
+    STOP, never IDLE (Fable's probes showed both earlier drafts would have read IDLE).
+  - OWED ON THE BOX, at the first idle check of the run: the vendor log's LastWriteTimeUtc advances while the back end
+    runs (NotifyLevel 4). If a healthy scenario wrote nothing for 600 s, the stale-log test would STOP it - a false
+    STOP, which is safe (it never authorises Counterattack), and is reported as such. There is NO ceiling (supervisor, 2026-10-20:
   "no artificial time limits"). Every 4 h the script writes a CHECKPOINT (state; c15-checkpoints.txt) and keeps running;
   only the OPERATOR may end the run there, by creating OPERATOR-END.txt in the run folder. The instruments (holder,
   samplers, observer) are started for 24 h, the holder's maximum (LaunchVrf52 0..86400). The script warns once, 2 h

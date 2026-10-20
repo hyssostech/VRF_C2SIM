@@ -150,7 +150,10 @@ if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did
 # 3,000-8,000 m above the ellipsoid (LD-1296-R3 sec 4), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444).
 # The scoring classification is the .oob DIS domain (B3c), not this filter. IDLE is declared ONLY if the instruments
 # are alive over the interval: the observer process runs, the back end process runs, new '# t=' samples arrived,
-# backends= reads 1 and sim= advanced. Otherwise it is a STOP, never IDLE.
+# backends= reads 1, sim= advanced, AND the back end's own log was written within the interval. A back end that
+# freezes in place keeps backends=1 (BackendCount keeps a timed-out back end; VrfFacade.h:392-399) and its sim=
+# still advances at the controller's 1x extrapolation (D36 (a)), so the vendor log's freshness is the liveness
+# test, and a clock that falls from >= 13.5x to about 1x is a STOP too. Otherwise it is a STOP, never IDLE.
 $watchPath = Join-Path $R "$d\c13-watch.txt"
 $posOffset = 0L; $latest = @{}; $prevSnap = $null; $endWhy = ''; $exitCode = 0
 $lastT = -1.0; $lastSim = -1.0; $lastBe = -1; $firstSim = $null; $firstT = $null; $tsk = 0
@@ -179,7 +182,7 @@ function Get-MaxMove($a, $b) {
 }
 $nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $warned = $false
 $instEnd = $sysStart.AddSeconds($InstrumentSec)   # the earliest-started instrument with the shortest life ends first
-$pT = -1.0; $pSim = -1.0
+$pT = -1.0; $pSim = -1.0; $sawFull = $false
 while ($true) {
     Stop-Check; Start-Sleep 5
     if (Test-Path $opEnd) { $endWhy = 'OPERATOR END (' + ((Get-Content $opEnd -ErrorAction SilentlyContinue) -join ' ') + ')'; $exitCode = 8; break }
@@ -199,10 +202,16 @@ while ($true) {
         if ($lastBe -eq 0) { Stop-Run 'BACK END LOST: WatchVrf backends=0 (Q1)' }
         if ($lastT -le $pT) { Stop-Run "no new observer sample since t=$pT s - movement is unwatched" }
         if ($lastSim -le $pSim) { Stop-Run "the sim clock did not advance (sim=$lastSim, previous $pSim)" }
+        $lw = Get-VendorLog
+        if (-not $lw -or $lw.LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddSeconds(-$IdleEndSec)) {
+            Stop-Run "back end silent: its vendor log was not written in the last $IdleEndSec s (last $(if ($lw) { $lw.LastWriteTimeUtc.ToString('HH:mm:ss') } else { 'n/a' })Z)" }
+        $iRatio = if ($pT -ge 0 -and $lastT -gt $pT) { [math]::Round(($lastSim - $pSim) / ($lastT - $pT), 2) } else { -1 }
+        if ($iRatio -ge 0 -and $iRatio -ge 13.5) { $sawFull = $true }
+        if ($sawFull -and $iRatio -ge 0 -and $iRatio -lt 1.5) { Stop-Run "the clock fell from >= 13.5x to $iRatio x - the frozen-back-end signature (D36 (a))" }
         $snap = @{}; foreach ($k in $latest.Keys) { $snap[$k] = $latest[$k] }
         if ($prevSnap) { $mm = Get-MaxMove $prevSnap $snap
             $gnd = @($snap.Keys | Where-Object { $snap[$_][2] -le $AirFloorM }).Count
-            "[$(& $ts)] idle check: objects $($snap.Count) (ground by altitude $gnd), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim"
+            "[$(& $ts)] idle check: objects $($snap.Count) (ground by altitude $gnd), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim; interval SIM/WALL $iRatio; vendor log $($lw.LastWriteTimeUtc.ToString('HH:mm:ss'))Z"
             if ($mm -lt $IdleMeters) { $endWhy = "IDLE (no ground object moved > $IdleMeters m in $IdleEndSec s, instruments alive)"; $exitCode = 0; break } }
         $prevSnap = $snap; $pT = $lastT; $pSim = $lastSim; $nextIdle = (Get-Date).AddSeconds($IdleEndSec)
     }
