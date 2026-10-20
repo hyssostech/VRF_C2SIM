@@ -284,9 +284,13 @@ Also added / fixed:
 Measured (S2, LD-1296-S2, stp-data b2a4d7f runs/stp1296/step1/p2b): c16-vlog.csv read the vendor log's directory-entry
 LastWriteTime as a constant 16:16:05.603 for the whole run, and 16:16:54.547 after the STOP.
 Hypothesis (untested): an open file's directory-entry stamp and length can lag the writes on NTFS. If so:
-- S1's "the vendor log's last write was 24 s before T0" (LDS1-REPORT; sec 0e first text) is an INSTRUMENT ARTIFACT
-  (suspected), not evidence that the log stopped; it is struck as a measurement at every site in this file and the
-  script, and the dispatcher marks it in LDS1-REPORT;
+- S1's "the vendor log's last write was 24 s before T0" is an INSTRUMENT ARTIFACT (suspected), not evidence that the
+  log stopped. Its source: the S1 console line "vendor log last write BEFORE the stop: 15:51:29.547" (rtk_run.ps1's
+  Stop-Run, a directory-entry read), relayed by the supervisor, from which this file's sec 0e first text and STP-1296
+  c14975 derived "24 s before T0". It is struck as a measurement at every site in this file and the script.
+  [Correction 2026-10-20, the dispatcher: the claim was NEVER in LDS1-REPORT, whose Q1 line reads the post-stop
+  "Vendor log last write 15:53:08Z"; this site first said it was. The dispatcher's dated note there (stp-data 0307ac3)
+  says so.]
 - c14972's stale-vendor-log STOP rule (IDLE needs the log written within the interval) could fire FALSELY.
 Change (rtk_run.ps1): freshness is the LIVE length, read by opening the file with shared read (Get-LiveLogLength); the
 watch-mode liveness rule requires that live length to GROW between idle checks; c16-vlog.csv keeps the directory-entry
