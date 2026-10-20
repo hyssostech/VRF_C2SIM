@@ -12,7 +12,7 @@
 # nothing; it reads the vendor log in place for counts.
 param([Parameter(Mandatory)][int]$AppBase,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
-      [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas'   # amendment A: the t=0 file,
+      [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas',   # amendment A: the t=0 file
       [string]$Tag = 'rtk', [int]$WindowSec = 1200)
 $ErrorActionPreference = 'Continue'
 $R = $Root
