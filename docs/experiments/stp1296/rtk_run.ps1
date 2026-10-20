@@ -39,8 +39,9 @@ $gate = "$d\c0-gate.txt"
 "vmmem*: " + ((Get-Process vmmem* -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) wsMB $([math]::Round($_.WorkingSet64/1MB)) privMB $([math]::Round($_.PrivateMemorySize64/1MB))" }) -join '; ') | Add-Content $gate -Encoding ascii
 (docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' 2>&1) | Add-Content $gate -Encoding ascii
 "cache before: " + (CacheSize) | Add-Content $gate -Encoding ascii
-$ff = Get-Content "$appData\settings\vrfSim\fastForwardSettings.mtl" -Raw -ErrorAction SilentlyContinue
-"fastForwardSettings: " + ($ff -replace '\s+', ' ') | Add-Content $gate -Encoding ascii
+$ffPath = "$appData\settings\vrfSim\fastForwardSettings.mtl"
+$ff = if (Test-Path -LiteralPath $ffPath) { Get-Content $ffPath -Raw } else { $null }
+"fastForwardSettings: " + $(if ($null -eq $ff) { 'ABSENT (no file, so no entry)' } else { $ff -replace '\s+', ' ' }) | Add-Content $gate -Encoding ascii
 Get-Content $gate
 if ($ff -match 'fast-forward-entry') { "ABORT: fastForwardSettings.mtl holds an entry (it can switch the frame mode)"; exit 4 }
 if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }

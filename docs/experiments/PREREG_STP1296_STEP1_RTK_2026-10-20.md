@@ -5,26 +5,36 @@ STATUS: PREREG ONLY. NOT RUN. Written before any launch. Operator ruling D231 (r
 Kaunas) avoid the D36 large-area paging stall, so that the full Iron Storm can run? Step 1 runs the shipped sample, as
 shipped, on this box. Step 2 (the interface issues group-attack-to-objective; the D36(b) re-run) comes only if step 1 is
 clean. Supersedes, as a run, the arm-G re-run (D230) and c14919 amendment 2; their gate, sampler and STOP fixes carry
-over. This is the never-run L1 (PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md:31-56), revised; sec 5 lists every change.
+over. This is the never-run L1 (PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md:31-59), revised; sec 5 lists every change.
 Measurements and design implications are kept in separate sentences (CLAUDE.md sec 4).
 
 ## 0. What the run can and cannot answer
 
-- CAN: whether MAK's own aggregate scenario, on its own (large, sec 0a) area, its own terrain (MAK Earth Aggregate
+- CAN: whether MAK's own aggregate scenario, on its own area (sec 0, AREA), its own terrain (MAK Earth Aggregate
   online), its own SMS (AggregateTacticalLevel) and its own frame mode, shows the D36(b) signature on this box: a
   back-end loss, a working set climbing at more than 200 MB/min, feature-queue waits of minutes.
 - CANNOT, by design: say anything about our interface's tasking (nothing of ours runs), or about the Iron Storm area.
-- AREA (box read B2, LD-1296-R1, 2026-10-20; supersedes this section's first text, which assumed about 120 km2 from the
-  six maneuver routes): over units only, RoadToKaunas spans lat 53.05-55.88, lon 17.11-27.58, 677.5 x 313.6 km,
-  about 212,000 km2; with points and routes, about 222,000 km2. D36(b) failed on a 3,300 km2 demo box
-  (HANDOFF_PARK_2026-10-16.md:81). The unit extent is therefore about 64 times D36(b)'s box. These are measurements.
+- AREA: three numbers, all measurements, none of them the paging footprint.
+  - PLACEMENT (box read B2, docs/experiments/stp1296/LD-1296-R1_BOX_READ_2026-10-20.md): the base RoadToKaunas places
+    its units over lat 53.05-55.88, lon 17.11-27.58, 677.5 x 313.6 km, about 212,000 km2 (about 222,000 with points
+    and routes). That is about 64 times D36(b)'s 3,300 km2 demo box (HANDOFF_PARK_2026-10-16.md:81).
+  - MANEUVER ROUTES: the six routes its maneuver tasks name, in the SAME base file, lie in 54.770-54.892 N,
+    24.680-24.820 E, about 122 km2 (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:133-138), 27 times SMALLER
+    than D36(b)'s box.
+  - MOVER FOOTPRINT: where the 35 plan-based movers actually go is UNMEASURED. The run measures it from the POS lines
+    (the lat/lon box of the objects that move more than 500 m, and their total distance).
   - Extent is not paging load: the sim pages by object need and prediction (UG52 63.6.1 p1247), so what loads it is
-    where units sit and move, not the bounding box. Mover counts differ too: 35 plan-based strict movers here (B3)
-    against D36(b)'s four navigates of populated containers. The result reports both beside the verdict.
-  - Implication (separate sentence): a clean step 1 shows the vendor pattern carries a scenario far wider than
-    D36(b)'s box on this host. It does not show that our tasking would; that is step 2.
+    where units sit and move, not a bounding box. The movers are not like-for-like either: D36(b) moved four
+    populated containers of about 17 members each (D36:16-18); RoadToKaunas has 17 disaggregated containers
+    (AGGREGATE_CATALOGUE_2026-09-27.md:194-196), and the composition of its 35 movers is unmeasured.
+  - Implication (separate sentence): a clean step 1 is reported as "ran clean with units placed over a 212,000 km2
+    box and N movers covering M km2 / D km (POS)", with N, M and D measured. Whether that bears on Iron Storm depends
+    on M against D36(b)'s box, and the verdict says so. It does not show that our tasking would run clean; that is
+    step 2.
 
 ## 0a. AMENDMENT A (2026-10-20, from box reads B1-B4, LD-1296-R1; before any run, nothing launched)
+
+Record: docs/experiments/stp1296/LD-1296-R1_BOX_READ_2026-10-20.md (the dispatcher's read, counts only).
 
 Measured by the dispatcher (read-only, counts only; the scenario files are vendor samples, not customer data):
 - B1: all three .scn use MAK Earth Aggregate (online).mtf and AggregateTacticalLevel.sms, variable-frame 0.1 s,
@@ -37,6 +47,7 @@ Measured by the dispatcher (read-only, counts only; the scenario files are vendo
   PhaseTwo 36 / 44, Counterattack 37 / 45. Units 108 / 124 / 131; .oob units that are orbat parents 17 / 17 / 20.
 - group-attack-to-objective parameters: fireSupportUnit, objective, route (simulationobject) and leadingElements
   (simulationobjects, a LIST of length 1-3). Task nodes, group / unit attack-to-objective: 21 / 25 in RoadToKaunas.
+- B2: see sec 0, AREA.
 - B4: cache\vrfsim 32,301 files / 546.45 MB; fastForwardSettings.mtl holds no entry; NotifyLevel is a command-line
   argument (--notifyLevel), with no C:\MAK write.
 
@@ -69,8 +80,8 @@ OWN RECORD:
   SCORED result (BACK END LOST 2 min after the order; 2.6 -> 14.3 GB, about 1,860 MB/min; queue median 73 s, p95 135 s,
   NotifyLevel 4), and its reading "the memory climb started at order receipt with one navigate out".
 - D36 (a): a stopped back end's sim clock reads as advancing at exactly 1x (the controller extrapolates; D36:24, :69).
-- L1 (never run): PhaseTwo has the most planned movers, 24 units with movement tasks (PREREG_L1:36-37; L1 line numbers here are after this branch's fix note at L1:34-36); its three
-  predictions (:46-49) are kept in sec 4.
+- L1 (never run): PhaseTwo has the most planned movers, 24 units with movement tasks (PREREG_L1:40-41; L1 line numbers here are after this branch's two fix notes at L1:34-39); its three
+  predictions (:49-52) are kept in sec 4.
   CORRECTION (B3, amendment A): by the dispatcher's count PhaseTwo does not have the most; strict plan-based movers are
   RoadToKaunas 35, PhaseTwo 36, Counterattack 37 (L1's "24" used a different count, not reconciled).
 - G0b (PREREG_STP1296_GROUP_TASK_2026-10-19.md:130-132): containers get group-attack-to-objective only - Counterattack
@@ -96,10 +107,11 @@ OWN RECORD:
   that difference is the vendor's and is part of "the vendor way". fastForwardSettings.mtl holds no entry (B4; the
   script ABORTs otherwise).
 - CACHE, DECLARED: the run-owned appData C:\C2SIM\vrf-appdata-unattended\appData, as D36(b), whose cache\vrfsim is a
-  junction to the vendor cache (NewVrfAppData52.ps1:43). The cache holds tiles from the Iron Storm runs and none from
-  this area, so it is COLD for this scenario's area. That is an INFERENCE from run history: the junction is
-  appData\cache (NewVrfAppData52.ps1:43), the vendor's own cache, its contents by area are unmeasured, and the
-  files / MB recorded before and after cannot show area.
+  junction to the vendor cache (NewVrfAppData52.ps1:43). The cache holds tiles from the Iron Storm runs; the Iron Storm AOI and
+  D36(b)'s box lie INSIDE this scenario's unit placement box, so "cold" can hold only for where the movers go, and that
+  is unmeasured. The junction is appData\cache (NewVrfAppData52.ps1:43), the vendor's own cache; its contents by area
+  are unmeasured, and the files / MB recorded before and after cannot show area. Cache state: UNKNOWN for the mover
+  footprint, declared as such.
 - C:\MAK, DECLARED: the script writes nothing there. The scenario is never saved: there is no GUI and no save call.
   LaunchVrf52 copies the vendor log at load to runs\launch52\vrfSim_*.log (its READY snapshot; LaunchVrf52.ps1:825-827,
   :1449). That copy stays on the box: never attached, never committed. The run script copies nothing.
@@ -133,8 +145,13 @@ PASS only if ALL hold; any miss = FAIL:
 - Q4 (D36 P4, movement happens): at least 5 objects each move more than 500 m (POS) between T0 + 60 s and the window
   end. TSK completions are RECORDED, not gating: whether the back end reports completions of plan-driven tasks that
   no remote controller assigned is NOT IN RECORD (every TSK on record followed an interface-assigned task).
-  - VOID instead of FAIL: no object moves more than 500 m by T0 + 300 s, and Q1 still holds, and the sim= clock is
-    running (Q2 > 0). Then every plan is trigger-gated; that is not evidence about paging.
+  - VOID instead of FAIL: no object moves more than 500 m by T0 + 300 s, while Q1 holds and the sim= clock runs
+    (Q2 > 0). That is a measurement.
+  - Implication (separate sentence): the first movements start later, or need a trigger or a quick-launch event; it
+    is not evidence about paging. A re-run at the vendor's play speed (RunSim <N> 15, as the vendor's own PhaseTwo save
+    was played) is a declared deviation that needs the operator's ok.
+  - SIM-TIME COVERAGE, declared: 20 min at 1x is about 1,200 sim s of a scenario the vendor saved at 12,565 sim s
+    (PhaseTwo) while playing at 15x. Whether anything starts within the first 1,200 sim s is NOT IN RECORD.
   - The script STOPs (no score) if the load is not confirmed ("scenario LOAD CONFIRMED", LaunchVrf52.ps1:1445) or
     RunSim does not exit 0 (tools/RunSim/Program.cs:143-152), so neither can be misread as VOID.
 
@@ -143,9 +160,12 @@ and the vendor log's last write before the stop:
 - the feature queue n / median / p95, against D36(b) SCORED (73 / 135 s) and FILL (114 / 161 s);
 - memory: the gate line, the sys CSV's minimum Available and when, the vmmem* and per-container figures, any WARN or
   STOP snapshot;
-- the count of saved in-flight tasks (B4), the number of objects that moved, and TSK counts per task type.
+- the number of objects that moved more than 500 m, their total POS distance and lat/lon box (the mover footprint,
+  sec 0), and TSK counts per task type. (Saved in-flight tasks: 0 by construction, B4.)
 
 ## 4. Predictions (L1's, unchanged; MEDIUM - the first run of a vendor sample on this box)
+
+L1 made them for PhaseTwo, not knowing it was a 15x mid-run save; they are kept, unchanged, for the base file.
 
 - L1-a: no back-end loss in the 20 min (= Q1).
 - L1-b: working-set slope <= 200 MB/min after the first 5 min (= Q3).
@@ -154,31 +174,38 @@ and the vendor log's last write before the stop:
   "quick launch events", which a -NoGui run never fires).
 
 Readings (each a measurement statement; implications follow in separate sentences):
-- PASS: MAK's own pattern ran 20 min on its own scenario with no D36(b) signature, on the area B2 measures.
-  - Implication: step 2 may be registered (the operator's rule). The area caveat (sec 0) travels with the verdict.
+- PASS: MAK's own pattern ran 20 min on its own scenario with no D36(b) signature, with N movers over M km2 (POS).
+  - Implication: step 2 may be registered (the operator's rule). The three area numbers of sec 0 and the measured
+    mover count and footprint travel with the verdict.
 - FAIL on Q1 or Q3: the D36(b) signature occurs with MAK's own pattern and frame mode, with nothing of ours running.
   - Implication: changing our tasking to the vendor's way does not avoid it; step 2 is not run, and the terrain levers
-    (T2 sim-only buildings off, T4 terrainInterfaceConfig) come first (L1:54-55).
+    (T2 sim-only buildings off, T4 terrainInterfaceConfig) come first (L1:57-58).
 - FAIL on Q4 alone: recorded as such. The operator decides whether step 2 proceeds.
 - VOID (Q4): no reading about paging. One re-run is allowed only after the trigger question is read on the box.
 
 ## 5. Changes from L1 as registered (each declared)
 
-1. -NoGui (L1:39 said GUI on): the 10-16 standing ruling and memory.
-2. A clock start: L1 named no run() sender (L1:41). RunSim (tools/RunSim), no multiplier, one app number.
+1. -NoGui (L1:42 said GUI on): the 10-16 standing ruling and memory.
+2. A clock start: L1 named no run() sender (L1:44). RunSim (tools/RunSim), no multiplier, one app number.
 3. NotifyLevel 4 passed (L1's command ran at the default 3, where the queue measure has 0 lines; D36:32).
 4. The scenario path repeats the basename (L1:33 would fail LaunchVrf52's check).
 5. The holder is held 2,400 s (-FederationHoldSecs 2400), not the 900 s default, which is shorter than the window.
 6. Liveness and the clock by WatchVrf --report-backends plus the new --report-simtime (L1 had liveness only).
 7. Amendment 2's memory gate (>= 11.5 GiB Available), samplers, snapshots and back-end-first STOP.
 8. The pass rule mirrors D36(b) (sec 3), as D231 asks. L1's predictions are kept as they were.
+9. The scenario (amendment A): the t=0 base RoadToKaunas at its shipped multiplier 1, not PhaseTwo (a mid-run save
+   at 15x).
 
 ## 6. Gates before the launch (any miss = NOT RUN)
 
-- B1-B4, box reads, read-only, no launch: DONE 2026-10-20 (LD-1296-R1; amendment A, sec 0a):
+- B1-B4, box reads, read-only, no launch: B1, B2, B4 DONE 2026-10-20 (LD-1296-R1; amendment A); B3 PARTIAL - the
+  mover counts are read, the start conditions are NOT (see B3b):
   - B1: the .scn of each of the three scenarios: terrain, SMS, frame mode, the start state, any resume flag;
   - B2: the extent, lat/lon min/max over all objects and route vertices, in km2;
   - B3: per scenario, units / containers / planned movers, and which plans are trigger-gated;
+  - B3b (OWED before the launch, read-only, counts only): for the base RoadToKaunas, how many plans and sync-matrix
+    entries start on run(), on a trigger, or at a sim time (and which sim times), and the lat/lon box of the 35
+    movers' routes and destinations. It decides whether Q4 can score at 1x in 20 min and gives the footprint M.
   - B4: the saved in-flight task count per task type, and the cache and fastForwardSettings state.
 - Build: WatchVrf with --report-simtime (`WatchVrf.exe --capabilities` lists report-simtime; the script checks) and
   RunSim, both Release-5.2. An offline check: `WatchVrf.exe --con-selftest` passes.
@@ -200,7 +227,8 @@ runs/stp1296/step1/ (CSVs, the watch trace, snapshots, the gate file; vendor log
 VENDOR CITATION: UG52 3.4.3 p122; UG52 63.6.1 p1247; AC p239; UG 7.6.1 p261; UG Table 14 p233; RoadToKaunas.scn:3-4,
 16-17, 22; FEG p20; vrfRemoteController.h:356 simTime() (as quoted at VrfFacade.h:463-466).
 OWN-RECORD CITATION: D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md :24, :30-49, :69, :99-118; DESIGN_BACKEND_LIVENESS_2026-09-15.md:23;
-PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md :31-56; PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (4)-(6);
+PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md :31-59; stp1296/LD-1296-R1_BOX_READ_2026-10-20.md;
+FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:133-138; AGGREGATE_CATALOGUE_2026-09-27.md:194-196; PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (4)-(6);
 PREREG_STP1296_GROUP_TASK_2026-10-19.md :130-132, :308; EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt:31, :59;
 FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:137-138; HANDOFF_PARK_2026-10-16.md:81; Jira STP-1296 c14963.
 RUN KIND: movement
