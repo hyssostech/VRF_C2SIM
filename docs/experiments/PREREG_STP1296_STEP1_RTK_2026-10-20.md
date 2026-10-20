@@ -322,6 +322,19 @@ Pre-stated readings (measurement statements; implications are the operator's):
 - Recorded beside either: whether the WS growth is matched by private-bytes growth (committed, not trimmable) or not
   (trimmable / shared), and the page-fault and pagefile behaviour when Available falls.
 Ledger 5575-5579 (4 consumed, the WatchVrf number burned by design under -NoWatch).
+FLOOR SAFETY (Fable check of a767310, applied in a later commit; the floor VALUE is the operator's call):
+- At S2's climb (4,483 MB/min = 75 MB/s) the stop chain as first written took about 15-20 s (sampler reads, a 5 s poll,
+  the kill), an overshoot of about 1.1-1.5 GB - more than a 1.0 GiB floor. The back end does not die at Available 0:
+  Windows pages the OTHER processes first (the live system among them); the back end dies only at the commit limit.
+- Latency fixes: the sampler checks the floor right after reading Available and writes the STOP marker BEFORE the row,
+  the snapshot and the slow CIM reads; rtk_run polls the marker every 1 s.
+- Recommended floor: -StopGiB 3.0 (75 MB/s x 17 s x 2 for pressure + 0.5 GiB margin); 2.0 GiB only after the fixed
+  latency is measured (from S2's data: 6.0 GiB - min(availGiB), and the FORCED stamp minus the marker stamp). The commit
+  guard (-StopCommitPct 95) stays.
+- Reading added: the FLOOR (or the commit guard) firing with no plateau is UNDECIDED, not NOT-BY-DESIGN - an allocator
+  sized to Available also reaches the floor. With 10.5 GiB at the gate and a 3.0 GiB floor the headroom is about 100 s at
+  S2's rate, so the run most likely ends on the floor; that is stated in advance.
+- PLATEAU now needs the WS AND the private bytes flat (the OS trims a WS under pressure while private bytes climb).
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 

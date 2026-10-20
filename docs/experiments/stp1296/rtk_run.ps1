@@ -190,7 +190,7 @@ $launch = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\Launc
     '-FederationHoldAppNumber',"$AppBase",'-FederationHoldSecs',"$InstrumentSec",'-BackendAppNumber',"$($AppBase+2)",'-NoGui',
     '-NotifyLevel',"$NotifyLevel",'-ReadyTimeoutSec','240','-ScenarioLoadTimeoutSec','420','-AppDataDir',$appData) -RedirectStandardOutput "$d\c2-launchvrf52.log" -RedirectStandardError "$d\c2-launchvrf52.err" -PassThru -WindowStyle Hidden
 $deadline = (Get-Date).AddSeconds(900)   # ReadyTimeoutSec 240 + ScenarioLoadTimeoutSec 420 + the holder join
-while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 5 }
+while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 1 }
 "[$(& $ts)] launch: " + ((Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]|loaded scenario' | Select-Object -First 3 | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(90,$_.Line.Trim().Length)) }) -join ' | ')
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { Stop-Run 'ABORT: VR-Forces not READY' }
 # READY alone is not a load: LaunchVrf52 prints READY after a failed load or a load timeout too (:1440-1446, :1469).
@@ -282,7 +282,7 @@ $pT = -1.0; $pSim = -1.0; $sawFull = $false; $pLen = -1
 $flatDone = $false; $script:t0Utc = $t0.ToUniversalTime(); $nextVlog = Get-Date; $nextFlat = $t0.AddSeconds($FlatSec)
 "nowUtc,vendorLogLastWriteUtc_dirEntry,vendorLogBytes_dirEntry,vendorLogBytes_live" | Set-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii
 while ($true) {
-    Stop-Check; Start-Sleep 5
+    Stop-Check; Start-Sleep 1   # C5 (Fable): the STOP marker is polled every 1 s, not 5 s
     if ((Get-Date) -ge $t0.AddSeconds(50)) { Report-Slopes }
     if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(5)
         # C3/C4: a vendor-log freshness sample every 5 s; the LIVE length (file opened) is the measure, the directory
@@ -296,14 +296,18 @@ while ($true) {
             $from = (Get-Date).ToUniversalTime().AddSeconds(-$FlatSec).ToString('HH:mm:ss')
             $rows = @(Import-Csv (Join-Path $R "$d\c11-sampler.csv") -ErrorAction SilentlyContinue | Where-Object { $_.tUtc -ge $from })
             if ($rows.Count -ge [math]::Floor($FlatSec * 0.8)) {
-                $span = ($rows | ForEach-Object { [double]$_.wsMB } | Measure-Object -Maximum -Minimum); $dd = $span.Maximum - $span.Minimum
+                # C5 (Fable): PLATEAU needs the WS AND the private bytes flat - under pressure the OS trims the WS while
+                # private bytes keep climbing, so a flat WS alone could be an artefact
+                $span = ($rows | ForEach-Object { [double]$_.wsMB } | Measure-Object -Maximum -Minimum)
+                $pspan = ($rows | ForEach-Object { [double]$_.privMB } | Measure-Object -Maximum -Minimum)
+                $dd = [math]::Max($span.Maximum - $span.Minimum, $pspan.Maximum - $pspan.Minimum)
                 $cpu = ($rows | Where-Object { $_.cpuCores -ne '' } | ForEach-Object { [double]$_.cpuCores } | Measure-Object -Average).Average
                 if ($dd -lt $FlatMB) {
                     # liveness (Fable C3 item 4): a frozen back end is also flat; the back end's own CPU is the test. (The
                     # first text said the vendor log "stopped 24 s before T0" in S1 - a SUSPECTED INSTRUMENT ARTIFACT of the
                     # directory entry, amendment C4.)
                     if ($cpu -ge 0.2) { $flatDone = $true
-                        "[$(& $ts)] ANSWERED / PLATEAU (C3/C5): back-end WS level $([math]::Round($span.Maximum)) MB; WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
+                        "[$(& $ts)] ANSWERED / PLATEAU (C3/C5): back-end WS level $([math]::Round($span.Maximum)) MB, private $([math]::Round($pspan.Maximum)) MB; WS and private bytes flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
                             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
                     else { "[$(& $ts)] FLAT but the back end is near idle (mean $([math]::Round($cpu, 2)) cores) - NOT answered (could be hung)" |
                             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append } } } }

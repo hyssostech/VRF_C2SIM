@@ -47,10 +47,20 @@ $end = (Get-Date).AddSeconds($Seconds)
 while ((Get-Date) -lt $end) {
     $now = Get-Date
     $avail = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
+    $marker = Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt'
+    # C5 latency fix (Fable): the floor is checked RIGHT AFTER the Available read, and the STOP marker is written BEFORE
+    # the row, the snapshot and the slow CIM reads, so the caller can act at once.
+    if ($avail -lt $StopGiB) { ('{0} free {1} GiB < {2}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, $StopGiB) | Set-Content $marker -Encoding ascii
+        "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"
+        ('{0},{1},{2},{3},{4},{5},' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'), (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e')) | Add-Content $Out -Encoding ascii
+        Snap 'stop' $now; exit 3 }
+    $vm = Vm
+    if ($StopCommitPct -gt 0 -and $script:commitPct -ge $StopCommitPct) { ('{0} commit {1:F1} % of the limit >= {2} %' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $script:commitPct, $StopCommitPct) | Set-Content $marker -Encoding ascii
+        "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) commit $([math]::Round($script:commitPct, 1)) % >= $StopCommitPct %"
+        ('{0},{1},{2},{3},{4},{5},{6}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'), (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e'), $vm) | Add-Content $Out -Encoding ascii
+        Snap 'stop' $now; exit 3 }
     ('{0},{1},{2},{3},{4},{5},{6}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'),
-        (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e'), (Vm)) | Add-Content $Out -Encoding ascii
-    if ($StopCommitPct -gt 0 -and $script:commitPct -ge $StopCommitPct) { Snap 'stop' $now; ('{0} commit {1:F1} % of the limit >= {2} %' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $script:commitPct, $StopCommitPct) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) commit $([math]::Round($script:commitPct, 1)) % >= $StopCommitPct %"; exit 3 }
-    if ($avail -lt $StopGiB) { Snap 'stop' $now; ('{0} free {1} GiB < {2}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, $StopGiB) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"; exit 3 }
+        (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e'), $vm) | Add-Content $Out -Encoding ascii
     if (-not $warned -and $avail -lt $WarnGiB) { $warned = $true; Snap 'warn' $now; "WARN $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $WarnGiB" }
     Start-Sleep -Milliseconds 1000
 }
