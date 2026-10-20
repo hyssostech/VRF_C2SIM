@@ -62,6 +62,43 @@ Change (the scenario):
   PREREG must reconcile it.
 - PhaseTwo's 15x multiplier also contradicts sec 2's first text ("time multiplier 1.0"). That text is corrected below.
 
+## 0b. AMENDMENT B (2026-10-20, from box read B3b = LD-1296-R2; before any run, nothing launched)
+
+Record: docs/experiments/stp1296/LD-1296-R2_BOX_READ_2026-10-20.md (the dispatcher's read, counts only).
+Measured (base RoadToKaunas.scnx):
+- Vendor docs, as read on the box: help Plans\PlansIntro.htm "When you open a scenario, it is in pause mode ... When
+  you start the simulation, the plans start executing"; GlobalPlansQuickLaunch.htm, a quick-launch global plan "does not
+  start executing until you launch it"; plan.h:95-100 QuickLaunchFlags (IsQuickLaunch 0x1, Launched 0x4);
+  vrf_synchronizationMatrixFunction.htm, each phase ends on its Phase End Condition, then the next begins.
+- What starts at run(): 8 unit plans whose first Task runs at start (e.g. automatic_air_defense, patrol-route), and 1
+  of 54 sync-matrix phase-0 entries with an immediate task (53 are Set-only). 2 plans start after a 3,600 s wait.
+- What does not start by itself: 19 MANUAL quick-launch global plans (flags 3, not Launched) carrying 48 SimCommands
+  (scenario-event 5, issue-plan 13, task-command 8, ...); 105 sync-matrix entries in phases 1-6, which start only when
+  the previous phase ends. Every Init phase ends on SyncMatrixPlansCompleted AND a ScenarioEvent. Scenario events come
+  from the manual quick-launch bodies or from When triggers (29 SimCommands inside When; conditions LeftOfLine,
+  EntInArea, Destroyed, ...). The only sim-time condition in the file is "SimTime > 300 s" OR a LeftOfLine (one entry).
+- Movers' footprint (routes + destinations + placements of the 35-37 movers): about 99,800 km2; routes and
+  destinations alone about 92,100 km2; destinations alone about 30,750 km2. The box edges are set by AIR units and air
+  routes; a ground-only box was not computed.
+
+Implications (separate sentences; no cause claim):
+- At run() with nobody launching plans (no GUI, -NoGui), the ground maneuver in phases 1-6 very likely does not start
+  within the window; what moves is mostly the 8 start-at-run plans, several of them air. INFERRED from the plan
+  structure; the run measures it.
+- Q4 as first registered (any 5 objects over 500 m) could then PASS on air patrols alone, which load ground paging
+  little or not at all. Q4 is narrowed below, BEFORE the run.
+
+Changes:
+- Q4 counts GROUND movers only. A ground object is one whose POS altitude stays below 400 m MSL for the whole window
+  (the terrain here is below about 300 m; INFERRED, so the result lists the objects and their altitude range), or, if
+  the dispatcher supplies it before scoring, one whose entity-type domain in the .oob is land.
+- Air movers are recorded (count, distance) but do not count toward Q4.
+- Prediction for Q4 changes from MEDIUM-LOW to LOW (ground movement likely limited to the start-at-run plans).
+- The VOID reading stands. Implication of a VOID, refined: the vendor's ground maneuver in this scenario is driven by
+  manual quick-launch events and phase-end events, which this run does not fire. Firing them remotely is a new tool
+  and a deviation from "as shipped"; it needs the operator's ok and its own amendment.
+- The footprint M is reported as both the R2 planned box and the POS-measured ground box.
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:
@@ -142,10 +179,11 @@ PASS only if ALL hold; any miss = FAIL:
     whether the clock RUNS (a paused clock reads 0). It feeds the VOID test below, not the verdict.
 - Q3 (D36 P3): the back end's working-set slope <= 200 MB/min over every 5-min window from T0 + 5 min to the window
   end (ws_sampler2's CSV).
-- Q4 (D36 P4, movement happens): at least 5 objects each move more than 500 m (POS) between T0 + 60 s and the window
+- Q4 (D36 P4, movement happens; narrowed to GROUND movers by amendment B, sec 0b): at least 5 ground objects each
+  move more than 500 m (POS) between T0 + 60 s and the window
   end. TSK completions are RECORDED, not gating: whether the back end reports completions of plan-driven tasks that
   no remote controller assigned is NOT IN RECORD (every TSK on record followed an interface-assigned task).
-  - VOID instead of FAIL: no object moves more than 500 m by T0 + 300 s, while Q1 holds and the sim= clock runs
+  - VOID instead of FAIL: no GROUND object moves more than 500 m by T0 + 300 s, while Q1 holds and the sim= clock runs
     (Q2 > 0). That is a measurement.
   - Implication (separate sentence): the first movements start later, or need a trigger or a quick-launch event; it
     is not evidence about paging. A re-run at the vendor's play speed (RunSim <N> 15, as the vendor's own PhaseTwo save
@@ -170,8 +208,8 @@ L1 made them for PhaseTwo, not knowing it was a 15x mid-run save; they are kept,
 - L1-a: no back-end loss in the 20 min (= Q1).
 - L1-b: working-set slope <= 200 MB/min after the first 5 min (= Q3).
 - L1-c: feature-queue median wait < 30 s. Recorded, not gating.
-- New, for Q4: movement happens (MEDIUM-LOW: plan triggering is NOT IN RECORD, and FEG p20 says some movement is
-  "quick launch events", which a -NoGui run never fires).
+- New, for Q4: ground movement happens. LOW (amendment B: the ground maneuver waits for manual quick-launch and
+  phase-end events this run does not fire; first text said MEDIUM-LOW).
 
 Readings (each a measurement statement; implications follow in separate sentences):
 - PASS: MAK's own pattern ran 20 min on its own scenario with no D36(b) signature, with N movers over M km2 (POS).
