@@ -70,33 +70,47 @@ Measured (base RoadToKaunas.scnx):
   you start the simulation, the plans start executing"; GlobalPlansQuickLaunch.htm, a quick-launch global plan "does not
   start executing until you launch it"; plan.h:95-100 QuickLaunchFlags (IsQuickLaunch 0x1, Launched 0x4);
   vrf_synchronizationMatrixFunction.htm, each phase ends on its Phase End Condition, then the next begins.
-- What starts at run(): 8 unit plans whose first Task runs at start (e.g. automatic_air_defense, patrol-route), and 1
-  of 54 sync-matrix phase-0 entries with an immediate task (53 are Set-only). 2 plans start after a 3,600 s wait.
+- What starts at run(): 8 unit plans whose first Task runs at start (e.g. automatic_air_defense, patrol-route; their
+  domains are NOT read). Of 54 sync-matrix phase-0 entries, 1 has an immediate task and 53 are Set-only ("phase 0
+  starts at run" is INFERRED in R2). 2 plans start after a 3,600 s wait.
 - What does not start by itself: 19 MANUAL quick-launch global plans (flags 3, not Launched) carrying 48 SimCommands
   (scenario-event 5, issue-plan 13, task-command 8, ...); 105 sync-matrix entries in phases 1-6, which start only when
   the previous phase ends. Every Init phase ends on SyncMatrixPlansCompleted AND a ScenarioEvent. Scenario events come
   from the manual quick-launch bodies or from When triggers (29 SimCommands inside When; conditions LeftOfLine,
   EntInArea, Destroyed, ...). The only sim-time condition in the file is "SimTime > 300 s" OR a LeftOfLine (one entry).
 - Movers' footprint (routes + destinations + placements of the 35-37 movers): about 99,800 km2; routes and
-  destinations alone about 92,100 km2; destinations alone about 30,750 km2. The box edges are set by AIR units and air
-  routes; a ground-only box was not computed.
+  destinations alone about 92,100 km2; destinations alone about 30,750 km2. R2 names air units and air routes at the
+  box edges (unmarked in R2 as VERIFIED or INFERRED); a ground-only box was not computed.
 
 Implications (separate sentences; no cause claim):
 - At run() with nobody launching plans (no GUI, -NoGui), the ground maneuver in phases 1-6 very likely does not start
-  within the window; what moves is mostly the 8 start-at-run plans, several of them air. INFERRED from the plan
-  structure; the run measures it.
-- Q4 as first registered (any 5 objects over 500 m) could then PASS on air patrols alone, which load ground paging
-  little or not at all. Q4 is narrowed below, BEFORE the run.
+  within the window; what moves is mostly the 8 start-at-run plans. INFERRED from the plan structure; the run
+  measures it.
+- Q4 as first registered (any 5 objects over 500 m) could then PASS on air movers alone. How much an air mover loads
+  terrain paging is unmeasured (the sim pages by object need, aircraft included; UG52 63.6.1 p1247), but it is not the
+  ground-maneuver load D36(b) failed on. Q4 is narrowed below, BEFORE the run.
 
 Changes:
-- Q4 counts GROUND movers only. A ground object is one whose POS altitude stays below 400 m MSL for the whole window
-  (the terrain here is below about 300 m; INFERRED, so the result lists the objects and their altitude range), or, if
-  the dispatcher supplies it before scoring, one whose entity-type domain in the .oob is land.
+- Q4 counts GROUND movers only. GROUND = the entity-type DOMAIN in the .oob is land (the DIS domain of the type,
+  the rule CLAUDE.md sec 3 sets for "ground"). Box read B3c supplies the domain of every object (uuid -> domain)
+  before scoring; without it Q4 is NOT SCORED (no altitude fallback).
+- WHY NOT ALTITUDE: POS altM is WGS-84 ELLIPSOID height (VrfFacade.cpp:1439-1444, DtNoGeoid; VRF_ALTITUDE_FRAMES.md
+  :33-39), not MSL; the routes box holds terrain to about 345 m (the Minsk Upland), and a helicopter flying low reads
+  under 400 m. Each mover's altitude range is RECORDED, not used to classify.
 - Air movers are recorded (count, distance) but do not count toward Q4.
-- Prediction for Q4 changes from MEDIUM-LOW to LOW (ground movement likely limited to the start-at-run plans).
-- The VOID reading stands. Implication of a VOID, refined: the vendor's ground maneuver in this scenario is driven by
-  manual quick-launch events and phase-end events, which this run does not fire. Firing them remotely is a new tool
-  and a deviation from "as shipped"; it needs the operator's ok and its own amendment.
+- Q4 levels, all measurement statements:
+  - VOID: no ground object moves more than 500 m by T0 + 300 s, while Q1 holds and the clock runs;
+  - UNINFORMATIVE: 1-4 ground objects move more than 500 m in the window;
+  - LOAD FLOOR MET: at least 4 ground units each move more than 5 km (POS) in the window - the scale of D36(b)'s
+    four navigating containers;
+  - in between (at least 5 over 500 m, floor not met): Q4 PASSES as registered, at a load below D36(b)'s.
+- Prediction for Q4 changes from MEDIUM-LOW to LOW; the expected outcome is VOID or UNINFORMATIVE.
+- What the run still yields if so (measurements, not a verdict on D36(b)): a Q1 / Q3 idle-plus-start-at-run baseline
+  with units placed over 212,000 km2; the queue waits at that load; and instrument validation (--report-simtime,
+  POS on aggregate-level units, whether plan-driven tasks produce TSK lines).
+- Implication of VOID / UNINFORMATIVE (separate sentence): the vendor's ground maneuver here is driven by manual
+  quick-launch and phase-end events this run does not fire, so the run does not test it. Firing them remotely is a
+  new tool and a deviation from "as shipped"; it needs the operator's ok and its own amendment.
 - The footprint M is reported as both the R2 planned box and the POS-measured ground box.
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
@@ -137,8 +151,8 @@ OWN RECORD:
   basename and would fail that check. (First text: PhaseTwo, with a switch rule to Counterattack; withdrawn by
   amendment A, because both are saved mid-run.)
 - SAVED STATE, DECLARED: none. RoadToKaunas is a t=0 file (B4). Its plans and sync matrices are bound at load and not
-  started; whether run() starts them, or they wait for triggers or quick-launch events (FEG p20), is NOT IN RECORD.
-  The VOID rule (sec 3) covers that.
+  started; R2 (sec 0b) shows most of the ground maneuver waits for quick-launch and phase-end events. The Q4 levels
+  (sec 0b, sec 3) cover that.
 - FRAME MODE, DECLARED: the scenario's own, variable-frame (frame-time 0.1 s is inert in that mode), time multiplier 1
   (RoadToKaunas.scn:13). RunSim sends run() with NO multiplier. Our Iron Storm runs use fixed-frame-run-to-complete;
   that difference is the vendor's and is part of "the vendor way". fastForwardSettings.mtl holds no entry (B4; the
@@ -198,8 +212,9 @@ and the vendor log's last write before the stop:
 - the feature queue n / median / p95, against D36(b) SCORED (73 / 135 s) and FILL (114 / 161 s);
 - memory: the gate line, the sys CSV's minimum Available and when, the vmmem* and per-container figures, any WARN or
   STOP snapshot;
-- the number of objects that moved more than 500 m, their total POS distance and lat/lon box (the mover footprint,
-  sec 0), and TSK counts per task type. (Saved in-flight tasks: 0 by construction, B4.)
+- GROUND and AIR separately (domain from B3c): the number of objects that moved more than 500 m and more than 5 km,
+  their total POS distance and lat/lon box (the mover footprint, sec 0), each mover's altitude range, and TSK counts
+  per task type. (Saved in-flight tasks: 0 by construction, B4.)
 
 ## 4. Predictions (L1's, unchanged; MEDIUM - the first run of a vendor sample on this box)
 
@@ -212,14 +227,17 @@ L1 made them for PhaseTwo, not knowing it was a 15x mid-run save; they are kept,
   phase-end events this run does not fire; first text said MEDIUM-LOW).
 
 Readings (each a measurement statement; implications follow in separate sentences):
-- PASS: MAK's own pattern ran 20 min on its own scenario with no D36(b) signature, with N movers over M km2 (POS).
-  - Implication: step 2 may be registered (the operator's rule). The three area numbers of sec 0 and the measured
+- PASS with the LOAD FLOOR MET: MAK's own pattern ran 20 min on its own scenario with no D36(b) signature, with N
+  ground movers over M km2 (POS).
+  - Implication: step 2 may be registered (the operator's rule). The area numbers of sec 0 and the measured ground
     mover count and footprint travel with the verdict.
+- PASS below the floor: Q1 / Q3 clean at load N ground movers over M km2.
+  - Implication: no bearing on D36(b)'s load; the operator decides on step 2 or a quick-launch amendment.
 - FAIL on Q1 or Q3: the D36(b) signature occurs with MAK's own pattern and frame mode, with nothing of ours running.
   - Implication: changing our tasking to the vendor's way does not avoid it; step 2 is not run, and the terrain levers
     (T2 sim-only buildings off, T4 terrainInterfaceConfig) come first (L1:57-58).
-- FAIL on Q4 alone: recorded as such. The operator decides whether step 2 proceeds.
-- VOID (Q4): no reading about paging. One re-run is allowed only after the trigger question is read on the box.
+- VOID or UNINFORMATIVE (Q4): no reading about paging under ground maneuver; the residual yield of sec 0b is reported.
+  - Implication: the operator decides between step 2 as registered, a quick-launch amendment, or park.
 
 ## 5. Changes from L1 as registered (each declared)
 
@@ -236,15 +254,17 @@ Readings (each a measurement statement; implications follow in separate sentence
 
 ## 6. Gates before the launch (any miss = NOT RUN)
 
-- B1-B4, box reads, read-only, no launch: B1, B2, B4 DONE 2026-10-20 (LD-1296-R1; amendment A); B3 PARTIAL - the
-  mover counts are read, the start conditions are NOT (see B3b):
+- B1-B4, box reads, read-only, no launch: B1, B2, B3, B4 DONE 2026-10-20 (LD-1296-R1, amendment A; B3b LD-1296-R2,
+  amendment B):
   - B1: the .scn of each of the three scenarios: terrain, SMS, frame mode, the start state, any resume flag;
   - B2: the extent, lat/lon min/max over all objects and route vertices, in km2;
   - B3: per scenario, units / containers / planned movers, and which plans are trigger-gated;
-  - B3b (OWED before the launch, read-only, counts only): for the base RoadToKaunas, how many plans and sync-matrix
+  - B3b (DONE, LD-1296-R2): for the base RoadToKaunas, how many plans and sync-matrix
     entries start on run(), on a trigger, or at a sim time (and which sim times), and the lat/lon box of the 35
     movers' routes and destinations. It decides whether Q4 can score at 1x in 20 min and gives the footprint M.
   - B4: the saved in-flight task count per task type, and the cache and fastForwardSettings state.
+  - B3c (OWED before SCORING, not before the launch; read-only): the entity-type domain of every RoadToKaunas object
+    (uuid -> domain), and the minimum vertex altitude of its air routes. Without it Q4 is NOT SCORED.
 - Build: WatchVrf with --report-simtime (`WatchVrf.exe --capabilities` lists report-simtime; the script checks) and
   RunSim, both Release-5.2. An offline check: `WatchVrf.exe --con-selftest` passes.
 - The memory gate: >= 11.5 GiB Available. The dispatcher first stops sonar-local if docker stats shows it holding more
@@ -265,7 +285,8 @@ runs/stp1296/step1/ (CSVs, the watch trace, snapshots, the gate file; vendor log
 VENDOR CITATION: UG52 3.4.3 p122; UG52 63.6.1 p1247; AC p239; UG 7.6.1 p261; UG Table 14 p233; RoadToKaunas.scn:3-4,
 16-17, 22; FEG p20; vrfRemoteController.h:356 simTime() (as quoted at VrfFacade.h:463-466).
 OWN-RECORD CITATION: D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md :24, :30-49, :69, :99-118; DESIGN_BACKEND_LIVENESS_2026-09-15.md:23;
-PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md :31-59; stp1296/LD-1296-R1_BOX_READ_2026-10-20.md;
+PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md :31-59; stp1296/LD-1296-R1_BOX_READ_2026-10-20.md; stp1296/LD-1296-R2_BOX_READ_2026-10-20.md;
+VRF_ALTITUDE_FRAMES.md:33-39;
 FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:133-138; AGGREGATE_CATALOGUE_2026-09-27.md:194-196; PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (4)-(6);
 PREREG_STP1296_GROUP_TASK_2026-10-19.md :130-132, :308; EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt:31, :59;
 FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:137-138; HANDOFF_PARK_2026-10-16.md:81; Jira STP-1296 c14963.
