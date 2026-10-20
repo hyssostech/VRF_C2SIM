@@ -153,6 +153,8 @@ What runs:
     extrapolation (D36 (a)). So the vendor log's freshness is the liveness test, and a clock that falls from >= 13.5x
     to below 1.5x in an interval is also a STOP. A dead observer, a dead, lost or silent back end, or a clock drop is a
     STOP, never IDLE (Fable's probes showed both earlier drafts would have read IDLE).
+  - [C4, sec 0f: the freshness measure is now the log's LIVE length (file opened), which must GROW between checks; the
+    directory-entry LastWriteTime below can lag on an open file and is no longer used for the rule.]
   - OWED ON THE BOX, at the first idle check of the run: the vendor log's LastWriteTimeUtc advances while the back end
     runs (NotifyLevel 4). If a healthy scenario wrote nothing for 600 s, the stale-log test would STOP it - a false
     STOP, which is safe (it never authorises Counterattack), and is reported as such. There is NO ceiling (supervisor, 2026-10-20:
@@ -254,15 +256,15 @@ Pre-stated reading (measurement statements; rewritten after the Fable check, bef
 - SIM/WALL is NOT MEASURED under -NoWatch (S1's 14.98 came from WatchVrf); that the saved 15x applies is assumed from S1.
 Implication of each is for the operator; no cause is claimed here.
 Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 100 MB) WITH the back end busy (mean
-ws_sampler2 cpuCores >= 0.2 over the window; a frozen back end is also flat, and S1's vendor log stopped 24 s before T0
-while the clock ran, so the log is no liveness test) - reported once as ANSWERED, and the run then continues as an
+ws_sampler2 cpuCores >= 0.2 over the window; a frozen back end is also flat. [C4: the first text added "and S1's vendor
+log stopped 24 s before T0 while the clock ran" - a SUSPECTED INSTRUMENT ARTIFACT, see sec 0f]) - reported once as ANSWERED, and the run then continues as an
 observation until the operator ends it (OPERATOR-END.txt); a flat WS with an idle back end prints "FLAT but ... NOT
 answered (could be hung)". There is no IDLE end under -NoWatch (no POS). The flat check runs every 60 s. A run that
 crosses 00:00Z loses ws_sampler2 rows after midnight in these checks (HH:mm:ss stamps) - declared, not handled.
 Also added / fixed:
-- a vendor-log freshness sample every 5 s (c16-vlog.csv: now, the log's last write, its bytes). S1 measured the
-  vendor log's last write 24 s BEFORE T0 and 73 s before the STOP, while WatchVrf saw the clock advancing at about 15x
-  and 3 threads near-saturated (a measurement; no claim).
+- a vendor-log freshness sample every 5 s (c16-vlog.csv). [C4: the first text said "S1 measured the vendor log's last
+  write 24 s BEFORE T0 and 73 s before the STOP". That stamp is the file's DIRECTORY ENTRY, which can lag on an open
+  file; S2 showed the lag (sec 0f). It is a SUSPECTED INSTRUMENT ARTIFACT, not a measurement of the log stopping.]
 - the top-3 thread CPU measure (S1 console: InvalidArgument x3, concatenated values) is rewritten as an explicit loop.
 - PRE-LAUNCH GATE (dispatcher, read-only; RUNBOOK sec 0, the check after a force-stop): S1's back end (app 5567) was
   FORCED, and its holder RtiProbe 40160 was gone after the STOP while rtiexec's WS went 17 -> 75 MB. Before this launch,
@@ -276,6 +278,19 @@ Also added / fixed:
   by design.
 - A memory STOP's identity check runs RunnerLib in a child scope (its Set-StrictMode does not leak); the StopVrf52
   fallback passes the RECORDED pid + start, not the live process's own.
+
+## 0f. AMENDMENT C4 (2026-10-20, after S2) - the vendor-log freshness instrument
+
+Measured (S2, LD-1296-S2, stp-data b2a4d7f runs/stp1296/step1/p2b): c16-vlog.csv read the vendor log's directory-entry
+LastWriteTime as a constant 16:16:05.603 for the whole run, and 16:16:54.547 after the STOP.
+Hypothesis (untested): an open file's directory-entry stamp and length can lag the writes on NTFS. If so:
+- S1's "the vendor log's last write was 24 s before T0" (LDS1-REPORT; sec 0e first text) is an INSTRUMENT ARTIFACT
+  (suspected), not evidence that the log stopped; it is struck as a measurement at every site in this file and the
+  script, and the dispatcher marks it in LDS1-REPORT;
+- c14972's stale-vendor-log STOP rule (IDLE needs the log written within the interval) could fire FALSELY.
+Change (rtk_run.ps1): freshness is the LIVE length, read by opening the file with shared read (Get-LiveLogLength); the
+watch-mode liveness rule requires that live length to GROW between idle checks; c16-vlog.csv keeps the directory-entry
+stamp and length beside the live length, so the next run measures the lag directly.
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 

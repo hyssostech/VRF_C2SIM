@@ -82,6 +82,14 @@ function Get-VendorLog {
     Get-ChildItem C:\MAK\logs -Filter "*$($script:bePid).log" -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTimeUtc -ge $script:launchUtc } | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 }
+function Get-LiveLogLength {
+    # The vendor log's LIVE length, by opening the file (shared read). An open file's directory-entry LastWriteTime and
+    # Length can lag on NTFS (S2's c16: a constant 16:16:05.603 during the run, 16:16:54.547 after the STOP), so the
+    # directory entry is no freshness measure (amendment C4). -1 when the file cannot be opened.
+    $w = Get-VendorLog
+    if (-not $w) { return -1 }
+    try { $fs = [System.IO.File]::Open($w.FullName, 'Open', 'Read', 'ReadWrite'); try { $fs.Length } finally { $fs.Dispose() } } catch { -1 }
+}
 function Show-Threads {
     if ($script:bePid -le 0) { return }   # pid 0 is the System Idle process, never ours
     $b = Get-Process -Id $script:bePid -ErrorAction SilentlyContinue
@@ -263,16 +271,17 @@ function Get-MaxMove($a, $b) {
 }
 $nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $warned = $false
 $instEnd = $sysStart.AddSeconds($InstrumentSec)   # the earliest-started instrument with the shortest life ends first
-$pT = -1.0; $pSim = -1.0; $sawFull = $false
+$pT = -1.0; $pSim = -1.0; $sawFull = $false; $pLen = -1
 $flatDone = $false; $script:t0Utc = $t0.ToUniversalTime(); $nextVlog = Get-Date; $nextFlat = $t0.AddSeconds($FlatSec)
-"nowUtc,vendorLogLastWriteUtc,vendorLogBytes" | Set-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii
+"nowUtc,vendorLogLastWriteUtc_dirEntry,vendorLogBytes_dirEntry,vendorLogBytes_live" | Set-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii
 while ($true) {
     Stop-Check; Start-Sleep 5
     if ((Get-Date) -ge $t0.AddSeconds(50)) { Report-Slopes }
     if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(5)
-        # C3: a vendor-log freshness sample every 5 s (each loop pass) (S1: the log's last write was 24 s BEFORE T0 while the clock ran)
+        # C3/C4: a vendor-log freshness sample every 5 s; the LIVE length (file opened) is the measure, the directory
+        # entry's stamp and length are kept beside it to show the lag (S1's "24 s before T0" is a suspected artifact)
         $vl = Get-VendorLog
-        "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')),$(if ($vl) { $vl.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { '' }),$(if ($vl) { $vl.Length } else { '' })" |
+        "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')),$(if ($vl) { $vl.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { '' }),$(if ($vl) { $vl.Length } else { '' }),$(Get-LiveLogLength)" |
             Add-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii }
     if ($NoWatch) {
         if (-not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) { Stop-Run 'the back end process is gone' }
@@ -283,8 +292,9 @@ while ($true) {
                 $span = ($rows | ForEach-Object { [double]$_.wsMB } | Measure-Object -Maximum -Minimum); $dd = $span.Maximum - $span.Minimum
                 $cpu = ($rows | Where-Object { $_.cpuCores -ne '' } | ForEach-Object { [double]$_.cpuCores } | Measure-Object -Average).Average
                 if ($dd -lt $FlatMB) {
-                    # liveness (Fable C3 item 4): a frozen back end is also flat. S1's vendor log stopped 24 s before T0
-                    # while the clock ran, so the log is no liveness test here; the back end's own CPU is.
+                    # liveness (Fable C3 item 4): a frozen back end is also flat; the back end's own CPU is the test. (The
+                    # first text said the vendor log "stopped 24 s before T0" in S1 - a SUSPECTED INSTRUMENT ARTIFACT of the
+                    # directory entry, amendment C4.)
                     if ($cpu -ge 0.2) { $flatDone = $true
                         "[$(& $ts)] ANSWERED (C3): WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
                             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
@@ -310,9 +320,11 @@ while ($true) {
         if ($lastBe -eq 0) { Stop-Run 'BACK END LOST: WatchVrf backends=0 (Q1)' }
         if ($lastT -le $pT) { Stop-Run "no new observer sample since t=$pT s - movement is unwatched" }
         if ($lastSim -le $pSim) { Stop-Run "the sim clock did not advance (sim=$lastSim, previous $pSim)" }
-        $lw = Get-VendorLog
-        if (-not $lw -or $lw.LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddSeconds(-$IdleEndSec)) {
-            Stop-Run "back end silent: its vendor log was not written in the last $IdleEndSec s (last $(if ($lw) { $lw.LastWriteTimeUtc.ToString('HH:mm:ss') } else { 'n/a' })Z)" }
+        $lw = Get-VendorLog; $liveLen = Get-LiveLogLength
+        # C4: freshness = the LIVE length grew since the previous check (the directory entry can lag on an open file)
+        if ($liveLen -lt 0 -or ($pLen -ge 0 -and $liveLen -le $pLen)) {
+            Stop-Run "back end silent: its vendor log did not grow in the last $IdleEndSec s (live length $liveLen, previous $pLen)" }
+        $pLen = $liveLen
         $iRatio = if ($pT -ge 0 -and $lastT -gt $pT) { [math]::Round(($lastSim - $pSim) / ($lastT - $pT), 2) } else { -1 }
         if ($iRatio -ge 0 -and $iRatio -ge 13.5) { $sawFull = $true }
         if ($sawFull -and $iRatio -ge 0 -and $iRatio -lt 1.5) { Stop-Run "the clock fell from >= 13.5x to $iRatio x - the frozen-back-end signature (D36 (a))" }
