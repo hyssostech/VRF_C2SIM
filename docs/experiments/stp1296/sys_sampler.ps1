@@ -1,10 +1,15 @@
-# STP-1296 amendment 2: the SYSTEM-side 1 Hz sampler, run beside ws_sampler2.ps1 (the back-end sampler) on the same
-# host clock (both stamp Get-Date UTC). Read-only: it never stops anything; the caller tears down on exit 3.
+# STP-1296 amendment 2: the SYSTEM-side sampler, run beside ws_sampler2.ps1 (the back-end sampler) on the same host
+# clock (both stamp Get-Date UTC). One sample + a 1 s sleep per loop: about 1 Hz, slower under memory pressure.
+# Read-only: it never stops anything; the caller tears down on its STOP marker.
 # CSV: tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB
-# (an absent or unreadable process = empty cells). tUtc is HH:mm:ss.fff.
+# (an absent or unreadable process = empty cells). tUtc is HH:mm:ss.fff. availGiB is Win32_OperatingSystem
+# FreePhysicalMemory, which Windows reports as AVAILABLE memory (free + standby + zeroed; Task Manager "Available"),
+# the same quantity as every earlier memory gate. vmmem* matches vmmemWSL (and vmmem on older WSL builds).
 # ALERTS, each a one-time snapshot (top-10 processes by working set + docker stats --no-stream) into -SnapDir:
 #   availGiB < -WarnGiB  -> "WARN ..." line, snapshot warn-<hhmmss>.txt, keep sampling;
-#   availGiB < -StopGiB  -> "STOP ..." line, snapshot stop-<hhmmss>.txt, exit 3 (the MEMORY STOP, c14919).
+#   availGiB < -StopGiB  -> "STOP ..." line, snapshot stop-<hhmmss>.txt, the marker <SnapDir>\..\c12-STOP.txt, exit 3
+#   (the MEMORY STOP, c14919). One sample that crosses both thresholds snapshots once, as STOP.
+# The caller watches the MARKER, not the exit code.
 param([Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$SnapDir, [int]$Seconds = 3600,
       [double]$WarnGiB = 7.0, [double]$StopGiB = 6.0)
 "tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB" | Set-Content $Out -Encoding ascii
@@ -27,9 +32,9 @@ $end = (Get-Date).AddSeconds($Seconds)
 while ((Get-Date) -lt $end) {
     $now = Get-Date
     $avail = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
-    ('{0},{1},{2},{3},{4},{5}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmemWSL'), (Mem 'VrfC2SimApp'),
+    ('{0},{1},{2},{3},{4},{5}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'),
         (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e')) | Add-Content $Out -Encoding ascii
-    if ($avail -lt $StopGiB) { Snap 'stop' $now; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"; exit 3 }
+    if ($avail -lt $StopGiB) { Snap 'stop' $now; ('{0} free {1} GiB < {2}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, $StopGiB) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"; exit 3 }
     if (-not $warned -and $avail -lt $WarnGiB) { $warned = $true; Snap 'warn' $now; "WARN $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $WarnGiB" }
     Start-Sleep -Milliseconds 1000
 }
