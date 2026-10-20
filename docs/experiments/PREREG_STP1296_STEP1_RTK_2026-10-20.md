@@ -226,6 +226,32 @@ script ABORTs naming the line. Without the file the script keeps the altitude cu
   non-ground uuids". Before accepting, the dispatcher checks a recent 5.2d c13-watch.txt: POS keys start with
   "VRF_UUID:".
 
+## 0e. AMENDMENT C3 (operator D239, 2026-10-20; before the re-run) - is the back-end climb the vendor's or ours?
+
+Measured (S1, LD-1296-S1; stp-data 24feee1 runs/stp1296/step1/p2, LDS1-REPORT.md): PhaseTwo as shipped, 15x
+(SIM/WALL 14.98), stopped on the MEMORY STOP at T0 + 49 s; the back end's working set went 3,220 -> 8,613 MB, peak climb
+3,922 MB/min, already rising before T0; backends stayed 1; 0 TSK lines; the back end was forced 35 s after the STOP.
+Change - re-run PhaseTwo as shipped with two of OUR additions removed, everything else the same (RunSim run(), the
+RtiProbe holder, the RID file, the saved 15x, -NoGui, both samplers, the gate at 10.5 GiB):
+- the back end's notify level = the vendor default 2 (rtk_run.ps1 -NotifyLevel 2; our runs used 4);
+- NO WatchVrf observer (rtk_run.ps1 -NoWatch).
+- A MEMORY STOP (the system sampler's marker, or ws_sampler2's ABORT) forces our own back end AT ONCE, after the same
+  pid + start-time identity check StopVrf52 uses (RunnerLib Test-OwnBackendIdentity); no graceful attempt. Other
+  STOPs keep the graceful-then-force path.
+Pre-stated reading (measurement statements; the script prints both slopes at T0 + 65 s):
+- the back end's WS slope over the first 60 s after T0, against S1's (peak 3,922 MB/min), with the slope over the 60 s
+  before T0 printed beside it, because S1's climb began before T0;
+- SIMILAR (within a factor of 2 of S1's first-60-s slope, from S1's c11 CSV): the climb is the vendor's on this box at
+  15x, without our observer and at the vendor's notify level;
+- MUCH LOWER (under half): our additions are implicated (the observer or the level-4 logging; the next split);
+- in between: no reading; recorded.
+Implication of each is for the operator; no cause is claimed here.
+Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 100 MB) - reported once as ANSWERED, and
+the run then continues as an observation until the operator ends it (OPERATOR-END.txt); or the operator. There is no
+IDLE end under -NoWatch (no POS).
+Also fixed: CacheSize now counts the junction's target (S1 read 0 files through appData\cache); the dispatcher's hand
+reading stays the record of M4. Ledger: 5 new numbers.
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:
