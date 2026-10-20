@@ -17,19 +17,22 @@ Measurements and design implications are kept in separate sentences (CLAUDE.md s
 - AREA: three numbers, all measurements, none of them the paging footprint.
   - PLACEMENT (box read B2, docs/experiments/stp1296/LD-1296-R1_BOX_READ_2026-10-20.md): the base RoadToKaunas places
     its units over lat 53.05-55.88, lon 17.11-27.58, 677.5 x 313.6 km, about 212,000 km2 (about 222,000 with points
-    and routes). That is about 64 times D36(b)'s 3,300 km2 demo box (HANDOFF_PARK_2026-10-16.md:81).
+    and routes). A rectangle, like every area figure in this section. RECORD FIX (2026-10-20, supervisor): 3,300 km2
+    is the option-3 demo-extent rectangle, not a scenario size (SCOPE_DEMO_EXTENT_2026-10-14.md:23); this site first
+    compared the placement box with it ("about 64 times"), which compares two rectangles and says nothing about load.
   - MANEUVER ROUTES: the six routes its maneuver tasks name, in the SAME base file, lie in 54.770-54.892 N,
-    24.680-24.820 E, about 122 km2 (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:133-138), 27 times SMALLER
-    than D36(b)'s box.
+    24.680-24.820 E, about 122 km2 (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:133-138); also a rectangle.
   - MOVER FOOTPRINT: where the 35 plan-based movers actually go is UNMEASURED. The run measures it from the POS lines
     (the lat/lon box of the objects that move more than 500 m, and their total distance).
   - Extent is not paging load: the sim pages by object need and prediction (UG52 63.6.1 p1247), so what loads it is
-    where units sit and move, not a bounding box. The movers are not like-for-like either: D36(b) moved four
-    populated containers of about 17 members each (D36:16-18); RoadToKaunas has 17 disaggregated containers
+    where units sit and move, not a bounding box. The movers are not like-for-like either: D36(b) had four
+    container navigates in flight (D36:89-91), one of them 48 IBCT with 17 members (D36:16-18; the others' member
+    counts are not in that record); RoadToKaunas has 17 disaggregated containers
     (AGGREGATE_CATALOGUE_2026-09-27.md:194-196), and the composition of its 35 movers is unmeasured.
   - Implication (separate sentence): a clean step 1 is reported as "ran clean with units placed over a 212,000 km2
-    box and N movers covering M km2 / D km (POS)", with N, M and D measured. Whether that bears on Iron Storm depends
-    on M against D36(b)'s box, and the verdict says so. It does not show that our tasking would run clean; that is
+    box and N movers covering M km2 / D km (POS)", with N, M and D measured. Whether that bears on Iron Storm is
+    decided by the like-for-like rule of amendment B (path km, concurrent ground movers, corridor area), not by any
+    rectangle. It does not show that our tasking would run clean; that is
     step 2.
 
 ## 0a. AMENDMENT A (2026-10-20, from box reads B1-B4, LD-1296-R1; before any run, nothing launched)

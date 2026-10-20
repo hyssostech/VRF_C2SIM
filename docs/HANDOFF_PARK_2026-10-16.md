@@ -78,7 +78,7 @@ STP-side fix (STP 5.11.1; design APPROVED, build NOT started):
   - Implication (VD-1): the vendor's group-task path is the documented operator path, and it has not been tried on the stop recipe. It needs an owner RULE and a PREREG before any run (VD-1:269).
 - D112 / LV-2: a LARGER DEMO EXTENT.
   - The prep (draft v2, held, never posted) covers a box-size method, the extent override (Vrf__DemoExtent env for the interface only, not a branch commit), the cache warm-up, a PREREG skeleton and a memory budget.
-  - Measurement: D36(b) at 3,300 km2 FAILED (D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md:107-113). D36 re-tasked POPULATED members on the same planner family (Auto); no run exists at 1,000-2,000 km2.
+  - Measurement: D36(b) at 3,300 km2 (the option-3 demo-extent RECTANGLE, not a scenario size; SCOPE_DEMO_EXTENT_2026-10-14:23; fix 2026-10-20) FAILED (D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md:107-113). D36 re-tasked POPULATED members on the same planner family (Auto); no run exists at 1,000-2,000 km2.
   - Memory gate, LV-1b numbers: 8.9 GiB free at T0, against the 6.0 GiB MEMORY STOP, leaves 2.9 GiB of headroom. The prep's gate needs at least 3.5 GB so that the rate abort (700 MB/min over 300 s) fires before the memory stop.
   - Implication: by that gate LV-2 is NOT RUN, unless about 0.6 GiB more is freed or the abort window is shortened. That choice is the operator's.
   - VD-1 adds: "Feature data is not cached" (AC p239; VD-1:136, :177, :256-258). Its ranked item 2 is to hold the extent and raise the feature-pager knobs with MAK.
