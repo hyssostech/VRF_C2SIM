@@ -21,6 +21,10 @@ param([Parameter(Mandatory)][int]$AppBase,
       # 86,400 s); a checkpoint warns when less than 2 h of it remains.
       [int]$CheckpointSec = 14400, [int]$InstrumentSec = 86400, [int]$IdleEndSec = 600, [double]$IdleMeters = 100,
       [double]$AirFloorM = 1500,
+      # Amendment C1: a file of NON-GROUND object uuids (one per line; every kind-11 object whose DIS domain is not 1,
+      # from box read B5). When given it REPLACES the altitude cut for the idle test (PhaseTwo has air routes down to
+      # 118.5 m, B5 sec 3a). Matching is on the uuid's hex digits, case-insensitive.
+      [string]$NonGroundUuidFile = '',
       # 0 = RunSim sends run() only, so the scenario's own saved time multiplier stands (RunSim sets one only if > 1).
       [int]$Multiplier = 0)
 $ErrorActionPreference = 'Continue'
@@ -173,9 +177,20 @@ function Read-NewPos {
             $script:posOffset = $fs.Position } finally { $fs.Dispose() }
     } catch {}
 }
+$nonGround = @{}
+if ($NonGroundUuidFile) {
+    if (-not (Test-Path -LiteralPath $NonGroundUuidFile)) { Stop-Run "ABORT: -NonGroundUuidFile not found: $NonGroundUuidFile" }
+    foreach ($l in Get-Content -LiteralPath $NonGroundUuidFile) { $h = ($l -replace '[^0-9A-Fa-f]', '').ToLowerInvariant(); if ($h.Length -ge 16) { $nonGround[$h] = $true } }
+    "[$(& $ts)] idle test: ground = NOT in the $($nonGround.Count) non-ground uuids of $NonGroundUuidFile (B5 domains)"
+} else { "[$(& $ts)] idle test: ground = POS altitude <= $AirFloorM m (no -NonGroundUuidFile)" }
+function Test-Ground($k, $alt) {
+    if ($script:nonGround.Count -gt 0) { $h = ($k -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+        foreach ($g in $script:nonGround.Keys) { if ($h.Contains($g)) { return $false } }; return $true }
+    return ($alt -le $AirFloorM)
+}
 function Get-MaxMove($a, $b) {
     $m = 0.0
-    foreach ($k in $b.Keys) { if ($a.ContainsKey($k) -and $b[$k][2] -le $AirFloorM -and $a[$k][2] -le $AirFloorM) {
+    foreach ($k in $b.Keys) { if ($a.ContainsKey($k) -and (Test-Ground $k $b[$k][2]) -and (Test-Ground $k $a[$k][2])) {
         $dLat = ($b[$k][0] - $a[$k][0]) * 110574.0; $dLon = ($b[$k][1] - $a[$k][1]) * 111320.0 * [math]::Cos($b[$k][0] * [math]::PI / 180)
         $dd = [math]::Sqrt($dLat * $dLat + $dLon * $dLon); if ($dd -gt $m) { $m = $dd } } }
     $m
@@ -210,8 +225,8 @@ while ($true) {
         if ($sawFull -and $iRatio -ge 0 -and $iRatio -lt 1.5) { Stop-Run "the clock fell from >= 13.5x to $iRatio x - the frozen-back-end signature (D36 (a))" }
         $snap = @{}; foreach ($k in $latest.Keys) { $snap[$k] = $latest[$k] }
         if ($prevSnap) { $mm = Get-MaxMove $prevSnap $snap
-            $gnd = @($snap.Keys | Where-Object { $snap[$_][2] -le $AirFloorM }).Count
-            "[$(& $ts)] idle check: objects $($snap.Count) (ground by altitude $gnd), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim; interval SIM/WALL $iRatio; vendor log $($lw.LastWriteTimeUtc.ToString('HH:mm:ss'))Z"
+            $gnd = @($snap.Keys | Where-Object { Test-Ground $_ $snap[$_][2] }).Count
+            "[$(& $ts)] idle check: objects $($snap.Count) (ground $gnd, non-ground $($snap.Count - $gnd)), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim; interval SIM/WALL $iRatio; vendor log $($lw.LastWriteTimeUtc.ToString('HH:mm:ss'))Z"
             if ($mm -lt $IdleMeters) { $endWhy = "IDLE (no ground object moved > $IdleMeters m in $IdleEndSec s, instruments alive)"; $exitCode = 0; break } }
         $prevSnap = $snap; $pT = $lastT; $pSim = $lastSim; $nextIdle = (Get-Date).AddSeconds($IdleEndSec)
     }

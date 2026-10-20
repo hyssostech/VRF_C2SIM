@@ -205,6 +205,20 @@ Run (PhaseTwo): `pwsh -NoProfile -File docs\experiments\stp1296\rtk_run.ps1 -App
 Run (Counterattack, only after a PhaseTwo exit 0, with 5 new numbers): `... -AppBase <N> -Root <W> -Tag ca
 -Scenario Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasCounterattack\RoadToKaunasCounterattack`
 
+## 0d. AMENDMENT C1 (2026-10-20, from box read B5; before any run - the S1 launch line was refused, nothing started)
+
+Measured (B5, stp-data b7ea2de runs/stp1296/step1/LD-1296-B5_PHASETWO_BOX_READ_2026-10-20.md, sec 3a): in PhaseTwo, 5
+routes used by AIR (domain 2) movers lie at or below 1,500 m ellipsoid height, all MQ-27 routes; the lowest vertex is
+118.5 m. PhaseTwo has 124 kind-11 objects: land 100, air 18, domain 9 x4, domain 11 x2. R3's 3,000 m air floor was
+read on the BASE file; it does not hold for PhaseTwo.
+Implication (separate sentence): sec 0c's altitude cut would count low air movers as ground and could hold the idle
+test open (safe - it never authorises Counterattack - but it changes how the run ends).
+Change: the idle test's GROUND is the DIS domain from B5. rtk_run.ps1 -NonGroundUuidFile <file> takes one uuid per
+line for every kind-11 object whose domain is not 1 (24 in PhaseTwo), written by the dispatcher from B5 before the
+launch; matching is on the uuid's hex digits. Each idle check prints the ground / non-ground counts; if non-ground reads
+0 while air objects exist, the uuid forms did not match and the run falls back to "never idle" (safe), which the result
+reports. Without the file the script keeps the altitude cut and says so.
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:
