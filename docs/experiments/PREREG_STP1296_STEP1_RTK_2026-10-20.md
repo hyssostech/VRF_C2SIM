@@ -238,21 +238,27 @@ RtiProbe holder, the RID file, the saved 15x, -NoGui, both samplers, the gate at
 - A MEMORY STOP (the system sampler's marker, or ws_sampler2's ABORT) forces our own back end AT ONCE, after the same
   pid + start-time identity check StopVrf52 uses (RunnerLib Test-OwnBackendIdentity); no graceful attempt. Other
   STOPs keep the graceful-then-force path.
-Pre-stated reading (measurement statements; the script prints both slopes at T0 + 65 s):
-- the back end's WS slope over the first 60 s after T0, against S1's (peak 3,922 MB/min), with the slope over the 60 s
-  before T0 printed beside it, because S1's climb began before T0;
-- SIMILAR (within a factor of 2 of S1's first-60-s slope, from S1's c11 CSV): the climb is the vendor's on this box at
-  15x, without our observer and at the vendor's notify level;
-- MUCH LOWER (under half): our additions are implicated (the observer or the level-4 logging; the next split);
-- in between: no reading; recorded.
-- S1's WS was ALREADY RISING BEFORE T0 (paused, after load). So the script also prints the slope from READY to T0, and
-  the slope over the 60 s before T0, each read against S1's same interval from its c11 CSV. READY -> run() is kept as
-  in S1 (observer start + 20 s, then RunSim; under -NoWatch the observer wait is skipped, so READY -> T0 is SHORTER -
-  declared, and the comparison uses MB/min, not MB).
+Pre-stated reading (measurement statements; rewritten after the Fable check, before the run):
+- The window is T0 -> T0 + 45 s (S1 stopped at T0 + 49 s, so S1 has data for it). The script prints, once, at T0 + 50 s
+  or at a STOP if that comes first: the WS slope over T0 -> T0 + 45 s, over the 60 s before T0, and READY -> T0, each in
+  MB/min by the same rule (first and last ws_sampler2 rows by their own stamps).
+- The comparator S is S1's WS slope over ITS T0 -> T0 + 45 s, computed from S1's c11 CSV (stp-data 24feee1) by the same
+  rule, by the dispatcher BEFORE this launch and written into the ledger claim; likewise S1's 60-s-before-T0 and
+  READY -> T0 slopes. S1's peak 3,922 MB/min is a different statistic and is not the comparator.
+- Bands on the T0 -> T0 + 45 s slope X: SIMILAR = S/2 <= X <= 2S (the climb is the vendor's on this box at 15x, without
+  our observer and at the vendor's notify level); LOWER = X < S/2 (our additions are implicated - the observer or the
+  level-4 logging; the next split); HIGHER = X > 2S (the climb is present without our additions, and larger; recorded).
+- S1's WS was ALREADY RISING BEFORE T0 (paused, after load), so the 60-s-before and READY -> T0 slopes are read the same
+  way against S1's. READY -> run() is as in S1 except that -NoWatch skips the observer wait, so READY -> T0 is SHORTER -
+  declared; the comparison is in MB/min.
+- SIM/WALL is NOT MEASURED under -NoWatch (S1's 14.98 came from WatchVrf); that the saved 15x applies is assumed from S1.
 Implication of each is for the operator; no cause is claimed here.
-Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 100 MB) - reported once as ANSWERED, and
-the run then continues as an observation until the operator ends it (OPERATOR-END.txt); or the operator. There is no
-IDLE end under -NoWatch (no POS).
+Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 100 MB) WITH the back end busy (mean
+ws_sampler2 cpuCores >= 0.2 over the window; a frozen back end is also flat, and S1's vendor log stopped 24 s before T0
+while the clock ran, so the log is no liveness test) - reported once as ANSWERED, and the run then continues as an
+observation until the operator ends it (OPERATOR-END.txt); a flat WS with an idle back end prints "FLAT but ... NOT
+answered (could be hung)". There is no IDLE end under -NoWatch (no POS). The flat check runs every 60 s. A run that
+crosses 00:00Z loses ws_sampler2 rows after midnight in these checks (HH:mm:ss stamps) - declared, not handled.
 Also added / fixed:
 - a vendor-log freshness sample every 5 s (c16-vlog.csv: now, the log's last write, its bytes). S1 measured the
   vendor log's last write 24 s BEFORE T0 and 73 s before the STOP, while WatchVrf saw the clock advancing at about 15x
@@ -263,8 +269,13 @@ Also added / fixed:
   a COUNT-grep of the serving rtiexec log for 5567's join and its resign / lost-connection lines; after this launch,
   RUNBOOK sec 0 check (2): no new "Create Response" for this launch (the back end JOINED, it did not create). A failure =
   NOT RUN and RECOVER with tools/ResetVrf (RUNBOOK sec 8) on the operator's word. rtiexec is never touched.
-- CacheSize now counts the junction's target (S1 read 0 files through appData\cache); the dispatcher's hand
-reading stays the record of M4. Ledger: 5 new numbers.
+- CacheSize now counts the junction's target. That the junction is WHY S1 read 0 files is INFERRED (pwsh enumerates a
+  path through a junction; the alternative is that the target holds no vrfsim folder); the dispatcher's hand reading
+  stays the record of M4.
+- Ledger: 5 new numbers (expected 5570-5574). Under -NoWatch AppBase + 4 (WatchVrf) never joins: 4 consumed, 1 burned
+  by design.
+- A memory STOP's identity check runs RunnerLib in a child scope (its Set-StrictMode does not leak); the StopVrf52
+  fallback passes the RECORDED pid + start, not the live process's own.
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 

@@ -51,8 +51,8 @@ if (-not ((& $watchExe --capabilities) -contains 'report-simtime')) { "ABORT: th
 function CacheSize {
     # appData\cache is a JUNCTION (NewVrfAppData52.ps1:43); the S1 run read 0 files through it, so count its target
     $c = Get-Item "$appData\cache" -ErrorAction SilentlyContinue
-    $root = if ($c -and $c.LinkType -eq 'Junction' -and $c.Target) { @($c.Target)[0] } else { "$appData\cache" }
-    $f = Get-ChildItem (Join-Path $root 'vrfsim') -Recurse -File -ErrorAction SilentlyContinue
+    $cacheRoot = if ($c -and $c.LinkType -eq 'Junction' -and $c.Target) { @($c.Target)[0] } else { "$appData\cache" }
+    $f = Get-ChildItem (Join-Path $cacheRoot 'vrfsim') -Recurse -File -ErrorAction SilentlyContinue
     "{0} files / {1} MB" -f @($f).Count, [math]::Round((($f | Measure-Object Length -Sum).Sum) / 1MB, 1) }
 
 # ---- gate (amendment 2) ----
@@ -108,6 +108,31 @@ function Show-LogCounts([string]$label) {
         "; feature_source " + (Select-String -Path $w.FullName -SimpleMatch 'feature_source').Count +
         "; queued-for n " + $q.Count + " median " + (& $pct 0.5) + " p95 " + (& $pct 0.95)
 }
+function Get-WsSince([datetime]$fromUtc) {
+    # (time, wsMB) rows of ws_sampler2's CSV at or after $fromUtc (HH:mm:ss, same UTC day as T0)
+    # (midnight wrap NOT handled: a run that crosses 00:00Z loses rows after it here - declared, PREREG sec 0e)
+    $from = $fromUtc.ToString('HH:mm:ss')
+    @(Import-Csv (Join-Path $R "$d\c11-sampler.csv") -ErrorAction SilentlyContinue | Where-Object { $_.tUtc -ge $from } | ForEach-Object { [pscustomobject]@{ t = $_.tUtc; ws = [double]$_.wsMB } })
+}
+function Get-Slope($rows) {
+    # MB/min from the first and last rows, by their own HH:mm:ss stamps
+    if ($rows.Count -lt 2) { return 'n/a' }
+    $dt = ([datetime]::ParseExact($rows[-1].t, 'HH:mm:ss', $null) - [datetime]::ParseExact($rows[0].t, 'HH:mm:ss', $null)).TotalMinutes
+    if ($dt -le 0) { return 'n/a' }; [math]::Round(($rows[-1].ws - $rows[0].ws) / $dt)
+}
+$slopeDone = $false; $readyUtc = $null; $t0Utc = $null
+function Report-Slopes {
+    # C3 READING: printed once - at T0 + 50 s from the loop, or from Stop-Run if a STOP comes first (S1 stopped at
+    # T0 + 49 s). The pre-stated window is T0 -> T0 + 45 s (inside S1's 49 s), beside the 60 s before T0 and READY -> T0.
+    if ($script:slopeDone -or $null -eq $script:t0Utc) { return }
+    $script:slopeDone = $true
+    $t0s = $script:t0Utc.ToString('HH:mm:ss')
+    $a45 = @(Get-WsSince $script:t0Utc | Where-Object { $_.t -le $script:t0Utc.AddSeconds(45).ToString('HH:mm:ss') })
+    $pre = @(Get-WsSince $script:t0Utc.AddSeconds(-60) | Where-Object { $_.t -lt $t0s })
+    $rdy = if ($script:readyUtc) { @(Get-WsSince $script:readyUtc | Where-Object { $_.t -le $t0s }) } else { @() }
+    "[$(& $ts)] READING (C3): WS slope T0 -> T0+45 s = $(Get-Slope $a45) MB/min ($($a45.Count) samples); 60 s before T0 = $(Get-Slope $pre) MB/min; READY -> T0 = $(Get-Slope $rdy) MB/min ($($rdy.Count) samples)" |
+        Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append
+}
 function Stop-Run([string]$why, [switch]$Memory) {
     "[$(& $ts)] STOP: $why"
     $b = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -115,16 +140,20 @@ function Stop-Run([string]$why, [switch]$Memory) {
         # Amendment C3 (D239): a MEMORY STOP forces our OWN back end AT ONCE, with no graceful attempt (S1 lived 35 s
         # past the STOP). Identity = pid + start time via RunnerLib's Test-OwnBackendIdentity, the same check
         # StopVrf52 makes before its own force; protected processes (rti*, RtiProbe, vrfGui) are refused by it.
-        . (Join-Path $R 'scripts\RunnerLib.ps1')
-        $id = Test-OwnBackendIdentity -ExpectedPid $script:bePid -ExpectedStartUtc $script:beStart -ActualPid $b.Id -ActualStartUtc $b.StartTime.ToUniversalTime() -ActualName $b.ProcessName
+        # RunnerLib is dot-sourced in a CHILD scope: it sets Set-StrictMode -Version Latest (RunnerLib.ps1:13), which
+        # must not leak into the rest of Stop-Run (Fable C3 item 3).
+        $id = & { . (Join-Path $R 'scripts\RunnerLib.ps1'); Test-OwnBackendIdentity -ExpectedPid $script:bePid -ExpectedStartUtc $script:beStart -ActualPid $b.Id -ActualStartUtc $b.StartTime.ToUniversalTime() -ActualName $b.ProcessName }
         if ($id.Match) { Stop-Process -Id $b.Id -Force; "[$(& $ts)] FORCED own back end pid $($b.Id) at once (memory STOP, D239)" }
         else { "[$(& $ts)] NOT forced at once: $($id.Why) - falling back to StopVrf52" }
         Start-Sleep 2
         $b = Get-Process -Id $b.Id -ErrorAction SilentlyContinue
     }
+    Report-Slopes
     $w = Get-VendorLog; if ($w) { "   vendor log last write BEFORE the stop: " + $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') }
     Show-Threads
-    if ($b) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -TimeoutSec 15 -GraceSec 1 -ForceOwnBackendPid $b.Id -ForceOwnBackendStartUtc $b.StartTime.ToUniversalTime().ToString('o') *> "$d\c10-force.log"; "[$(& $ts)] back end stop exit $LASTEXITCODE" }
+    # the force pair is the RECORDED identity ($script:bePid / $script:beStart), not the live process's own (Fable C3 item 9)
+    if ($b -and -not ($script:bePid -gt 0 -and $script:beStart)) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -TimeoutSec 15 -GraceSec 1 *> "$d\c10-force.log"; "[$(& $ts)] back end stop (no recorded identity, no force) exit $LASTEXITCODE" }
+    elseif ($b) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -TimeoutSec 15 -GraceSec 1 -ForceOwnBackendPid $script:bePid -ForceOwnBackendStartUtc $script:beStart.ToString('o') *> "$d\c10-force.log"; "[$(& $ts)] back end stop exit $LASTEXITCODE" }
     else { "[$(& $ts)] no back end running" }
     New-Item -ItemType File -Force $stopFile | Out-Null
     Start-Sleep 5
@@ -153,7 +182,7 @@ if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Qu
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -SimpleMatch 'scenario LOAD CONFIRMED' -Quiet)) { Stop-Run 'ABORT: the scenario load was not confirmed (LaunchVrf52.ps1:1445)' }
 $be = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($be) { $bePid = $be.Id; $beStart = $be.StartTime.ToUniversalTime(); "[$(& $ts)] back end pid $bePid" }
-$readyUtc = (Get-Date).ToUniversalTime()   # C3: READY -> T0 is kept as in S1; its WS slope is reported
+$script:readyUtc = (Get-Date).ToUniversalTime()   # C3: READY -> T0 is kept as in S1; its WS slope is reported
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
     '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$InstrumentSec",'-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 
@@ -173,8 +202,8 @@ $watch = Start-Process $watchExe -ArgumentList @("$($AppBase+4)", "$InstrumentSe
 $deadline = (Get-Date).AddSeconds(90)
 while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c13-watch.txt" -Pattern '^# t=' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 3 }
 "[$(& $ts)] observer: " + ((Select-String -Path "$d\c13-watch.txt" -Pattern '^# t=' | Select-Object -First 1).Line)
-$rsArgs = @($AppBase + 3); if ($Multiplier -gt 1) { $rsArgs += $Multiplier }
 } else { "[$(& $ts)] -NoWatch: no observer (amendment C3)" }
+$rsArgs = @($AppBase + 3); if ($Multiplier -gt 1) { $rsArgs += $Multiplier }
 Push-Location $bin64; & $runSimExe @rsArgs *> (Join-Path $R "$d\c14-runsim.txt"); $rse = $LASTEXITCODE; Pop-Location
 $t0 = Get-Date
 if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did not start (tools/RunSim/Program.cs:143-152)" }
@@ -235,28 +264,11 @@ function Get-MaxMove($a, $b) {
 $nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $warned = $false
 $instEnd = $sysStart.AddSeconds($InstrumentSec)   # the earliest-started instrument with the shortest life ends first
 $pT = -1.0; $pSim = -1.0; $sawFull = $false
-$flatDone = $false; $slopeDone = $false; $t0Utc = $t0.ToUniversalTime(); $nextVlog = Get-Date
+$flatDone = $false; $script:t0Utc = $t0.ToUniversalTime(); $nextVlog = Get-Date; $nextFlat = $t0.AddSeconds($FlatSec)
 "nowUtc,vendorLogLastWriteUtc,vendorLogBytes" | Set-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii
-function Get-WsSince([datetime]$fromUtc) {
-    # (time, wsMB) rows of ws_sampler2's CSV at or after $fromUtc (HH:mm:ss, same UTC day as T0)
-    $from = $fromUtc.ToString('HH:mm:ss')
-    @(Import-Csv (Join-Path $R "$d\c11-sampler.csv") -ErrorAction SilentlyContinue | Where-Object { $_.tUtc -ge $from } | ForEach-Object { [pscustomobject]@{ t = $_.tUtc; ws = [double]$_.wsMB } })
-}
-function Get-Slope($rows) {
-    # MB/min from the first and last rows, by their own HH:mm:ss stamps
-    if ($rows.Count -lt 2) { return 'n/a' }
-    $dt = ([datetime]::ParseExact($rows[-1].t, 'HH:mm:ss', $null) - [datetime]::ParseExact($rows[0].t, 'HH:mm:ss', $null)).TotalMinutes
-    if ($dt -le 0) { return 'n/a' }; [math]::Round(($rows[-1].ws - $rows[0].ws) / $dt)
-}
 while ($true) {
     Stop-Check; Start-Sleep 5
-    if (-not $slopeDone -and (Get-Date) -ge $t0.AddSeconds(65)) { $slopeDone = $true
-        $wsRows = @(Get-WsSince $t0Utc | Where-Object { $_.t -le $t0Utc.AddSeconds(60).ToString('HH:mm:ss') })
-        $pre = @(Get-WsSince $t0Utc.AddSeconds(-60) | Where-Object { $_.t -lt $t0Utc.ToString('HH:mm:ss') })
-        $rdy = @(Get-WsSince $readyUtc | Where-Object { $_.t -le $t0Utc.ToString('HH:mm:ss') })
-        "[$(& $ts)] READING (C3): WS slope over the first 60 s after T0 = " + $(Get-Slope $wsRows) +
-            " MB/min (" + $wsRows.Count + " samples); over the 60 s before T0 = " + $(Get-Slope $pre) + " MB/min; READY ($($readyUtc.ToString('HH:mm:ss'))Z) -> T0 = " + $(Get-Slope $rdy) + " MB/min (" + $rdy.Count + " samples)" |
-            Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
+    if ((Get-Date) -ge $t0.AddSeconds(50)) { Report-Slopes }
     if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(5)
         # C3: a vendor-log freshness sample every 5 s (each loop pass) (S1: the log's last write was 24 s BEFORE T0 while the clock ran)
         $vl = Get-VendorLog
@@ -264,12 +276,20 @@ while ($true) {
             Add-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii }
     if ($NoWatch) {
         if (-not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) { Stop-Run 'the back end process is gone' }
-        if (-not $flatDone -and (Get-Date) -ge $t0.AddSeconds($FlatSec)) {
-            $wsRows = @(Get-WsSince (Get-Date).ToUniversalTime().AddSeconds(-$FlatSec))
-            if ($wsRows.Count -ge [math]::Floor($FlatSec * 0.8)) { $span = ($wsRows.ws | Measure-Object -Maximum -Minimum); $dd = $span.Maximum - $span.Minimum
-                if ($dd -lt $FlatMB) { $flatDone = $true
-                    "[$(& $ts)] ANSWERED (C3): WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB); the run continues as observation until the operator ends it" |
-                        Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append } } }
+        if (-not $flatDone -and (Get-Date) -ge $nextFlat) { $nextFlat = (Get-Date).AddSeconds(60)   # rate-limited (Fable C3 item 7)
+            $from = (Get-Date).ToUniversalTime().AddSeconds(-$FlatSec).ToString('HH:mm:ss')
+            $rows = @(Import-Csv (Join-Path $R "$d\c11-sampler.csv") -ErrorAction SilentlyContinue | Where-Object { $_.tUtc -ge $from })
+            if ($rows.Count -ge [math]::Floor($FlatSec * 0.8)) {
+                $span = ($rows | ForEach-Object { [double]$_.wsMB } | Measure-Object -Maximum -Minimum); $dd = $span.Maximum - $span.Minimum
+                $cpu = ($rows | Where-Object { $_.cpuCores -ne '' } | ForEach-Object { [double]$_.cpuCores } | Measure-Object -Average).Average
+                if ($dd -lt $FlatMB) {
+                    # liveness (Fable C3 item 4): a frozen back end is also flat. S1's vendor log stopped 24 s before T0
+                    # while the clock ran, so the log is no liveness test here; the back end's own CPU is.
+                    if ($cpu -ge 0.2) { $flatDone = $true
+                        "[$(& $ts)] ANSWERED (C3): WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
+                            Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
+                    else { "[$(& $ts)] FLAT but the back end is near idle (mean $([math]::Round($cpu, 2)) cores) - NOT answered (could be hung)" |
+                            Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append } } } }
         if (Test-Path $opEnd) { $endWhy = 'OPERATOR END (' + ((Get-Content $opEnd -ErrorAction SilentlyContinue) -join ' ') + ')'; $exitCode = 8; break }
         continue
     }
