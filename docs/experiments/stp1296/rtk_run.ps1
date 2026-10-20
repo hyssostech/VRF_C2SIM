@@ -28,11 +28,13 @@ param([Parameter(Mandatory)][int]$AppBase,
       # 0 = RunSim sends run() only, so the scenario's own saved time multiplier stands (RunSim sets one only if > 1).
       [int]$Multiplier = 0,
       # Amendment C2 (D238): the pre-launch free-memory gate, GiB. 11.5 was a comparability number; the safety line is
-      # the 6.0 GiB MEMORY STOP (sys_sampler.ps1), which is unchanged.
+      # the MEMORY STOP (-StopGiB, sys_sampler.ps1; see C5 below - S3 disabled both, c14981).
       [double]$GateGiB = 11.5,
-      # Amendment C5 (D240): the memory STOPs as parameters. -StopGiB is the system sampler's MEMORY STOP (6.0 before
-      # C5; for D240 1.0 = an EMERGENCY floor only, protecting the live system on this box); -WsAbortMBPerMin /
-      # -WsAbortWsMB are ws_sampler2's slope / size aborts (700 MB/min over 300 s, 16,000 MB before C5).
+      # Amendment C5 (D240): the memory STOPs as parameters. -StopGiB is the system sampler's MEMORY STOP (default 6.0);
+      # -WsAbortMBPerMin / -WsAbortWsMB are ws_sampler2's slope / size aborts (700 MB/min over 300 s, 16,000 MB). 0 for
+      # -StopGiB / -GateGiB / -StopCommitPct disables that stop. S3 ran with NO memory limits by the operator's direct
+      # instruction (STP-1296 c14981): -GateGiB 0 -StopGiB 0 -StopCommitPct 0, the ws_sampler2 aborts out of reach. (C5's
+      # first draft proposed a 1.0 GiB emergency floor, c14978; c14980 found it unsafe; both superseded by c14981.)
       [double]$StopGiB = 6.0, [double]$WsAbortMBPerMin = 700, [double]$WsAbortWsMB = 16000,
       # C5 commit guard: STOP at this percent of the commit limit (0 = off); a MEMORY STOP like the floor (back end first).
       [double]$StopCommitPct = 0,
