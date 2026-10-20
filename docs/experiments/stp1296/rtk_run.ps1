@@ -150,8 +150,8 @@ if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did
 
 # ---- no fixed window, no ceiling: run until IDLE, a safety STOP, or the operator's end file; checkpoints report ----
 # Idle test (amendment C, Fable fixes): every -IdleEndSec, the latest POS of every GROUND object is compared with the
-# previous snapshot. GROUND here = latest POS altitude <= -AirFloorM (1,500 m): every air route in the scenario lies at
-# 3,000-8,000 m above the ellipsoid (LD-1296-R3 sec 4), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444).
+# previous snapshot. GROUND = NOT in -NonGroundUuidFile (the B5 DIS domains; amendment C1). The altitude cut
+# (-AirFloorM) is only the fallback without that file - REFUTED for PhaseTwo by B5 (air routes down to 118.5 m; sec 0d).
 # The scoring classification is the .oob DIS domain (B3c), not this filter. IDLE is declared ONLY if the instruments
 # are alive over the interval: the observer process runs, the back end process runs, new '# t=' samples arrived,
 # backends= reads 1, sim= advanced, AND the back end's own log was written within the interval. A back end that
@@ -180,7 +180,12 @@ function Read-NewPos {
 $nonGround = @{}
 if ($NonGroundUuidFile) {
     if (-not (Test-Path -LiteralPath $NonGroundUuidFile)) { Stop-Run "ABORT: -NonGroundUuidFile not found: $NonGroundUuidFile" }
-    foreach ($l in Get-Content -LiteralPath $NonGroundUuidFile) { $h = ($l -replace '[^0-9A-Fa-f]', '').ToLowerInvariant(); if ($h.Length -ge 16) { $nonGround[$h] = $true } }
+    $ln = 0
+    foreach ($l in Get-Content -LiteralPath $NonGroundUuidFile) { $ln++
+        if ($l.Trim() -eq '') { continue }
+        $h = (($l.Trim() -replace '^VRF_UUID:', '') -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+        if ($h.Length -ne 32) { Stop-Run "ABORT: -NonGroundUuidFile line $ln is not one uuid (32 hex digits): '$l'" }
+        $nonGround[$h] = $true }
     "[$(& $ts)] idle test: ground = NOT in the $($nonGround.Count) non-ground uuids of $NonGroundUuidFile (B5 domains)"
 } else { "[$(& $ts)] idle test: ground = POS altitude <= $AirFloorM m (no -NonGroundUuidFile)" }
 function Test-Ground($k, $alt) {
@@ -227,7 +232,12 @@ while ($true) {
         if ($prevSnap) { $mm = Get-MaxMove $prevSnap $snap
             $gnd = @($snap.Keys | Where-Object { Test-Ground $_ $snap[$_][2] }).Count
             "[$(& $ts)] idle check: objects $($snap.Count) (ground $gnd, non-ground $($snap.Count - $gnd)), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim; interval SIM/WALL $iRatio; vendor log $($lw.LastWriteTimeUtc.ToString('HH:mm:ss'))Z"
-            if ($mm -lt $IdleMeters) { $endWhy = "IDLE (no ground object moved > $IdleMeters m in $IdleEndSec s, instruments alive)"; $exitCode = 0; break } }
+            $ngSeen = $snap.Count - $gnd
+            # Amendment C1 guard: IDLE needs at least one ground object, and (with the file) the file's uuids must be seen
+            # among the reflected objects - otherwise "nothing moved" could mean "nothing was counted".
+            $classOk = ($gnd -ge 1) -and ((-not $NonGroundUuidFile) -or ($ngSeen -ge 1))
+            if (-not $classOk) { "[$(& $ts)]   idle not judged: ground $gnd, non-ground seen $ngSeen of $($nonGround.Count) in the file - the classification is not usable" }
+            elseif ($mm -lt $IdleMeters) { $endWhy = "IDLE (no ground object moved > $IdleMeters m in $IdleEndSec s, instruments alive; ground $gnd, non-ground $ngSeen)"; $exitCode = 0; break } }
         $prevSnap = $snap; $pT = $lastT; $pSim = $lastSim; $nextIdle = (Get-Date).AddSeconds($IdleEndSec)
     }
 }

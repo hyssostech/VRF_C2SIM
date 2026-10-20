@@ -143,10 +143,9 @@ What runs:
 - NO FIXED WINDOW (D234): the run ends on IDLE - no GROUND object moves more than 100 m over 600 WALL s (POS) - or on a
   SAFETY STOP (memory, back end lost, the samplers, a guard block), or by the operator (below). Exit codes: 0 IDLE,
   7 STOP, 8 OPERATOR END.
-  - GROUND for the idle test = latest POS altitude <= 1,500 m. Every air route of the scenario lies at 3,000-8,000 m
-    above the ellipsoid (LD-1296-R3 sec 4, read on the base file; INFERRED to hold for PhaseTwo, which shares the
-    scenario family), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444). So circling air patrols cannot keep
-    the run from idling, and movement by air only reads as IDLE. Scoring uses the DIS domain (B3c), not this filter.
+  - [REFUTED by B5 for PhaseTwo - see sec 0d: its air routes go down to 118.5 m; the idle test uses the DIS domain.]
+    First text: "GROUND for the idle test = latest POS altitude <= 1,500 m. Every air route of the scenario lies at
+    3,000-8,000 m above the ellipsoid (LD-1296-R3 sec 4, read on the base file; INFERRED to hold for PhaseTwo)." 
   - IDLE is declared ONLY with the instruments alive over the interval: the observer process runs, the back end
     process runs, new '# t=' samples arrived, backends= reads 1, sim= advanced, AND the back end's vendor log was
     written within the interval. A back end that freezes in place is NOT a frozen clock: it keeps backends=1
@@ -201,7 +200,8 @@ Counterattack needs 5 more, claimed before its own launch.
 SUPERSEDED FOR THIS RUN (marked at each site): sec 0b's Q4 levels and sec 3's pass rule (Q1/Q3 are SAFETY lines here;
 Q4 is not scored), sec 4's predictions (none are scored; no Iron Storm verdict), sec 2's scenario/multiplier/saved-
 state text, sec 5's item list (this amendment is the change record), and sec 6's run line and ledger count.
-Run (PhaseTwo): `pwsh -NoProfile -File docs\experiments\stp1296\rtk_run.ps1 -AppBase 5565 -Root <W> -Tag p2`
+Run (PhaseTwo): `pwsh -NoProfile -File docs\experiments\stp1296\rtk_run.ps1 -AppBase 5565 -Root <W> -Tag p2
+-NonGroundUuidFile <W>\runs\launch52\stp1296\p2-nonground.txt` (amendment C1)
 Run (Counterattack, only after a PhaseTwo exit 0, with 5 new numbers): `... -AppBase <N> -Root <W> -Tag ca
 -Scenario Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasCounterattack\RoadToKaunasCounterattack`
 
@@ -213,11 +213,18 @@ routes used by AIR (domain 2) movers lie at or below 1,500 m ellipsoid height, a
 read on the BASE file; it does not hold for PhaseTwo.
 Implication (separate sentence): sec 0c's altitude cut would count low air movers as ground and could hold the idle
 test open (safe - it never authorises Counterattack - but it changes how the run ends).
-Change: the idle test's GROUND is the DIS domain from B5. rtk_run.ps1 -NonGroundUuidFile <file> takes one uuid per
+Change: the idle test's GROUND is the DIS domain from B5 (the uuid forms match: WatchVrf's POS key is
+"VRF_UUID:" + the 8-4-4-4-12 uuid, VrfFacade.cpp:312; the file may give a bare, braced or VRF_UUID: uuid). rtk_run.ps1 -NonGroundUuidFile <file> takes one uuid per
 line for every kind-11 object whose domain is not 1 (24 in PhaseTwo), written by the dispatcher from B5 before the
 launch; matching is on the uuid's hex digits. Each idle check prints the ground / non-ground counts; if non-ground reads
-0 while air objects exist, the uuid forms did not match and the run falls back to "never idle" (safe), which the result
-reports. Without the file the script keeps the altitude cut and says so.
+0 while air objects exist, the uuid forms did not match: every object then counts as ground, a stricter test that
+idles only when air movers also stop (safe). The UNSAFE direction is guarded: IDLE is judged only if at least one
+ground object exists AND (with the file) at least one file uuid is seen among the reflected objects; otherwise the
+check logs "idle not judged" and the run continues. Every file line must be exactly one uuid (32 hex digits) or the
+script ABORTs naming the line. Without the file the script keeps the altitude cut and says so.
+- GATE (added to sec 6 for this run): the file exists with 24 uuids, and the launch log shows "ground = NOT in the 24
+  non-ground uuids". Before accepting, the dispatcher checks a recent 5.2d c13-watch.txt: POS keys start with
+  "VRF_UUID:".
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
