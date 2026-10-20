@@ -116,6 +116,53 @@ Changes:
   new tool and a deviation from "as shipped"; it needs the operator's ok and its own amendment.
 - The footprint M is reported as both the R2 planned box and the POS-measured ground box.
 
+## 0c. AMENDMENT C (operator D236, 2026-10-20; before any run, nothing launched) - an OBSERVATION run of PhaseTwo
+
+Ruling D236 (relayed by the supervisor): "Start by running the Kaunas sample so we can see how a proper plan behaves.
+Then apply the lessons to our code." This amendment SUPERSEDES amendment A's scenario choice and amendment B's Q4 levels
+for THIS run. Amendment B (sec 0b) and the remote quick-launch run on the base file become the NEXT step.
+
+What runs:
+- RoadToKaunasPhaseTwo AS SHIPPED (the first text's choice): -Scenario
+  Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo.
+  Then RoadToKaunasCounterattack the same way, in a separate launch, ONLY if PhaseTwo ends on IDLE with no safety STOP.
+- SAVED STATE, DECLARED (D231 "or declare it"): PhaseTwo is a mid-run save - sim-time 12,565 s, 118 tasks in flight,
+  104 plan-stack entries, 128 sync-matrix entries started (LD-1296-R1, B1/B4). It resumes them on run(); that is the
+  point of this run (the ground maneuver and group-attack tasks are already in progress, so no launch tool is needed).
+  Counterattack: sim-time 32,232 s, 124 tasks in flight.
+- MULTIPLIER: the file's own saved 15 (B1). RunSim sends run() only (-Multiplier 0); RunSim sets a multiplier only if
+  > 1 (tools/RunSim/Program.cs), so the saved 15 stands. Running at 1x would need a SetTimeMultiplier(1) call that no
+  tool here sends - itself a change to the file as shipped. Per D235 the 15x is used ONLY if the cold review agrees it
+  is not easier than 1x; otherwise the run waits for a 1x tool.
+  - Gate: SIM/WALL >= 13.5 (0.9 x 15) per 60 s outside a STOP, recorded from sim= / t=. A shortfall with no safety
+    STOP is a MULTIPLIER-ONLY result: recorded, not a failure of the vendor method; the 1x question stays open.
+- NO FIXED WINDOW (D234): the run ends on IDLE - no reflected object moves more than 100 m over 600 WALL s (POS) - or
+  on a SAFETY STOP (memory, back end lost, the samplers, a guard block). A 4 h box-time ceiling (-CeilingSec 14400)
+  exists as a stated SAFETY stop only. The scenario's own last phase ends on NOT True (never; R2), so IDLE is the only
+  completion signal available; that is declared.
+- -NoGui, NotifyLevel 4, no interface, no order, the S1-1 fix (ff_check.ps1, commit 8e3a835) in force.
+
+What is recorded (OBSERVATION; no pass/fail on Iron Storm in this run):
+- How the vendor plan moves, from the sources we have:
+  - TSK lines (task type per completion, in order; whether plan-driven tasks report at all is itself recorded);
+  - the vendor log at level 4, COUNTS ONLY: per task-type name, the count and first/last time it appears, in order of
+    first appearance; planning lines (patterns named in the result) and feature_source lines;
+  - POS, GROUND vs AIR by the DIS domain of the type (B3c, owed before scoring): per container, how many of its
+    subordinates move at once (per minute); path km driven per object; whether a mover's track stays on its route's
+    vertices (route following) or departs from them (planning) - against the route geometry from the box read.
+  - What is NOT observable here: which task a container issued to which member (no task-issue stream reaches an
+    observer). Inferred only from timing, and labelled as inference.
+- M1 path km driven (ground), M2 peak concurrent ground movers, M3 corridor area (path km x 2w, w = 1 and 5 km), M4 the
+  cache\vrfsim delta, M5 planning-line and feature_source counts.
+- The D36 safety numbers: Q1 (backends=, the vendor log's last write at the end), Q3 working-set slope per 5-min
+  window, the queue n / median / p95, the amendment 2 memory figures; SIM/WALL.
+- Q1 and Q3 stay SAFETY lines: a back-end loss or the samplers' ABORT ends the run (as before). They are not scored
+  against Iron Storm here.
+
+Record of what changes for this run: the scenario (PhaseTwo, then Counterattack), the multiplier (saved 15, conditional),
+the end rule (IDLE / safety STOP, no window), and the deliverable (observation, no Iron Storm verdict). Ledger: five
+numbers per launch (holder, retry, back end, RunSim, WatchVrf).
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:
