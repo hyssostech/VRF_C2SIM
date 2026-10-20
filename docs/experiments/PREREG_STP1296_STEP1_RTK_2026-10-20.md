@@ -132,27 +132,51 @@ What runs:
   Counterattack: sim-time 32,232 s, 124 tasks in flight.
 - MULTIPLIER: the file's own saved 15 (B1). RunSim sends run() only (-Multiplier 0); RunSim sets a multiplier only if
   > 1 (tools/RunSim/Program.cs), so the saved 15 stands. Running at 1x would need a SetTimeMultiplier(1) call that no
-  tool here sends - itself a change to the file as shipped. Per D235 the 15x is used ONLY if the cold review agrees it
-  is not easier than 1x; otherwise the run waits for a 1x tool.
-  - Gate: SIM/WALL >= 13.5 (0.9 x 15) per 60 s outside a STOP, recorded from sim= / t=. A shortfall with no safety
-    STOP is a MULTIPLIER-ONLY result: recorded, not a failure of the vendor method; the 1x question stays open.
-- NO FIXED WINDOW (D234): the run ends on IDLE - no reflected object moves more than 100 m over 600 WALL s (POS) - or
-  on a SAFETY STOP (memory, back end lost, the samplers, a guard block). There is NO ceiling (supervisor, 2026-10-20:
+  tool here sends - itself a change to the file as shipped. D235 ruling (Fable cold review, 2026-10-20): 15x
+  QUALIFIES - it drives 15 times the paging and planning per wall second, and a frozen back end shows as the clock
+  falling from 15x to the controller's 1x extrapolation (D36 (a)), which a 1x run cannot show.
+  - That a -NoGui back end honours the .scn's saved multiplier is UNMEASURED. The script reports the mean SIM/WALL and
+    classifies it, as separate results: about 1x = NOT APPLIED (the saved 15 did not take effect; the run is then a 1x
+    run, declared as such); 1.5-13.5 = LOAD SHORTFALL (recorded; not a failure of the vendor method); >= 13.5 = at the
+    saved multiplier. The 600 s idle interval means about 150 sim min at 15x and 10 sim min at 1x; the result states
+    which applied.
+- NO FIXED WINDOW (D234): the run ends on IDLE - no GROUND object moves more than 100 m over 600 WALL s (POS) - or on a
+  SAFETY STOP (memory, back end lost, the samplers, a guard block), or by the operator (below). Exit codes: 0 IDLE,
+  7 STOP, 8 OPERATOR END.
+  - GROUND for the idle test = latest POS altitude <= 1,500 m. Every air route of the scenario lies at 3,000-8,000 m
+    above the ellipsoid (LD-1296-R3 sec 4, read on the base file; INFERRED to hold for PhaseTwo, which shares the
+    scenario family), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444). So circling air patrols cannot keep
+    the run from idling, and movement by air only reads as IDLE. Scoring uses the DIS domain (B3c), not this filter.
+  - IDLE is declared ONLY with the instruments alive over the interval: the observer process runs, the back end
+    process runs, new '# t=' samples arrived, backends= reads 1, and sim= advanced. A dead observer, a dead or lost
+    back end, or a frozen clock is a STOP, never IDLE (Fable's probe showed the first draft would have read IDLE). There is NO ceiling (supervisor, 2026-10-20:
   "no artificial time limits"). Every 4 h the script writes a CHECKPOINT (state; c15-checkpoints.txt) and keeps running;
   only the OPERATOR may end the run there, by creating OPERATOR-END.txt in the run folder. The instruments (holder,
-  samplers, observer) are started for 24 h, the holder's maximum (LaunchVrf52 0..86400); a checkpoint warns 2 h before
-  that, because the system sampler ending is a STOP. The scenario's own last phase ends on NOT True (never; R2), so IDLE
-  is the only completion signal available; that is declared.
-- -NoGui, NotifyLevel 4, no interface, no order, the S1-1 fix (ff_check.ps1, commit 8e3a835) in force.
+  samplers, observer) are started for 24 h, the holder's maximum (LaunchVrf52 0..86400). The script warns once, 2 h
+  before the earliest-started instrument (the system sampler) ends, because its ending is a STOP; each checkpoint logs
+  sim=, backends=, the TSK count and the back end's working set. The scenario's own last phase ends on NOT True (never; R2), so IDLE
+  is the only completion signal available; that is declared. That reading is of the BASE file's matrices (R2); for
+  PhaseTwo only counts were read (R1 B4), so it is INFERRED there.
+- -NoGui, NotifyLevel 4, no interface, no order, the S1-1 fix (ff_check.ps1, commit 8e3a835) in force; its self-test
+  passed on a byte-identical copy of the box's fastForwardSettings.mtl (old rule entry=True, new rule entry=False).
+- COUNTERATTACK runs only if PhaseTwo ends with exit 0 (IDLE, instruments alive). Its save is at sim-time 32,232 s,
+  which by the sample's guide timeline is INFERRED to be after the scenario's end state, so it may have little left to
+  play; that is recorded, not a reason to skip it.
 
 What is recorded (OBSERVATION; no pass/fail on Iron Storm in this run):
 - How the vendor plan moves, from the sources we have:
   - TSK lines (task type per completion, in order; whether plan-driven tasks report at all is itself recorded);
+    the TSK count is written at every checkpoint and at the end;
   - the vendor log at level 4, COUNTS ONLY: per task-type name, the count and first/last time it appears, in order of
-    first appearance; planning lines (patterns named in the result) and feature_source lines;
-  - POS, GROUND vs AIR by the DIS domain of the type (B3c, owed before scoring): per container, how many of its
-    subordinates move at once (per minute); path km driven per object; whether a mover's track stays on its route's
-    vertices (route following) or departs from them (planning) - against the route geometry from the box read.
+    first appearance; feature_source lines. M5's planning-line patterns are NOT pre-named: M5 is EXPLORATORY in this run
+    (patterns chosen after reading the log are labelled post hoc);
+  - POS, GROUND vs AIR by the DIS domain of the type: per container, how many of its subordinates move at once (per
+    minute); path km driven per object; whether a mover's track stays on its route's vertices (route following) or
+    departs from them (planning).
+  - OWED BEFORE SCORING (a read-only PhaseTwo box read, B5): uuid -> DIS domain for every object; uuid -> parent
+    (the orbat, for "subordinates per container"); the vertices of every route a PhaseTwo mover is tasked on; and the
+    task types of the 118 in-flight tasks. Without B5 those observation items are NOT SCORED (the run still records
+    POS for them).
   - What is NOT observable here: which task a container issued to which member (no task-issue stream reaches an
     observer). Inferred only from timing, and labelled as inference.
 - M1 path km driven (ground), M2 peak concurrent ground movers, M3 corridor area (path km x 2w, w = 1 and 5 km), M4 the
@@ -164,7 +188,15 @@ What is recorded (OBSERVATION; no pass/fail on Iron Storm in this run):
 
 Record of what changes for this run: the scenario (PhaseTwo, then Counterattack), the multiplier (saved 15, conditional),
 the end rule (IDLE / safety STOP, no window), and the deliverable (observation, no Iron Storm verdict). Ledger: five
-numbers per launch (holder, retry, back end, RunSim, WatchVrf).
+numbers per launch (holder, retry, back end, RunSim, WatchVrf): PhaseTwo 5565-5569 (claimed, c0dfd34);
+Counterattack needs 5 more, claimed before its own launch.
+
+SUPERSEDED FOR THIS RUN (marked at each site): sec 0b's Q4 levels and sec 3's pass rule (Q1/Q3 are SAFETY lines here;
+Q4 is not scored), sec 4's predictions (none are scored; no Iron Storm verdict), sec 2's scenario/multiplier/saved-
+state text, sec 5's item list (this amendment is the change record), and sec 6's run line and ledger count.
+Run (PhaseTwo): `pwsh -NoProfile -File docs\experiments\stp1296\rtk_run.ps1 -AppBase 5565 -Root <W> -Tag p2`
+Run (Counterattack, only after a PhaseTwo exit 0, with 5 new numbers): `... -AppBase <N> -Root <W> -Tag ca
+-Scenario Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasCounterattack\RoadToKaunasCounterattack`
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
@@ -198,6 +230,9 @@ OWN RECORD:
 
 ## 2. Setup (as shipped, declared)
 
+[SUPERSEDED FOR THE AMENDMENT C RUN (PhaseTwo / Counterattack observation): see sec 0c. This section stands for
+the base-file run, which is the NEXT step with amendment B.]
+
 - SCENARIO (amendment A): the base RoadToKaunas. -Scenario repeats the basename,
   Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas, because LaunchVrf52
   appends .scnx and checks it exists (LaunchVrf52.ps1:811-812, :854-856). FIX AT ITS SITE: L1:33 omits the repeated
@@ -225,6 +260,9 @@ OWN RECORD:
 - NO GUI (-NoGui, the standing ruling of 10-16), NO interface, NO C2SIM server, NO order.
 
 ## 3. Measured, and the pass rule (mirrors D36(b) P1-P4)
+
+[SUPERSEDED FOR THE AMENDMENT C RUN (PhaseTwo / Counterattack observation): see sec 0c. This section stands for
+the base-file run, which is the NEXT step with amendment B.]
 
 Instruments (docs/experiments/stp1296/rtk_run.ps1):
 - WatchVrf 10 s samples with --report-backends and the NEW --report-simtime (sim=; tools/WatchVrf, this branch),
@@ -271,6 +309,9 @@ and the vendor log's last write before the stop:
 
 ## 4. Predictions (L1's, unchanged; MEDIUM - the first run of a vendor sample on this box)
 
+[SUPERSEDED FOR THE AMENDMENT C RUN (PhaseTwo / Counterattack observation): see sec 0c. This section stands for
+the base-file run, which is the NEXT step with amendment B.]
+
 L1 made them for PhaseTwo, not knowing it was a 15x mid-run save; they are kept, unchanged, for the base file.
 
 - L1-a: no back-end loss in the 20 min (= Q1).
@@ -294,6 +335,9 @@ Readings (each a measurement statement; implications follow in separate sentence
 
 ## 5. Changes from L1 as registered (each declared)
 
+[SUPERSEDED FOR THE AMENDMENT C RUN (PhaseTwo / Counterattack observation): see sec 0c. This section stands for
+the base-file run, which is the NEXT step with amendment B.]
+
 1. -NoGui (L1:42 said GUI on): the 10-16 standing ruling and memory.
 2. A clock start: L1 named no run() sender (L1:44). RunSim (tools/RunSim), no multiplier, one app number.
 3. NotifyLevel 4 passed (L1's command ran at the default 3, where the queue measure has 0 lines; D36:32).
@@ -306,6 +350,9 @@ Readings (each a measurement statement; implications follow in separate sentence
    at 15x).
 
 ## 6. Gates before the launch (any miss = NOT RUN)
+
+[SUPERSEDED FOR THE AMENDMENT C RUN (PhaseTwo / Counterattack observation): see sec 0c. This section stands for
+the base-file run, which is the NEXT step with amendment B.]
 
 - B1-B4, box reads, read-only, no launch: B1, B2, B3, B4 DONE 2026-10-20 (LD-1296-R1, amendment A; B3b LD-1296-R2,
   amendment B):

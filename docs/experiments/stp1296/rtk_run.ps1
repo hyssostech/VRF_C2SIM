@@ -12,7 +12,7 @@
 # nothing; it reads the vendor log in place for counts.
 param([Parameter(Mandatory)][int]$AppBase,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
-      [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas',   # amendment A: the t=0 file
+      [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo',   # amendment C (D236); Counterattack via -Scenario
       [string]$Tag = 'rtk',
       # AMENDMENT C (D234 / D236): NO fixed window and NO ceiling. The run ends ONLY on IDLE (no reflected object moved
       # more than -IdleMeters over -IdleEndSec WALL s, from WatchVrf's POS lines), on a SAFETY STOP, or when the
@@ -20,6 +20,7 @@ param([Parameter(Mandatory)][int]$AppBase,
       # -InstrumentSec is how long the holder, samplers and observer are started for (the holder's maximum is
       # 86,400 s); a checkpoint warns when less than 2 h of it remains.
       [int]$CheckpointSec = 14400, [int]$InstrumentSec = 86400, [int]$IdleEndSec = 600, [double]$IdleMeters = 100,
+      [double]$AirFloorM = 1500,
       # 0 = RunSim sends run() only, so the scenario's own saved time multiplier stands (RunSim sets one only if > 1).
       [int]$Multiplier = 0)
 $ErrorActionPreference = 'Continue'
@@ -55,6 +56,7 @@ Get-Content $gate
 if (Test-FastForwardEntry $ff) { "ABORT: fastForwardSettings.mtl holds a LIVE entry (it can switch the frame mode)"; exit 4 }
 if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
+$sysStart = Get-Date
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
     '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle
@@ -106,7 +108,7 @@ function Stop-Check {
         Stop-Run ("back-end sampler " + ((Select-String -Path "$d\c11-sampler.out" -Pattern '^ABORT' | Select-Object -First 1).Line)) }
 }
 
-# ---- launch: the vendor scenario, its own .scn (terrain, SMS, variable-frame 0.1 s, multiplier 1.0) ----
+# ---- launch: the vendor scenario, its own .scn (terrain, SMS, variable-frame 0.1 s, its saved time multiplier) ----
 $launch = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\LaunchVrf52.ps1','-Scenario',$Scenario,
     '-FederationHoldAppNumber',"$AppBase",'-FederationHoldSecs',"$InstrumentSec",'-BackendAppNumber',"$($AppBase+2)",'-NoGui',
     '-NotifyLevel','4','-ReadyTimeoutSec','240','-ScenarioLoadTimeoutSec','420','-AppDataDir',$appData) -RedirectStandardOutput "$d\c2-launchvrf52.log" -RedirectStandardError "$d\c2-launchvrf52.err" -PassThru -WindowStyle Hidden
@@ -143,47 +145,71 @@ if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did
 "[$(& $ts)] T0 (RunSim exit $rse): " + ((Get-Content "$d\c14-runsim.txt" | Select-Object -Last 2) -join ' | ')
 
 # ---- no fixed window, no ceiling: run until IDLE, a safety STOP, or the operator's end file; checkpoints report ----
-# Idle test: every -IdleEndSec, the latest POS of every object is compared with the previous snapshot; if no object
-# moved more than -IdleMeters, the scenario is idle and the run ends. POS lines are read incrementally by offset.
+# Idle test (amendment C, Fable fixes): every -IdleEndSec, the latest POS of every GROUND object is compared with the
+# previous snapshot. GROUND here = latest POS altitude <= -AirFloorM (1,500 m): every air route in the scenario lies at
+# 3,000-8,000 m above the ellipsoid (LD-1296-R3 sec 4), and POS altM is ellipsoid height (VrfFacade.cpp:1439-1444).
+# The scoring classification is the .oob DIS domain (B3c), not this filter. IDLE is declared ONLY if the instruments
+# are alive over the interval: the observer process runs, the back end process runs, new '# t=' samples arrived,
+# backends= reads 1 and sim= advanced. Otherwise it is a STOP, never IDLE.
 $watchPath = Join-Path $R "$d\c13-watch.txt"
-$posOffset = 0L; $latest = @{}; $prevSnap = $null; $endWhy = ''
+$posOffset = 0L; $latest = @{}; $prevSnap = $null; $endWhy = ''; $exitCode = 0
+$lastT = -1.0; $lastSim = -1.0; $lastBe = -1; $firstSim = $null; $firstT = $null; $tsk = 0
 $opEnd = Join-Path $R "$d\OPERATOR-END.txt"; Remove-Item $opEnd -ErrorAction SilentlyContinue
+$null = $watch.Handle
 function Read-NewPos {
     try {
         $fs = [System.IO.File]::Open($watchPath, 'Open', 'Read', 'ReadWrite')
         try { $null = $fs.Seek($script:posOffset, 'Begin'); $sr = New-Object System.IO.StreamReader($fs)
             while ($null -ne ($line = $sr.ReadLine())) {
-                if ($line.StartsWith('POS,')) { $f = $line.Split(','); if ($f.Count -ge 6) { $script:latest[$f[2]] = @([double]$f[3], [double]$f[4]) } } }
+                if ($line.StartsWith('POS,')) { $f = $line.Split(','); if ($f.Count -ge 6) { $script:latest[$f[2]] = @([double]$f[3], [double]$f[4], [double]$f[5]) } }
+                elseif ($line.StartsWith('# t=')) {
+                    if ($line -match '# t=([0-9.]+)s') { $script:lastT = [double]$Matches[1] }
+                    if ($line -match ' backends=(-?\d+)') { $script:lastBe = [int]$Matches[1] }
+                    if ($line -match ' sim=(-?[0-9.]+)') { $script:lastSim = [double]$Matches[1]; if ($null -eq $script:firstSim -and $script:lastSim -ge 0) { $script:firstSim = $script:lastSim; $script:firstT = $script:lastT } } }
+                elseif ($line.StartsWith('TSK,')) { $script:tsk++ } }
             $script:posOffset = $fs.Position } finally { $fs.Dispose() }
     } catch {}
 }
 function Get-MaxMove($a, $b) {
     $m = 0.0
-    foreach ($k in $b.Keys) { if ($a.ContainsKey($k)) {
+    foreach ($k in $b.Keys) { if ($a.ContainsKey($k) -and $b[$k][2] -le $AirFloorM -and $a[$k][2] -le $AirFloorM) {
         $dLat = ($b[$k][0] - $a[$k][0]) * 110574.0; $dLon = ($b[$k][1] - $a[$k][1]) * 111320.0 * [math]::Cos($b[$k][0] * [math]::PI / 180)
         $dd = [math]::Sqrt($dLat * $dLat + $dLon * $dLon); if ($dd -gt $m) { $m = $dd } } }
     $m
 }
-$nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $instEnd = $t0.AddSeconds($InstrumentSec - 600)
+$nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $warned = $false
+$instEnd = $sysStart.AddSeconds($InstrumentSec)   # the earliest-started instrument with the shortest life ends first
+$pT = -1.0; $pSim = -1.0
 while ($true) {
     Stop-Check; Start-Sleep 5
-    if (Test-Path $opEnd) { $endWhy = 'OPERATOR END (' + ((Get-Content $opEnd -ErrorAction SilentlyContinue) -join ' ') + ')'; break }
+    if (Test-Path $opEnd) { $endWhy = 'OPERATOR END (' + ((Get-Content $opEnd -ErrorAction SilentlyContinue) -join ' ') + ')'; $exitCode = 8; break }
+    if (-not $warned -and (Get-Date) -ge $instEnd.AddSeconds(-7200)) { $warned = $true
+        "[$(& $ts)] WARNING: the instruments end at $($instEnd.ToUniversalTime().ToString('HH:mm:ss'))Z (2 h from now); the system sampler ending is a STOP" | Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
     if ((Get-Date) -ge $nextCp) {
         $cw = Get-VendorLog; $cb = Get-Process -Id $bePid -ErrorAction SilentlyContinue
         "[$(& $ts)] CHECKPOINT (running; only the operator ends it here, via $opEnd): T0 + $([math]::Round(((Get-Date) - $t0).TotalHours, 2)) h; " +
-            "objects $($latest.Count); back end ws MB $(if ($cb) { [math]::Round($cb.WorkingSet64/1MB) } else { 'gone' }); vendor log last write $(if ($cw) { $cw.LastWriteTimeUtc.ToString('HH:mm:ss') } else { 'n/a' })" |
+            "objects $($latest.Count); sim $lastSim; backends $lastBe; TSK $tsk; back end ws MB $(if ($cb) { [math]::Round($cb.WorkingSet64/1MB) } else { 'gone' }); vendor log last write $(if ($cw) { $cw.LastWriteTimeUtc.ToString('HH:mm:ss') } else { 'n/a' })" |
             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append
-        if ($instEnd -lt (Get-Date).AddSeconds(7200)) { "   WARNING: the instruments end at T0 + $InstrumentSec s; the system sampler ending is a STOP" }
         $nextCp = (Get-Date).AddSeconds($CheckpointSec)
     }
     if ((Get-Date) -ge $nextIdle) {
-        Read-NewPos; $snap = @{}; foreach ($k in $latest.Keys) { $snap[$k] = $latest[$k] }
+        Read-NewPos
+        if ($watch.HasExited) { Stop-Run 'the observer (WatchVrf) exited - movement is unwatched' }
+        if (-not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) { Stop-Run 'the back end process is gone' }
+        if ($lastBe -eq 0) { Stop-Run 'BACK END LOST: WatchVrf backends=0 (Q1)' }
+        if ($lastT -le $pT) { Stop-Run "no new observer sample since t=$pT s - movement is unwatched" }
+        if ($lastSim -le $pSim) { Stop-Run "the sim clock did not advance (sim=$lastSim, previous $pSim)" }
+        $snap = @{}; foreach ($k in $latest.Keys) { $snap[$k] = $latest[$k] }
         if ($prevSnap) { $mm = Get-MaxMove $prevSnap $snap
-            "[$(& $ts)] idle check: objects $($snap.Count), max move over the last $IdleEndSec s = $([math]::Round($mm)) m"
-            if ($mm -lt $IdleMeters) { $endWhy = "IDLE (no object moved > $IdleMeters m in $IdleEndSec s)"; break } }
-        $prevSnap = $snap; $nextIdle = (Get-Date).AddSeconds($IdleEndSec)
+            $gnd = @($snap.Keys | Where-Object { $snap[$_][2] -le $AirFloorM }).Count
+            "[$(& $ts)] idle check: objects $($snap.Count) (ground by altitude $gnd), max ground move over the last $IdleEndSec s = $([math]::Round($mm)) m; t=$lastT sim=$lastSim"
+            if ($mm -lt $IdleMeters) { $endWhy = "IDLE (no ground object moved > $IdleMeters m in $IdleEndSec s, instruments alive)"; $exitCode = 0; break } }
+        $prevSnap = $snap; $pT = $lastT; $pSim = $lastSim; $nextIdle = (Get-Date).AddSeconds($IdleEndSec)
     }
 }
+$ratio = if ($null -ne $firstSim -and $lastT -gt $firstT) { [math]::Round(($lastSim - $firstSim) / ($lastT - $firstT), 2) } else { 'n/a' }
+$mult = if ($ratio -eq 'n/a') { 'n/a' } elseif ($ratio -lt 1.5) { 'NOT APPLIED (about 1x: the saved multiplier did not take effect)' } elseif ($ratio -lt 13.5) { 'LOAD SHORTFALL (below 13.5)' } else { 'at the saved multiplier' }
+"[$(& $ts)] END $endWhy; exit $exitCode; mean SIM/WALL $ratio ($mult); last sim $lastSim; TSK lines $tsk" | Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append
 $w = Get-VendorLog
 "[$(& $ts)] run end ($endWhy); vendor log last write AT THE END (Q1): " + $(if ($w) { $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { 'not found' })
 Show-Threads
@@ -198,3 +224,4 @@ foreach ($p in $smp, $watch, $sys) { if ($p -and -not $p.HasExited) { try { Stop
 Show-LogCounts 'after the close'
 "   left running: " + ((Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')
 "   RTI: " + ((Get-Process rtiexec, rtiForwarder -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ') + "; holder app $AppBase"
+exit $exitCode
