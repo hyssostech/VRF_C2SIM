@@ -86,9 +86,16 @@ function Show-Threads {
     if ($script:bePid -le 0) { return }   # pid 0 is the System Idle process, never ours
     $b = Get-Process -Id $script:bePid -ErrorAction SilentlyContinue
     if (-not $b) { return }
-    $a = @{}; foreach ($t in $b.Threads) { try { $a[$t.Id] = $t.TotalProcessorTime.TotalSeconds } catch {} }
+    # C3 fix (S1 console, rtk_run.ps1:89 then): the old pipeline form produced concatenated values and InvalidArgument;
+    # an explicit loop over a typed dictionary, one double per thread id.
+    $before = New-Object 'System.Collections.Generic.Dictionary[int,double]'
+    foreach ($th in @($b.Threads)) { try { $before[[int]$th.Id] = [double]$th.TotalProcessorTime.TotalSeconds } catch {} }
     Start-Sleep 5; $b = Get-Process -Id $b.Id -ErrorAction SilentlyContinue
-    if ($b) { "   top threads (cpu s / 5 s): " + (($b.Threads | ForEach-Object { try { [math]::Round($_.TotalProcessorTime.TotalSeconds - $a[$_.Id], 2) } catch { 0 } } | Sort-Object -Descending | Select-Object -First 3) -join ', ') + "; ws MB " + [math]::Round($b.WorkingSet64/1MB) }
+    if (-not $b) { return }
+    $deltas = New-Object 'System.Collections.Generic.List[double]'
+    foreach ($th in @($b.Threads)) { try { $id = [int]$th.Id; if ($before.ContainsKey($id)) { $deltas.Add([double]$th.TotalProcessorTime.TotalSeconds - $before[$id]) } } catch {} }
+    $top = @($deltas | Sort-Object -Descending | Select-Object -First 3 | ForEach-Object { '{0:F2}' -f $_ })
+    "   top threads (cpu s / 5 s): " + ($top -join ', ') + "; ws MB " + [math]::Round($b.WorkingSet64 / 1MB)
 }
 function Show-LogCounts([string]$label) {
     # Vendor log: COUNTS ONLY, read in place, never copied (it holds the environment in clear text).
@@ -146,6 +153,7 @@ if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Qu
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -SimpleMatch 'scenario LOAD CONFIRMED' -Quiet)) { Stop-Run 'ABORT: the scenario load was not confirmed (LaunchVrf52.ps1:1445)' }
 $be = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($be) { $bePid = $be.Id; $beStart = $be.StartTime.ToUniversalTime(); "[$(& $ts)] back end pid $bePid" }
+$readyUtc = (Get-Date).ToUniversalTime()   # C3: READY -> T0 is kept as in S1; its WS slope is reported
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
     '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$InstrumentSec",'-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 
@@ -227,7 +235,8 @@ function Get-MaxMove($a, $b) {
 $nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $warned = $false
 $instEnd = $sysStart.AddSeconds($InstrumentSec)   # the earliest-started instrument with the shortest life ends first
 $pT = -1.0; $pSim = -1.0; $sawFull = $false
-$flatDone = $false; $slopeDone = $false; $t0Utc = $t0.ToUniversalTime()
+$flatDone = $false; $slopeDone = $false; $t0Utc = $t0.ToUniversalTime(); $nextVlog = Get-Date
+"nowUtc,vendorLogLastWriteUtc,vendorLogBytes" | Set-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii
 function Get-WsSince([datetime]$fromUtc) {
     # (time, wsMB) rows of ws_sampler2's CSV at or after $fromUtc (HH:mm:ss, same UTC day as T0)
     $from = $fromUtc.ToString('HH:mm:ss')
@@ -244,9 +253,15 @@ while ($true) {
     if (-not $slopeDone -and (Get-Date) -ge $t0.AddSeconds(65)) { $slopeDone = $true
         $wsRows = @(Get-WsSince $t0Utc | Where-Object { $_.t -le $t0Utc.AddSeconds(60).ToString('HH:mm:ss') })
         $pre = @(Get-WsSince $t0Utc.AddSeconds(-60) | Where-Object { $_.t -lt $t0Utc.ToString('HH:mm:ss') })
+        $rdy = @(Get-WsSince $readyUtc | Where-Object { $_.t -le $t0Utc.ToString('HH:mm:ss') })
         "[$(& $ts)] READING (C3): WS slope over the first 60 s after T0 = " + $(Get-Slope $wsRows) +
-            " MB/min (" + $wsRows.Count + " samples); over the 60 s before T0 = " + $(Get-Slope $pre) + " MB/min" |
+            " MB/min (" + $wsRows.Count + " samples); over the 60 s before T0 = " + $(Get-Slope $pre) + " MB/min; READY ($($readyUtc.ToString('HH:mm:ss'))Z) -> T0 = " + $(Get-Slope $rdy) + " MB/min (" + $rdy.Count + " samples)" |
             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
+    if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(60)
+        # C3: a vendor-log freshness sample every 60 s (S1: the log's last write was 24 s BEFORE T0 while the clock ran)
+        $vl = Get-VendorLog
+        "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')),$(if ($vl) { $vl.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { '' }),$(if ($vl) { $vl.Length } else { '' })" |
+            Add-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii }
     if ($NoWatch) {
         if (-not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) { Stop-Run 'the back end process is gone' }
         if (-not $flatDone -and (Get-Date) -ge $t0.AddSeconds($FlatSec)) {

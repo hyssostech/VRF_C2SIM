@@ -245,11 +245,25 @@ Pre-stated reading (measurement statements; the script prints both slopes at T0 
   15x, without our observer and at the vendor's notify level;
 - MUCH LOWER (under half): our additions are implicated (the observer or the level-4 logging; the next split);
 - in between: no reading; recorded.
+- S1's WS was ALREADY RISING BEFORE T0 (paused, after load). So the script also prints the slope from READY to T0, and
+  the slope over the 60 s before T0, each read against S1's same interval from its c11 CSV. READY -> run() is kept as
+  in S1 (observer start + 20 s, then RunSim; under -NoWatch the observer wait is skipped, so READY -> T0 is SHORTER -
+  declared, and the comparison uses MB/min, not MB).
 Implication of each is for the operator; no cause is claimed here.
 Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 100 MB) - reported once as ANSWERED, and
 the run then continues as an observation until the operator ends it (OPERATOR-END.txt); or the operator. There is no
 IDLE end under -NoWatch (no POS).
-Also fixed: CacheSize now counts the junction's target (S1 read 0 files through appData\cache); the dispatcher's hand
+Also added / fixed:
+- a vendor-log freshness sample every 60 s (c16-vlog.csv: now, the log's last write, its bytes). S1 measured the
+  vendor log's last write 24 s BEFORE T0 and 73 s before the STOP, while WatchVrf saw the clock advancing at about 15x
+  and 3 threads near-saturated (a measurement; no claim).
+- the top-3 thread CPU measure (S1 console: InvalidArgument x3, concatenated values) is rewritten as an explicit loop.
+- PRE-LAUNCH GATE (dispatcher, read-only; RUNBOOK sec 0, the check after a force-stop): S1's back end (app 5567) was
+  FORCED, and its holder RtiProbe 40160 was gone after the STOP while rtiexec's WS went 17 -> 75 MB. Before this launch,
+  a COUNT-grep of the serving rtiexec log for 5567's join and its resign / lost-connection lines; after this launch,
+  RUNBOOK sec 0 check (2): no new "Create Response" for this launch (the back end JOINED, it did not create). A failure =
+  NOT RUN and RECOVER with tools/ResetVrf (RUNBOOK sec 8) on the operator's word. rtiexec is never touched.
+- CacheSize now counts the junction's target (S1 read 0 files through appData\cache); the dispatcher's hand
 reading stays the record of M4. Ledger: 5 new numbers.
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
