@@ -34,6 +34,9 @@ ledgered before the first join.
   [FIX 2026-10-20, STP-1296 step 1: the path must repeat the basename (...\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo);
   LaunchVrf52 appends .scnx and checks the file (:811-812, :854-856), so this line as written fails. L1 is superseded
   by PREREG_STP1296_STEP1_RTK_2026-10-20.md, which also adds the run() sender and NotifyLevel 4 this L1 lacks.]
+  [FIX 2026-10-20 (box read LD-1296-R1): PhaseTwo is a SAVED MID-RUN state (118 tasks in flight, sim-time 12,565 s,
+  multiplier 15), and it is not the variant with the most planned movers (strict counts 35 / 36 / 37 for RoadToKaunas /
+  PhaseTwo / Counterattack). Step 1 runs the t=0 base RoadToKaunas instead (its amendment A).]
   (the variant with the most planned movers: 24 units carry movement tasks in its plans - RTK diff, rtkdiff
   scratch). Its own .scn: MAK Earth Aggregate (online) for the sim and the GUI, variable-frame 0.1 s,
   AggregateTacticalLevel.sms. GUI on (as our runs). appData: C:\C2SIM\vrf-appdata-unattended\appData, the

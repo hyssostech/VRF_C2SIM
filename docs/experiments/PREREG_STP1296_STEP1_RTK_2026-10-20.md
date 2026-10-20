@@ -5,24 +5,51 @@ STATUS: PREREG ONLY. NOT RUN. Written before any launch. Operator ruling D231 (r
 Kaunas) avoid the D36 large-area paging stall, so that the full Iron Storm can run? Step 1 runs the shipped sample, as
 shipped, on this box. Step 2 (the interface issues group-attack-to-objective; the D36(b) re-run) comes only if step 1 is
 clean. Supersedes, as a run, the arm-G re-run (D230) and c14919 amendment 2; their gate, sampler and STOP fixes carry
-over. This IS the never-run L1 (PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md:31-56), revised; sec 5 lists every change.
+over. This is the never-run L1 (PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md:31-56), revised; sec 5 lists every change.
 Measurements and design implications are kept in separate sentences (CLAUDE.md sec 4).
 
 ## 0. What the run can and cannot answer
 
-- CAN: whether MAK's own aggregate scenario, on its own (small, see the caveat) area, its own terrain (MAK Earth Aggregate online), its own SMS
-  (AggregateTacticalLevel) and its own frame mode, shows the D36(b) signature on this box: a back-end loss, a working
-  set climbing at more than 200 MB/min, feature-queue waits of minutes.
+- CAN: whether MAK's own aggregate scenario, on its own (large, sec 0a) area, its own terrain (MAK Earth Aggregate
+  online), its own SMS (AggregateTacticalLevel) and its own frame mode, shows the D36(b) signature on this box: a
+  back-end loss, a working set climbing at more than 200 MB/min, feature-queue waits of minutes.
 - CANNOT, by design: say anything about our interface's tasking (nothing of ours runs), or about the Iron Storm area.
-- AREA CAVEAT (gate B2). The only extent on record is the box of the six maneuver routes its tasks name, 54.770-54.892 N,
-  24.680-24.820 E (FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:137-138), about 120 km2 (computed here, not
-  recorded). D36(b) failed on 3,300 km2 (HANDOFF_PARK_2026-10-16.md:81). The playbox is whole-globe
-  (AGGREGATE_PROFILE_OFFLINE_2026-09-27.md:115), so it bounds nothing. HANDOFF_2026-10-15:26's "an area covering Iron
-  Storm's" is UNVERIFIED: the Iron Storm AOI is 53.94-54.12 N, 23.11-23.41 E (AGGREGATE_PROFILE_OFFLINE:99), south-west
-  of those routes. Box read B2 measures the real extent before the run, and the result states it beside the verdict.
-  - If B2 gives under 1,000 km2: a clean step 1 shows the vendor pattern is clean on a SMALLER area than D36(b)'s. It
-    does not show that it carries 3,300 km2. That is a measurement statement.
-  - Implication (separate sentence): in that case only step 2, on the D36(b) box, can answer the operator's question.
+- AREA (box read B2, LD-1296-R1, 2026-10-20; supersedes this section's first text, which assumed about 120 km2 from the
+  six maneuver routes): over units only, RoadToKaunas spans lat 53.05-55.88, lon 17.11-27.58, 677.5 x 313.6 km,
+  about 212,000 km2; with points and routes, about 222,000 km2. D36(b) failed on a 3,300 km2 demo box
+  (HANDOFF_PARK_2026-10-16.md:81). The unit extent is therefore about 64 times D36(b)'s box. These are measurements.
+  - Extent is not paging load: the sim pages by object need and prediction (UG52 63.6.1 p1247), so what loads it is
+    where units sit and move, not the bounding box. Mover counts differ too: 35 plan-based strict movers here (B3)
+    against D36(b)'s four navigates of populated containers. The result reports both beside the verdict.
+  - Implication (separate sentence): a clean step 1 shows the vendor pattern carries a scenario far wider than
+    D36(b)'s box on this host. It does not show that our tasking would; that is step 2.
+
+## 0a. AMENDMENT A (2026-10-20, from box reads B1-B4, LD-1296-R1; before any run, nothing launched)
+
+Measured by the dispatcher (read-only, counts only; the scenario files are vendor samples, not customer data):
+- B1: all three .scn use MAK Earth Aggregate (online).mtf and AggregateTacticalLevel.sms, variable-frame 0.1 s,
+  run-duration 0. time-multiplier (:13): RoadToKaunas 1, PhaseTwo 15, Counterattack 15. sim-time (:19): 0 / 12,565 /
+  32,232 s. No paused/running start key exists in any member.
+- B4: RoadToKaunas is a CLEAN t=0 file: 0 is-tasked, every plan-execution-stack empty, all 170 sync-matrix entries
+  (started False). PhaseTwo and Counterattack are SAVED MID-RUN: is-tasked True 118 / 124, plan stack entries
+  104 / 100, sync-matrix entries started 128 / 175.
+- B3: plan-based movers (strict / broad), union of own plans, sync matrices and SimCommands: RoadToKaunas 35 / 41,
+  PhaseTwo 36 / 44, Counterattack 37 / 45. Units 108 / 124 / 131; .oob units that are orbat parents 17 / 17 / 20.
+- group-attack-to-objective parameters: fireSupportUnit, objective, route (simulationobject) and leadingElements
+  (simulationobjects, a LIST of length 1-3). Task nodes, group / unit attack-to-objective: 21 / 25 in RoadToKaunas.
+- B4: cache\vrfsim 32,301 files / 546.45 MB; fastForwardSettings.mtl holds no entry; NotifyLevel is a command-line
+  argument (--notifyLevel), with no C:\MAK write.
+
+Change (the scenario):
+- RUN THE BASE RoadToKaunas, not PhaseTwo. Reason, from D231's own terms: "use no saved state that resumes mid-task (or
+  declare it)". RoadToKaunas is the only one of the three with no saved state at all, and it runs at the shipped
+  multiplier 1. PhaseTwo would resume 118 in-flight tasks at 15x from sim-time 12,565 s. The planned-mover count is
+  about the same (35 vs 36 strict).
+- RECORD DISCREPANCY, not reconciled: G0b (PREREG_STP1296_GROUP_TASK_2026-10-19.md:130-132) gave RoadToKaunas 0
+  container group-attack plans; B3 counts 21 group-attack task nodes in RoadToKaunas. They may count different things
+  (plans owned by containers vs task nodes anywhere, including sync matrices). Step 1 does not depend on it; step 2's
+  PREREG must reconcile it.
+- PhaseTwo's 15x multiplier also contradicts sec 2's first text ("time multiplier 1.0"). That text is corrected below.
 
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
@@ -44,6 +71,8 @@ OWN RECORD:
 - D36 (a): a stopped back end's sim clock reads as advancing at exactly 1x (the controller extrapolates; D36:24, :69).
 - L1 (never run): PhaseTwo has the most planned movers, 24 units with movement tasks (PREREG_L1:36-37; L1 line numbers here are after this branch's fix note at L1:34-36); its three
   predictions (:46-49) are kept in sec 4.
+  CORRECTION (B3, amendment A): by the dispatcher's count PhaseTwo does not have the most; strict plan-based movers are
+  RoadToKaunas 35, PhaseTwo 36, Counterattack 37 (L1's "24" used a different count, not reconciled).
 - G0b (PREREG_STP1296_GROUP_TASK_2026-10-19.md:130-132): containers get group-attack-to-objective only - Counterattack
   5 plans + 9 saved states, PhaseTwo 3 + 5, RoadToKaunas 0.
 - PhaseTwo's .oob saves in-flight tasks, e.g. a unit "(is-tasked True)" with move_to_waypoint_plan_path
@@ -54,23 +83,18 @@ OWN RECORD:
 
 ## 2. Setup (as shipped, declared)
 
-- SCENARIO: RoadToKaunasPhaseTwo (L1's choice: the most planned movers; containers carry group-attack-to-objective,
-  the task step 2 would issue). -Scenario repeats the basename,
-  Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo, because
-  LaunchVrf52 appends .scnx and checks it exists (LaunchVrf52.ps1:811-812, :854-856). FIX AT ITS SITE: L1:33 omits the
-  repeated basename and would fail that check.
-  - Switch rule, decided BEFORE the run from box reads B3/B4 over ALL THREE scenarios (Counterattack, PhaseTwo and the
-    base RoadToKaunas): if PhaseTwo's container group-attack plans are all trigger-gated (none starts on Run) and
-    Counterattack has at least one that starts on Run, run Counterattack instead. The base RoadToKaunas carries no
-    container group-attack (G0b), so it is not a candidate for step 2's purpose; its B3/B4 figures are recorded so
-    the choice is shown, not asserted.
-    The choice and its reason are written into the ledger line before the first join.
-- SAVED STATE, DECLARED: PhaseTwo ships saved in-flight tasks (above). "As shipped" means they load as saved. They are
-  not edited out. Box read B4 counts them (is-tasked True, per task type); the result reports that count. Whether they
-  resume mid-task on load is NOT IN RECORD; WatchVrf's POS and TSK lines show it.
-- FRAME MODE, DECLARED: the scenario's own, variable-frame (frame-time 0.1 s is inert in that mode), time multiplier 1.0.
-  RunSim sends run() with NO multiplier. Our Iron Storm runs use fixed-frame-run-to-complete; that difference is the
-  vendor's and is part of "the vendor way". fastForwardSettings.mtl must hold no entry (the script ABORTs otherwise).
+- SCENARIO (amendment A): the base RoadToKaunas. -Scenario repeats the basename,
+  Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas, because LaunchVrf52
+  appends .scnx and checks it exists (LaunchVrf52.ps1:811-812, :854-856). FIX AT ITS SITE: L1:33 omits the repeated
+  basename and would fail that check. (First text: PhaseTwo, with a switch rule to Counterattack; withdrawn by
+  amendment A, because both are saved mid-run.)
+- SAVED STATE, DECLARED: none. RoadToKaunas is a t=0 file (B4). Its plans and sync matrices are bound at load and not
+  started; whether run() starts them, or they wait for triggers or quick-launch events (FEG p20), is NOT IN RECORD.
+  The VOID rule (sec 3) covers that.
+- FRAME MODE, DECLARED: the scenario's own, variable-frame (frame-time 0.1 s is inert in that mode), time multiplier 1
+  (RoadToKaunas.scn:13). RunSim sends run() with NO multiplier. Our Iron Storm runs use fixed-frame-run-to-complete;
+  that difference is the vendor's and is part of "the vendor way". fastForwardSettings.mtl holds no entry (B4; the
+  script ABORTs otherwise).
 - CACHE, DECLARED: the run-owned appData C:\C2SIM\vrf-appdata-unattended\appData, as D36(b), whose cache\vrfsim is a
   junction to the vendor cache (NewVrfAppData52.ps1:43). The cache holds tiles from the Iron Storm runs and none from
   this area, so it is COLD for this scenario's area. That is an INFERENCE from run history: the junction is
@@ -151,7 +175,7 @@ Readings (each a measurement statement; implications follow in separate sentence
 
 ## 6. Gates before the launch (any miss = NOT RUN)
 
-- B1-B4, box reads, read-only, no launch (asked of the supervisor 2026-10-20):
+- B1-B4, box reads, read-only, no launch: DONE 2026-10-20 (LD-1296-R1; amendment A, sec 0a):
   - B1: the .scn of each of the three scenarios: terrain, SMS, frame mode, the start state, any resume flag;
   - B2: the extent, lat/lon min/max over all objects and route vertices, in km2;
   - B3: per scenario, units / containers / planned movers, and which plans are trigger-gated;
