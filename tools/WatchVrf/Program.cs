@@ -15,7 +15,7 @@ using WatchVrf;
 //                                 of killed with exit 2 (the -ConsoleLogDir landmine).
 //
 //   WatchVrf [appNo] [dur] [samp] [federation] [--stop-file <path>] [--diag] [--no-wait-ext]
-//            [--no-track] [--report-backends] [--device-address <addr|none>]
+//            [--no-track] [--report-backends] [--report-simtime] [--device-address <addr|none>]
 //                                 LIVE observation: join the federation and stream POS,...
 //                                 position lines, CON,... Object Console lines, and
 //                                 TSK,... / RPT,... task-completion + text-report lines

@@ -44,7 +44,7 @@ namespace WatchVrf;
 // FRESH ApplicationNumber each run.
 //
 // Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--stop-file <path>]
-//       [--diag] [--no-wait-ext] [--no-track] [--report-backends]
+//       [--diag] [--no-wait-ext] [--no-track] [--report-backends] [--report-simtime]
 //       [--device-address <addr|none>]
 // Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only), diagnostics off,
 // tracking ON, back-end count not reported, device address left at the facade default.
@@ -141,6 +141,7 @@ internal static class WatchRunner
         bool noWaitExt = ToolArgs.HasFlag(args, WatchVrfUsage.NoWaitExtFlag);
         bool noTrack = ToolArgs.HasFlag(args, WatchVrfUsage.NoTrackFlag);
         bool reportBackends = ToolArgs.HasFlag(args, WatchVrfUsage.ReportBackendsFlag);
+        bool reportSimTime = ToolArgs.HasFlag(args, WatchVrfUsage.ReportSimTimeFlag);
 
         // No OTHER options are valid on the LIVE path. --con-selftest and --capabilities are
         // dispatched in Program.cs and only when they are args[0]; reaching here with one
@@ -148,7 +149,8 @@ internal static class WatchRunner
         // things at once. For the movement oracle that MUST be a hard failure, not a
         // silently-ignored token.
         string[] unknown = ToolArgs.UnknownFlags(args, WatchVrfUsage.DiagFlag, WatchVrfUsage.NoWaitExtFlag,
-                                                       WatchVrfUsage.NoTrackFlag, WatchVrfUsage.ReportBackendsFlag);
+                                                       WatchVrfUsage.NoTrackFlag, WatchVrfUsage.ReportBackendsFlag,
+                                                       WatchVrfUsage.ReportSimTimeFlag);
         if (unknown.Length > 0)
             return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
                                 + "--con-selftest and --capabilities are offline-only and must be the sole argument.",
@@ -210,6 +212,7 @@ internal static class WatchRunner
                         + (diag ? " diag=on" : "") + (noWaitExt ? " no-wait-ext=on" : "")
                         + (noTrack ? " no-track=on (reflected=/readable= WILL stay 0; no POS lines)" : "")
                         + (reportBackends ? " report-backends=on" : "")
+                        + (reportSimTime ? " report-simtime=on" : "")
                         // ALWAYS printed, unlike the on/off levers above: 'default' is a
                         // real arm of the PREREG sec 4 comparison, so every trace must say
                         // which of default/none/<addr> produced it.
@@ -403,6 +406,12 @@ internal static class WatchRunner
                 if (reportBackends)
                     summary += string.Create(CultureInfo.InvariantCulture,
                         $" backends={bridge.BackendCount()}");
+                // Sim clock after the back-end count: the scenario clock the interface's SIM/WALL RATIO line is
+                // built from, so an interface-free run (STP-1296 D231 step 1) can compute the same ratio from
+                // consecutive sim= / t= pairs. A frozen back end shows as sim advancing at exactly 1x (the
+                // controller extrapolates; D36 (a)), not as a stopped value.
+                if (reportSimTime)
+                    summary += string.Create(CultureInfo.InvariantCulture, $" sim={bridge.SimTimeSeconds():F1}");
                 Emit(summary);
             }
 

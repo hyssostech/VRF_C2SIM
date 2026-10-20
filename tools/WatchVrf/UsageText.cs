@@ -15,13 +15,14 @@ internal static class WatchVrfUsage
     // optional flag is added to the live path; never remove one while the flag exists.
     public static readonly string[] Capabilities =
         { "capabilities", "con-selftest", "stop-file", "diag", "no-wait-ext",
-          "no-track", "report-backends", "device-address", "config" };
+          "no-track", "report-backends", "report-simtime", "device-address", "config" };
 
     public const string StopFileFlag = "--stop-file";
     public const string DiagFlag = "--diag";
     public const string NoWaitExtFlag = "--no-wait-ext";
     public const string NoTrackFlag = "--no-track";
     public const string ReportBackendsFlag = "--report-backends";
+    public const string ReportSimTimeFlag = "--report-simtime";
     public const string DeviceAddressFlag = "--device-address";
 
     // The sentinel value that means "push NO --deviceAddress at all", as opposed to pushing
@@ -34,7 +35,7 @@ internal static class WatchVrfUsage
     {
         "usage: WatchVrf.exe [applicationNumber] [durationSecs] [sampleSecs] [federation]",
         "                    [--stop-file <path>] [--diag] [--no-wait-ext] [--no-track]",
-        "                    [--report-backends] [--device-address <addr|none>]",
+        "                    [--report-backends] [--report-simtime] [--device-address <addr|none>]",
         "       WatchVrf.exe --con-selftest",
         "       WatchVrf.exe --capabilities",
         "",
@@ -93,6 +94,11 @@ internal static class WatchVrfUsage
         "                     the controller's back-end count - the same reading CreateOne",
         "                     refuses to act on when it is 0. Says whether this observer sees",
         "                     the sim engine at all, independently of any reflected object.",
+        "  --report-simtime   Optional. Append ' sim=<s>' to every '# t=' sample line: the FIRST",
+        "                     back end's scenario clock (DtVrfRemoteController::simTime(), the",
+        "                     reading PauseSim prints), -1 with no back end. Read-only: unlike",
+        "                     PauseSim it sends no pause()/run(). sim/t deltas give SIM/WALL",
+        "                     with no interface running (STP-1296 D231 step 1).",
         "  --config <path>    Optional. The VR-Link connection config XML",
         "                     (MAK-ONE-2025-Config.xml) this observer joins with. Default:",
         "                     env Vrf__ConnectionConfigFile, else the LOADED vrfcontrol.dll's",
@@ -123,7 +129,8 @@ internal static class WatchVrfUsage
         "                     pairing it with observation arguments is a contradiction.",
         "  --capabilities     Offline. Prints one capability token per line (currently:",
         "                     capabilities, con-selftest, stop-file, diag, no-wait-ext,",
-        "                     no-track, report-backends, device-address) and exits 0.",
+        "                     no-track, report-backends, report-simtime, device-address) and",
+        "                     exits 0.",
         "                     Sole argument.",
         "",
         "WatchVrf is the MOVEMENT ORACLE: an unparseable argument is a HARD FAILURE,",

@@ -31,6 +31,9 @@ ledgered before the first join.
 ## L1 - MAK's Road to Kaunas, as shipped, with NO interface (the large-area baseline)
 
 - Run: LaunchVrf52 with -Scenario Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo
+  [FIX 2026-10-20, STP-1296 step 1: the path must repeat the basename (...\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo);
+  LaunchVrf52 appends .scnx and checks the file (:811-812, :854-856), so this line as written fails. L1 is superseded
+  by PREREG_STP1296_STEP1_RTK_2026-10-20.md, which also adds the run() sender and NotifyLevel 4 this L1 lacks.]
   (the variant with the most planned movers: 24 units carry movement tasks in its plans - RTK diff, rtkdiff
   scratch). Its own .scn: MAK Earth Aggregate (online) for the sim and the GUI, variable-frame 0.1 s,
   AggregateTacticalLevel.sms. GUI on (as our runs). appData: C:\C2SIM\vrf-appdata-unattended\appData, the
