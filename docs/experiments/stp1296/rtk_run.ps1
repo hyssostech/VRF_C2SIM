@@ -14,10 +14,12 @@ param([Parameter(Mandatory)][int]$AppBase,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
       [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunas\RoadToKaunas',   # amendment A: the t=0 file
       [string]$Tag = 'rtk',
-      # AMENDMENT C (D234 / D236): NO fixed window. The run ends on IDLE (no reflected object moved more than
-      # -IdleMeters over -IdleEndSec WALL s, checked from WatchVrf's POS lines) or on a SAFETY STOP. -CeilingSec is a
-      # SAFETY ceiling on box time only (a stated safety stop, not a test limit).
-      [int]$CeilingSec = 14400, [int]$IdleEndSec = 600, [double]$IdleMeters = 100,
+      # AMENDMENT C (D234 / D236): NO fixed window and NO ceiling. The run ends ONLY on IDLE (no reflected object moved
+      # more than -IdleMeters over -IdleEndSec WALL s, from WatchVrf's POS lines), on a SAFETY STOP, or when the
+      # OPERATOR creates <run dir>\OPERATOR-END.txt. Every -CheckpointSec the script reports its state and keeps running.
+      # -InstrumentSec is how long the holder, samplers and observer are started for (the holder's maximum is
+      # 86,400 s); a checkpoint warns when less than 2 h of it remains.
+      [int]$CheckpointSec = 14400, [int]$InstrumentSec = 86400, [int]$IdleEndSec = 600, [double]$IdleMeters = 100,
       # 0 = RunSim sends run() only, so the scenario's own saved time multiplier stands (RunSim sets one only if > 1).
       [int]$Multiplier = 0)
 $ErrorActionPreference = 'Continue'
@@ -54,7 +56,7 @@ if (Test-FastForwardEntry $ff) { "ABORT: fastForwardSettings.mtl holds a LIVE en
 if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
-    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$($CeilingSec + 2400)") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle
 $smp = $null; $watch = $null; $bePid = 0; $beStart = $null; $launchUtc = (Get-Date).ToUniversalTime()
 function Get-VendorLog {
@@ -106,7 +108,7 @@ function Stop-Check {
 
 # ---- launch: the vendor scenario, its own .scn (terrain, SMS, variable-frame 0.1 s, multiplier 1.0) ----
 $launch = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\LaunchVrf52.ps1','-Scenario',$Scenario,
-    '-FederationHoldAppNumber',"$AppBase",'-FederationHoldSecs',"$($CeilingSec + 1800)",'-BackendAppNumber',"$($AppBase+2)",'-NoGui',
+    '-FederationHoldAppNumber',"$AppBase",'-FederationHoldSecs',"$InstrumentSec",'-BackendAppNumber',"$($AppBase+2)",'-NoGui',
     '-NotifyLevel','4','-ReadyTimeoutSec','240','-ScenarioLoadTimeoutSec','420','-AppDataDir',$appData) -RedirectStandardOutput "$d\c2-launchvrf52.log" -RedirectStandardError "$d\c2-launchvrf52.err" -PassThru -WindowStyle Hidden
 $deadline = (Get-Date).AddSeconds(900)   # ReadyTimeoutSec 240 + ScenarioLoadTimeoutSec 420 + the holder join
 while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 5 }
@@ -117,7 +119,7 @@ if (-not (Select-String -Path "$d\c2-launchvrf52.log" -SimpleMatch 'scenario LOA
 $be = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($be) { $bePid = $be.Id; $beStart = $be.StartTime.ToUniversalTime(); "[$(& $ts)] back end pid $bePid" }
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
-    '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$($CeilingSec + 1800)",'-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$InstrumentSec",'-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 
 # ---- tool env (5.2: VR-Forces 5.2d, VR-Link 5.10, MAK RTI 5.0.1 rtiexec posture; StartInterface52.ps1 :8-12) ----
 $env:PATH = "$bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti5.0.1\bin;" + $env:PATH
@@ -129,7 +131,7 @@ if ($lic -and (Test-Path -LiteralPath $lic -PathType Leaf)) { $env:MAKLMGRD_LICE
 
 # ---- observer first (sim clock + back-end count + positions + task completions), then the clock ----
 Remove-Item $stopFile -ErrorAction SilentlyContinue
-$watch = Start-Process $watchExe -ArgumentList @("$($AppBase+4)", "$($CeilingSec + 1200)", '10', '""', '--stop-file', $stopFile,
+$watch = Start-Process $watchExe -ArgumentList @("$($AppBase+4)", "$InstrumentSec", '10', '""', '--stop-file', $stopFile,
     '--report-backends', '--report-simtime') -WorkingDirectory $bin64 -RedirectStandardOutput "$d\c13-watch.txt" -RedirectStandardError "$d\c13-watch.err" -PassThru -WindowStyle Hidden
 $deadline = (Get-Date).AddSeconds(90)
 while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c13-watch.txt" -Pattern '^# t=' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 3 }
@@ -140,11 +142,12 @@ $t0 = Get-Date
 if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did not start (tools/RunSim/Program.cs:143-152)" }
 "[$(& $ts)] T0 (RunSim exit $rse): " + ((Get-Content "$d\c14-runsim.txt" | Select-Object -Last 2) -join ' | ')
 
-# ---- no fixed window: run until IDLE, or a safety STOP, or the safety ceiling ----
+# ---- no fixed window, no ceiling: run until IDLE, a safety STOP, or the operator's end file; checkpoints report ----
 # Idle test: every -IdleEndSec, the latest POS of every object is compared with the previous snapshot; if no object
 # moved more than -IdleMeters, the scenario is idle and the run ends. POS lines are read incrementally by offset.
 $watchPath = Join-Path $R "$d\c13-watch.txt"
-$posOffset = 0L; $latest = @{}; $prevSnap = $null; $endWhy = 'safety ceiling'
+$posOffset = 0L; $latest = @{}; $prevSnap = $null; $endWhy = ''
+$opEnd = Join-Path $R "$d\OPERATOR-END.txt"; Remove-Item $opEnd -ErrorAction SilentlyContinue
 function Read-NewPos {
     try {
         $fs = [System.IO.File]::Open($watchPath, 'Open', 'Read', 'ReadWrite')
@@ -161,9 +164,18 @@ function Get-MaxMove($a, $b) {
         $dd = [math]::Sqrt($dLat * $dLat + $dLon * $dLon); if ($dd -gt $m) { $m = $dd } } }
     $m
 }
-$ceiling = $t0.AddSeconds($CeilingSec); $nextIdle = $t0.AddSeconds($IdleEndSec)
-while ((Get-Date) -lt $ceiling) {
+$nextIdle = $t0.AddSeconds($IdleEndSec); $nextCp = $t0.AddSeconds($CheckpointSec); $instEnd = $t0.AddSeconds($InstrumentSec - 600)
+while ($true) {
     Stop-Check; Start-Sleep 5
+    if (Test-Path $opEnd) { $endWhy = 'OPERATOR END (' + ((Get-Content $opEnd -ErrorAction SilentlyContinue) -join ' ') + ')'; break }
+    if ((Get-Date) -ge $nextCp) {
+        $cw = Get-VendorLog; $cb = Get-Process -Id $bePid -ErrorAction SilentlyContinue
+        "[$(& $ts)] CHECKPOINT (running; only the operator ends it here, via $opEnd): T0 + $([math]::Round(((Get-Date) - $t0).TotalHours, 2)) h; " +
+            "objects $($latest.Count); back end ws MB $(if ($cb) { [math]::Round($cb.WorkingSet64/1MB) } else { 'gone' }); vendor log last write $(if ($cw) { $cw.LastWriteTimeUtc.ToString('HH:mm:ss') } else { 'n/a' })" |
+            Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append
+        if ($instEnd -lt (Get-Date).AddSeconds(7200)) { "   WARNING: the instruments end at T0 + $InstrumentSec s; the system sampler ending is a STOP" }
+        $nextCp = (Get-Date).AddSeconds($CheckpointSec)
+    }
     if ((Get-Date) -ge $nextIdle) {
         Read-NewPos; $snap = @{}; foreach ($k in $latest.Keys) { $snap[$k] = $latest[$k] }
         if ($prevSnap) { $mm = Get-MaxMove $prevSnap $snap

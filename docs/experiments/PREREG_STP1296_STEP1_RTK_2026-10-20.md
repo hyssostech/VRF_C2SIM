@@ -137,9 +137,12 @@ What runs:
   - Gate: SIM/WALL >= 13.5 (0.9 x 15) per 60 s outside a STOP, recorded from sim= / t=. A shortfall with no safety
     STOP is a MULTIPLIER-ONLY result: recorded, not a failure of the vendor method; the 1x question stays open.
 - NO FIXED WINDOW (D234): the run ends on IDLE - no reflected object moves more than 100 m over 600 WALL s (POS) - or
-  on a SAFETY STOP (memory, back end lost, the samplers, a guard block). A 4 h box-time ceiling (-CeilingSec 14400)
-  exists as a stated SAFETY stop only. The scenario's own last phase ends on NOT True (never; R2), so IDLE is the only
-  completion signal available; that is declared.
+  on a SAFETY STOP (memory, back end lost, the samplers, a guard block). There is NO ceiling (supervisor, 2026-10-20:
+  "no artificial time limits"). Every 4 h the script writes a CHECKPOINT (state; c15-checkpoints.txt) and keeps running;
+  only the OPERATOR may end the run there, by creating OPERATOR-END.txt in the run folder. The instruments (holder,
+  samplers, observer) are started for 24 h, the holder's maximum (LaunchVrf52 0..86400); a checkpoint warns 2 h before
+  that, because the system sampler ending is a STOP. The scenario's own last phase ends on NOT True (never; R2), so IDLE
+  is the only completion signal available; that is declared.
 - -NoGui, NotifyLevel 4, no interface, no order, the S1-1 fix (ff_check.ps1, commit 8e3a835) in force.
 
 What is recorded (OBSERVATION; no pass/fail on Iron Storm in this run):
