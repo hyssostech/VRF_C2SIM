@@ -6,10 +6,39 @@ Written by Worker R (STP-1192). Measurements and design implications are kept in
 Roles and counts only. The C2SIM order and init derive from a customer scenario, so no names or coordinates appear here.
 Code refs are at feat/aggregate-documented-move 7467e53a (the #2 merge, the build LV-1 and LV-1b ran) unless stated.
 
+## 0. RE-PARKED 2026-10-20 (STP-1296; operator: "Park the vrf stuff once more when you get to a good spot. No more runs for now")
+
+Nothing is running. Branch stp-1296-group-prereg (VRF_C2SIM). Ledger: `*** NEXT FREE: 5580 ***` (S3 used 5575-5579).
+Done today:
+- STP-1296 step 1 (Road to Kaunas PhaseTwo as shipped, back end only): S1/S2 ended on the 6 GiB MEMORY STOP at T0 + 49 / 43 s.
+  S3, with NO memory limits, printed a PLATEAU at 18:28:49Z, with commit at 95-97 % of the limit for 66 min.
+  - Scored BY DESIGN by c14981's letter: STP-1296 c14982 (stp-data 6c49990, LDS3-REPORT).
+  - Private growth ended about T0 + 21 min, with the terrain area-job lines (10-min bins). That fits load rather than
+    RAM-sizing; a hypothesis, not established.
+- Roads / routes docs answer: docs/experiments/stp1296/ROADS_ROUTES_DOCS_2026-10-20.md (38f9127).
+  - No PLANNING task needs roads.
+  - Dense or obstacle-clear routes are nowhere documented as required. That literal tasks need clear legs is our [A].
+- Memory-based stops OFF by default across the run tooling (operator, directly; 78920a5). Failure stops are kept. Test 8l
+  is updated; its dry-run half needs the Windows box.
+- Iron Storm PREREG, PARKED / NOT RUN: docs/experiments/PREREG_IRONSTORM_VENDOR_WAY_2026-10-20.md.
+  - Arm P (PlanPath) only, cut A first, scored on its own merits (operator: "new way only, checks OK, reduced first").
+OWED at resume:
+- C1 / C2: log-only code (a per-member PLANNED GOAL line; a GOAL CHECK against the water/building tiles). PREREG sec 3a;
+  NOT written.
+- The scorer fork g1_7p_score.py: NOT written.
+- IS-OFFLINE-R, queued with the dispatcher, NOT done:
+  - the scorer on L2 B1's directory and the g1_6 sha / 79-0-18 repro;
+  - the vertex-1 goals against the water tiles.
+- OPEN DISCREPANCY, to resolve at resume: the LV-1 "F6" 6.0 GiB MEMORY STOP lives in the dispatcher's order-folder runner,
+  not in this repo, so 78920a5 does not cover it. Worker R asked the supervisor (2026-10-20, with 78920a5) to have the dispatcher default it off. Whether it
+  did, or holds that 78920a5 covers it, is unconfirmed.
+- The vendor's own container task (group-attack-to-objective) still needs the facade to marshal a list variable.
+- The Auto-default ruling on RL-20260928-03 is still the owner's.
+
 ## 1. Where things stand
 
 - Branch: feat/aggregate-documented-move. The STP-1210 fix (#2) is merged into it, and its main port (#3) is merged into main.
-- Ledger: `*** NEXT FREE: 5557 ***` (docs/OPUS_EXECUTION_PLAN.md Appendix B). LV-1 used 5544-5552; LV-1b used 5553-5556.
+- Ledger (as of 10-16; superseded by sec 0, NEXT FREE 5580): `*** NEXT FREE: 5557 ***` (docs/OPUS_EXECUTION_PLAN.md Appendix B). LV-1 used 5544-5552; LV-1b used 5553-5556.
 - The day holder that LV-1/LV-1b reused (RtiProbe, joined 12:05:14Z, settle 28800 s) expires on its own. Never kill it.
 - Jira: STP-1192 carries the live-run records:
   - c14384 is the LV-1 PREREG;
