@@ -26,7 +26,10 @@ param([Parameter(Mandatory)][int]$AppBase,
       # 118.5 m, B5 sec 3a). Matching is on the uuid's hex digits, case-insensitive.
       [string]$NonGroundUuidFile = '',
       # 0 = RunSim sends run() only, so the scenario's own saved time multiplier stands (RunSim sets one only if > 1).
-      [int]$Multiplier = 0)
+      [int]$Multiplier = 0,
+      # Amendment C2 (D238): the pre-launch free-memory gate, GiB. 11.5 was a comparability number; the safety line is
+      # the 6.0 GiB MEMORY STOP (sys_sampler.ps1), which is unchanged.
+      [double]$GateGiB = 11.5)
 $ErrorActionPreference = 'Continue'
 $R = $Root
 Set-Location $R
@@ -58,7 +61,7 @@ $ff = if (Test-Path -LiteralPath $ffPath) { Get-Content $ffPath -Raw } else { $n
 Get-Content $gate
 . (Join-Path $PSScriptRoot 'ff_check.ps1')   # S1-1: ignore ';' comment lines (the shipped file documents the syntax in them)
 if (Test-FastForwardEntry $ff) { "ABORT: fastForwardSettings.mtl holds a LIVE entry (it can switch the frame mode)"; exit 4 }
-if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
+if ($free -lt $GateGiB) { "ABORT: free memory $free GiB < $GateGiB (launch gate; amendment 2 / C2)"; exit 4 }
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
 $sysStart = Get-Date
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
