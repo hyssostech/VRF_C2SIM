@@ -309,8 +309,11 @@ Change - S2's configuration exactly (PhaseTwo as shipped, -NotifyLevel 2, -NoWat
   faults/s, pagefile use, and the back end's own page faults/s; it already records the back end's WS and private bytes
   and system Available.
 Ends: PLATEAU - the back-end WS flat for 600 s (max - min < 100 MB) with the back end busy (C3) - reported once with its
-level, then the run keeps going as an observation until the operator ends it; the emergency floor; the back end gone;
-or the operator (OPERATOR-END.txt).
+level, then the run keeps going as an observation until the operator ends it; the emergency floor; the COMMIT GUARD
+(supervisor, 2026-10-20: -StopCommitPct 95 - system commit charge >= 95 % of the commit limit; the box hard-hung twice
+under memory pressure on 10-06 and the live system is on it; a by-design cache shows as working set and trimmable
+standby, not as commit near the limit, so the guard does not mask the answer); the back end gone; or the operator
+(OPERATOR-END.txt). Both the floor and the commit guard are MEMORY STOPs: back end forced first, at once.
 Pre-stated readings (measurement statements; implications are the operator's):
 - BY DESIGN: the WS plateaus while Available stays above the floor and commit charge stays below the commit limit -
   the back end uses memory up to a level and holds it.

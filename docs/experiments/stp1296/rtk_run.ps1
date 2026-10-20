@@ -34,6 +34,8 @@ param([Parameter(Mandatory)][int]$AppBase,
       # C5; for D240 1.0 = an EMERGENCY floor only, protecting the live system on this box); -WsAbortMBPerMin /
       # -WsAbortWsMB are ws_sampler2's slope / size aborts (700 MB/min over 300 s, 16,000 MB before C5).
       [double]$StopGiB = 6.0, [double]$WsAbortMBPerMin = 700, [double]$WsAbortWsMB = 16000,
+      # C5 commit guard: STOP at this percent of the commit limit (0 = off); a MEMORY STOP like the floor (back end first).
+      [double]$StopCommitPct = 0,
       # Amendment C3 (D239): the back end's --notifyLevel (4 = our default; 2 = the vendor default), and -NoWatch (no
       # WatchVrf observer). Under -NoWatch there is no IDLE end (no POS); the run ends only on a STOP or the operator,
       # and a WS that stays flat for -FlatSec (max - min < -FlatMB) is reported once as ANSWERED and the run continues.
@@ -77,7 +79,7 @@ if ($free -lt $GateGiB) { "ABORT: free memory $free GiB < $GateGiB (launch gate;
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
 $sysStart = Get-Date
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
-    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec",'-StopGiB',"$StopGiB",
+    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec",'-StopGiB',"$StopGiB",'-StopCommitPct',"$StopCommitPct",
     '-WarnGiB',"$($StopGiB + 1.0)") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle
 $smp = $null; $watch = $null; $bePid = 0; $beStart = $null; $launchUtc = (Get-Date).ToUniversalTime()

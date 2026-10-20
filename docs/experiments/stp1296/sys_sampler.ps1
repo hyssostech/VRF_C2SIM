@@ -15,10 +15,14 @@
 #   (the MEMORY STOP, c14919). One sample that crosses both thresholds snapshots once, as STOP.
 # The caller watches the MARKER, not the exit code.
 param([Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$SnapDir, [int]$Seconds = 3600,
-      [double]$WarnGiB = 7.0, [double]$StopGiB = 6.0)
+      [double]$WarnGiB = 7.0, [double]$StopGiB = 6.0,
+      # Amendment C5: a COMMIT guard - STOP when the system commit charge is >= this percent of the commit limit (0 = off).
+      [double]$StopCommitPct = 0)
 "tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB,commitGiB,commitLimitGiB,pageFaultsPerSec,pagefileUsedMB,backendPageFaultsPerSec" | Set-Content $Out -Encoding ascii
+$script:commitPct = -1
 function Vm {
     $m = try { Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory -ErrorAction Stop } catch { $null }
+    $script:commitPct = if ($m -and $m.CommitLimit -gt 0) { 100.0 * $m.CommittedBytes / $m.CommitLimit } else { -1 }
     $pf = try { (Get-CimInstance Win32_PageFileUsage -ErrorAction Stop | Measure-Object CurrentUsage -Sum).Sum } catch { $null }
     $bp = try { (Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -Filter "Name='vrfSimHLA1516e'" -ErrorAction Stop | Select-Object -First 1).PageFaultsPersec } catch { $null }
     '{0},{1},{2},{3},{4}' -f $(if ($m) { [math]::Round($m.CommittedBytes / 1GB, 2) } else { '' }), $(if ($m) { [math]::Round($m.CommitLimit / 1GB, 2) } else { '' }),
@@ -45,6 +49,7 @@ while ((Get-Date) -lt $end) {
     $avail = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
     ('{0},{1},{2},{3},{4},{5},{6}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'),
         (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e'), (Vm)) | Add-Content $Out -Encoding ascii
+    if ($StopCommitPct -gt 0 -and $script:commitPct -ge $StopCommitPct) { Snap 'stop' $now; ('{0} commit {1:F1} % of the limit >= {2} %' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $script:commitPct, $StopCommitPct) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) commit $([math]::Round($script:commitPct, 1)) % >= $StopCommitPct %"; exit 3 }
     if ($avail -lt $StopGiB) { Snap 'stop' $now; ('{0} free {1} GiB < {2}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, $StopGiB) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"; exit 3 }
     if (-not $warned -and $avail -lt $WarnGiB) { $warned = $true; Snap 'warn' $now; "WARN $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $WarnGiB" }
     Start-Sleep -Milliseconds 1000
