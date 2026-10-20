@@ -257,8 +257,8 @@ while ($true) {
         "[$(& $ts)] READING (C3): WS slope over the first 60 s after T0 = " + $(Get-Slope $wsRows) +
             " MB/min (" + $wsRows.Count + " samples); over the 60 s before T0 = " + $(Get-Slope $pre) + " MB/min; READY ($($readyUtc.ToString('HH:mm:ss'))Z) -> T0 = " + $(Get-Slope $rdy) + " MB/min (" + $rdy.Count + " samples)" |
             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
-    if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(60)
-        # C3: a vendor-log freshness sample every 60 s (S1: the log's last write was 24 s BEFORE T0 while the clock ran)
+    if ((Get-Date) -ge $nextVlog) { $nextVlog = (Get-Date).AddSeconds(5)
+        # C3: a vendor-log freshness sample every 5 s (each loop pass) (S1: the log's last write was 24 s BEFORE T0 while the clock ran)
         $vl = Get-VendorLog
         "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')),$(if ($vl) { $vl.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { '' }),$(if ($vl) { $vl.Length } else { '' })" |
             Add-Content (Join-Path $R "$d\c16-vlog.csv") -Encoding ascii }

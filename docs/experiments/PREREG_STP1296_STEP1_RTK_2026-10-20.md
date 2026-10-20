@@ -254,7 +254,7 @@ Ends: a MEMORY STOP (or any STOP); or the WS stays flat for 600 s (max - min < 1
 the run then continues as an observation until the operator ends it (OPERATOR-END.txt); or the operator. There is no
 IDLE end under -NoWatch (no POS).
 Also added / fixed:
-- a vendor-log freshness sample every 60 s (c16-vlog.csv: now, the log's last write, its bytes). S1 measured the
+- a vendor-log freshness sample every 5 s (c16-vlog.csv: now, the log's last write, its bytes). S1 measured the
   vendor log's last write 24 s BEFORE T0 and 73 s before the STOP, while WatchVrf saw the clock advancing at about 15x
   and 3 threads near-saturated (a measurement; no claim).
 - the top-3 thread CPU measure (S1 console: InvalidArgument x3, concatenated values) is rewritten as an explicit loop.
