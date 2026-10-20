@@ -5,7 +5,7 @@ spot. No more runs for now". NO PROBE AND NO RUN until the operator approves thi
 supervisor: "Fix Iron Storm and run it. If there are still issues, consider going back. No probes before I approve."
 OPERATOR DECISIONS on this registration (2026-10-20, relayed, verbatim "new way only, checks OK, reduced first"):
 (1) arm P (PlanPath) ONLY - no control arm; it is scored on its own merits: arrivals, no stops or stalls, goals reached;
-(2) the two offline checks of sec 6 are approved (no VR-Forces launch; queued with the dispatcher as IS-OFFLINE-R);
+(2) the two offline checks of sec 6 are approved (no VR-Forces launch; queued with the dispatcher as IS-OFFLINE-R, then cancelled at the park);
 (3) cut A (reduced) first; the full Iron Storm after, if it goes well.
 Drafted by Worker R from the record only.
 - Cites: repo records [O]; vendor files as those records cite them [V]; our inference [A].
@@ -279,7 +279,7 @@ launch burns its whole block.
 - Check 3c (the D-6 completion path on L2 B1's log): owed; added after IS-OFFLINE-R was queued.
 - The seat's tail-watcher needs the app log FILE path the runner writes; it is named in the go-live record.
 - The scorer fork g1_7p_score.py: NOT written. Owed.
-- IS-OFFLINE-R (the sec 6 checks 3 and 3b): queued with the dispatcher, NOT done. Its results go into an amendment.
+- IS-OFFLINE-R (the sec 6 checks 3 and 3b): CANCELLED by the dispatcher at the park, NOT done; re-queue at resume. Its results go into an amendment.
 - The full Iron Storm registration: after cut A, if it goes well (operator decision 3).
 
 ## 7. What this run does NOT claim

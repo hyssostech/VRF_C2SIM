@@ -26,7 +26,7 @@ OWED at resume:
 - C1 / C2: log-only code (a per-member PLANNED GOAL line; a GOAL CHECK against the water/building tiles). PREREG sec 3a;
   NOT written.
 - The scorer fork g1_7p_score.py: NOT written.
-- IS-OFFLINE-R, queued with the dispatcher, NOT done:
+- IS-OFFLINE-R: CANCELLED by the dispatcher at the park (2026-10-20), NOT done; re-queue at resume:
   - the scorer on L2 B1's directory and the g1_6 sha / 79-0-18 repro;
   - the vertex-1 goals against the water tiles.
 - OPEN DISCREPANCY, to resolve at resume: the LV-1 "F6" 6.0 GiB MEMORY STOP lives in the dispatcher's order-folder runner,
