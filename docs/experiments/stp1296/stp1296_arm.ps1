@@ -6,6 +6,14 @@
 #   two pre-launch gates: free memory >= 7.0 GiB (HANDOFF_PARK sec 5 step 3) and the private C2SIM server answering
 #   the reset (G0e) - either missing = ABORT before any launch;
 #   no GUI capture at the end (there is no GUI). Read before running.
+# AMENDMENT 2 (after c14963's MEMORY STOP in arm P; STP-1296 comment, 2026-10-20), on top of the above:
+#   the memory gate is >= 11.5 GiB free (the value at c14963's gate), recorded with the vmmemWSL working set and
+#   docker stats for every container (c0-gate.txt);
+#   a second 1 Hz sampler (sys_sampler.ps1: free memory, vmmemWSL, VrfC2SimApp, vrfGui, back end; WS + private MB) runs
+#   from the gate to the end on the same host clock as ws_sampler2.ps1, snapshotting the top-10 processes + docker stats
+#   on alert (WARN < 7.0 GiB, STOP < 6.0 GiB);
+#   on its STOP the script tears down with the BACK END FIRST (StopVrf52 with our own pid + start), then the interface;
+#   ws_sampler2.ps1 is run from its committed place (handoff-2026-10-15), not from a copy next to this script.
 # HANDOFF COPY (2026-10-15) of the scratch tool that ran REPRO_BACKEND_STOP R-a/R-b; -Root/-Planner added for L2.
 # Expects runs\launch52\repro\repro_init.xml + repro_order_<a|b>.xml (tools/stp/make_backend_stop_repro.py) and the
 # disposable STP container stp-r on ws://127.0.0.1:39599 (see HANDOFF_2026-10-15.md). Read before running.
@@ -25,7 +33,26 @@ $ts = { (Get-Date).ToUniversalTime().ToString('HH:mm:ss') }
 Remove-Item Env:Vrf__DemoExtent -ErrorAction SilentlyContinue
 $free = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
 "[$(& $ts)] free memory: $free GiB"
-if ($free -lt 7.0) { "ABORT: free memory $free GiB < 7.0 (HANDOFF_PARK sec 5 step 3)"; exit 4 }
+$gate = "$d\c0-gate.txt"
+"gate $(& $ts) free $free GiB" | Set-Content $gate -Encoding ascii
+"vmmemWSL: " + ((Get-Process vmmemWSL -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) wsMB $([math]::Round($_.WorkingSet64/1MB)) privMB $([math]::Round($_.PrivateMemorySize64/1MB))" }) -join '; ') | Add-Content $gate -Encoding ascii
+(docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' 2>&1) | Add-Content $gate -Encoding ascii
+if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
+$sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
+    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds','2400') -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
+$vb = $null; $smp = $null; $ifc = $null
+function Stop-OnMemory {
+    # amendment 2: called in every wait; on the system sampler's STOP (exit 3) the BACK END goes FIRST.
+    if (-not ($sys.HasExited -and $sys.ExitCode -eq 3)) { return }
+    "[$(& $ts)] MEMORY STOP: " + ((Get-Content "$d\c12-sys.out" -ErrorAction SilentlyContinue) -join ' | ')
+    $b = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($b) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -ForceOwnBackendPid $b.Id -ForceOwnBackendStartUtc $b.StartTime.ToUniversalTime().ToString('o') *> "$d\c10-force.log"; "[$(& $ts)] back end stop exit $LASTEXITCODE" }
+    else { pwsh -NoProfile -File scripts\StopVrf52.ps1 *> "$d\c9-stopvrf52.log"; "[$(& $ts)] StopVrf (no back end found) exit $LASTEXITCODE" }
+    tools\StopIface\bin\Release\net10.0\StopIface.exe http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM --yes *> "$d\c8-stopiface.log"
+    foreach ($p in $script:smp, $script:ifc) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } catch {} } }
+    "   left running: " + ((Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')
+    exit 7
+}
 $reset = (tools\StopIface\bin\Release\net10.0\StopIface.exe http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM --yes 2>&1 | Select-String 'after RESET') -join ''
 "[$(& $ts)] reset: " + $reset
 if (-not $reset) { "ABORT: the private C2SIM server did not answer the reset - D106 is OPERATOR ONLY, so STOP"; exit 5 }
@@ -34,29 +61,29 @@ $launch = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\Launc
     '-FederationHoldAppNumber',"$AppBase",'-BackendAppNumber',"$($AppBase+2)",'-NoGui',
     '-AppDataDir','C:\C2SIM\vrf-appdata-unattended\appData') -RedirectStandardOutput "$d\c2-launchvrf52.log" -RedirectStandardError "$d\c2-launchvrf52.err" -PassThru -WindowStyle Hidden
 $deadline = (Get-Date).AddSeconds(420)
-while ((Get-Date) -lt $deadline) { if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 5 }
+while ((Get-Date) -lt $deadline) { Stop-OnMemory; if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 5 }
 "[$(& $ts)] launch: " + ((Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' | Select-Object -First 2 | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(80,$_.Line.Trim().Length)) }) -join ' | ')
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { "ABORT: VR-Forces not READY"; exit 3 }
-$smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'ws_sampler2.ps1'),
+$smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
     '-Out',"$R\$d\c11-sampler.csv",'-Seconds','1800','-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 $ifc = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\StartInterface52.ps1','-ClientId','STP','-Server','private','-AppNumber',"$($AppBase+3)") `
     -RedirectStandardOutput "$d\c3-interface.log" -RedirectStandardError "$d\c3-interface.err" -PassThru -WindowStyle Hidden
 $f = "$d\c3-interface.log"
 $deadline = (Get-Date).AddSeconds(150)
-while ((Get-Date) -lt $deadline) { if ((Test-Path $f) -and (Select-String -Path $f -Pattern 'Connected to C2SIM' -Quiet)) { break }; Start-Sleep 3 }
+while ((Get-Date) -lt $deadline) { Stop-OnMemory; if ((Test-Path $f) -and (Select-String -Path $f -Pattern 'Connected to C2SIM' -Quiet)) { break }; Start-Sleep 3 }
 "[$(& $ts)] interface: " + ((Select-String -Path $f -Pattern 'Backend discovered|NAVIGATE GATE' | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(70,$_.Line.Trim().Length)) }) -join ' | ')
 pwsh -NoProfile -File tools\stp\StpPush.ps1 -Action initialization -File "runs\launch52\repro\repro_init.xml" -Url ws://127.0.0.1:39599 *> "$d\c5-init.log"
 "[$(& $ts)] init push exit $LASTEXITCODE"
 $deadline = (Get-Date).AddSeconds(120)
-while ((Get-Date) -lt $deadline) { if ((Select-String -Path $f -Pattern 'created as uuid').Count -ge 1 -and (Select-String -Path $f -Pattern 'R1 position reports: 1 sent' -Quiet)) { break }; Start-Sleep 5 }
+while ((Get-Date) -lt $deadline) { Stop-OnMemory; if ((Select-String -Path $f -Pattern 'created as uuid').Count -ge 1 -and (Select-String -Path $f -Pattern 'R1 position reports: 1 sent' -Quiet)) { break }; Start-Sleep 5 }
 "[$(& $ts)] bound: " + (Select-String -Path $f -Pattern 'created as uuid').Count
 pwsh -NoProfile -File tools\stp\StpPush.ps1 -Action order -File "runs\launch52\repro\$Order" -Url ws://127.0.0.1:39599 *> "$d\c7-order.log"
 "[$(& $ts)] order push exit $LASTEXITCODE"
 $deadline = (Get-Date).AddSeconds(1200)
-while ((Get-Date) -lt $deadline) { if (Select-String -Path $f -Pattern "DISPATCHED \S+ task 'TEST_MOVE_2'|BACK END LOST:" -Quiet) { break }; Start-Sleep 3 }
+while ((Get-Date) -lt $deadline) { Stop-OnMemory; if (Select-String -Path $f -Pattern "DISPATCHED \S+ task 'TEST_MOVE_2'|BACK END LOST:" -Quiet) { break }; Start-Sleep 3 }
 Select-String -Path $f -Pattern "DISPATCHED \S+ task 'TEST_MOVE_\d'|member\(s\) ended|POPULATE .* member\(s\) created|WATER ON THE LINE -" | ForEach-Object { "   " + $_.Line.Trim().Substring(0,[Math]::Min(170,$_.Line.Trim().Length)) } | Select-Object -Last 8
 $deadline = (Get-Date).AddSeconds(360)
-while ((Get-Date) -lt $deadline) { if (Select-String -Path $f -Pattern 'BACK END LOST:' -Quiet) { break }; if ($smp.HasExited) { "[$(& $ts)] SAMPLER EXITED (abort?)"; break }; Start-Sleep 3 }
+while ((Get-Date) -lt $deadline) { Stop-OnMemory; if (Select-String -Path $f -Pattern 'BACK END LOST:' -Quiet) { break }; if ($smp.HasExited) { "[$(& $ts)] SAMPLER EXITED (abort?)"; break }; Start-Sleep 3 }
 "[$(& $ts)] window end. BACK END LOST lines: " + (Select-String -Path $f -Pattern 'BACK END LOST:').Count
 Select-String -Path $f -Pattern 'SIM/WALL RATIO' | Select-Object -Last 3 | ForEach-Object { "   " + $_.Line.Trim().Substring(0,[Math]::Min(70,$_.Line.Trim().Length)) }
 $vb = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -70,6 +97,6 @@ pwsh -NoProfile -File scripts\StopVrf52.ps1 *> "$d\c9-stopvrf52.log"; $e = $LAST
 if ($e -eq 3 -and $vb) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -ForceOwnBackendPid $vb.Id -ForceOwnBackendStartUtc $vb.StartTime.ToUniversalTime().ToString('o') *> "$d\c10-force.log"; $e = "3 -> $LASTEXITCODE" }
 "[$(& $ts)] StopVrf: $e"
 if ($vb) { $w = Get-ChildItem C:\MAK\logs -Filter "*$($vb.Id).log" | Select-Object -First 1; "   vendor log last write (after close): " + $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') + "; in-obstacle lines: " + (Select-String -Path $w.FullName -SimpleMatch 'Start point is within obstacle').Count }
-foreach ($p in $smp, $ifc) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } catch {} } }
+foreach ($p in $smp, $ifc, $sys) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } catch {} } }
 "   left running: " + ((Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')
 "   RTI: " + ((Get-Process rtiexec, rtiForwarder -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ') + "; launch holder app $AppBase (see c2-launchvrf52.log)"
