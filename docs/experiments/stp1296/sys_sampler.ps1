@@ -13,9 +13,14 @@
 #   availGiB < -WarnGiB  -> "WARN ..." line, snapshot warn-<hhmmss>.txt, keep sampling;
 #   availGiB < -StopGiB  -> "STOP ..." line, snapshot stop-<hhmmss>.txt, the marker <SnapDir>\..\c12-STOP.txt, exit 3
 #   (the MEMORY STOP, c14919). One sample that crosses both thresholds snapshots once, as STOP.
-# The caller watches the MARKER, not the exit code.
+# The caller watches the MARKER, not the exit code. -StopGiB 0 (the default) = no floor; the WARN snapshot is a record only.
+# CONSOLIDATION 2026-10-20 (the operator, directly): memory-based stops are OFF by default; failure-based stops
+# (back end lost, RTI damage, stp-lt failure) stay. Measured, S3 (STP-1296 c14982, no memory limits): the vendor's
+# PhaseTwo back end printed a PLATEAU at 18:28:49Z (WS 16,878 / private 38,199 MB) with commit at 95-97 % of the limit
+# for 66 min; S1 / S2 had been ended by the 6 GiB stop at T0 + 49 / 43 s, and a 1.0 GiB floor or a 95 % commit guard
+# would have ended S3 before its plateau. Re-arm a stop only by passing it explicitly.
 param([Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$SnapDir, [int]$Seconds = 3600,
-      [double]$WarnGiB = 7.0, [double]$StopGiB = 6.0,
+      [double]$WarnGiB = 7.0, [double]$StopGiB = 0,
       # Amendment C5: a COMMIT guard - STOP when the system commit charge is >= this percent of the commit limit (0 = off).
       [double]$StopCommitPct = 0)
 "tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB,commitGiB,commitLimitGiB,pageFaultsPerSec,pagefileUsedMB,backendPageFaultsPerSec" | Set-Content $Out -Encoding ascii

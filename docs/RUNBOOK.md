@@ -1432,12 +1432,12 @@ on 2026-09-14; each is now closed by something this section names
      object-creation-and-compose burst, ~10 s after the order reached the bus) could still alert.
      RunC2SimScenario.ps1 Stage 8b now polls the same alerts file every 10 s during the observation
      window and counts only alerts timestamped AT OR AFTER the order reaching the bus (orderOnBusUtc,
-     fallback orderPushedUtc). At -WsRunawayAbortAfter (default 3; 0 = off, the pre-2026-09-15
-     behaviour) alerts since dispatch the runner logs "[FAIL] BACK-END WS RUNAWAY confirmed: N alerts
+     fallback orderPushedUtc). At -WsRunawayAbortAfter (default 0 = off SINCE 2026-10-20: the operator removed memory-based
+     stops, STP-1296 c14982; it was 3 from 2026-09-15; pass 3 to re-arm) alerts since dispatch the runner logs "[FAIL] BACK-END WS RUNAWAY confirmed: N alerts
      since the order at <t>; last: <line>", records preflight.wsRunaway in the manifest, and fails the
      run through the SAME path every other post-launch Stage 8b failure uses (Stop-Runner, normal
      StopIface-then-StopVrf teardown, nothing force-killed, the Stage 2h holder left alone), with the
-     new exit code 6. -DryRun prints the plan and reads nothing; -WsRunawayAbortAfter 0 omits it.
+     new exit code 6. -DryRun prints the plan and reads nothing; at the default 0 the plan omits it.
      HONEST LIMIT: the dispatch-time filter does NOT remove the creation-burst alert (it fires ~10 s
      AFTER dispatch); the threshold of 3 is what protects. SampleThreads.ps1 separately gained
      -WarmupResetAtUtc <UTC datetime> / -WarmupResetFile <path>, which re-arm the tripwire's own

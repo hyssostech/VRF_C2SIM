@@ -3,6 +3,11 @@
 # disposable STP container stp-r on ws://127.0.0.1:39599 (see HANDOFF_2026-10-15.md). Read before running.
 # One sanitized repro run end to end (scratch tool). Launch VR-Forces (own holder number), sampler, interface (MAIN),
 # push repro init + order through the stp-r container, watch the second dispatch + 6 min, sample threads, tear down.
+# CONSOLIDATION 2026-10-20 (the operator, directly): memory-based stops are OFF by default; failure-based stops
+# (back end lost, RTI damage, stp-lt failure) stay. Measured, S3 (STP-1296 c14982, no memory limits): the vendor's
+# PhaseTwo back end printed a PLATEAU at 18:28:49Z (WS 16,878 / private 38,199 MB) with commit at 95-97 % of the limit
+# for 66 min; S1 / S2 had been ended by the 6 GiB stop at T0 + 49 / 43 s, and a 1.0 GiB floor or a 95 % commit guard
+# would have ended S3 before its plateau. Re-arm a stop only by passing it explicitly.
 param([Parameter(Mandatory)][string]$Tag, [Parameter(Mandatory)][int]$AppBase, [Parameter(Mandatory)][string]$Order,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
       [string]$Planner = '')
@@ -23,7 +28,7 @@ while ((Get-Date) -lt $deadline) { if (Select-String -Path "$d\c2-launchvrf52.lo
 "[$(& $ts)] launch: " + ((Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' | Select-Object -First 2 | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(80,$_.Line.Trim().Length)) }) -join ' | ')
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { "ABORT: VR-Forces not READY"; exit 3 }
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'ws_sampler2.ps1'),
-    '-Out',"$R\$d\c11-sampler.csv",'-Seconds','1800','-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c11-sampler.csv",'-Seconds','1800','-AbortMBPerMin','0','-WindowSec','300','-AbortWsMB','0') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 $ifc = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\StartInterface52.ps1','-ClientId','STP','-Server','private','-AppNumber',"$($AppBase+4)") `
     -RedirectStandardOutput "$d\c3-interface.log" -RedirectStandardError "$d\c3-interface.err" -PassThru -WindowStyle Hidden
 $f = "$d\c3-interface.log"

@@ -381,7 +381,7 @@
       6  Stage 8b WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension): -WsRunawayAbortAfter
          confirmed thread-samples.alerts.txt episodes accumulated since the order reached
          the bus. Teardown ran (same path as exit 3); the manifest names the alerts under
-         preflight.wsRunaway. Disabled with -WsRunawayAbortAfter 0.
+         preflight.wsRunaway. OFF by default (0, 2026-10-20); armed with e.g. -WsRunawayAbortAfter 3.
 
 .EXAMPLE
     pwsh -File scripts\RunC2SimScenario.ps1 -DryRun
@@ -616,8 +616,9 @@ param(
     # -WarmupResetFile), untouched here. -WsRunawayAbortAfter is instead the SECOND, independent net:
     # even a real post-dispatch burst alert can not unilaterally abort a run - only a SUSTAINED signal
     # (this many confirmed episodes) does.
-    # 0 = disabled = today's behaviour (the wrapper's post-hoc report is all a run ever gets); the
-    # default of 3 matches the V6f record, where the back end grew from 3.1 to 16+ GB over 6 confirmed
+    # 0 = disabled (the wrapper's post-hoc report is all a run ever gets) and, since 2026-10-20, the DEFAULT: the
+    # operator removed memory-based stops (STP-1296 c14982: with no memory limit the vendor's own PhaseTwo back end
+    # reached a plateau; 6 GiB stops had ended S1/S2 first). Pass 3 to re-arm: 3 matches the V6f record, where the back end grew from 3.1 to 16+ GB over 6 confirmed
     # episodes - by episode 3 (independent of the creation-burst alert, since the default abort-after
     # already requires 3 REGARDLESS of which alert is first) the pattern is no longer one legitimate
     # step. Aborting takes the SAME failure path as every other post-launch Stage 8b failure
@@ -625,7 +626,7 @@ param(
     # ever force-kills anything, and the Stage 2h federation holder is never touched), a manifest record
     # naming which alerts triggered it, and a distinct runner exit code (6) so a caller can tell "the
     # back end diagnosed a runaway" apart from every other failure code (2/3/4/5).
-    [int] $WsRunawayAbortAfter = 3,
+    [int] $WsRunawayAbortAfter = 0,
 
     # STAGE 2h - THE FEDERATION HOLDER (STP-825, 2026-09-15). 5.2 PROFILE ONLY.
     #

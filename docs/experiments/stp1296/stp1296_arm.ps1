@@ -15,6 +15,11 @@
 #   every STOP (that marker, the system sampler gone, ws_sampler2's ABORT) tears down with the BACK END FIRST
 #   (StopVrf52 -TimeoutSec 15 -GraceSec 1 with our own pid + start), then the reset and the interface; exit 7;
 #   ws_sampler2.ps1 is run from its committed place (handoff-2026-10-15), not from a copy next to this script.
+# CONSOLIDATION 2026-10-20 (the operator, directly): memory-based stops are OFF by default; failure-based stops
+# (back end lost, RTI damage, stp-lt failure) stay. Measured, S3 (STP-1296 c14982, no memory limits): the vendor's
+# PhaseTwo back end printed a PLATEAU at 18:28:49Z (WS 16,878 / private 38,199 MB) with commit at 95-97 % of the limit
+# for 66 min; S1 / S2 had been ended by the 6 GiB stop at T0 + 49 / 43 s, and a 1.0 GiB floor or a 95 % commit guard
+# would have ended S3 before its plateau. Re-arm a stop only by passing it explicitly.
 # HANDOFF COPY (2026-10-15) of the scratch tool that ran REPRO_BACKEND_STOP R-a/R-b; -Root/-Planner added for L2.
 # Expects runs\launch52\repro\repro_init.xml + repro_order_<a|b>.xml (tools/stp/make_backend_stop_repro.py) and the
 # disposable STP container stp-r on ws://127.0.0.1:39599 (see HANDOFF_2026-10-15.md). Read before running.
@@ -22,7 +27,9 @@
 # push repro init + order through the stp-r container, watch the second dispatch + 6 min, sample threads, tear down.
 param([Parameter(Mandatory)][string]$Tag, [Parameter(Mandatory)][int]$AppBase, [string]$Order = 'repro_order_a.xml',
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
-      [Parameter(Mandatory)][ValidateSet('PlanPath','Group')][string]$Planner)
+      [Parameter(Mandatory)][ValidateSet('PlanPath','Group')][string]$Planner,
+      # the amendment 2 free-memory gate, GiB (0 = off, the consolidation default; amendment 2 used 11.5)
+      [double]$GateGiB = 0)
 $ErrorActionPreference = 'Continue'
 $R = $Root   # L2: pass the feat/aggregate-documented-move worktree so ITS build and scripts run
 $env:Vrf__AggregateMovePlanner = $Planner
@@ -38,9 +45,9 @@ $gate = "$d\c0-gate.txt"
 "gate $(& $ts) free $free GiB" | Set-Content $gate -Encoding ascii
 "vmmem*: " + ((Get-Process vmmem* -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) wsMB $([math]::Round($_.WorkingSet64/1MB)) privMB $([math]::Round($_.PrivateMemorySize64/1MB))" }) -join '; ') | Add-Content $gate -Encoding ascii
 (docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' 2>&1) | Add-Content $gate -Encoding ascii
-if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
+if ($GateGiB -gt 0 -and $free -lt $GateGiB) { "ABORT: free memory $free GiB < $GateGiB (STP-1296 amendment 2)"; exit 4 }
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
-    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds','3600') -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds','3600','-StopGiB','0') -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle   # Fable review: a redirected -PassThru process keeps no handle, so its ExitCode would read null
 $vb = $null; $smp = $null; $ifc = $null
 function Stop-Run([string]$why) {
@@ -76,7 +83,7 @@ while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c2-la
 "[$(& $ts)] launch: " + ((Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' | Select-Object -First 2 | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(80,$_.Line.Trim().Length)) }) -join ' | ')
 if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { Stop-Run 'ABORT: VR-Forces not READY' }
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
-    '-Out',"$R\$d\c11-sampler.csv",'-Seconds','1800','-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c11-sampler.csv",'-Seconds','1800','-AbortMBPerMin','0','-WindowSec','300','-AbortWsMB','0') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 $ifc = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\StartInterface52.ps1','-ClientId','STP','-Server','private','-AppNumber',"$($AppBase+3)") `
     -RedirectStandardOutput "$d\c3-interface.log" -RedirectStandardError "$d\c3-interface.err" -PassThru -WindowStyle Hidden
 $f = "$d\c3-interface.log"

@@ -336,6 +336,20 @@ FLOOR SAFETY (Fable check of a767310, applied in a later commit; the floor VALUE
   S2's rate, so the run most likely ends on the floor; that is stated in advance.
 - PLATEAU now needs the WS AND the private bytes flat (the OS trims a WS under pressure while private bytes climb).
 
+## 0h. RESULT NOTE + CONSOLIDATION (2026-10-20, after S3; nothing here re-reads a result)
+
+S3's result and scoring are STP-1296 c14982 (stp-data 6c49990, runs/stp1296/step1/LDS3-REPORT.md). Measured: the PLATEAU
+line printed once, at 18:28:49Z (WS 16,878 / private 38,199 MB), with commit at or above 95 % of the limit from 17:40:29Z
+to END (66 min) and Available below 1.0 GiB for 25.8 min. S1 and S2 had ended on the 6.0 GiB MEMORY STOP at T0 + 49 /
+43 s.
+Implication, a separate sentence: C5's 1.0 GiB floor (c14978) or 95 % commit guard (c14979) would have ended S3 before its
+plateau, so the memory stops in secs 0c-0g, 2 and 6 cut the vendor's run short of its answer.
+CONSOLIDATION (the operator, directly, 2026-10-20): every memory-based stop or gate in the run tooling is OFF BY DEFAULT;
+failure-based stops (back end lost, RTI damage, stp-lt failure) stay. rtk_run.ps1 -GateGiB / -StopGiB / -WsAbortMBPerMin /
+-WsAbortWsMB / -StopCommitPct, sys_sampler.ps1 -StopGiB, ws_sampler2.ps1's aborts, stp1296_arm.ps1's gate and
+RunC2SimScenario.ps1 -WsRunawayAbortAfter now default to 0 (off). The 11.5 / 7.0 / 6.0 GiB and 700 MB/min / 16,000 MB
+values in this file are what S1 / S2 ran with - historical, not defaults. Re-arming any of them is an explicit parameter.
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:

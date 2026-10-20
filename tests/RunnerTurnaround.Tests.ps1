@@ -1294,9 +1294,12 @@ Check '8k runner: the holder is started DETACHED (own console) and never passed 
 # reason 8k does - Stage 0 aborts before Stage 8b is ever planned there. The plan text is split
 # across several SHORTER anchors (the style 8i already uses for this exact reason) because the
 # real line is long enough that -DryRun output piped through Out-String can wrap it.
-Write-Host '=== 8l. WS runaway abort: the plan lists it, -WsRunawayAbortAfter 0 omits it ==='
-Check '8l runner declares -WsRunawayAbortAfter default 3' (
-    $params.ContainsKey('WsRunawayAbortAfter') -and "$($params['WsRunawayAbortAfter'].DefaultValue)" -eq '3')
+# Since 2026-10-20 the abort is OFF by default (0): the operator removed memory-based stops (STP-1296 c14982 - with
+# no memory limit the vendor's own PhaseTwo back end reached a plateau; 6 GiB stops had ended S1/S2 first). It stays
+# available: -WsRunawayAbortAfter 3 re-arms it, and the armed plan is still proven below.
+Write-Host '=== 8l. WS runaway abort: OFF by default, -WsRunawayAbortAfter 3 plans it ==='
+Check '8l runner declares -WsRunawayAbortAfter default 0 (off)' (
+    $params.ContainsKey('WsRunawayAbortAfter') -and "$($params['WsRunawayAbortAfter'].DefaultValue)" -eq '0')
 
 # 8l-0. Get-WsRunawayAlertsSinceDispatch (RunnerLib.ps1) - the PURE filter the runner's Stage 8b
 # poll calls. Fixture text is the REAL V6f alerts file (runs\20260915T160411Z_run,
@@ -1322,32 +1325,32 @@ Check '8l-0 a line with an unparseable leading timestamp is CONSERVATIVELY KEPT,
     @(Get-WsRunawayAlertsSinceDispatch -AlertsText 'NOT-A-TIMESTAMP BACK-END WS RUNAWAY: garbage' -DispatchUtc $wsDispatchReal).Count -eq 1)
 $wsPwshDry    = 'C:\Program Files\PowerShell\7\pwsh.exe'
 $wsDryScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
-$wsDryOn      = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+$wsDryOn      = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -WsRunawayAbortAfter 3 2>&1 | Out-String)
 $wsDryOnCode  = $LASTEXITCODE
-$wsDryOff     = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -WsRunawayAbortAfter 0 2>&1 | Out-String)
+$wsDryOff     = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
 $wsDryOffCode = $LASTEXITCODE
 if ($wsDryOn -notmatch 'DRY RUN - the full planned sequence' -or $wsDryOff -notmatch 'DRY RUN - the full planned sequence') {
     Check '8l SKIPPED - neither dry run reached the planned sequence in this checkout (Stage 0 aborts on the missing Release-5.2 binaries)' $true
 } else {
     Check '8l both dry runs exit 0 or 2, never 1 (the StrictMode "has not been set" throw - 8h''s defect class)' (
         $wsDryOnCode -in @(0, 2) -and $wsDryOffCode -in @(0, 2)) "on=$wsDryOnCode off=$wsDryOffCode"
-    Check '8l the default plan polls the alerts file every 10s for BACK-END WS RUNAWAY alerts' (
+    Check '8l the armed plan (-WsRunawayAbortAfter 3) polls the alerts file every 10s for BACK-END WS RUNAWAY alerts' (
         $wsDryOn -match 'would poll' -and $wsDryOn -match 'thread-samples\.alerts\.txt' -and
         $wsDryOn -match 'every 10s' -and $wsDryOn -match 'BACK-END WS' -and $wsDryOn -match 'RUNAWAY alerts')
-    Check '8l the default plan says it would abort via Stop-Runner 6 at the default count of 3' (
+    Check '8l the armed plan says it would abort via Stop-Runner 6 at the count of 3' (
         $wsDryOn -match 'Stop-Runner 6' -and $wsDryOn -match 'exit 6' -and $wsDryOn -match 'once 3 such alert')
-    Check '8l the default plan names -WsRunawayAbortAfter 0 as the off switch' (
+    Check '8l the armed plan names -WsRunawayAbortAfter 0 as the off switch' (
         $wsDryOn -match [regex]::Escape('-WsRunawayAbortAfter 0 disables this check'))
-    Check '8l -WsRunawayAbortAfter 0 OMITS the abort-rule plan line entirely' (
+    Check '8l the DEFAULT plan (no -WsRunawayAbortAfter) OMITS the abort-rule plan line entirely' (
         $wsDryOff -notmatch 'WS RUNAWAY' -and $wsDryOff -notmatch 'thread-samples\.alerts\.txt')
 }
-# THE REGRESSION THIS PINS: -WsRunawayAbortAfter defaults to 3 (armed), so a default dry run
-# that never mentions it would be the "no abort rule at all" false-green this whole item exists
-# to close - the same shape 8k's own final assertion guards for -FederationHoldSecs.
+# THE REGRESSION THIS PINS (rewritten 2026-10-20): -WsRunawayAbortAfter defaults to 0 (off), so a
+# default dry run on EITHER profile must plan no abort rule - a memory-based stop armed by default
+# is what the operator removed (STP-1296 c14982). The armed plan is proven above with an explicit 3.
 $wsDryLegacy = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.0.2 -DryRun -SkipServerCheck 2>&1 | Out-String)
 if ($wsDryLegacy -match 'DRY RUN - the full planned sequence') {
-    Check '8l a 5.0.2 dry run (-VrfProfile 5.0.2) still plans the abort rule (armed by default, profile-independent)' (
-        $wsDryLegacy -match 'BACK-END WS' -and $wsDryLegacy -match 'RUNAWAY alerts')
+    Check '8l a default 5.0.2 dry run (-VrfProfile 5.0.2) plans no abort rule either (off by default, profile-independent)' (
+        $wsDryLegacy -notmatch 'WS RUNAWAY' -and $wsDryLegacy -notmatch 'thread-samples\.alerts\.txt')
 } else {
     Check '8l 5.0.2 leg SKIPPED - that dry run did not reach the planned sequence either' $true
 }

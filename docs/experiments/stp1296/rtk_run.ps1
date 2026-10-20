@@ -1,15 +1,21 @@
 # STP-1296 D231 STEP 1 - MAK's Road to Kaunas sample AS SHIPPED, back end only (-NoGui), NO interface, NO order.
 # PREREG: docs/experiments/PREREG_STP1296_STEP1_RTK_2026-10-20.md (L1 of PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md,
 # revised). Five app numbers: holder AppBase, its retry +1, back end +2, RunSim +3, WatchVrf +4. Read before running.
-# Memory instrumentation and the STOP order are amendment 2's (stp1296_arm.ps1 header): gate >= 11.5 GiB free
-# (Available) with vmmem* and docker stats recorded; sys_sampler.ps1 from the gate; ws_sampler2.ps1 from READY; every
-# STOP (sys marker, sys sampler gone, ws_sampler2 ABORT) stops the BACK END FIRST.
+# Memory instrumentation and the STOP order are amendment 2's (stp1296_arm.ps1 header): an optional gate (-GateGiB; S1 / S2
+# used 11.5 GiB free, Available; OFF by default since the consolidation note below) with vmmem* and docker stats
+# recorded; sys_sampler.ps1 from the gate; ws_sampler2.ps1 from READY; every STOP (sys marker, sys sampler gone,
+# ws_sampler2 ABORT) stops the BACK END FIRST.
 # What this script does NOT do: save the scenario (no GUI; no save call exists here), write under C:\MAK itself, touch
 # rtiexec / rtiForwarder / rtiAssistant, the C2SIM server, stp-lt or 19575. The SIM writes its own log under
 # C:\MAK\logs and its terrain cache through the appData cache junction, as on every run (declared in the PREREG).
 # LaunchVrf52 itself COPIES the vendor log at load (its READY snapshot, -LogFile default runs\launch52\vrfSim_*;
 # LaunchVrf52.ps1:825-827, :1449). That copy stays on the box: never attached, never committed. This script copies
 # nothing; it reads the vendor log in place for counts.
+# CONSOLIDATION 2026-10-20 (the operator, directly): memory-based stops are OFF by default; failure-based stops
+# (back end lost, RTI damage, stp-lt failure) stay. Measured, S3 (STP-1296 c14982, no memory limits): the vendor's
+# PhaseTwo back end printed a PLATEAU at 18:28:49Z (WS 16,878 / private 38,199 MB) with commit at 95-97 % of the limit
+# for 66 min; S1 / S2 had been ended by the 6 GiB stop at T0 + 49 / 43 s, and a 1.0 GiB floor or a 95 % commit guard
+# would have ended S3 before its plateau. Re-arm a stop only by passing it explicitly.
 param([Parameter(Mandatory)][int]$AppBase,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
       [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo',   # amendment C (D236); Counterattack via -Scenario
@@ -29,13 +35,13 @@ param([Parameter(Mandatory)][int]$AppBase,
       [int]$Multiplier = 0,
       # Amendment C2 (D238): the pre-launch free-memory gate, GiB. 11.5 was a comparability number; the safety line is
       # the MEMORY STOP (-StopGiB, sys_sampler.ps1; see C5 below - S3 disabled both, c14981).
-      [double]$GateGiB = 11.5,
-      # Amendment C5 (D240): the memory STOPs as parameters. -StopGiB is the system sampler's MEMORY STOP (default 6.0);
-      # -WsAbortMBPerMin / -WsAbortWsMB are ws_sampler2's slope / size aborts (700 MB/min over 300 s, 16,000 MB). 0 for
-      # -StopGiB / -GateGiB / -StopCommitPct disables that stop. S3 ran with NO memory limits by the operator's direct
+      [double]$GateGiB = 0,
+      # Amendment C5 (D240): the memory STOPs as parameters. -StopGiB is the system sampler's MEMORY STOP (S1 / S2: 6.0);
+      # -WsAbortMBPerMin / -WsAbortWsMB are ws_sampler2's slope / size aborts (S1 / S2: 700 MB/min over 300 s, 16,000 MB). 0
+      # disables that stop, and 0 is now the DEFAULT for all five (the consolidation note at the top). S3 ran with NO memory limits by the operator's direct
       # instruction (STP-1296 c14981): -GateGiB 0 -StopGiB 0 -StopCommitPct 0, the ws_sampler2 aborts out of reach. (C5's
       # first draft proposed a 1.0 GiB emergency floor, c14978; c14980 found it unsafe; both superseded by c14981.)
-      [double]$StopGiB = 6.0, [double]$WsAbortMBPerMin = 700, [double]$WsAbortWsMB = 16000,
+      [double]$StopGiB = 0, [double]$WsAbortMBPerMin = 0, [double]$WsAbortWsMB = 0,
       # C5 commit guard: STOP at this percent of the commit limit (0 = off); a MEMORY STOP like the floor (back end first).
       [double]$StopCommitPct = 0,
       # Amendment C3 (D239): the back end's --notifyLevel (4 = our default; 2 = the vendor default), and -NoWatch (no
