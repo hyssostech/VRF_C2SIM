@@ -43,7 +43,8 @@ $ffPath = "$appData\settings\vrfSim\fastForwardSettings.mtl"
 $ff = if (Test-Path -LiteralPath $ffPath) { Get-Content $ffPath -Raw } else { $null }
 "fastForwardSettings: " + $(if ($null -eq $ff) { 'ABSENT (no file, so no entry)' } else { $ff -replace '\s+', ' ' }) | Add-Content $gate -Encoding ascii
 Get-Content $gate
-if ($ff -match 'fast-forward-entry') { "ABORT: fastForwardSettings.mtl holds an entry (it can switch the frame mode)"; exit 4 }
+. (Join-Path $PSScriptRoot 'ff_check.ps1')   # S1-1: ignore ';' comment lines (the shipped file documents the syntax in them)
+if (Test-FastForwardEntry $ff) { "ABORT: fastForwardSettings.mtl holds a LIVE entry (it can switch the frame mode)"; exit 4 }
 if ($free -lt 11.5) { "ABORT: free memory $free GiB < 11.5 (STP-1296 amendment 2)"; exit 4 }
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
