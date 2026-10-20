@@ -1,7 +1,11 @@
 # STP-1296 amendment 2: the SYSTEM-side sampler, run beside ws_sampler2.ps1 (the back-end sampler) on the same host
 # clock (both stamp Get-Date UTC). One sample + a 1 s sleep per loop: about 1 Hz, slower under memory pressure.
 # Read-only: it never stops anything; the caller tears down on its STOP marker.
-# CSV: tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB
+# CSV: tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB,
+#      commitGiB,commitLimitGiB,pageFaultsPerSec,pagefileUsedMB,backendPageFaultsPerSec   (the last five: amendment C5)
+# commit charge / limit and page faults/s: Win32_PerfFormattedData_PerfOS_Memory (CommittedBytes, CommitLimit,
+# PageFaultsPersec); pagefile use: Win32_PageFileUsage CurrentUsage (MB, summed); the back end's own page faults/s:
+# Win32_PerfFormattedData_PerfProc_Process (Name vrfSimHLA1516e, PageFaultsPersec). An unreadable value is empty.
 # (an absent or unreadable process = empty cells). tUtc is HH:mm:ss.fff. availGiB is Win32_OperatingSystem
 # FreePhysicalMemory, which Windows reports as AVAILABLE memory (free + standby + zeroed; Task Manager "Available"),
 # the same quantity as every earlier memory gate. vmmem* matches vmmemWSL (and vmmem on older WSL builds).
@@ -12,7 +16,14 @@
 # The caller watches the MARKER, not the exit code.
 param([Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$SnapDir, [int]$Seconds = 3600,
       [double]$WarnGiB = 7.0, [double]$StopGiB = 6.0)
-"tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB" | Set-Content $Out -Encoding ascii
+"tUtc,availGiB,vmmemWslWsMB,vmmemWslPrivMB,ifcWsMB,ifcPrivMB,guiWsMB,guiPrivMB,backendWsMB,backendPrivMB,commitGiB,commitLimitGiB,pageFaultsPerSec,pagefileUsedMB,backendPageFaultsPerSec" | Set-Content $Out -Encoding ascii
+function Vm {
+    $m = try { Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory -ErrorAction Stop } catch { $null }
+    $pf = try { (Get-CimInstance Win32_PageFileUsage -ErrorAction Stop | Measure-Object CurrentUsage -Sum).Sum } catch { $null }
+    $bp = try { (Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -Filter "Name='vrfSimHLA1516e'" -ErrorAction Stop | Select-Object -First 1).PageFaultsPersec } catch { $null }
+    '{0},{1},{2},{3},{4}' -f $(if ($m) { [math]::Round($m.CommittedBytes / 1GB, 2) } else { '' }), $(if ($m) { [math]::Round($m.CommitLimit / 1GB, 2) } else { '' }),
+        $(if ($m) { $m.PageFaultsPersec } else { '' }), $(if ($null -ne $pf) { $pf } else { '' }), $(if ($null -ne $bp) { $bp } else { '' })
+}
 New-Item -ItemType Directory -Force $SnapDir | Out-Null
 function Mem([string]$name) {
     $p = Get-Process $name -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -32,8 +43,8 @@ $end = (Get-Date).AddSeconds($Seconds)
 while ((Get-Date) -lt $end) {
     $now = Get-Date
     $avail = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
-    ('{0},{1},{2},{3},{4},{5}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'),
-        (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e')) | Add-Content $Out -Encoding ascii
+    ('{0},{1},{2},{3},{4},{5},{6}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, (Mem 'vmmem*'), (Mem 'VrfC2SimApp'),
+        (Mem 'vrfGui'), (Mem 'vrfSimHLA1516e'), (Vm)) | Add-Content $Out -Encoding ascii
     if ($avail -lt $StopGiB) { Snap 'stop' $now; ('{0} free {1} GiB < {2}' -f $now.ToUniversalTime().ToString('HH:mm:ss.fff'), $avail, $StopGiB) | Set-Content (Join-Path (Split-Path $SnapDir -Parent) 'c12-STOP.txt') -Encoding ascii; "STOP $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $StopGiB"; exit 3 }
     if (-not $warned -and $avail -lt $WarnGiB) { $warned = $true; Snap 'warn' $now; "WARN $($now.ToUniversalTime().ToString('HH:mm:ss.fff')) free $avail GiB < $WarnGiB" }
     Start-Sleep -Milliseconds 1000

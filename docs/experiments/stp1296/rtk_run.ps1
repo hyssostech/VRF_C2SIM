@@ -30,6 +30,10 @@ param([Parameter(Mandatory)][int]$AppBase,
       # Amendment C2 (D238): the pre-launch free-memory gate, GiB. 11.5 was a comparability number; the safety line is
       # the 6.0 GiB MEMORY STOP (sys_sampler.ps1), which is unchanged.
       [double]$GateGiB = 11.5,
+      # Amendment C5 (D240): the memory STOPs as parameters. -StopGiB is the system sampler's MEMORY STOP (6.0 before
+      # C5; for D240 1.0 = an EMERGENCY floor only, protecting the live system on this box); -WsAbortMBPerMin /
+      # -WsAbortWsMB are ws_sampler2's slope / size aborts (700 MB/min over 300 s, 16,000 MB before C5).
+      [double]$StopGiB = 6.0, [double]$WsAbortMBPerMin = 700, [double]$WsAbortWsMB = 16000,
       # Amendment C3 (D239): the back end's --notifyLevel (4 = our default; 2 = the vendor default), and -NoWatch (no
       # WatchVrf observer). Under -NoWatch there is no IDLE end (no POS); the run ends only on a STOP or the operator,
       # and a WS that stays flat for -FlatSec (max - min < -FlatMB) is reported once as ANSWERED and the run continues.
@@ -73,7 +77,8 @@ if ($free -lt $GateGiB) { "ABORT: free memory $free GiB < $GateGiB (launch gate;
 if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "ABORT: VR-Forces or an interface is already running"; exit 2 }
 $sysStart = Get-Date
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
-    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds',"$InstrumentSec",'-StopGiB',"$StopGiB",
+    '-WarnGiB',"$($StopGiB + 1.0)") -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle
 $smp = $null; $watch = $null; $bePid = 0; $beStart = $null; $launchUtc = (Get-Date).ToUniversalTime()
 function Get-VendorLog {
@@ -192,7 +197,7 @@ $be = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -
 if ($be) { $bePid = $be.Id; $beStart = $be.StartTime.ToUniversalTime(); "[$(& $ts)] back end pid $bePid" }
 $script:readyUtc = (Get-Date).ToUniversalTime()   # C3: READY -> T0 is kept as in S1; its WS slope is reported
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
-    '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$InstrumentSec",'-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
+    '-Out',"$R\$d\c11-sampler.csv",'-Seconds',"$InstrumentSec",'-AbortMBPerMin',"$WsAbortMBPerMin",'-WindowSec','300','-AbortWsMB',"$WsAbortWsMB") -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 
 # ---- tool env (5.2: VR-Forces 5.2d, VR-Link 5.10, MAK RTI 5.0.1 rtiexec posture; StartInterface52.ps1 :8-12) ----
 $env:PATH = "$bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti5.0.1\bin;" + $env:PATH
@@ -296,7 +301,7 @@ while ($true) {
                     # first text said the vendor log "stopped 24 s before T0" in S1 - a SUSPECTED INSTRUMENT ARTIFACT of the
                     # directory entry, amendment C4.)
                     if ($cpu -ge 0.2) { $flatDone = $true
-                        "[$(& $ts)] ANSWERED (C3): WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
+                        "[$(& $ts)] ANSWERED / PLATEAU (C3/C5): back-end WS level $([math]::Round($span.Maximum)) MB; WS flat over the last $FlatSec s (max - min $([math]::Round($dd)) MB < $FlatMB) with the back end busy (mean $([math]::Round($cpu, 2)) cores); the run continues as observation until the operator ends it" |
                             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append }
                     else { "[$(& $ts)] FLAT but the back end is near idle (mean $([math]::Round($cpu, 2)) cores) - NOT answered (could be hung)" |
                             Tee-Object -FilePath (Join-Path $R "$d\c15-checkpoints.txt") -Append } } } }

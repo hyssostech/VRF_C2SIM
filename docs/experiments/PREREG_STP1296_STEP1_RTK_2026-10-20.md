@@ -296,6 +296,30 @@ Change (rtk_run.ps1): freshness is the LIVE length, read by opening the file wit
 watch-mode liveness rule requires that live length to GROW between idle checks; c16-vlog.csv keeps the directory-entry
 stamp and length beside the live length, so the next run measures the lag directly.
 
+## 0g. AMENDMENT C5 (operator D240, 2026-10-20) - does the vendor's code use available RAM by design?
+
+D240: "Remove this stop at 6GB and run the vendor's code again. I wonder if it takes advantage of all available RAM by
+design." Measured so far: S1 and S2 both ended on the 6.0 GiB MEMORY STOP within 49 s of T0 (WS 3.2 -> 7.8-8.6 GB).
+Change - S2's configuration exactly (PhaseTwo as shipped, -NotifyLevel 2, -NoWatch, the saved 15x, no window), except:
+- the 6.0 GiB MEMORY STOP is REMOVED: -StopGiB 1.0 is an EMERGENCY floor only, to protect the live system on this box;
+  ws_sampler2's slope and size aborts (700 MB/min over 300 s; 16,000 MB) are REMOVED too (-WsAbortMBPerMin and
+  -WsAbortWsMB set out of reach), since either would end the run first (S2 climbed at 4,483 MB/min). The floor still
+  forces our own back end first, at once (C3).
+- the system sampler adds, at about 1 Hz (slower: three more CIM reads per sample): commit charge and commit limit, page
+  faults/s, pagefile use, and the back end's own page faults/s; it already records the back end's WS and private bytes
+  and system Available.
+Ends: PLATEAU - the back-end WS flat for 600 s (max - min < 100 MB) with the back end busy (C3) - reported once with its
+level, then the run keeps going as an observation until the operator ends it; the emergency floor; the back end gone;
+or the operator (OPERATOR-END.txt).
+Pre-stated readings (measurement statements; implications are the operator's):
+- BY DESIGN: the WS plateaus while Available stays above the floor and commit charge stays below the commit limit -
+  the back end uses memory up to a level and holds it.
+- NOT BY DESIGN: the back end's PRIVATE bytes keep growing until commit charge approaches the commit limit (or the
+  floor stops the run) with no plateau.
+- Recorded beside either: whether the WS growth is matched by private-bytes growth (committed, not trimmable) or not
+  (trimmable / shared), and the page-fault and pagefile behaviour when Available falls.
+Ledger 5575-5579 (4 consumed, the WatchVrf number burned by design under -NoWatch).
+
 ## 1. Citations (CLAUDE.md sec 1, both kinds)
 
 VENDOR:
