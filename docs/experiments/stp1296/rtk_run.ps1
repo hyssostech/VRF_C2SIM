@@ -7,6 +7,9 @@
 # What this script does NOT do: save the scenario (no GUI; no save call exists here), write under C:\MAK itself, touch
 # rtiexec / rtiForwarder / rtiAssistant, the C2SIM server, stp-lt or 19575. The SIM writes its own log under
 # C:\MAK\logs and its terrain cache through the appData cache junction, as on every run (declared in the PREREG).
+# LaunchVrf52 itself COPIES the vendor log at load (its READY snapshot, -LogFile default runs\launch52\vrfSim_*;
+# LaunchVrf52.ps1:825-827, :1449). That copy stays on the box: never attached, never committed. This script copies
+# nothing; it reads the vendor log in place for counts.
 param([Parameter(Mandatory)][int]$AppBase,
       [string]$Root = 'F:\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM',
       [string]$Scenario = 'Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo',
@@ -45,9 +48,36 @@ if (Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue) { "
 $sys = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot 'sys_sampler.ps1'),
     '-Out',"$R\$d\c12-sys.csv",'-SnapDir',"$R\$d\c12-snap",'-Seconds','3600') -RedirectStandardOutput "$d\c12-sys.out" -PassThru -WindowStyle Hidden
 $null = $sys.Handle
-$smp = $null; $watch = $null
+$smp = $null; $watch = $null; $bePid = 0; $beStart = $null; $launchUtc = (Get-Date).ToUniversalTime()
+function Get-VendorLog {
+    # the back end's own log: newest *<pid>.log written since this launch (an older same-pid log can exist)
+    if ($script:bePid -le 0) { return $null }
+    Get-ChildItem C:\MAK\logs -Filter "*$($script:bePid).log" -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTimeUtc -ge $script:launchUtc } | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+}
+function Show-Threads {
+    if ($script:bePid -le 0) { return }   # pid 0 is the System Idle process, never ours
+    $b = Get-Process -Id $script:bePid -ErrorAction SilentlyContinue
+    if (-not $b) { return }
+    $a = @{}; foreach ($t in $b.Threads) { try { $a[$t.Id] = $t.TotalProcessorTime.TotalSeconds } catch {} }
+    Start-Sleep 5; $b = Get-Process -Id $b.Id -ErrorAction SilentlyContinue
+    if ($b) { "   top threads (cpu s / 5 s): " + (($b.Threads | ForEach-Object { try { [math]::Round($_.TotalProcessorTime.TotalSeconds - $a[$_.Id], 2) } catch { 0 } } | Sort-Object -Descending | Select-Object -First 3) -join ', ') + "; ws MB " + [math]::Round($b.WorkingSet64/1MB) }
+}
+function Show-LogCounts([string]$label) {
+    # Vendor log: COUNTS ONLY, read in place, never copied (it holds the environment in clear text).
+    $w = Get-VendorLog
+    if (-not $w) { "   vendor log ($label): not found"; return }
+    $q = @(Select-String -Path $w.FullName -Pattern 'queued for ([0-9.]+) seconds' | ForEach-Object { [double]$_.Matches[0].Groups[1].Value } | Sort-Object)
+    $pct = { param($p) if ($q.Count) { $q[[math]::Min($q.Count - 1, [math]::Floor($p * $q.Count))] } else { 'n/a' } }
+    $n = 0; foreach ($l in [System.IO.File]::ReadLines($w.FullName)) { $n++ }
+    "   vendor log ($label): last write " + $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') + "; lines $n" +
+        "; feature_source " + (Select-String -Path $w.FullName -SimpleMatch 'feature_source').Count +
+        "; queued-for n " + $q.Count + " median " + (& $pct 0.5) + " p95 " + (& $pct 0.95)
+}
 function Stop-Run([string]$why) {
     "[$(& $ts)] STOP: $why"
+    $w = Get-VendorLog; if ($w) { "   vendor log last write BEFORE the stop: " + $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') }
+    Show-Threads
     $b = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($b) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -TimeoutSec 15 -GraceSec 1 -ForceOwnBackendPid $b.Id -ForceOwnBackendStartUtc $b.StartTime.ToUniversalTime().ToString('o') *> "$d\c10-force.log"; "[$(& $ts)] back end stop exit $LASTEXITCODE" }
     else { "[$(& $ts)] no back end running" }
@@ -56,6 +86,7 @@ function Stop-Run([string]$why) {
     foreach ($p in $script:smp, $script:watch, $sys) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } catch {} } }
     "   left running: " + ((Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')
     "   cache after: " + (CacheSize)
+    Show-LogCounts 'after the stop'
     exit 7
 }
 function Stop-Check {
@@ -69,10 +100,14 @@ function Stop-Check {
 $launch = Start-Process pwsh -ArgumentList @('-NoProfile','-File','scripts\LaunchVrf52.ps1','-Scenario',$Scenario,
     '-FederationHoldAppNumber',"$AppBase",'-FederationHoldSecs','2400','-BackendAppNumber',"$($AppBase+2)",'-NoGui',
     '-NotifyLevel','4','-ReadyTimeoutSec','240','-ScenarioLoadTimeoutSec','420','-AppDataDir',$appData) -RedirectStandardOutput "$d\c2-launchvrf52.log" -RedirectStandardError "$d\c2-launchvrf52.err" -PassThru -WindowStyle Hidden
-$deadline = (Get-Date).AddSeconds(600)
+$deadline = (Get-Date).AddSeconds(900)   # ReadyTimeoutSec 240 + ScenarioLoadTimeoutSec 420 + the holder join
 while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]' -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep 5 }
 "[$(& $ts)] launch: " + ((Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d|\[FAIL\]|loaded scenario' | Select-Object -First 3 | ForEach-Object { $_.Line.Trim().Substring(0,[Math]::Min(90,$_.Line.Trim().Length)) }) -join ' | ')
-if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { Stop-Run 'ABORT: VR-Forces not READY (or the scenario did not load)' }
+if (-not (Select-String -Path "$d\c2-launchvrf52.log" -Pattern 'READY: 5.2d' -Quiet)) { Stop-Run 'ABORT: VR-Forces not READY' }
+# READY alone is not a load: LaunchVrf52 prints READY after a failed load or a load timeout too (:1440-1446, :1469).
+if (-not (Select-String -Path "$d\c2-launchvrf52.log" -SimpleMatch 'scenario LOAD CONFIRMED' -Quiet)) { Stop-Run 'ABORT: the scenario load was not confirmed (LaunchVrf52.ps1:1445)' }
+$be = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($be) { $bePid = $be.Id; $beStart = $be.StartTime.ToUniversalTime(); "[$(& $ts)] back end pid $bePid" }
 $smp = Start-Process pwsh -ArgumentList @('-NoProfile','-File',(Join-Path $PSScriptRoot '..\handoff-2026-10-15\ws_sampler2.ps1'),
     '-Out',"$R\$d\c11-sampler.csv",'-Seconds','3000','-AbortMBPerMin','700','-WindowSec','300','-AbortWsMB','16000') -RedirectStandardOutput "$d\c11-sampler.out" -PassThru -WindowStyle Hidden
 
@@ -93,33 +128,23 @@ while ((Get-Date) -lt $deadline) { Stop-Check; if (Select-String -Path "$d\c13-w
 "[$(& $ts)] observer: " + ((Select-String -Path "$d\c13-watch.txt" -Pattern '^# t=' | Select-Object -First 1).Line)
 Push-Location $bin64; & $runSimExe ($AppBase + 3) *> (Join-Path $R "$d\c14-runsim.txt"); $rse = $LASTEXITCODE; Pop-Location
 $t0 = Get-Date
+if ($rse -ne 0) { Stop-Run "RunSim exit $rse - run() was not sent, the clock did not start (tools/RunSim/Program.cs:143-152)" }
 "[$(& $ts)] T0 (RunSim exit $rse): " + ((Get-Content "$d\c14-runsim.txt" | Select-Object -Last 2) -join ' | ')
 
 # ---- window ----
 $deadline = $t0.AddSeconds($WindowSec)
 while ((Get-Date) -lt $deadline) { Stop-Check; Start-Sleep 5 }
-"[$(& $ts)] window end"
-$vb = Get-Process vrfSimHLA1516e -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($vb) {
-    $a = @{}; foreach ($t in $vb.Threads) { try { $a[$t.Id] = $t.TotalProcessorTime.TotalSeconds } catch {} }
-    Start-Sleep 5; $vb = Get-Process -Id $vb.Id
-    "   top threads (cpu s / 5 s): " + (($vb.Threads | ForEach-Object { try { [math]::Round($_.TotalProcessorTime.TotalSeconds - $a[$_.Id], 2) } catch { 0 } } | Sort-Object -Descending | Select-Object -First 3) -join ', ') + "; ws MB " + [math]::Round($vb.WorkingSet64/1MB)
-}
+$w = Get-VendorLog
+"[$(& $ts)] window end; vendor log last write AT THE WINDOW END (Q1): " + $(if ($w) { $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') } else { 'not found' })
+Show-Threads
+$vb = if ($bePid -gt 0) { Get-Process -Id $bePid -ErrorAction SilentlyContinue } else { $null }
 
 # ---- teardown: observer resigns, then the back end ----
 New-Item -ItemType File -Force $stopFile | Out-Null
 $watch.WaitForExit(30000) | Out-Null
-if ($vb) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -ForceOwnBackendPid $vb.Id -ForceOwnBackendStartUtc $vb.StartTime.ToUniversalTime().ToString('o') *> "$d\c9-stopvrf52.log"; "[$(& $ts)] StopVrf: $LASTEXITCODE" }
+if ($vb) { pwsh -NoProfile -File scripts\StopVrf52.ps1 -ForceOwnBackendPid $vb.Id -ForceOwnBackendStartUtc $beStart.ToString('o') *> "$d\c9-stopvrf52.log"; "[$(& $ts)] StopVrf: $LASTEXITCODE" }
 foreach ($p in $smp, $watch, $sys) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } catch {} } }
 "   cache after: " + (CacheSize)
-# Vendor log: COUNTS ONLY, read in place, never copied (it holds the environment in clear text).
-if ($vb) {
-    $w = Get-ChildItem C:\MAK\logs -Filter "*$($vb.Id).log" | Select-Object -First 1
-    $q = @(Select-String -Path $w.FullName -Pattern 'queued for ([0-9.]+) seconds' | ForEach-Object { [double]$_.Matches[0].Groups[1].Value } | Sort-Object)
-    $pct = { param($p) if ($q.Count) { $q[[math]::Min($q.Count - 1, [math]::Floor($p * $q.Count))] } else { 'n/a' } }
-    "   vendor log: last write " + $w.LastWriteTimeUtc.ToString('HH:mm:ss.fff') + "; lines " + (Get-Content $w.FullName | Measure-Object).Count +
-        "; feature_source " + (Select-String -Path $w.FullName -SimpleMatch 'feature_source').Count +
-        "; queued-for n " + $q.Count + " median " + (& $pct 0.5) + " p95 " + (& $pct 0.95)
-}
+Show-LogCounts 'after the close'
 "   left running: " + ((Get-Process vrfSim*, vrfGui*, VrfC2SimApp -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')
 "   RTI: " + ((Get-Process rtiexec, rtiForwarder -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ') + "; holder app $AppBase"

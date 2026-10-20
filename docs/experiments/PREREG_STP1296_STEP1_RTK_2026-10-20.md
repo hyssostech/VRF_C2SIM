@@ -10,7 +10,7 @@ Measurements and design implications are kept in separate sentences (CLAUDE.md s
 
 ## 0. What the run can and cannot answer
 
-- CAN: whether MAK's own large-area aggregate scenario, on its own terrain (MAK Earth Aggregate online), its own SMS
+- CAN: whether MAK's own aggregate scenario, on its own (small, see the caveat) area, its own terrain (MAK Earth Aggregate online), its own SMS
   (AggregateTacticalLevel) and its own frame mode, shows the D36(b) signature on this box: a back-end loss, a working
   set climbing at more than 200 MB/min, feature-queue waits of minutes.
 - CANNOT, by design: say anything about our interface's tasking (nothing of ours runs), or about the Iron Storm area.
@@ -35,19 +35,19 @@ VENDOR:
 - UG Table 14 p233: frame-time is not enabled in variable-frame (addendum item (4)).
 - RoadToKaunas.scn:3-4, 16-17, 22 (terrain, SMS, variable-frame 0.1 s; AGGREGATE_CATALOGUE_2026-09-27.md:220: time
   multiplier 1.0, run-duration 0). FEG p20: "in-scenario descriptions and quick launch events" (VD-1:94-96).
-- vrfRemoteController.h simTime(): "Returns the simulation time of the specified back end" (VrfFacade.h:464-471).
+- vrfRemoteController.h:356 simTime(): "Returns the simulation time of the specified back end" (quoted at VrfFacade.h:463-466).
 
 OWN RECORD:
 - D36(b) (D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md:30-49, :99-118): the criteria P1-P4 mirrored in sec 3, the
   SCORED result (BACK END LOST 2 min after the order; 2.6 -> 14.3 GB, about 1,860 MB/min; queue median 73 s, p95 135 s,
   NotifyLevel 4), and its reading "the memory climb started at order receipt with one navigate out".
 - D36 (a): a stopped back end's sim clock reads as advancing at exactly 1x (the controller extrapolates; D36:24, :69).
-- L1 (never run): PhaseTwo has the most planned movers, 24 units with movement tasks (PREREG_L1:33-34); its three
-  predictions (:43-46) are kept in sec 4.
+- L1 (never run): PhaseTwo has the most planned movers, 24 units with movement tasks (PREREG_L1:36-37; L1 line numbers here are after this branch's fix note at L1:34-36); its three
+  predictions (:46-49) are kept in sec 4.
 - G0b (PREREG_STP1296_GROUP_TASK_2026-10-19.md:130-132): containers get group-attack-to-objective only - Counterattack
   5 plans + 9 saved states, PhaseTwo 3 + 5, RoadToKaunas 0.
 - PhaseTwo's .oob saves in-flight tasks, e.g. a unit "(is-tasked True)" with move_to_waypoint_plan_path
-  (EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt:71967-72014).
+  (EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt lines 31 and 59, which quote .oob lines 71986 and 72014).
 - RunSim: "a scenario loaded via LaunchVrf starts PAUSED" (tools/RunSim/Program.cs:13; written on 5.0.2).
 - c14963 and amendment 2 (stp1296_arm.ps1 header): the memory gate, the second sampler, back end first on a STOP.
 - Road to Kaunas has never been launched on this box (STP1296 PREREG :308; no ledger line names it).
@@ -59,8 +59,11 @@ OWN RECORD:
   Sample\VR-TheWorld_Online\AggregateTacticalLevel\RoadToKaunas\RoadToKaunasPhaseTwo\RoadToKaunasPhaseTwo, because
   LaunchVrf52 appends .scnx and checks it exists (LaunchVrf52.ps1:811-812, :854-856). FIX AT ITS SITE: L1:33 omits the
   repeated basename and would fail that check.
-  - Switch rule, decided BEFORE the run from box read B3: if PhaseTwo's container group-attack plans are all
-    trigger-gated (none starts on Run) and Counterattack has at least one that starts on Run, run Counterattack instead.
+  - Switch rule, decided BEFORE the run from box reads B3/B4 over ALL THREE scenarios (Counterattack, PhaseTwo and the
+    base RoadToKaunas): if PhaseTwo's container group-attack plans are all trigger-gated (none starts on Run) and
+    Counterattack has at least one that starts on Run, run Counterattack instead. The base RoadToKaunas carries no
+    container group-attack (G0b), so it is not a candidate for step 2's purpose; its B3/B4 figures are recorded so
+    the choice is shown, not asserted.
     The choice and its reason are written into the ledger line before the first join.
 - SAVED STATE, DECLARED: PhaseTwo ships saved in-flight tasks (above). "As shipped" means they load as saved. They are
   not edited out. Box read B4 counts them (is-tasked True, per task type); the result reports that count. Whether they
@@ -70,8 +73,12 @@ OWN RECORD:
   vendor's and is part of "the vendor way". fastForwardSettings.mtl must hold no entry (the script ABORTs otherwise).
 - CACHE, DECLARED: the run-owned appData C:\C2SIM\vrf-appdata-unattended\appData, as D36(b), whose cache\vrfsim is a
   junction to the vendor cache (NewVrfAppData52.ps1:43). The cache holds tiles from the Iron Storm runs and none from
-  this area, so it is COLD for this scenario's area. Files / MB are recorded before and after.
+  this area, so it is COLD for this scenario's area. That is an INFERENCE from run history: the junction is
+  appData\cache (NewVrfAppData52.ps1:43), the vendor's own cache, its contents by area are unmeasured, and the
+  files / MB recorded before and after cannot show area.
 - C:\MAK, DECLARED: the script writes nothing there. The scenario is never saved: there is no GUI and no save call.
+  LaunchVrf52 copies the vendor log at load to runs\launch52\vrfSim_*.log (its READY snapshot; LaunchVrf52.ps1:825-827,
+  :1449). That copy stays on the box: never attached, never committed. The run script copies nothing.
   The SIM itself writes its log to C:\MAK\logs and its terrain cache through the junction, as on every run
   (LaunchVrf52.ps1:23-25, :199-202; APPDATA_RELOCATION_2026-09-14.md:187-190).
 - NotifyLevel 4, passed explicitly (-NotifyLevel 4). The queue measure is absent at level 3 (D36:32).
@@ -89,20 +96,26 @@ Instruments (docs/experiments/stp1296/rtk_run.ps1):
 
 T0 = RunSim's run(). Window = 1,200 WALL s (20 min) after T0.
 PASS only if ALL hold; any miss = FAIL:
-- Q1 (D36 P1, no back-end loss): WatchVrf's backends= never drops 1 -> 0. The vendor log's last write after the close
-  is within 60 s of the window end. No rtiexec resign of the back end.
-- Q2 (D36 P2, the clock): SIM/WALL per 60 s, from the sim= and t= deltas, reads >= 0.95 for every 60 s step.
-  - DEPARTURE, declared: D36 P2 was ">= 1.000" under fixed-frame-run-to-complete, which runs ahead of wall time. At
-    variable-frame and multiplier 1.0 the nominal ratio is 1.0, so 0.95 is the tolerance.
-  - Q2 CANNOT detect a stop: a stopped back end also reads 1x (D36 (a)). Q1 and Q4 carry that.
+- Q1 (D36 P1, no back-end loss): WatchVrf's backends= never drops 1 -> 0 (the stop signature on record: 1 -> 0 about
+  121 s after a stop, DESIGN_BACKEND_LIVENESS_2026-09-15.md:23), AND the vendor log's last write, read AT THE WINDOW
+  END before any teardown, is within 60 s of it. The post-close stamp is recorded too, not scored.
+- Q2 (D36 P2, the clock): RECORDED, NOT GATING - a declared departure. SIM/WALL per 60 s from the sim= and t= deltas.
+  - D36 P2 was ">= 1.000" under fixed-frame-run-to-complete, where load slows sim time. At variable-frame and
+    multiplier 1.0, sim time follows wall time and takes longer steps under load (PREREG_L5_FRAME_MODE_ADDENDUM:52),
+    and a stopped back end also reads 1x (D36 (a)). So the ratio is insensitive to load and to a stop; it shows only
+    whether the clock RUNS (a paused clock reads 0). It feeds the VOID test below, not the verdict.
 - Q3 (D36 P3): the back end's working-set slope <= 200 MB/min over every 5-min window from T0 + 5 min to the window
   end (ws_sampler2's CSV).
-- Q4 (D36 P4, movement happens): at least one TSK completion of a movement task in the window, AND at least 5 objects
-  each move more than 500 m (POS) between T0 + 60 s and the window end.
-  - VOID instead of FAIL: no object moves more than 500 m by T0 + 300 s, and Q1 still holds. The clock did not start
-    or every plan is trigger-gated; that is not evidence about paging.
+- Q4 (D36 P4, movement happens): at least 5 objects each move more than 500 m (POS) between T0 + 60 s and the window
+  end. TSK completions are RECORDED, not gating: whether the back end reports completions of plan-driven tasks that
+  no remote controller assigned is NOT IN RECORD (every TSK on record followed an interface-assigned task).
+  - VOID instead of FAIL: no object moves more than 500 m by T0 + 300 s, and Q1 still holds, and the sim= clock is
+    running (Q2 > 0). Then every plan is trigger-gated; that is not evidence about paging.
+  - The script STOPs (no score) if the load is not confirmed ("scenario LOAD CONFIRMED", LaunchVrf52.ps1:1445) or
+    RunSim does not exit 0 (tools/RunSim/Program.cs:143-152), so neither can be misread as VOID.
 
-Recorded, not gating (as D36 recorded the queue):
+Recorded, not gating (as D36 recorded the queue); on a STOP the script still records the queue, the top-3 thread CPU
+and the vendor log's last write before the stop:
 - the feature queue n / median / p95, against D36(b) SCORED (73 / 135 s) and FILL (114 / 161 s);
 - memory: the gate line, the sys CSV's minimum Available and when, the vmmem* and per-container figures, any WARN or
   STOP snapshot;
@@ -121,14 +134,14 @@ Readings (each a measurement statement; implications follow in separate sentence
   - Implication: step 2 may be registered (the operator's rule). The area caveat (sec 0) travels with the verdict.
 - FAIL on Q1 or Q3: the D36(b) signature occurs with MAK's own pattern and frame mode, with nothing of ours running.
   - Implication: changing our tasking to the vendor's way does not avoid it; step 2 is not run, and the terrain levers
-    (T2 sim-only buildings off, T4 terrainInterfaceConfig) come first (L1:51-52).
-- FAIL on Q2 or Q4 alone: recorded as such. The operator decides whether step 2 proceeds.
+    (T2 sim-only buildings off, T4 terrainInterfaceConfig) come first (L1:54-55).
+- FAIL on Q4 alone: recorded as such. The operator decides whether step 2 proceeds.
 - VOID (Q4): no reading about paging. One re-run is allowed only after the trigger question is read on the box.
 
 ## 5. Changes from L1 as registered (each declared)
 
-1. -NoGui (L1:36 said GUI on): the 10-16 standing ruling and memory.
-2. A clock start: L1 named no run() sender (L1:38). RunSim (tools/RunSim), no multiplier, one app number.
+1. -NoGui (L1:39 said GUI on): the 10-16 standing ruling and memory.
+2. A clock start: L1 named no run() sender (L1:41). RunSim (tools/RunSim), no multiplier, one app number.
 3. NotifyLevel 4 passed (L1's command ran at the default 3, where the queue measure has 0 lines; D36:32).
 4. The scenario path repeats the basename (L1:33 would fail LaunchVrf52's check).
 5. The holder is held 2,400 s (-FederationHoldSecs 2400), not the 900 s default, which is shorter than the window.
@@ -161,10 +174,10 @@ runs/stp1296/step1/ (CSVs, the watch trace, snapshots, the gate file; vendor log
 ## 7. Registration lines (C-4 prereg lint, check 13d)
 
 VENDOR CITATION: UG52 3.4.3 p122; UG52 63.6.1 p1247; AC p239; UG 7.6.1 p261; UG Table 14 p233; RoadToKaunas.scn:3-4,
-16-17, 22; FEG p20; vrfRemoteController.h simTime() (VrfFacade.h:464-471).
-OWN-RECORD CITATION: D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md :24, :30-49, :69, :99-118;
+16-17, 22; FEG p20; vrfRemoteController.h:356 simTime() (as quoted at VrfFacade.h:463-466).
+OWN-RECORD CITATION: D36_BACKEND_STOP_AND_WARM_CACHE_2026-10-15.md :24, :30-49, :69, :99-118; DESIGN_BACKEND_LIVENESS_2026-09-15.md:23;
 PREREG_L1_L2_DOCUMENTED_MOVE_2026-10-15.md :31-56; PREREG_L1_L2_L5_DOCS_ADDENDUM_2026-10-15.md items (4)-(6);
-PREREG_STP1296_GROUP_TASK_2026-10-19.md :130-132, :308; EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt:71967-72014;
+PREREG_STP1296_GROUP_TASK_2026-10-19.md :130-132, :308; EXTRACT_RoadToKaunasPhaseTwo_oob_2026-09-28.txt:31, :59;
 FINDING_AGGREGATE_MOVEMENT_OBSTACLES_2026-09-28.md:137-138; HANDOFF_PARK_2026-10-16.md:81; Jira STP-1296 c14963.
 RUN KIND: movement
 DEVIATION FROM RECORD: no "--pre-order-gate" and no "CONSOLE LEVEL: 4": no interface runs and no order is pushed.
